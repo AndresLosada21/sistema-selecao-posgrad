@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Docker
+docker-compose.override.yml
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/migrations/*.sql.bak
+
+# Uploads (local dev)
+uploads/
+temp/
+
+# Misc
+*.tgz
+*.gz
