@@ -36,11 +36,37 @@ app.use(
   swaggerUi.serve,
   swaggerUi.setup(openApiDocument, {
     customSiteTitle: "PPGEE/UFAM API Docs",
+    customCss: `
+      .swagger-ui .topbar { border-bottom: 4px solid #0f766e; }
+      .swagger-ui .topbar-wrapper::after {
+        content: "Use Authorize ou o campo Authorization em cada rota protegida.";
+        color: #e6fffb;
+        font-size: 12px;
+        margin-left: 16px;
+        white-space: nowrap;
+      }
+      .swagger-ui .auth-wrapper .authorize {
+        background: #0f766e;
+        border-color: #0f766e;
+        color: #fff;
+      }
+      .swagger-ui .opblock.opblock-get .opblock-summary { border-color: #0ea5e9; }
+      .swagger-ui .opblock.opblock-post .opblock-summary { border-color: #16a34a; }
+      .swagger-ui .opblock.opblock-put .opblock-summary { border-color: #f59e0b; }
+      .swagger-ui .information-container .markdown p code,
+      .swagger-ui .opblock-description-wrapper code { background: #f1f5f9; padding: 2px 4px; border-radius: 4px; }
+    `,
     explorer: true,
     swaggerOptions: {
       persistAuthorization: true,
+      tryItOutEnabled: true,
+      filter: true,
+      deepLinking: true,
+      displayOperationId: true,
       displayRequestDuration: true,
       docExpansion: "list",
+      defaultModelExpandDepth: 3,
+      defaultModelsExpandDepth: 2,
       tagsSorter: "alpha",
       operationsSorter: "alpha",
     },
