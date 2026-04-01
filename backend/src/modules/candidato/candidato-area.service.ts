@@ -137,7 +137,17 @@ export async function getCandidateDashboard(usuarioId: string) {
             ? {
                 tema: participacao.inscricao.avaliacaoEtapa1.tema,
                 nota: participacao.inscricao.avaliacaoEtapa1.nota?.toNumber() ?? null,
-                espelhoCorrecao: participacao.inscricao.avaliacaoEtapa1.espelhoCorrecao,
+                espelhoDisponivel: Boolean(participacao.inscricao.avaliacaoEtapa1.espelhoLiberadoEm),
+                espelhoCorrecao: participacao.inscricao.avaliacaoEtapa1.espelhoLiberadoEm
+                  ? participacao.inscricao.avaliacaoEtapa1.espelhoCorrecao
+                  : null,
+                rubricaDetalhada: participacao.inscricao.avaliacaoEtapa1.espelhoLiberadoEm
+                  ? participacao.inscricao.avaliacaoEtapa1.rubricaDetalhada
+                  : null,
+                usoIaComprovado: participacao.inscricao.avaliacaoEtapa1.usoIaComprovado,
+                fundamentoUsoIa: participacao.inscricao.avaliacaoEtapa1.fundamentoUsoIa,
+                espelhoSolicitadoEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa1.espelhoSolicitadoEm),
+                espelhoLiberadoEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa1.espelhoLiberadoEm),
                 status: participacao.inscricao.avaliacaoEtapa1.status,
                 resultadoPreliminarEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa1.resultadoPreliminarEm),
                 resultadoFinalEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa1.resultadoFinalEm),

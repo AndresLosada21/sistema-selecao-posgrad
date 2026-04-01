@@ -18,6 +18,7 @@ import {
   EditalDetalheSchema,
   EditalIdParamSchema,
   EditalListResponseSchema,
+  Etapa1EspelhoSchema,
   Etapa1ListResponseSchema,
   Etapa2ListResponseSchema,
   HealthDegradedSchema,
@@ -530,7 +531,7 @@ registry.registerPath({
   tags: ["Etapa 1"],
   operationId: "registrarResultadoEtapa1",
   summary: "Registra resultado da etapa 1",
-  description: withAuthDescription("Registra nota, espelho e situacao preliminar ou final da etapa 1."),
+  description: withAuthDescription("Registra rubrica oficial, nota calculada, espelho e situacao preliminar ou final da etapa 1."),
   security: bearerAuth,
   request: withAuthHeaders({
     params: InscricaoIdParamSchema,
@@ -543,6 +544,80 @@ registry.registerPath({
     403: { description: "Acesso restrito a admin ou avaliador.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
     409: { description: "Inscricao nao apta para etapa 1.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/inscricoes/{inscricaoId}/etapa-1/espelho/solicitar",
+  tags: ["Etapa 1"],
+  operationId: "solicitarEspelhoEtapa1",
+  summary: "Solicita espelho da etapa 1",
+  description: withAuthDescription("Permite ao candidato solicitar o espelho da etapa 1 apos publicacao preliminar."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: InscricaoIdParamSchema }),
+  responses: {
+    200: { description: "Solicitacao registrada.", content: jsonContent(AvaliacaoEtapa1ModelSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Resultado preliminar ainda nao publicado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/inscricoes/{inscricaoId}/etapa-1/espelho/liberar",
+  tags: ["Etapa 1"],
+  operationId: "liberarEspelhoEtapa1",
+  summary: "Libera espelho da etapa 1",
+  description: withAuthDescription("Libera o espelho da etapa 1 para visualizacao do candidato."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: InscricaoIdParamSchema }),
+  responses: {
+    200: { description: "Espelho liberado.", content: jsonContent(AvaliacaoEtapa1ModelSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito a admin ou avaliador.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Espelho indisponivel para liberacao.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/inscricoes/{inscricaoId}/etapa-1/espelho",
+  tags: ["Etapa 1"],
+  operationId: "getEspelhoEtapa1ForCandidate",
+  summary: "Consulta espelho liberado da etapa 1",
+  description: withAuthDescription("Retorna o espelho estruturado da etapa 1 somente quando ja liberado ao candidato."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: InscricaoIdParamSchema }),
+  responses: {
+    200: { description: "Espelho estruturado da etapa 1 retornado.", content: jsonContent(Etapa1EspelhoSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Espelho indisponivel ou ainda nao liberado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/inscricoes/{inscricaoId}/etapa-1/espelho",
+  tags: ["Etapa 1"],
+  operationId: "getEspelhoEtapa1ForAdmin",
+  summary: "Consulta espelho administrativo da etapa 1",
+  description: withAuthDescription("Retorna o espelho estruturado da etapa 1 no contexto administrativo, independentemente da liberacao ao candidato."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: InscricaoIdParamSchema }),
+  responses: {
+    200: { description: "Espelho estruturado da etapa 1 retornado.", content: jsonContent(Etapa1EspelhoSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito a admin ou avaliador.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Espelho indisponivel para a inscricao.", content: jsonContent(MessageResponseSchema) },
   },
 });
 
