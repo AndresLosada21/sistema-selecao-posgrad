@@ -35,7 +35,10 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/previe
 
   if ("error" in result) {
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    return response.status(status).json({
+      message: result.error,
+      details: "details" in result ? result.details : undefined,
+    });
   }
 
   return response.status(200).json(result.preview);
@@ -114,7 +117,10 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/homologacao", req
 
   if ("error" in result) {
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    return response.status(status).json({
+      message: result.error,
+      details: "details" in result ? result.details : undefined,
+    });
   }
 
   if (!("publicacao" in result)) {

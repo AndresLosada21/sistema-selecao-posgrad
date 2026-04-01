@@ -68,22 +68,14 @@ export async function buildHomologacaoPublicacaoPreview(editalId: string, fase: 
     return { error: "EDITAL_NAO_ENCONTRADO" as const };
   }
 
-  const inscricoes = await prisma.inscricao.findMany({
+  const inscricoesSubmetidas = await prisma.inscricao.findMany({
     where: {
       participacaoEdital: {
         editalId,
       },
-      homologacao: fase === "PRELIMINAR"
-        ? {
-            statusPreliminar: {
-              not: null,
-            },
-          }
-        : {
-            statusFinal: {
-              not: null,
-            },
-          },
+      submetidaEm: {
+        not: null,
+      },
     },
     include: {
       participacaoEdital: {
@@ -99,11 +91,37 @@ export async function buildHomologacaoPublicacaoPreview(editalId: string, fase: 
     },
   });
 
-  if (inscricoes.length === 0) {
+  if (inscricoesSubmetidas.length === 0) {
     return { error: "HOMOLOGACAO_SEM_DADOS" as const };
   }
 
-  const itens = inscricoes.map((inscricao) => {
+  const pendencias = inscricoesSubmetidas
+    .filter((inscricao) => {
+      if (!inscricao.homologacao) {
+        return true;
+      }
+
+      const statusFase = fase === "PRELIMINAR"
+        ? inscricao.homologacao.statusPreliminar
+        : inscricao.homologacao.statusFinal;
+
+      return !statusFase;
+    })
+    .map((inscricao) => ({
+      inscricaoId: inscricao.id,
+      candidatoId: inscricao.participacaoEdital.usuario.id,
+      candidatoNome: inscricao.participacaoEdital.usuario.nomeCompleto,
+      possuiHomologacao: Boolean(inscricao.homologacao),
+    }));
+
+  if (pendencias.length > 0) {
+    return {
+      error: "HOMOLOGACAO_INCOMPLETA" as const,
+      details: pendencias,
+    };
+  }
+
+  const itens = inscricoesSubmetidas.map((inscricao) => {
     const homologacao = inscricao.homologacao!;
     const status = fase === "PRELIMINAR" ? homologacao.statusPreliminar : homologacao.statusFinal;
     const motivos = parseHomologacaoMotivos(

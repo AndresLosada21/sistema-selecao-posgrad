@@ -680,7 +680,7 @@ registry.registerPath({
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
-    409: { description: "Nao ha dados suficientes de homologacao para a fase informada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Homologacao incompleta ou sem dados suficientes para a fase informada.", content: jsonContent(ConflictErrorResponseSchema) },
   },
 });
 
@@ -702,7 +702,7 @@ registry.registerPath({
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
-    409: { description: "Nao ha dados suficientes de homologacao para a fase informada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Homologacao incompleta ou sem dados suficientes para a fase informada.", content: jsonContent(ConflictErrorResponseSchema) },
   },
 });
 
