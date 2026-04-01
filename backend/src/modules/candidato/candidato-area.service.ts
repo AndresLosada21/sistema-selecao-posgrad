@@ -77,6 +77,22 @@ export async function getCandidateDashboard(usuarioId: string) {
       : null,
     inscricao: participacao.inscricao
       ? {
+          ...(function () {
+            const inscricaoAny = participacao.inscricao as any;
+            return {
+              pacoteDocumental: inscricaoAny.pacoteDocumentalUrl
+                ? {
+                    urlArquivo: inscricaoAny.pacoteDocumentalUrl,
+                    nomeArquivo: inscricaoAny.pacoteDocumentalNomeArquivo,
+                    mimeType: inscricaoAny.pacoteDocumentalMimeType,
+                    tamanhoBytes: inscricaoAny.pacoteDocumentalTamanhoBytes,
+                    versaoSubmissao: inscricaoAny.pacoteDocumentalVersaoSubmissao,
+                    geradoEm: toIsoOrNull(inscricaoAny.pacoteDocumentalGeradoEm),
+                    geradoPorId: inscricaoAny.pacoteDocumentalGeradoPorId,
+                  }
+                : null,
+            };
+          })(),
           id: participacao.inscricao.id,
           status: participacao.inscricao.status,
           statusPagamento: participacao.inscricao.statusPagamento,

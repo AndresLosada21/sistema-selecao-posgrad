@@ -29,6 +29,8 @@ import {
   InscricaoIdParamSchema,
   InscricaoListResponseSchema,
   InscricaoModelSchema,
+  PacoteDocumentalDetalheResponseSchema,
+  PacoteDocumentalResumoSchema,
   ListEditaisQuerySchema,
   ListRecursosAdminQuerySchema,
   LoginRequestSchema,
@@ -48,6 +50,7 @@ import {
   RecursoListResponseSchema,
   RecursoModelSchema,
   RegisterRequestSchema,
+  RegistrarPacoteDocumentalRequestSchema,
   ResultadoEtapa1RequestSchema,
   ResultadoEtapa2RequestSchema,
   SaveDraftRequestSchema,
@@ -380,6 +383,69 @@ for (const route of [
     },
   });
 }
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/inscricoes/{inscricaoId}/pacote-documental",
+  tags: ["Inscricao"],
+  operationId: "registrarPacoteDocumentalConsolidado",
+  summary: "Registra pacote documental consolidado da inscricao",
+  description: withAuthDescription("Registra o arquivo PDF consolidado da inscricao e congela um snapshot auditavel da versao submetida."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(RegistrarPacoteDocumentalRequestSchema) },
+  }),
+  responses: {
+    201: { description: "Pacote documental consolidado registrado.", content: jsonContent(PacoteDocumentalResumoSchema) },
+    400: { description: "Dados invalidos do pacote documental.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao nao submetida ou pacote fora do padrao PDF.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/inscricoes/{inscricaoId}/pacote-documental",
+  tags: ["Inscricao"],
+  operationId: "getPacoteDocumentalDaInscricao",
+  summary: "Consulta pacote documental da inscricao do candidato",
+  description: withAuthDescription("Retorna os metadados do pacote documental consolidado e o snapshot auditavel associado."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+  }),
+  responses: {
+    200: { description: "Pacote documental retornado.", content: jsonContent(PacoteDocumentalDetalheResponseSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Pacote documental ainda nao gerado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/inscricoes/{inscricaoId}/pacote-documental",
+  tags: ["Inscricao"],
+  operationId: "getPacoteDocumentalDaInscricaoAdmin",
+  summary: "Consulta pacote documental da inscricao no contexto administrativo",
+  description: withAuthDescription("Retorna os metadados do pacote documental consolidado e o snapshot auditavel da inscricao para uso administrativo."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+  }),
+  responses: {
+    200: { description: "Pacote documental retornado.", content: jsonContent(PacoteDocumentalDetalheResponseSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Pacote documental ainda nao gerado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
 
 registry.registerPath({
   method: "get",

@@ -42,6 +42,15 @@ type AddDocumentoInput = {
   obrigatorio?: boolean;
 };
 
+type RegistrarPacoteDocumentalInput = {
+  inscricaoId: string;
+  geradoPorId: string;
+  urlArquivo: string;
+  nomeArquivo: string;
+  mimeType?: string;
+  tamanhoBytes?: number;
+};
+
 function isPdfFile(input: { mimeType?: string; nomeArquivo: string; urlArquivo: string }) {
   const mimeType = input.mimeType?.trim().toLowerCase() ?? "";
   const nomeArquivo = input.nomeArquivo.trim().toLowerCase();
@@ -81,6 +90,49 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
       linhaPesquisa: true,
     },
   });
+}
+
+async function getInscricaoById(inscricaoId: string) {
+  return prisma.inscricao.findUnique({
+    where: {
+      id: inscricaoId,
+    },
+    include: {
+      participacaoEdital: {
+        include: {
+          usuario: true,
+          edital: true,
+        },
+      },
+      documentos: true,
+      linhaPesquisa: true,
+    },
+  });
+}
+
+function buildPacoteDocumentalResumo(inscricao: {
+  [key: string]: unknown;
+  pacoteDocumentalUrl?: string | null;
+  pacoteDocumentalNomeArquivo?: string | null;
+  pacoteDocumentalMimeType?: string | null;
+  pacoteDocumentalTamanhoBytes?: number | null;
+  pacoteDocumentalVersaoSubmissao?: number | null;
+  pacoteDocumentalGeradoEm?: Date | null;
+  pacoteDocumentalGeradoPorId?: string | null;
+}) {
+  if (!inscricao.pacoteDocumentalUrl) {
+    return null;
+  }
+
+  return {
+    urlArquivo: inscricao.pacoteDocumentalUrl,
+    nomeArquivo: inscricao.pacoteDocumentalNomeArquivo,
+    mimeType: inscricao.pacoteDocumentalMimeType,
+    tamanhoBytes: inscricao.pacoteDocumentalTamanhoBytes,
+    versaoSubmissao: inscricao.pacoteDocumentalVersaoSubmissao,
+    geradoEm: inscricao.pacoteDocumentalGeradoEm?.toISOString() ?? null,
+    geradoPorId: inscricao.pacoteDocumentalGeradoPorId,
+  };
 }
 
 export async function saveInscricaoDraft(input: SaveDraftInput) {
@@ -322,6 +374,126 @@ export async function cancelInscricaoSubmission(inscricaoId: string, usuarioId: 
   return { inscricao: updated };
 }
 
+export async function registrarPacoteDocumentalConsolidado(input: RegistrarPacoteDocumentalInput) {
+  if (!isPdfFile({ mimeType: input.mimeType, nomeArquivo: input.nomeArquivo, urlArquivo: input.urlArquivo })) {
+    return { error: "PACOTE_FORA_PADRAO" as const };
+  }
+
+  const inscricao = await getInscricaoById(input.inscricaoId);
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (!inscricao.submetidaEm || inscricao.versaoSubmissao <= 0) {
+    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
+
+  const pacoteDocumentalSnapshot = {
+    inscricao: {
+      id: inscricao.id,
+      status: inscricao.status,
+      statusPagamento: inscricao.statusPagamento,
+      modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+      versaoSubmissao: inscricao.versaoSubmissao,
+      submetidaEm: inscricao.submetidaEm.toISOString(),
+      linhaPesquisa: inscricao.linhaPesquisa
+        ? {
+            id: inscricao.linhaPesquisa.id,
+            nome: inscricao.linhaPesquisa.nome,
+          }
+        : null,
+    },
+    candidato: {
+      id: inscricao.participacaoEdital.usuario.id,
+      nomeCompleto: inscricao.participacaoEdital.usuario.nomeCompleto,
+      email: inscricao.participacaoEdital.usuario.email,
+    },
+    edital: {
+      id: inscricao.participacaoEdital.edital.id,
+      numero: inscricao.participacaoEdital.edital.numero,
+      titulo: inscricao.participacaoEdital.edital.titulo,
+      cursoNivel: inscricao.participacaoEdital.edital.cursoNivel,
+    },
+    documentos: inscricao.documentos.map((documento) => ({
+      id: documento.id,
+      tipo: documento.tipo,
+      nome: documento.nome,
+      nomeArquivo: documento.nomeArquivo,
+      urlArquivo: documento.urlArquivo,
+      mimeType: documento.mimeType,
+      tamanhoBytes: documento.tamanhoBytes,
+      statusValidacao: documento.statusValidacao,
+      observacaoValidacao: documento.observacaoValidacao,
+    })),
+    submissaoSnapshot: inscricao.submissaoSnapshot,
+    pacoteDocumental: {
+      urlArquivo: input.urlArquivo,
+      nomeArquivo: input.nomeArquivo,
+      mimeType: input.mimeType ?? "application/pdf",
+      tamanhoBytes: input.tamanhoBytes ?? null,
+      geradoEm: new Date().toISOString(),
+      geradoPorId: input.geradoPorId,
+    },
+  };
+
+  const updated = await prisma.inscricao.update({
+    where: { id: inscricao.id },
+    data: {
+      pacoteDocumentalUrl: input.urlArquivo,
+      pacoteDocumentalNomeArquivo: input.nomeArquivo,
+      pacoteDocumentalMimeType: input.mimeType ?? "application/pdf",
+      pacoteDocumentalTamanhoBytes: input.tamanhoBytes,
+      pacoteDocumentalSnapshot: pacoteDocumentalSnapshot as Prisma.InputJsonValue,
+      pacoteDocumentalVersaoSubmissao: inscricao.versaoSubmissao,
+      pacoteDocumentalGeradoEm: new Date(),
+      pacoteDocumentalGeradoPorId: input.geradoPorId,
+    } as unknown as Prisma.InscricaoUncheckedUpdateInput,
+  });
+
+  return {
+    pacoteDocumental: buildPacoteDocumentalResumo(updated),
+  };
+}
+
+export async function getPacoteDocumentalDaInscricao(inscricaoId: string, usuarioId: string) {
+  const inscricao = await getOwnedInscricao(inscricaoId, usuarioId);
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  const pacoteDocumental = buildPacoteDocumentalResumo(inscricao);
+
+  if (!pacoteDocumental) {
+    return { error: "PACOTE_DOCUMENTAL_NAO_GERADO" as const };
+  }
+
+  return {
+    pacoteDocumental,
+    snapshot: (inscricao as any).pacoteDocumentalSnapshot,
+  };
+}
+
+export async function getPacoteDocumentalDaInscricaoAdmin(inscricaoId: string) {
+  const inscricao = await getInscricaoById(inscricaoId);
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  const pacoteDocumental = buildPacoteDocumentalResumo(inscricao);
+
+  if (!pacoteDocumental) {
+    return { error: "PACOTE_DOCUMENTAL_NAO_GERADO" as const };
+  }
+
+  return {
+    pacoteDocumental,
+    snapshot: (inscricao as any).pacoteDocumentalSnapshot,
+  };
+}
+
 export async function listInscricoesDoUsuario(usuarioId: string) {
   const inscricoes = await prisma.inscricao.findMany({
     where: {
@@ -363,6 +535,7 @@ export async function listInscricoesDoUsuario(usuarioId: string) {
       cursoNivel: inscricao.participacaoEdital.edital.cursoNivel,
     },
     fichaInscricao: parseFichaInscricao(inscricao.dadosFormulario),
+    pacoteDocumental: buildPacoteDocumentalResumo(inscricao),
     documentosTotal: inscricao.documentos.length,
     submetidaEm: inscricao.submetidaEm?.toISOString() ?? null,
   }));
