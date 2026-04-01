@@ -1,0 +1,649 @@
+import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
+import type { ZodTypeAny } from "zod";
+
+import {
+  AddDocumentoRequestSchema,
+  AuthResponseSchema,
+  AuthenticatedUserSchema,
+  CandidateDashboardListResponseSchema,
+  ClassificacaoListResponseSchema,
+  ConflictErrorResponseSchema,
+  CreateIsencaoRequestSchema,
+  CreatePublicacaoRequestSchema,
+  CreateRecursoRequestSchema,
+  DecidirRecursoRequestSchema,
+  EditalDetalheSchema,
+  EditalIdParamSchema,
+  EditalListResponseSchema,
+  Etapa1ListResponseSchema,
+  Etapa2ListResponseSchema,
+  HealthDegradedSchema,
+  HealthOkSchema,
+  HomologacaoAdminListResponseSchema,
+  HomologacaoDecisionRequestSchema,
+  HomologacaoFundamentosListResponseSchema,
+  HomologacaoInscricaoModelSchema,
+  InscricaoIdParamSchema,
+  InscricaoListResponseSchema,
+  InscricaoModelSchema,
+  ListEditaisQuerySchema,
+  ListRecursosAdminQuerySchema,
+  LoginRequestSchema,
+  MessageResponseSchema,
+  OptionalEditalIdQuerySchema,
+  ParamsBodyValidationErrorResponseSchema,
+  ParticipacaoListResponseSchema,
+  PedidoIsencaoCriadoSchema,
+  PedidoIsencaoListResponseSchema,
+  PublicacaoListResponseSchema,
+  PublicacaoModelSchema,
+  RecalcularClassificacaoRequestSchema,
+  RecursoAdminListResponseSchema,
+  RecursoIdParamSchema,
+  RecursoListResponseSchema,
+  RecursoModelSchema,
+  RegisterRequestSchema,
+  ResultadoEtapa1RequestSchema,
+  ResultadoEtapa2RequestSchema,
+  SaveDraftRequestSchema,
+  UnauthorizedResponseSchema,
+  ValidationErrorResponseSchema,
+  DocumentoInscricaoModelSchema,
+  AvaliacaoEtapa1ModelSchema,
+  AvaliacaoEtapa2ModelSchema,
+} from "./schemas.js";
+
+const registry = new OpenAPIRegistry();
+
+registry.registerComponent("securitySchemes", "bearerAuth", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "JWT",
+  description: "Token JWT obtido em `/v1/auth/login` ou `/v1/auth/register`.",
+});
+
+const jsonContent = (schema: ZodTypeAny) => ({
+  "application/json": {
+    schema,
+  },
+});
+
+const pdfContent = {
+  "application/pdf": {
+    schema: {
+      type: "string",
+      format: "binary",
+    },
+  },
+} as const;
+
+const bearerAuth = [{ bearerAuth: [] }];
+
+registry.registerPath({
+  method: "get",
+  path: "/health",
+  tags: ["Sistema"],
+  operationId: "getHealth",
+  summary: "Verifica a saude do backend",
+  description: "Executa um ping no banco e informa o estado operacional da API.",
+  responses: {
+    200: { description: "Backend e banco operacionais.", content: jsonContent(HealthOkSchema) },
+    503: { description: "Backend ativo, mas banco indisponivel.", content: jsonContent(HealthDegradedSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/auth/register",
+  tags: ["Autenticacao"],
+  operationId: "registerCandidate",
+  summary: "Cria conta de candidato",
+  request: { body: { required: true, content: jsonContent(RegisterRequestSchema) } },
+  responses: {
+    201: { description: "Conta criada com token de acesso.", content: jsonContent(AuthResponseSchema) },
+    400: { description: "Payload invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    409: { description: "E-mail ja utilizado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/auth/login",
+  tags: ["Autenticacao"],
+  operationId: "login",
+  summary: "Autentica usuario",
+  request: { body: { required: true, content: jsonContent(LoginRequestSchema) } },
+  responses: {
+    200: { description: "Login bem-sucedido.", content: jsonContent(AuthResponseSchema) },
+    400: { description: "Payload invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Credenciais invalidas ou conta bloqueada.", content: jsonContent(UnauthorizedResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/auth/me",
+  tags: ["Autenticacao"],
+  operationId: "getAuthenticatedUser",
+  summary: "Retorna usuario autenticado",
+  security: bearerAuth,
+  responses: {
+    200: { description: "Usuario autenticado.", content: jsonContent(AuthenticatedUserSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Usuario nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/candidato/participacoes",
+  tags: ["Autenticacao"],
+  operationId: "listUserParticipations",
+  summary: "Lista participacoes do candidato por edital",
+  security: bearerAuth,
+  responses: {
+    200: { description: "Participacoes retornadas com sucesso.", content: jsonContent(ParticipacaoListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/candidato/area",
+  tags: ["Area do Candidato"],
+  operationId: "getCandidateDashboard",
+  summary: "Retorna painel consolidado do candidato",
+  security: bearerAuth,
+  responses: {
+    200: { description: "Painel consolidado por participacao.", content: jsonContent(CandidateDashboardListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/editais",
+  tags: ["Editais"],
+  operationId: "listEditais",
+  summary: "Lista editais",
+  request: { query: ListEditaisQuerySchema },
+  responses: {
+    200: { description: "Editais retornados com sucesso.", content: jsonContent(EditalListResponseSchema) },
+    400: { description: "Parametros de consulta invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/editais/{editalId}",
+  tags: ["Editais"],
+  operationId: "getEditalById",
+  summary: "Retorna detalhe de um edital",
+  request: { params: EditalIdParamSchema },
+  responses: {
+    200: { description: "Edital encontrado.", content: jsonContent(EditalDetalheSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/editais/{editalId}/isencao",
+  tags: ["Isencao"],
+  operationId: "createOrUpdatePedidoIsencao",
+  summary: "Cria ou atualiza pedido de isencao",
+  security: bearerAuth,
+  request: {
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(CreateIsencaoRequestSchema) },
+  },
+  responses: {
+    201: { description: "Pedido registrado.", content: jsonContent(PedidoIsencaoCriadoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Janela de isencao fechada.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/candidato/isencoes",
+  tags: ["Isencao"],
+  operationId: "listPedidosIsencaoDoUsuario",
+  summary: "Lista pedidos de isencao do candidato",
+  security: bearerAuth,
+  responses: {
+    200: { description: "Pedidos retornados com sucesso.", content: jsonContent(PedidoIsencaoListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/editais/{editalId}/inscricao/rascunho",
+  tags: ["Inscricao"],
+  operationId: "saveInscricaoDraft",
+  summary: "Cria ou atualiza rascunho de inscricao",
+  security: bearerAuth,
+  request: {
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(SaveDraftRequestSchema) },
+  },
+  responses: {
+    200: { description: "Rascunho salvo com sucesso.", content: jsonContent(InscricaoModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao nao editavel ou fora da janela.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/inscricoes/{inscricaoId}/documentos",
+  tags: ["Inscricao"],
+  operationId: "addDocumentoToInscricao",
+  summary: "Anexa ou substitui documento da inscricao",
+  security: bearerAuth,
+  request: {
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(AddDocumentoRequestSchema) },
+  },
+  responses: {
+    201: { description: "Documento anexado.", content: jsonContent(DocumentoInscricaoModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Documento fora do padrao ou inscricao nao editavel.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/inscricoes/{inscricaoId}/submeter",
+  tags: ["Inscricao"],
+  operationId: "submitInscricao",
+  summary: "Submete inscricao",
+  security: bearerAuth,
+  request: { params: InscricaoIdParamSchema },
+  responses: {
+    200: { description: "Inscricao submetida.", content: jsonContent(InscricaoModelSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao incompleta, nao editavel ou fora da janela.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/inscricoes/{inscricaoId}/cancelar-submissao",
+  tags: ["Inscricao"],
+  operationId: "cancelInscricaoSubmission",
+  summary: "Cancela submissao para voltar ao rascunho",
+  security: bearerAuth,
+  request: { params: InscricaoIdParamSchema },
+  responses: {
+    200: { description: "Submissao cancelada.", content: jsonContent(InscricaoModelSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao nao cancelavel ou fora da janela.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/candidato/inscricoes",
+  tags: ["Inscricao"],
+  operationId: "listInscricoesDoUsuario",
+  summary: "Lista inscricoes do candidato",
+  security: bearerAuth,
+  responses: {
+    200: { description: "Inscricoes retornadas com sucesso.", content: jsonContent(InscricaoListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+  },
+});
+
+for (const route of [
+  {
+    path: "/v1/inscricoes/{inscricaoId}/anexo-iv",
+    tag: "Inscricao",
+    operationId: "getInscricaoAnexoIvForCandidate",
+    summary: "Baixa Anexo IV flattened do candidato",
+    security: bearerAuth,
+  },
+  {
+    path: "/v1/admin/inscricoes/{inscricaoId}/anexo-iv",
+    tag: "Inscricao",
+    operationId: "getInscricaoAnexoIvForAdmin",
+    summary: "Baixa Anexo IV preenchido para uso administrativo",
+    security: bearerAuth,
+  },
+  {
+    path: "/v1/admin/inscricoes/{inscricaoId}/anexo-iv/flatten",
+    tag: "Inscricao",
+    operationId: "getInscricaoAnexoIvFlattenForAdmin",
+    summary: "Baixa Anexo IV flattened para uso administrativo",
+    security: bearerAuth,
+  },
+]) {
+  registry.registerPath({
+    method: "get",
+    path: route.path,
+    tags: [route.tag],
+    operationId: route.operationId,
+    summary: route.summary,
+    security: route.security,
+    request: { params: InscricaoIdParamSchema },
+    responses: {
+      200: { description: "Arquivo PDF gerado com sucesso.", content: pdfContent },
+      400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+      401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+      403: { description: "Acesso restrito ao papel exigido.", content: jsonContent(MessageResponseSchema) },
+      404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+      409: { description: "Arquivo indisponivel no estado atual.", content: jsonContent(MessageResponseSchema) },
+    },
+  });
+}
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/homologacao/fundamentos",
+  tags: ["Homologacao"],
+  operationId: "listFundamentosHomologacao",
+  summary: "Lista fundamentos padrao de homologacao",
+  security: bearerAuth,
+  responses: {
+    200: { description: "Catalogo de fundamentos administrativos.", content: jsonContent(HomologacaoFundamentosListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/inscricoes",
+  tags: ["Homologacao"],
+  operationId: "listInscricoesParaHomologacao",
+  summary: "Lista inscricoes para homologacao",
+  security: bearerAuth,
+  request: { query: OptionalEditalIdQuerySchema },
+  responses: {
+    200: { description: "Inscricoes listadas para analise documental.", content: jsonContent(HomologacaoAdminListResponseSchema) },
+    400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+for (const phase of [
+  { suffix: "preliminar", operationId: "registrarHomologacaoPreliminar", summary: "Registra homologacao preliminar" },
+  { suffix: "final", operationId: "registrarHomologacaoFinal", summary: "Registra homologacao final" },
+]) {
+  registry.registerPath({
+    method: "put",
+    path: `/v1/admin/inscricoes/{inscricaoId}/homologacao/${phase.suffix}`,
+    tags: ["Homologacao"],
+    operationId: phase.operationId,
+    summary: phase.summary,
+    security: bearerAuth,
+    request: {
+      params: InscricaoIdParamSchema,
+      body: { required: true, content: jsonContent(HomologacaoDecisionRequestSchema) },
+    },
+    responses: {
+      200: { description: "Decisao registrada com sucesso.", content: jsonContent(HomologacaoInscricaoModelSchema) },
+      400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+      401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+      403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+      404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+      409: { description: "Inscricao fora do estado esperado para homologacao.", content: jsonContent(ConflictErrorResponseSchema) },
+    },
+  });
+}
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/etapa-1/inscricoes",
+  tags: ["Etapa 1"],
+  operationId: "listInscricoesParaEtapa1",
+  summary: "Lista inscricoes elegiveis para etapa 1",
+  security: bearerAuth,
+  request: { query: OptionalEditalIdQuerySchema },
+  responses: {
+    200: { description: "Inscricoes da etapa 1 retornadas.", content: jsonContent(Etapa1ListResponseSchema) },
+    400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito a admin ou avaliador.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/etapa-1/inscricoes/{inscricaoId}/resultado",
+  tags: ["Etapa 1"],
+  operationId: "registrarResultadoEtapa1",
+  summary: "Registra resultado da etapa 1",
+  security: bearerAuth,
+  request: {
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(ResultadoEtapa1RequestSchema) },
+  },
+  responses: {
+    200: { description: "Resultado registrado.", content: jsonContent(AvaliacaoEtapa1ModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito a admin ou avaliador.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao nao apta para etapa 1.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/etapa-2/inscricoes",
+  tags: ["Etapa 2"],
+  operationId: "listInscricoesParaEtapa2",
+  summary: "Lista inscricoes elegiveis para etapa 2",
+  security: bearerAuth,
+  request: { query: OptionalEditalIdQuerySchema },
+  responses: {
+    200: { description: "Inscricoes da etapa 2 retornadas.", content: jsonContent(Etapa2ListResponseSchema) },
+    400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito a admin ou avaliador.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/etapa-2/inscricoes/{inscricaoId}/resultado",
+  tags: ["Etapa 2"],
+  operationId: "registrarResultadoEtapa2",
+  summary: "Registra resultado da etapa 2",
+  security: bearerAuth,
+  request: {
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(ResultadoEtapa2RequestSchema) },
+  },
+  responses: {
+    200: { description: "Resultado registrado.", content: jsonContent(AvaliacaoEtapa2ModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito a admin ou avaliador.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao nao apta para etapa 2.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/classificacao",
+  tags: ["Classificacao"],
+  operationId: "listClassificacao",
+  summary: "Lista classificacao por edital",
+  security: bearerAuth,
+  request: { params: EditalIdParamSchema },
+  responses: {
+    200: { description: "Classificacao retornada com sucesso.", content: jsonContent(ClassificacaoListResponseSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/classificacao/recalcular",
+  tags: ["Classificacao"],
+  operationId: "recalcularClassificacao",
+  summary: "Recalcula classificacao do edital",
+  security: bearerAuth,
+  request: {
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(RecalcularClassificacaoRequestSchema) },
+  },
+  responses: {
+    200: { description: "Classificacao recalculada com sucesso.", content: jsonContent(ClassificacaoListResponseSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/candidato/recursos",
+  tags: ["Recursos"],
+  operationId: "createRecurso",
+  summary: "Cria recurso administrativo do candidato",
+  security: bearerAuth,
+  request: { body: { required: true, content: jsonContent(CreateRecursoRequestSchema) } },
+  responses: {
+    201: { description: "Recurso criado.", content: jsonContent(RecursoModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Participacao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Janela fechada, duplicidade ou ausencia de resultado preliminar.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/candidato/recursos",
+  tags: ["Recursos"],
+  operationId: "listRecursosDoUsuario",
+  summary: "Lista recursos do candidato",
+  security: bearerAuth,
+  responses: {
+    200: { description: "Recursos retornados com sucesso.", content: jsonContent(RecursoListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/recursos",
+  tags: ["Recursos"],
+  operationId: "listRecursosAdmin",
+  summary: "Lista recursos para administracao",
+  security: bearerAuth,
+  request: { query: ListRecursosAdminQuerySchema },
+  responses: {
+    200: { description: "Recursos retornados com sucesso.", content: jsonContent(RecursoAdminListResponseSchema) },
+    400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/recursos/{recursoId}/decisao",
+  tags: ["Recursos"],
+  operationId: "decidirRecurso",
+  summary: "Registra decisao administrativa do recurso",
+  security: bearerAuth,
+  request: {
+    params: RecursoIdParamSchema,
+    body: { required: true, content: jsonContent(DecidirRecursoRequestSchema) },
+  },
+  responses: {
+    200: { description: "Recurso atualizado.", content: jsonContent(RecursoModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Recurso nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/editais/{editalId}/publicacoes",
+  tags: ["Publicacoes"],
+  operationId: "listPublicacoesByEdital",
+  summary: "Lista publicacoes oficiais do edital",
+  request: { params: EditalIdParamSchema },
+  responses: {
+    200: { description: "Publicacoes retornadas com sucesso.", content: jsonContent(PublicacaoListResponseSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/publicacoes",
+  tags: ["Publicacoes"],
+  operationId: "createPublicacao",
+  summary: "Cria publicacao oficial",
+  security: bearerAuth,
+  request: {
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(CreatePublicacaoRequestSchema) },
+  },
+  responses: {
+    201: { description: "Publicacao criada.", content: jsonContent(PublicacaoModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+export const openApiDocument = new OpenApiGeneratorV3(registry.definitions).generateDocument({
+  openapi: "3.0.3",
+  info: {
+    title: "API Sistema de Selecao Pos-Graduacao PPGEE/UFAM",
+    version: "0.1.0",
+    description:
+      "Documentacao completa da API backend do processo seletivo stricto sensu do PPGEE/UFAM, com foco em fluxos multi-edital, autenticacao, inscricao, homologacao, recursos, avaliacao e publicacoes.",
+    contact: {
+      name: "PPGEE/UFAM",
+      email: "ppgee@ufam.edu.br",
+    },
+  },
+  servers: [
+    {
+      url: "/",
+      description: "Servidor atual",
+    },
+  ],
+  tags: [
+    { name: "Sistema", description: "Operacao e monitoramento do backend." },
+    { name: "Autenticacao", description: "Cadastro, login e leitura de identidade autenticada." },
+    { name: "Area do Candidato", description: "Painel consolidado do candidato por participacao em edital." },
+    { name: "Editais", description: "Consulta publica de editais, linhas e cronogramas." },
+    { name: "Isencao", description: "Fluxo de solicitacao e acompanhamento de isencao da taxa." },
+    { name: "Inscricao", description: "Rascunho, anexos, submissao, download de Anexo IV e consulta de inscricoes." },
+    { name: "Homologacao", description: "Analise documental administrativa com fundamentos estruturados e estados preliminar/final." },
+    { name: "Etapa 1", description: "Lancamento e consulta da avaliacao da redacao tecnica objetiva." },
+    { name: "Etapa 2", description: "Lancamento e consulta da analise curricular." },
+    { name: "Classificacao", description: "Recalculo e consulta da classificacao final por edital." },
+    { name: "Recursos", description: "Criacao e decisao administrativa de recursos." },
+    { name: "Publicacoes", description: "Criacao administrativa e consulta publica de publicacoes oficiais." },
+  ],
+});
