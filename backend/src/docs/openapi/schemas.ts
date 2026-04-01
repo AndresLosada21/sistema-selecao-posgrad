@@ -419,7 +419,12 @@ export const AvaliacaoEtapa1ModelSchema = z
     tema: z.string().nullable(),
     textoSubmetido: z.string().nullable(),
     nota: z.number().nullable(),
+    rubricaDetalhada: JsonValueSchema.nullable(),
+    usoIaComprovado: z.boolean(),
+    fundamentoUsoIa: z.string().nullable(),
     espelhoCorrecao: z.string().nullable(),
+    espelhoSolicitadoEm: isoDate().nullable(),
+    espelhoLiberadoEm: isoDate().nullable(),
     status: z.nativeEnum(StatusAvaliacaoEtapa),
     resultadoPreliminarEm: isoDate().nullable(),
     resultadoFinalEm: isoDate().nullable(),
@@ -427,6 +432,19 @@ export const AvaliacaoEtapa1ModelSchema = z
     atualizadoEm: isoDate(),
   })
   .openapi("AvaliacaoEtapa1Model");
+
+export const Etapa1EspelhoSchema = z
+  .object({
+    tema: z.string().nullable(),
+    textoSubmetido: z.string().nullable(),
+    espelhoCorrecao: z.string().nullable(),
+    rubricaDetalhada: JsonValueSchema.nullable(),
+    espelhoSolicitadoEm: isoDate().nullable(),
+    espelhoLiberadoEm: isoDate().nullable(),
+    resultadoPreliminarEm: isoDate().nullable(),
+    resultadoFinalEm: isoDate().nullable(),
+  })
+  .openapi("Etapa1Espelho");
 
 export const AvaliacaoEtapa2ModelSchema = z
   .object({
@@ -456,6 +474,11 @@ export const Etapa1AdminItemSchema = z
         nota: z.number().nullable(),
         tema: z.string().nullable(),
         espelhoCorrecao: z.string().nullable(),
+        rubricaDetalhada: JsonValueSchema.nullable(),
+        usoIaComprovado: z.boolean(),
+        fundamentoUsoIa: z.string().nullable(),
+        espelhoSolicitadoEm: isoDate().nullable(),
+        espelhoLiberadoEm: isoDate().nullable(),
         status: z.nativeEnum(StatusAvaliacaoEtapa),
       })
       .nullable(),
@@ -695,7 +718,13 @@ export const CandidateDashboardItemSchema = z
           .object({
             tema: z.string().nullable(),
             nota: z.number().nullable(),
+            espelhoDisponivel: z.boolean(),
             espelhoCorrecao: z.string().nullable(),
+            rubricaDetalhada: JsonValueSchema.nullable(),
+            usoIaComprovado: z.boolean(),
+            fundamentoUsoIa: z.string().nullable(),
+            espelhoSolicitadoEm: isoDate().nullable(),
+            espelhoLiberadoEm: isoDate().nullable(),
             status: z.nativeEnum(StatusAvaliacaoEtapa),
             resultadoPreliminarEm: isoDate().nullable(),
             resultadoFinalEm: isoDate().nullable(),
@@ -872,8 +901,19 @@ export const CreateHomologacaoPublicacaoRequestSchema = z
 export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request", {
   example: {
     tema: "Controle e automacao aplicada a sistemas energeticos",
-    nota: 8.5,
+    rubrica: {
+      adequacaoDominioTema: 8.5,
+      estrutura: 8,
+      organizacaoCoerencia: 8,
+      objetividadeSintese: 9,
+      grafiaGramatica: 8,
+      observacoes: {
+        geral: "Boa consistencia argumentativa com pequenas falhas gramaticais.",
+      },
+    },
+    usoIaComprovado: false,
     espelhoCorrecao: "Espelho com rubrica por criterio e justificativa da nota.",
+    liberarEspelho: false,
     publicacao: "PRELIMINAR",
   },
 });

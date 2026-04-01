@@ -369,8 +369,13 @@ model AvaliacaoEtapa1 {
   inscricaoId           String               @unique
   tema                  String?
   textoSubmetido        String?
-  nota                  Decimal?             @db.Decimal(5, 2)
+  nota                  Decimal?             @db.Decimal(6, 3)
+  rubricaDetalhada      Json?
+  usoIaComprovado       Boolean              @default(false)
+  fundamentoUsoIa       String?
   espelhoCorrecao       String?
+  espelhoSolicitadoEm   DateTime?
+  espelhoLiberadoEm     DateTime?
   status                StatusAvaliacaoEtapa @default(PENDENTE)
   resultadoPreliminarEm DateTime?
   resultadoFinalEm      DateTime?
