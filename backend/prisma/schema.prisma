@@ -305,6 +305,14 @@ model Inscricao {
   assinaturaImagemUrl         String?
   submissaoSnapshot           Json?
   versaoSubmissao             Int                      @default(0)
+  pacoteDocumentalUrl         String?
+  pacoteDocumentalNomeArquivo String?
+  pacoteDocumentalMimeType    String?
+  pacoteDocumentalTamanhoBytes Int?
+  pacoteDocumentalSnapshot    Json?
+  pacoteDocumentalVersaoSubmissao Int?
+  pacoteDocumentalGeradoEm    DateTime?
+  pacoteDocumentalGeradoPorId String?
   submetidaEm                 DateTime?
   canceladaSubmissaoEm        DateTime?
   criadoEm                    DateTime                 @default(now())

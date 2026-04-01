@@ -271,6 +271,25 @@ export const DocumentoInscricaoModelSchema = z
 
 export const FichaInscricaoSchema = fichaInscricaoSchema.openapi("FichaInscricao");
 
+export const PacoteDocumentalResumoSchema = z
+  .object({
+    urlArquivo: z.string().url(),
+    nomeArquivo: z.string().nullable(),
+    mimeType: z.string().nullable(),
+    tamanhoBytes: z.number().int().nullable(),
+    versaoSubmissao: z.number().int().nullable(),
+    geradoEm: isoDate().nullable(),
+    geradoPorId: z.string().nullable(),
+  })
+  .openapi("PacoteDocumentalResumo");
+
+export const PacoteDocumentalDetalheResponseSchema = z
+  .object({
+    pacoteDocumental: PacoteDocumentalResumoSchema,
+    snapshot: JsonValueSchema.nullable(),
+  })
+  .openapi("PacoteDocumentalDetalheResponse");
+
 export const InscricaoModelSchema = z
   .object({
     id: z.string(),
@@ -287,6 +306,14 @@ export const InscricaoModelSchema = z
     assinaturaImagemUrl: z.string().nullable(),
     submissaoSnapshot: JsonValueSchema.nullable(),
     versaoSubmissao: z.number().int(),
+    pacoteDocumentalUrl: z.string().nullable(),
+    pacoteDocumentalNomeArquivo: z.string().nullable(),
+    pacoteDocumentalMimeType: z.string().nullable(),
+    pacoteDocumentalTamanhoBytes: z.number().int().nullable(),
+    pacoteDocumentalSnapshot: JsonValueSchema.nullable(),
+    pacoteDocumentalVersaoSubmissao: z.number().int().nullable(),
+    pacoteDocumentalGeradoEm: isoDate().nullable(),
+    pacoteDocumentalGeradoPorId: z.string().nullable(),
     submetidaEm: isoDate().nullable(),
     canceladaSubmissaoEm: isoDate().nullable(),
     criadoEm: isoDate(),
@@ -305,6 +332,7 @@ export const InscricaoResumoSchema = z
     linhaPesquisa: LinhaPesquisaCurtaSchema,
     edital: EditalResumoCurtoSchema,
     fichaInscricao: FichaInscricaoSchema.nullable(),
+    pacoteDocumental: PacoteDocumentalResumoSchema.nullable(),
     documentosTotal: z.number().int(),
     submetidaEm: isoDate().nullable(),
   })
@@ -637,6 +665,7 @@ export const CandidateDashboardItemSchema = z
         assinaturaImagemUrl: z.string().nullable(),
         submissaoSnapshot: JsonValueSchema.nullable(),
         versaoSubmissao: z.number().int(),
+        pacoteDocumental: PacoteDocumentalResumoSchema.nullable(),
         submetidaEm: isoDate().nullable(),
         canceladaSubmissaoEm: isoDate().nullable(),
         documentos: z.array(
@@ -765,6 +794,21 @@ export const AddDocumentoRequestSchema = addDocumentoSchema.openapi("AddDocument
     obrigatorio: true,
   },
 });
+export const RegistrarPacoteDocumentalRequestSchema = z
+  .object({
+    urlArquivo: z.string().url(),
+    nomeArquivo: z.string().min(3),
+    mimeType: z.string().optional(),
+    tamanhoBytes: z.number().int().positive().optional(),
+  })
+  .openapi("RegistrarPacoteDocumentalRequest", {
+    example: {
+      urlArquivo: "https://arquivos.exemplo/pacote-inscricao.pdf",
+      nomeArquivo: "pacote-inscricao.pdf",
+      mimeType: "application/pdf",
+      tamanhoBytes: 350000,
+    },
+  });
 export const HomologacaoDecisionRequestSchema = homologacaoDecisionSchema.openapi("HomologacaoDecisionRequest", {
   example: {
     homologada: false,

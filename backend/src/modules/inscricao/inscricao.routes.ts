@@ -8,12 +8,16 @@ import {
   addDocumentoSchema,
   editalIdParamSchema,
   inscricaoIdParamSchema,
+  registrarPacoteDocumentalSchema,
   saveDraftSchema,
 } from "./inscricao.schemas.js";
 import {
   addDocumentoToInscricao,
   cancelInscricaoSubmission,
+  getPacoteDocumentalDaInscricao,
+  getPacoteDocumentalDaInscricaoAdmin,
   listInscricoesDoUsuario,
+  registrarPacoteDocumentalConsolidado,
   saveInscricaoDraft,
   submitInscricao,
 } from "./inscricao.service.js";
@@ -211,4 +215,74 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/anexo-iv/flatten", requir
   response.setHeader("Content-Type", result.contentType);
   response.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
   return response.status(200).send(result.content);
+});
+
+inscricaoRouter.post("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+  const parsedBody = registrarPacoteDocumentalSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json({
+      message: "Dados do pacote documental invalidos.",
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    });
+  }
+
+  const result = await registrarPacoteDocumentalConsolidado({
+    inscricaoId: parsedParams.data.inscricaoId,
+    geradoPorId: request.auth!.userId,
+    urlArquivo: parsedBody.data.urlArquivo,
+    nomeArquivo: parsedBody.data.nomeArquivo,
+    mimeType: parsedBody.data.mimeType as string | undefined,
+    tamanhoBytes: parsedBody.data.tamanhoBytes as number | undefined,
+  });
+
+  if ("error" in result) {
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    const message = result.error === "PACOTE_FORA_PADRAO" ? "Pacote documental consolidado deve estar em PDF." : result.error;
+    return response.status(status).json({ message });
+  }
+
+  return response.status(201).json(result.pacoteDocumental);
+});
+
+inscricaoRouter.get("/v1/inscricoes/:inscricaoId/pacote-documental", requireAuth, async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json({
+      message: "Inscricao invalida.",
+      errors: parsedParams.error.flatten(),
+    });
+  }
+
+  const result = await getPacoteDocumentalDaInscricao(parsedParams.data.inscricaoId, request.auth!.userId);
+
+  if ("error" in result) {
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    return response.status(status).json({ message: result.error });
+  }
+
+  return response.status(200).json(result);
+});
+
+inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json({
+      message: "Inscricao invalida.",
+      errors: parsedParams.error.flatten(),
+    });
+  }
+
+  const result = await getPacoteDocumentalDaInscricaoAdmin(parsedParams.data.inscricaoId);
+
+  if ("error" in result) {
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    return response.status(status).json({ message: result.error });
+  }
+
+  return response.status(200).json(result);
 });

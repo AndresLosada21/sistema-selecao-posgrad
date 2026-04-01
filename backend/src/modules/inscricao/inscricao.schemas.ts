@@ -63,3 +63,10 @@ export const addDocumentoSchema = z.object({
   tamanhoBytes: z.number().int().positive().optional(),
   obrigatorio: z.boolean().optional(),
 });
+
+export const registrarPacoteDocumentalSchema = z.object({
+  urlArquivo: z.string().trim().url(),
+  nomeArquivo: z.string().trim().min(3),
+  mimeType: z.string().trim().min(3).optional(),
+  tamanhoBytes: z.number().int().positive().optional(),
+});
