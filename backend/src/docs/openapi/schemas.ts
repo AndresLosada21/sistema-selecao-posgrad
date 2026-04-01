@@ -79,6 +79,22 @@ export const UnauthorizedResponseSchema = z
   })
   .openapi("UnauthorizedResponse");
 
+export const AuthorizationHeaderSchema = z
+  .object({
+    Authorization: z
+      .string()
+      .trim()
+      .min(10)
+      .optional()
+      .openapi({
+        description:
+          "Token JWT no formato `Bearer <token>`. Pode ser preenchido manualmente nesta rota ou globalmente no botao Authorize.",
+        example:
+          "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.exemplo.maisToken",
+      }),
+  })
+  .openapi("AuthorizationHeader");
+
 export const HealthOkSchema = z
   .object({
     status: z.literal("ok"),
@@ -658,18 +674,123 @@ export const CandidateDashboardItemSchema = z
   })
   .openapi("CandidateDashboardItem");
 
-export const RegisterRequestSchema = registerSchema.openapi("RegisterRequest");
-export const LoginRequestSchema = loginSchema.openapi("LoginRequest");
-export const CreateIsencaoRequestSchema = createIsencaoSchema.openapi("CreateIsencaoRequest");
-export const SaveDraftRequestSchema = saveDraftSchema.openapi("SaveDraftRequest");
-export const AddDocumentoRequestSchema = addDocumentoSchema.openapi("AddDocumentoRequest");
-export const HomologacaoDecisionRequestSchema = homologacaoDecisionSchema.openapi("HomologacaoDecisionRequest");
-export const CreateRecursoRequestSchema = createRecursoSchema.openapi("CreateRecursoRequest");
-export const DecidirRecursoRequestSchema = decidirRecursoSchema.openapi("DecidirRecursoRequest");
-export const CreatePublicacaoRequestSchema = createPublicacaoSchema.openapi("CreatePublicacaoRequest");
-export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request");
-export const ResultadoEtapa2RequestSchema = resultadoEtapa2Schema.openapi("ResultadoEtapa2Request");
-export const RecalcularClassificacaoRequestSchema = recalcularClassificacaoSchema.openapi("RecalcularClassificacaoRequest");
+export const RegisterRequestSchema = registerSchema.openapi("RegisterRequest", {
+  example: {
+    nomeCompleto: "Candidato Manual de Teste",
+    email: "candidato.manual@teste.com",
+    senha: "Senha1234",
+    telefone: "92999999999",
+    cpf: "98765432100",
+  },
+});
+export const LoginRequestSchema = loginSchema.openapi("LoginRequest", {
+  example: {
+    email: "admin@ppgee.ufam.edu.br",
+    senha: "Admin1234",
+  },
+});
+export const CreateIsencaoRequestSchema = createIsencaoSchema.openapi("CreateIsencaoRequest", {
+  example: {
+    cursoNivel: "MESTRADO",
+    inscritoCadUnico: false,
+    justificativa: "Candidato sem condicoes financeiras para arcar com a taxa.",
+    comprovanteUrl: "https://arquivos.exemplo/isencao.pdf",
+    comprovanteNomeArquivo: "comprovante-isencao.pdf",
+  },
+});
+export const SaveDraftRequestSchema = saveDraftSchema.openapi("SaveDraftRequest", {
+  example: {
+    linhaPesquisaId: "clinha123",
+    modalidadeConcorrencia: "AMPLA_CONCORRENCIA",
+    temaRedacao: "Controle e automacao aplicada a sistemas energeticos",
+    resumoCurriculo: "Engenheiro eletricista com experiencia em sistemas de controle.",
+    redacaoTexto: "Texto da redacao com no minimo 500 caracteres no uso real.",
+    fichaInscricao: {
+      nomeCompleto: "Candidato Manual de Teste",
+      rg: "1234567",
+      cpf: "98765432100",
+      email: "candidato.manual@teste.com",
+      telefoneWhatsapp: "92999999999",
+    },
+  },
+});
+export const AddDocumentoRequestSchema = addDocumentoSchema.openapi("AddDocumentoRequest", {
+  example: {
+    tipo: "ANEXO_IV",
+    nome: "Ficha de inscricao",
+    urlArquivo: "https://arquivos.exemplo/anexo-iv.pdf",
+    nomeArquivo: "anexo-iv.pdf",
+    mimeType: "application/pdf",
+    tamanhoBytes: 120000,
+    obrigatorio: true,
+  },
+});
+export const HomologacaoDecisionRequestSchema = homologacaoDecisionSchema.openapi("HomologacaoDecisionRequest", {
+  example: {
+    homologada: false,
+    parecer: "Inscricao indeferida preliminarmente por descumprimento documental sanavel.",
+    motivos: [
+      {
+        codigo: "FORMULARIO_NAO_DIGITAL",
+        itemEdital: "3.5.12",
+        titulo: "Formulario fora do padrao digital",
+        descricao: "Formulario obrigatorio nao foi preenchido digitalmente.",
+        sanavel: true,
+      },
+    ],
+  },
+});
+export const CreateRecursoRequestSchema = createRecursoSchema.openapi("CreateRecursoRequest", {
+  example: {
+    editalId: "cedital123",
+    fase: "HOMOLOGACAO",
+    fundamentacao: "O documento apontado como ausente foi anexado dentro do prazo previsto.",
+    anexoUrl: "https://arquivos.exemplo/recurso-homologacao.pdf",
+  },
+});
+export const DecidirRecursoRequestSchema = decidirRecursoSchema.openapi("DecidirRecursoRequest", {
+  example: {
+    deferido: true,
+    decisao: "Recurso deferido apos reanalise documental.",
+    impactoResultado: true,
+    novoStatusInscricao: "HOMOLOGADA_FINAL",
+  },
+});
+export const CreatePublicacaoRequestSchema = createPublicacaoSchema.openapi("CreatePublicacaoRequest", {
+  example: {
+    tipo: "HOMOLOGACAO_PRELIMINAR",
+    titulo: "Resultado preliminar da homologacao das inscricoes",
+    descricao: "Publicacao oficial da fase preliminar de homologacao.",
+    versaoFinal: false,
+    arquivoUrl: "https://arquivos.exemplo/homologacao-preliminar.pdf",
+  },
+});
+export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request", {
+  example: {
+    tema: "Controle e automacao aplicada a sistemas energeticos",
+    nota: 8.5,
+    espelhoCorrecao: "Espelho com rubrica por criterio e justificativa da nota.",
+    publicacao: "PRELIMINAR",
+  },
+});
+export const ResultadoEtapa2RequestSchema = resultadoEtapa2Schema.openapi("ResultadoEtapa2Request", {
+  example: {
+    pontuacaoItens: {
+      formacao: 12,
+      publicacoes: 8,
+      experiencia: 5,
+    },
+    pontuacaoBruta: 25,
+    notaNormalizada: 9.2,
+    espelhoCorrecao: "Espelho de pontuacao do Anexo II.",
+    publicacao: "FINAL",
+  },
+});
+export const RecalcularClassificacaoRequestSchema = recalcularClassificacaoSchema.openapi("RecalcularClassificacaoRequest", {
+  example: {
+    publicacao: "FINAL",
+  },
+});
 
 export const ListEditaisQuerySchema = z
   .object({

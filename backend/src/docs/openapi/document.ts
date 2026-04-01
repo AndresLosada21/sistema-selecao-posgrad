@@ -5,6 +5,7 @@ import {
   AddDocumentoRequestSchema,
   AuthResponseSchema,
   AuthenticatedUserSchema,
+  AuthorizationHeaderSchema,
   CandidateDashboardListResponseSchema,
   ClassificacaoListResponseSchema,
   ConflictErrorResponseSchema,
@@ -79,6 +80,17 @@ const pdfContent = {
 
 const bearerAuth = [{ bearerAuth: [] }];
 
+function withAuthHeaders(request?: Record<string, unknown>) {
+  return {
+    ...request,
+    headers: AuthorizationHeaderSchema,
+  } as any;
+}
+
+function withAuthDescription(description: string) {
+  return `${description}\n\nAutenticacao: use o botao global Authorize ou preencha o header Authorization desta operacao com \`Bearer <token>\`.`;
+}
+
 registry.registerPath({
   method: "get",
   path: "/health",
@@ -126,7 +138,9 @@ registry.registerPath({
   tags: ["Autenticacao"],
   operationId: "getAuthenticatedUser",
   summary: "Retorna usuario autenticado",
+  description: withAuthDescription("Resolve o usuario a partir do JWT recebido na requisicao."),
   security: bearerAuth,
+  request: withAuthHeaders(),
   responses: {
     200: { description: "Usuario autenticado.", content: jsonContent(AuthenticatedUserSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -140,7 +154,9 @@ registry.registerPath({
   tags: ["Autenticacao"],
   operationId: "listUserParticipations",
   summary: "Lista participacoes do candidato por edital",
+  description: withAuthDescription("Retorna o vinculo do candidato com cada edital em que participou."),
   security: bearerAuth,
+  request: withAuthHeaders(),
   responses: {
     200: { description: "Participacoes retornadas com sucesso.", content: jsonContent(ParticipacaoListResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -153,7 +169,9 @@ registry.registerPath({
   tags: ["Area do Candidato"],
   operationId: "getCandidateDashboard",
   summary: "Retorna painel consolidado do candidato",
+  description: withAuthDescription("Consolida edital, isencao, inscricao, homologacao, etapas, classificacao e recursos."),
   security: bearerAuth,
+  request: withAuthHeaders(),
   responses: {
     200: { description: "Painel consolidado por participacao.", content: jsonContent(CandidateDashboardListResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -193,11 +211,12 @@ registry.registerPath({
   tags: ["Isencao"],
   operationId: "createOrUpdatePedidoIsencao",
   summary: "Cria ou atualiza pedido de isencao",
+  description: withAuthDescription("Registra ou sobrescreve o pedido de isencao do candidato dentro da janela configurada no edital."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: EditalIdParamSchema,
     body: { required: true, content: jsonContent(CreateIsencaoRequestSchema) },
-  },
+  }),
   responses: {
     201: { description: "Pedido registrado.", content: jsonContent(PedidoIsencaoCriadoSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -213,7 +232,9 @@ registry.registerPath({
   tags: ["Isencao"],
   operationId: "listPedidosIsencaoDoUsuario",
   summary: "Lista pedidos de isencao do candidato",
+  description: withAuthDescription("Lista todos os pedidos de isencao do candidato autenticado."),
   security: bearerAuth,
+  request: withAuthHeaders(),
   responses: {
     200: { description: "Pedidos retornados com sucesso.", content: jsonContent(PedidoIsencaoListResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -226,11 +247,12 @@ registry.registerPath({
   tags: ["Inscricao"],
   operationId: "saveInscricaoDraft",
   summary: "Cria ou atualiza rascunho de inscricao",
+  description: withAuthDescription("Salva o rascunho da inscricao vinculado ao edital e ao candidato autenticado."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: EditalIdParamSchema,
     body: { required: true, content: jsonContent(SaveDraftRequestSchema) },
-  },
+  }),
   responses: {
     200: { description: "Rascunho salvo com sucesso.", content: jsonContent(InscricaoModelSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -246,11 +268,12 @@ registry.registerPath({
   tags: ["Inscricao"],
   operationId: "addDocumentoToInscricao",
   summary: "Anexa ou substitui documento da inscricao",
+  description: withAuthDescription("Anexa documento PDF da inscricao, substituindo o tipo correspondente quando permitido."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: InscricaoIdParamSchema,
     body: { required: true, content: jsonContent(AddDocumentoRequestSchema) },
-  },
+  }),
   responses: {
     201: { description: "Documento anexado.", content: jsonContent(DocumentoInscricaoModelSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -266,8 +289,9 @@ registry.registerPath({
   tags: ["Inscricao"],
   operationId: "submitInscricao",
   summary: "Submete inscricao",
+  description: withAuthDescription("Valida checklist documental e fecha a submissao da inscricao."),
   security: bearerAuth,
-  request: { params: InscricaoIdParamSchema },
+  request: withAuthHeaders({ params: InscricaoIdParamSchema }),
   responses: {
     200: { description: "Inscricao submetida.", content: jsonContent(InscricaoModelSchema) },
     400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -283,8 +307,9 @@ registry.registerPath({
   tags: ["Inscricao"],
   operationId: "cancelInscricaoSubmission",
   summary: "Cancela submissao para voltar ao rascunho",
+  description: withAuthDescription("Reabre a inscricao para edicao enquanto a janela do edital permanecer aberta."),
   security: bearerAuth,
-  request: { params: InscricaoIdParamSchema },
+  request: withAuthHeaders({ params: InscricaoIdParamSchema }),
   responses: {
     200: { description: "Submissao cancelada.", content: jsonContent(InscricaoModelSchema) },
     400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -300,7 +325,9 @@ registry.registerPath({
   tags: ["Inscricao"],
   operationId: "listInscricoesDoUsuario",
   summary: "Lista inscricoes do candidato",
+  description: withAuthDescription("Retorna as inscricoes do candidato autenticado com resumo do edital e da ficha."),
   security: bearerAuth,
+  request: withAuthHeaders(),
   responses: {
     200: { description: "Inscricoes retornadas com sucesso.", content: jsonContent(InscricaoListResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -336,8 +363,9 @@ for (const route of [
     tags: [route.tag],
     operationId: route.operationId,
     summary: route.summary,
+    description: withAuthDescription(route.summary),
     security: route.security,
-    request: { params: InscricaoIdParamSchema },
+    request: withAuthHeaders({ params: InscricaoIdParamSchema }),
     responses: {
       200: { description: "Arquivo PDF gerado com sucesso.", content: pdfContent },
       400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -355,7 +383,9 @@ registry.registerPath({
   tags: ["Homologacao"],
   operationId: "listFundamentosHomologacao",
   summary: "Lista fundamentos padrao de homologacao",
+  description: withAuthDescription("Retorna o catalogo administrativo de fundamentos estruturados usados na homologacao."),
   security: bearerAuth,
+  request: withAuthHeaders(),
   responses: {
     200: { description: "Catalogo de fundamentos administrativos.", content: jsonContent(HomologacaoFundamentosListResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -369,8 +399,9 @@ registry.registerPath({
   tags: ["Homologacao"],
   operationId: "listInscricoesParaHomologacao",
   summary: "Lista inscricoes para homologacao",
+  description: withAuthDescription("Lista inscricoes com documentos, snapshots e estado de homologacao para analise administrativa."),
   security: bearerAuth,
-  request: { query: OptionalEditalIdQuerySchema },
+  request: withAuthHeaders({ query: OptionalEditalIdQuerySchema }),
   responses: {
     200: { description: "Inscricoes listadas para analise documental.", content: jsonContent(HomologacaoAdminListResponseSchema) },
     400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -389,11 +420,12 @@ for (const phase of [
     tags: ["Homologacao"],
     operationId: phase.operationId,
     summary: phase.summary,
+    description: withAuthDescription(`${phase.summary} com parecer e fundamentos vinculados ao edital.`),
     security: bearerAuth,
-    request: {
+    request: withAuthHeaders({
       params: InscricaoIdParamSchema,
       body: { required: true, content: jsonContent(HomologacaoDecisionRequestSchema) },
-    },
+    }),
     responses: {
       200: { description: "Decisao registrada com sucesso.", content: jsonContent(HomologacaoInscricaoModelSchema) },
       400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -411,8 +443,9 @@ registry.registerPath({
   tags: ["Etapa 1"],
   operationId: "listInscricoesParaEtapa1",
   summary: "Lista inscricoes elegiveis para etapa 1",
+  description: withAuthDescription("Lista inscricoes aptas para lancamento ou revisao da avaliacao da etapa 1."),
   security: bearerAuth,
-  request: { query: OptionalEditalIdQuerySchema },
+  request: withAuthHeaders({ query: OptionalEditalIdQuerySchema }),
   responses: {
     200: { description: "Inscricoes da etapa 1 retornadas.", content: jsonContent(Etapa1ListResponseSchema) },
     400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -427,11 +460,12 @@ registry.registerPath({
   tags: ["Etapa 1"],
   operationId: "registrarResultadoEtapa1",
   summary: "Registra resultado da etapa 1",
+  description: withAuthDescription("Registra nota, espelho e situacao preliminar ou final da etapa 1."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: InscricaoIdParamSchema,
     body: { required: true, content: jsonContent(ResultadoEtapa1RequestSchema) },
-  },
+  }),
   responses: {
     200: { description: "Resultado registrado.", content: jsonContent(AvaliacaoEtapa1ModelSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -448,8 +482,9 @@ registry.registerPath({
   tags: ["Etapa 2"],
   operationId: "listInscricoesParaEtapa2",
   summary: "Lista inscricoes elegiveis para etapa 2",
+  description: withAuthDescription("Lista inscricoes aptas para lancamento ou revisao da avaliacao curricular."),
   security: bearerAuth,
-  request: { query: OptionalEditalIdQuerySchema },
+  request: withAuthHeaders({ query: OptionalEditalIdQuerySchema }),
   responses: {
     200: { description: "Inscricoes da etapa 2 retornadas.", content: jsonContent(Etapa2ListResponseSchema) },
     400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -464,11 +499,12 @@ registry.registerPath({
   tags: ["Etapa 2"],
   operationId: "registrarResultadoEtapa2",
   summary: "Registra resultado da etapa 2",
+  description: withAuthDescription("Registra pontuacao, espelho e situacao preliminar ou final da etapa 2."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: InscricaoIdParamSchema,
     body: { required: true, content: jsonContent(ResultadoEtapa2RequestSchema) },
-  },
+  }),
   responses: {
     200: { description: "Resultado registrado.", content: jsonContent(AvaliacaoEtapa2ModelSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -485,8 +521,9 @@ registry.registerPath({
   tags: ["Classificacao"],
   operationId: "listClassificacao",
   summary: "Lista classificacao por edital",
+  description: withAuthDescription("Lista a classificacao atual por edital, com posicao geral e por linha."),
   security: bearerAuth,
-  request: { params: EditalIdParamSchema },
+  request: withAuthHeaders({ params: EditalIdParamSchema }),
   responses: {
     200: { description: "Classificacao retornada com sucesso.", content: jsonContent(ClassificacaoListResponseSchema) },
     400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -501,11 +538,12 @@ registry.registerPath({
   tags: ["Classificacao"],
   operationId: "recalcularClassificacao",
   summary: "Recalcula classificacao do edital",
+  description: withAuthDescription("Recalcula a classificacao preliminar ou final do edital conforme os resultados lancados."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: EditalIdParamSchema,
     body: { required: true, content: jsonContent(RecalcularClassificacaoRequestSchema) },
-  },
+  }),
   responses: {
     200: { description: "Classificacao recalculada com sucesso.", content: jsonContent(ClassificacaoListResponseSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -521,8 +559,9 @@ registry.registerPath({
   tags: ["Recursos"],
   operationId: "createRecurso",
   summary: "Cria recurso administrativo do candidato",
+  description: withAuthDescription("Registra recurso do candidato dentro da janela da fase correspondente."),
   security: bearerAuth,
-  request: { body: { required: true, content: jsonContent(CreateRecursoRequestSchema) } },
+  request: withAuthHeaders({ body: { required: true, content: jsonContent(CreateRecursoRequestSchema) } }),
   responses: {
     201: { description: "Recurso criado.", content: jsonContent(RecursoModelSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -538,7 +577,9 @@ registry.registerPath({
   tags: ["Recursos"],
   operationId: "listRecursosDoUsuario",
   summary: "Lista recursos do candidato",
+  description: withAuthDescription("Lista os recursos do candidato autenticado."),
   security: bearerAuth,
+  request: withAuthHeaders(),
   responses: {
     200: { description: "Recursos retornados com sucesso.", content: jsonContent(RecursoListResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -551,8 +592,9 @@ registry.registerPath({
   tags: ["Recursos"],
   operationId: "listRecursosAdmin",
   summary: "Lista recursos para administracao",
+  description: withAuthDescription("Lista os recursos administrativos por edital e fase."),
   security: bearerAuth,
-  request: { query: ListRecursosAdminQuerySchema },
+  request: withAuthHeaders({ query: ListRecursosAdminQuerySchema }),
   responses: {
     200: { description: "Recursos retornados com sucesso.", content: jsonContent(RecursoAdminListResponseSchema) },
     400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
@@ -567,11 +609,12 @@ registry.registerPath({
   tags: ["Recursos"],
   operationId: "decidirRecurso",
   summary: "Registra decisao administrativa do recurso",
+  description: withAuthDescription("Registra decisao final do recurso e, quando aplicavel, propaga impacto no resultado."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: RecursoIdParamSchema,
     body: { required: true, content: jsonContent(DecidirRecursoRequestSchema) },
-  },
+  }),
   responses: {
     200: { description: "Recurso atualizado.", content: jsonContent(RecursoModelSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -600,11 +643,12 @@ registry.registerPath({
   tags: ["Publicacoes"],
   operationId: "createPublicacao",
   summary: "Cria publicacao oficial",
+  description: withAuthDescription("Cria publicacao oficial vinculada ao edital, com titulo, tipo e arquivo opcional."),
   security: bearerAuth,
-  request: {
+  request: withAuthHeaders({
     params: EditalIdParamSchema,
     body: { required: true, content: jsonContent(CreatePublicacaoRequestSchema) },
-  },
+  }),
   responses: {
     201: { description: "Publicacao criada.", content: jsonContent(PublicacaoModelSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
@@ -620,7 +664,7 @@ export const openApiDocument = new OpenApiGeneratorV3(registry.definitions).gene
     title: "API Sistema de Selecao Pos-Graduacao PPGEE/UFAM",
     version: "0.1.0",
     description:
-      "Documentacao completa da API backend do processo seletivo stricto sensu do PPGEE/UFAM, com foco em fluxos multi-edital, autenticacao, inscricao, homologacao, recursos, avaliacao e publicacoes.",
+      "Documentacao completa da API backend do processo seletivo stricto sensu do PPGEE/UFAM, com foco em fluxos multi-edital, autenticacao, inscricao, homologacao, recursos, avaliacao e publicacoes.\n\nGuia rapido de autenticacao:\n1. Execute `/v1/auth/login` ou `/v1/auth/register`.\n2. Copie o valor de `token` retornado.\n3. Clique em `Authorize` no topo da UI e informe o JWT.\n4. Se preferir testar por operacao, preencha o campo `Authorization` visivel nas rotas protegidas com `Bearer <token>`.\n5. Reexecute a chamada protegida.",
     contact: {
       name: "PPGEE/UFAM",
       email: "ppgee@ufam.edu.br",
@@ -631,7 +675,12 @@ export const openApiDocument = new OpenApiGeneratorV3(registry.definitions).gene
       url: "/",
       description: "Servidor atual",
     },
+    {
+      url: "http://localhost:4000",
+      description: "Desenvolvimento local",
+    },
   ],
+  security: bearerAuth,
   tags: [
     { name: "Sistema", description: "Operacao e monitoramento do backend." },
     { name: "Autenticacao", description: "Cadastro, login e leitura de identidade autenticada." },
