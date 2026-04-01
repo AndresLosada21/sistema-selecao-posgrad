@@ -26,7 +26,7 @@ authRouter.post("/v1/auth/register", async (request, response) => {
 
   if ("error" in result) {
     return response.status(409).json({
-      message: "Ja existe uma conta com este e-mail.",
+      message: result.error === "CPF_ALREADY_IN_USE" ? "Ja existe uma conta com este CPF." : "Ja existe uma conta com este e-mail.",
     });
   }
 

@@ -41,12 +41,19 @@ export async function registerCandidate(input: {
   telefone?: string;
   cpf?: string;
 }) {
-  const existingUser = await prisma.usuario.findUnique({
-    where: { email: input.email },
+  const existingUser = await prisma.usuario.findFirst({
+    where: {
+      OR: [
+        { email: input.email },
+        ...(input.cpf ? [{ cpf: input.cpf }] : []),
+      ],
+    },
   });
 
   if (existingUser) {
-    return { error: "EMAIL_ALREADY_IN_USE" as const };
+    return {
+      error: existingUser.email === input.email ? ("EMAIL_ALREADY_IN_USE" as const) : ("CPF_ALREADY_IN_USE" as const),
+    };
   }
 
   const senhaHash = await bcrypt.hash(input.senha, 10);
