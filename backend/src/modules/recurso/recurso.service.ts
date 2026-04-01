@@ -9,6 +9,7 @@ import {
 
 import { prisma } from "../../lib/prisma.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
+import { getInscricaoStatusAfterFinalHomologacao, normalizeFinalHomologacaoStatus } from "../homologacao/homologacao.rules.js";
 
 function getRecursoWindowType(fase: FaseRecurso) {
   switch (fase) {
@@ -251,17 +252,20 @@ export async function decidirRecurso(
         break;
       case FaseRecurso.HOMOLOGACAO:
         if (recurso.participacaoEdital.inscricao && recurso.participacaoEdital.inscricao.homologacao && input.novoStatusInscricao) {
+          const nextHomologacaoStatus = normalizeFinalHomologacaoStatus(input.novoStatusInscricao);
+          const nextInscricaoStatus = getInscricaoStatusAfterFinalHomologacao(nextHomologacaoStatus);
+
           await prisma.homologacaoInscricao.update({
             where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
             data: {
-              statusFinal: input.novoStatusInscricao,
+              statusFinal: nextHomologacaoStatus,
               parecerFinal: input.decisao,
               publicadoFinalEm: new Date(),
             },
           });
           await prisma.inscricao.update({
             where: { id: recurso.participacaoEdital.inscricao.id },
-            data: { status: input.novoStatusInscricao },
+            data: { status: nextInscricaoStatus },
           });
         }
         break;

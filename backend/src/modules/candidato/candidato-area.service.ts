@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js";
 import { buildCandidateAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
+import { parseHomologacaoMotivos } from "../homologacao/homologacao.rules.js";
 
 function toIsoOrNull(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
@@ -105,14 +106,16 @@ export async function getCandidateDashboard(usuarioId: string) {
             observacaoValidacao: documento.observacaoValidacao,
           })),
           homologacao: participacao.inscricao.homologacao
-            ? {
-                statusPreliminar: participacao.inscricao.homologacao.statusPreliminar,
-                parecerPreliminar: participacao.inscricao.homologacao.parecerPreliminar,
-                publicadoPreliminarEm: toIsoOrNull(participacao.inscricao.homologacao.publicadoPreliminarEm),
-                statusFinal: participacao.inscricao.homologacao.statusFinal,
-                parecerFinal: participacao.inscricao.homologacao.parecerFinal,
-                publicadoFinalEm: toIsoOrNull(participacao.inscricao.homologacao.publicadoFinalEm),
-              }
+              ? {
+                  statusPreliminar: participacao.inscricao.homologacao.statusPreliminar,
+                  motivosPreliminar: parseHomologacaoMotivos(participacao.inscricao.homologacao.motivosPreliminar),
+                  parecerPreliminar: participacao.inscricao.homologacao.parecerPreliminar,
+                  publicadoPreliminarEm: toIsoOrNull(participacao.inscricao.homologacao.publicadoPreliminarEm),
+                  statusFinal: participacao.inscricao.homologacao.statusFinal,
+                  motivosFinal: parseHomologacaoMotivos(participacao.inscricao.homologacao.motivosFinal),
+                  parecerFinal: participacao.inscricao.homologacao.parecerFinal,
+                  publicadoFinalEm: toIsoOrNull(participacao.inscricao.homologacao.publicadoFinalEm),
+                }
             : null,
           etapa1: participacao.inscricao.avaliacaoEtapa1
             ? {

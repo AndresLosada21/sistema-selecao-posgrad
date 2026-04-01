@@ -1,7 +1,22 @@
-import { StatusInscricao } from "@prisma/client";
+import { Prisma, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
+import {
+  buildMotivoPublicacaoHomologacao,
+  getFinalHomologacaoStatus,
+  getInscricaoStatusAfterFinalHomologacao,
+  getPreliminaryHomologacaoStatus,
+  getSituacaoPublicaHomologacao,
+  listFundamentosHomologacaoPadrao,
+  parseHomologacaoMotivos,
+  validateHomologacaoDecision,
+  type HomologacaoMotivo,
+} from "./homologacao.rules.js";
+
+function toNullableJson(value: Prisma.JsonValue | null | undefined) {
+  return value ? (value as Prisma.InputJsonValue) : Prisma.DbNull;
+}
 
 export async function listInscricoesParaHomologacao(editalId?: string) {
   const inscricoes = await prisma.inscricao.findMany({
@@ -31,6 +46,8 @@ export async function listInscricoesParaHomologacao(editalId?: string) {
   return inscricoes.map((inscricao) => ({
     id: inscricao.id,
     status: inscricao.status,
+    statusPagamento: inscricao.statusPagamento,
+    modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
     candidato: {
       id: inscricao.participacaoEdital.usuario.id,
       nomeCompleto: inscricao.participacaoEdital.usuario.nomeCompleto,
@@ -48,22 +65,55 @@ export async function listInscricoesParaHomologacao(editalId?: string) {
           nome: inscricao.linhaPesquisa.nome,
         }
       : null,
+    documentos: inscricao.documentos.map((documento) => ({
+      id: documento.id,
+      tipo: documento.tipo,
+      nome: documento.nome,
+      nomeArquivo: documento.nomeArquivo,
+      urlArquivo: documento.urlArquivo,
+      statusValidacao: documento.statusValidacao,
+      observacaoValidacao: documento.observacaoValidacao,
+      obrigatorio: documento.obrigatorio,
+    })),
     documentosTotal: inscricao.documentos.length,
+    submissaoSnapshot: inscricao.submissaoSnapshot,
+    versaoSubmissao: inscricao.versaoSubmissao,
     anexoIvUrl: buildAdminAnexoIvUrl(inscricao.id),
     anexoIvFlattenUrl: buildAdminAnexoIvFlattenUrl(inscricao.id),
     submetidaEm: inscricao.submetidaEm?.toISOString() ?? null,
     homologacao: inscricao.homologacao
       ? {
           statusPreliminar: inscricao.homologacao.statusPreliminar,
+          motivosPreliminar: parseHomologacaoMotivos(inscricao.homologacao.motivosPreliminar),
+          situacaoPublicaPreliminar: getSituacaoPublicaHomologacao(inscricao.homologacao.statusPreliminar),
+          motivoPublicacaoPreliminar: buildMotivoPublicacaoHomologacao(
+            parseHomologacaoMotivos(inscricao.homologacao.motivosPreliminar),
+          ),
           parecerPreliminar: inscricao.homologacao.parecerPreliminar,
+          versaoSubmissaoPreliminar: inscricao.homologacao.versaoSubmissaoPreliminar,
+          submissaoSnapshotPreliminar: inscricao.homologacao.submissaoSnapshotPreliminar,
           statusFinal: inscricao.homologacao.statusFinal,
+          motivosFinal: parseHomologacaoMotivos(inscricao.homologacao.motivosFinal),
+          situacaoPublicaFinal: getSituacaoPublicaHomologacao(inscricao.homologacao.statusFinal),
+          motivoPublicacaoFinal: buildMotivoPublicacaoHomologacao(parseHomologacaoMotivos(inscricao.homologacao.motivosFinal)),
           parecerFinal: inscricao.homologacao.parecerFinal,
+          versaoSubmissaoFinal: inscricao.homologacao.versaoSubmissaoFinal,
+          submissaoSnapshotFinal: inscricao.homologacao.submissaoSnapshotFinal,
         }
       : null,
   }));
 }
 
-export async function registrarHomologacaoPreliminar(inscricaoId: string, homologada: boolean, parecer: string) {
+export function listFundamentosHomologacao() {
+  return listFundamentosHomologacaoPadrao();
+}
+
+export async function registrarHomologacaoPreliminar(
+  inscricaoId: string,
+  homologada: boolean,
+  parecer: string,
+  motivos: HomologacaoMotivo[],
+) {
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
   });
@@ -72,34 +122,57 @@ export async function registrarHomologacaoPreliminar(inscricaoId: string, homolo
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  const nextStatus = homologada
-    ? StatusInscricao.HOMOLOGADA_PRELIMINAR
-    : StatusInscricao.NAO_HOMOLOGADA_PRELIMINAR;
+  if (!inscricao.submetidaEm) {
+    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
 
-  const homologacao = await prisma.homologacaoInscricao.upsert({
-    where: { inscricaoId },
-    update: {
-      statusPreliminar: nextStatus,
-      parecerPreliminar: parecer,
-      publicadoPreliminarEm: new Date(),
-    },
-    create: {
-      inscricaoId,
-      statusPreliminar: nextStatus,
-      parecerPreliminar: parecer,
-      publicadoPreliminarEm: new Date(),
-    },
-  });
+  const decision = validateHomologacaoDecision({ homologada, motivos });
 
-  await prisma.inscricao.update({
-    where: { id: inscricaoId },
-    data: { status: nextStatus },
+  if (!decision.ok) {
+    return { error: "HOMOLOGACAO_INVALIDA" as const, details: decision.errors };
+  }
+
+  const nextStatus = getPreliminaryHomologacaoStatus(homologada);
+
+  const homologacao = await prisma.$transaction(async (tx) => {
+    const upserted = await tx.homologacaoInscricao.upsert({
+      where: { inscricaoId },
+      update: {
+        statusPreliminar: nextStatus,
+        motivosPreliminar: toNullableJson(decision.motivos),
+        parecerPreliminar: parecer,
+        submissaoSnapshotPreliminar: toNullableJson(inscricao.submissaoSnapshot),
+        versaoSubmissaoPreliminar: inscricao.versaoSubmissao,
+        publicadoPreliminarEm: new Date(),
+      },
+      create: {
+        inscricaoId,
+        statusPreliminar: nextStatus,
+        motivosPreliminar: toNullableJson(decision.motivos),
+        parecerPreliminar: parecer,
+        submissaoSnapshotPreliminar: toNullableJson(inscricao.submissaoSnapshot),
+        versaoSubmissaoPreliminar: inscricao.versaoSubmissao,
+        publicadoPreliminarEm: new Date(),
+      },
+    });
+
+    await tx.inscricao.update({
+      where: { id: inscricaoId },
+      data: { status: nextStatus },
+    });
+
+    return upserted;
   });
 
   return { homologacao };
 }
 
-export async function registrarHomologacaoFinal(inscricaoId: string, homologada: boolean, parecer: string) {
+export async function registrarHomologacaoFinal(
+  inscricaoId: string,
+  homologada: boolean,
+  parecer: string,
+  motivos: HomologacaoMotivo[],
+) {
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
     include: {
@@ -111,26 +184,42 @@ export async function registrarHomologacaoFinal(inscricaoId: string, homologada:
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
+  if (!inscricao.submetidaEm) {
+    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
+
   if (!inscricao.homologacao?.statusPreliminar) {
     return { error: "HOMOLOGACAO_PRELIMINAR_OBRIGATORIA" as const };
   }
 
-  const nextStatus = homologada
-    ? StatusInscricao.HOMOLOGADA_FINAL
-    : StatusInscricao.NAO_HOMOLOGADA_FINAL;
+  const decision = validateHomologacaoDecision({ homologada, motivos });
 
-  const homologacao = await prisma.homologacaoInscricao.update({
-    where: { inscricaoId },
-    data: {
-      statusFinal: nextStatus,
-      parecerFinal: parecer,
-      publicadoFinalEm: new Date(),
-    },
-  });
+  if (!decision.ok) {
+    return { error: "HOMOLOGACAO_INVALIDA" as const, details: decision.errors };
+  }
 
-  await prisma.inscricao.update({
-    where: { id: inscricaoId },
-    data: { status: nextStatus },
+  const nextStatus = getFinalHomologacaoStatus(homologada);
+  const nextInscricaoStatus = getInscricaoStatusAfterFinalHomologacao(nextStatus);
+
+  const homologacao = await prisma.$transaction(async (tx) => {
+    const updated = await tx.homologacaoInscricao.update({
+      where: { inscricaoId },
+      data: {
+        statusFinal: nextStatus,
+        motivosFinal: toNullableJson(decision.motivos),
+        parecerFinal: parecer,
+        submissaoSnapshotFinal: toNullableJson(inscricao.submissaoSnapshot),
+        versaoSubmissaoFinal: inscricao.versaoSubmissao,
+        publicadoFinalEm: new Date(),
+      },
+    });
+
+    await tx.inscricao.update({
+      where: { id: inscricaoId },
+      data: { status: nextInscricaoStatus },
+    });
+
+    return updated;
   });
 
   return { homologacao };
