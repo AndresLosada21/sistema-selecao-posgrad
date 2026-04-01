@@ -1,0 +1,15 @@
+import { TipoPublicacaoOficial } from "@prisma/client";
+import { z } from "zod";
+
+export const editalIdParamSchema = z.object({
+  editalId: z.string().min(1),
+});
+
+export const createPublicacaoSchema = z.object({
+  tipo: z.nativeEnum(TipoPublicacaoOficial),
+  titulo: z.string().trim().min(5),
+  descricao: z.string().trim().min(5).optional(),
+  versaoFinal: z.boolean().default(false),
+  arquivoUrl: z.string().trim().url().optional(),
+  dadosConsolidados: z.record(z.any()).optional(),
+});

@@ -1,0 +1,438 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CANDIDATO
+  AVALIADOR
+  ADMIN
+}
+
+enum StatusConta {
+  CRIADA
+  ATIVA
+  BLOQUEADA
+}
+
+enum CursoNivel {
+  MESTRADO
+  DOUTORADO
+}
+
+enum StatusEdital {
+  RASCUNHO
+  PUBLICADO
+  EM_ANDAMENTO
+  ENCERRADO
+  CANCELADO
+}
+
+enum TipoCronogramaEdital {
+  PEDIDO_ISENCAO
+  RECURSO_ISENCAO
+  INSCRICAO
+  HOMOLOGACAO_PRELIMINAR
+  RECURSO_HOMOLOGACAO
+  HOMOLOGACAO_FINAL
+  ETAPA_1
+  RECURSO_ETAPA_1
+  ETAPA_2
+  RECURSO_ETAPA_2
+  CLASSIFICACAO_PRELIMINAR
+  RECURSO_CLASSIFICACAO
+  CLASSIFICACAO_FINAL
+  PUBLICACAO
+  MATRICULA
+}
+
+enum ModalidadeConcorrencia {
+  AMPLA_CONCORRENCIA
+  ACOES_AFIRMATIVAS
+  PCD
+}
+
+enum StatusParticipacaoEdital {
+  ATIVA
+  ENCERRADA
+  CANCELADA
+}
+
+enum StatusPagamentoInscricao {
+  NAO_APLICAVEL
+  PENDENTE
+  PAGO
+  DISPENSADO
+  INVALIDADO
+}
+
+enum StatusInscricao {
+  RASCUNHO
+  SUBMETIDA
+  EM_ANALISE_DOCUMENTAL
+  HOMOLOGADA_PRELIMINAR
+  NAO_HOMOLOGADA_PRELIMINAR
+  HOMOLOGADA_FINAL
+  NAO_HOMOLOGADA_FINAL
+  APTA_ETAPA_1
+  ELIMINADA_ETAPA_1
+  APTA_ETAPA_2
+  CLASSIFICACAO_PRELIMINAR
+  AGUARDANDO_HETEROIDENTIFICACAO
+  CLASSIFICACAO_FINAL
+  APROVADA
+  LISTA_DE_ESPERA
+  ELIMINADA
+  MATRICULA_PENDENTE
+  MATRICULADA
+}
+
+enum TipoDocumentoInscricao {
+  DOCUMENTO_IDENTIFICACAO
+  RNE_PASSAPORTE
+  CPF
+  DIPLOMA
+  HISTORICO
+  CURRICULO
+  COMPROVANTE_PAGAMENTO
+  ANEXO_IV
+  ANEXO_V
+  LAUDO_PCD
+  ANEXO_VIII_AUTODECLARACAO
+  COMPROVANTE_ETNICO
+  COMPROVANTE_AFFIRMATIVA
+  OUTRO
+}
+
+enum StatusDocumentoInscricao {
+  PENDENTE
+  ENVIADO
+  VALIDADO
+  INVALIDADO
+}
+
+enum StatusIsencao {
+  NAO_SOLICITADA
+  SOLICITADA
+  EM_ANALISE
+  DEFERIDA_PRELIMINAR
+  INDEFERIDA_PRELIMINAR
+  DEFERIDA_FINAL
+  INDEFERIDA_FINAL
+}
+
+enum StatusRecurso {
+  ABERTO
+  EM_ANALISE
+  DEFERIDO
+  INDEFERIDO
+  RESPONDIDO
+}
+
+enum FaseRecurso {
+  ISENCAO
+  HOMOLOGACAO
+  ETAPA_1
+  ETAPA_2
+  CLASSIFICACAO
+}
+
+enum StatusAvaliacaoEtapa {
+  PENDENTE
+  EM_AVALIACAO
+  PRELIMINAR_PUBLICADA
+  FINAL_PUBLICADA
+}
+
+enum StatusClassificacaoFinal {
+  PRELIMINAR
+  FINAL
+  APROVADO
+  LISTA_DE_ESPERA
+  ELIMINADO
+}
+
+enum TipoPublicacaoOficial {
+  EDITAL
+  RETIFICACAO
+  ISENCAO_PRELIMINAR
+  ISENCAO_FINAL
+  HOMOLOGACAO_PRELIMINAR
+  HOMOLOGACAO_FINAL
+  RESULTADO_ETAPA_1
+  RESULTADO_ETAPA_2
+  CLASSIFICACAO_PRELIMINAR
+  CLASSIFICACAO_FINAL
+  COMUNICADO
+}
+
+model Usuario {
+  id                 String               @id @default(cuid())
+  nomeCompleto       String
+  email              String               @unique
+  senhaHash          String
+  cpf                String?              @unique
+  telefone           String?
+  dataNascimento     DateTime?
+  emailVerificadoEm  DateTime?
+  statusConta        StatusConta          @default(CRIADA)
+  criadoEm           DateTime             @default(now())
+  atualizadoEm       DateTime             @updatedAt
+  perfis             UsuarioPerfil[]
+  participacoes      ParticipacaoEdital[]
+  editaisCriados     Edital[]             @relation("EditalCriadoPor")
+  recursosCriados    Recurso[]            @relation("RecursoCriadoPor")
+  publicacoesCriadas PublicacaoOficial[]  @relation("PublicacaoCriadaPor")
+}
+
+model UsuarioPerfil {
+  id         String   @id @default(cuid())
+  usuarioId  String
+  role       Role
+  criadoEm   DateTime @default(now())
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, role])
+}
+
+model Edital {
+  id                    String                 @id @default(cuid())
+  numero                String
+  titulo                String
+  descricao             String?
+  ano                   Int
+  semestre              Int?
+  cursoNivel            CursoNivel
+  status                StatusEdital           @default(RASCUNHO)
+  publicadoEm           DateTime?
+  criadoPorId           String?
+  criadoEm              DateTime               @default(now())
+  atualizadoEm          DateTime               @updatedAt
+  criadoPor             Usuario?               @relation("EditalCriadoPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+  cronogramas           CronogramaEdital[]
+  linhasPesquisa        LinhaPesquisa[]
+  participacoes         ParticipacaoEdital[]
+  publicacoesOficiais   PublicacaoOficial[]
+
+  @@unique([numero, ano, cursoNivel])
+}
+
+model CronogramaEdital {
+  id          String               @id @default(cuid())
+  editalId    String
+  tipo        TipoCronogramaEdital
+  titulo      String
+  descricao   String?
+  inicioEm    DateTime
+  fimEm       DateTime
+  criadoEm    DateTime             @default(now())
+  atualizadoEm DateTime            @updatedAt
+  edital      Edital               @relation(fields: [editalId], references: [id], onDelete: Cascade)
+
+  @@index([editalId, tipo])
+}
+
+model LinhaPesquisa {
+  id                     String                @id @default(cuid())
+  editalId               String
+  nome                   String
+  descricao              String?
+  vagasAmplaConcorrencia Int                   @default(0)
+  vagasAcoesAfirmativas  Int                   @default(0)
+  vagasPcd               Int                   @default(0)
+  criadoEm               DateTime              @default(now())
+  atualizadoEm           DateTime              @updatedAt
+  edital                 Edital                @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  inscricoes             Inscricao[]
+  classificacoesFinais   ClassificacaoFinal[]
+
+  @@unique([editalId, nome])
+}
+
+model ParticipacaoEdital {
+  id                    String                  @id @default(cuid())
+  usuarioId             String
+  editalId              String
+  status                StatusParticipacaoEdital @default(ATIVA)
+  criadoEm              DateTime                @default(now())
+  atualizadoEm          DateTime                @updatedAt
+  usuario               Usuario                 @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  edital                Edital                  @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  inscricao             Inscricao?
+  pedidoIsencao         PedidoIsencao?
+  recursos              Recurso[]
+  classificacaoFinal    ClassificacaoFinal?
+
+  @@unique([usuarioId, editalId])
+  @@index([editalId, status])
+}
+
+model PedidoIsencao {
+  id                          String        @id @default(cuid())
+  participacaoEditalId        String        @unique
+  cursoNivel                  CursoNivel
+  inscritoCadUnico            Boolean
+  nis                         String?
+  justificativa               String?
+  comprovanteUrl              String?
+  comprovanteNomeArquivo      String?
+  status                      StatusIsencao @default(SOLICITADA)
+  parecerPreliminar           String?
+  parecerFinal                String?
+  resultadoPreliminarEm       DateTime?
+  resultadoFinalEm            DateTime?
+  criadoEm                    DateTime      @default(now())
+  atualizadoEm                DateTime      @updatedAt
+  participacaoEdital          ParticipacaoEdital @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
+}
+
+model Inscricao {
+  id                          String                   @id @default(cuid())
+  participacaoEditalId        String                   @unique
+  linhaPesquisaId             String?
+  modalidadeConcorrencia      ModalidadeConcorrencia   @default(AMPLA_CONCORRENCIA)
+  status                      StatusInscricao          @default(RASCUNHO)
+  statusPagamento             StatusPagamentoInscricao @default(PENDENTE)
+  temaRedacao                 String?
+  resumoCurriculo             String?
+  redacaoTexto                String?
+  dadosFormulario             Json?
+  anexoIvGeradoUrl            String?
+  assinaturaImagemUrl         String?
+  submissaoSnapshot           Json?
+  versaoSubmissao             Int                      @default(0)
+  submetidaEm                 DateTime?
+  canceladaSubmissaoEm        DateTime?
+  criadoEm                    DateTime                 @default(now())
+  atualizadoEm                DateTime                 @updatedAt
+  participacaoEdital          ParticipacaoEdital       @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
+  linhaPesquisa               LinhaPesquisa?           @relation(fields: [linhaPesquisaId], references: [id], onDelete: SetNull)
+  documentos                  DocumentoInscricao[]
+  homologacao                 HomologacaoInscricao?
+  avaliacaoEtapa1             AvaliacaoEtapa1?
+  avaliacaoEtapa2             AvaliacaoEtapa2?
+}
+
+model DocumentoInscricao {
+  id                    String                   @id @default(cuid())
+  inscricaoId           String
+  tipo                  TipoDocumentoInscricao
+  nome                  String
+  urlArquivo            String
+  nomeArquivo           String
+  mimeType              String?
+  tamanhoBytes          Int?
+  obrigatorio           Boolean                  @default(true)
+  statusValidacao       StatusDocumentoInscricao @default(ENVIADO)
+  observacaoValidacao   String?
+  criadoEm              DateTime                 @default(now())
+  atualizadoEm          DateTime                 @updatedAt
+  inscricao             Inscricao                @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+
+  @@index([inscricaoId, tipo])
+}
+
+model HomologacaoInscricao {
+  id                    String         @id @default(cuid())
+  inscricaoId           String         @unique
+  statusPreliminar      StatusInscricao?
+  parecerPreliminar     String?
+  publicadoPreliminarEm DateTime?
+  statusFinal           StatusInscricao?
+  parecerFinal          String?
+  publicadoFinalEm      DateTime?
+  criadoEm              DateTime       @default(now())
+  atualizadoEm          DateTime       @updatedAt
+  inscricao             Inscricao      @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+}
+
+model AvaliacaoEtapa1 {
+  id                    String               @id @default(cuid())
+  inscricaoId           String               @unique
+  tema                  String?
+  textoSubmetido        String?
+  nota                  Decimal?             @db.Decimal(5, 2)
+  espelhoCorrecao       String?
+  status                StatusAvaliacaoEtapa @default(PENDENTE)
+  resultadoPreliminarEm DateTime?
+  resultadoFinalEm      DateTime?
+  criadoEm              DateTime             @default(now())
+  atualizadoEm          DateTime             @updatedAt
+  inscricao             Inscricao            @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+}
+
+model AvaliacaoEtapa2 {
+  id                    String               @id @default(cuid())
+  inscricaoId           String               @unique
+  pontuacaoItens        Json?
+  pontuacaoBruta        Decimal?             @db.Decimal(7, 2)
+  notaNormalizada       Decimal?             @db.Decimal(5, 2)
+  espelhoCorrecao       String?
+  status                StatusAvaliacaoEtapa @default(PENDENTE)
+  resultadoPreliminarEm DateTime?
+  resultadoFinalEm      DateTime?
+  criadoEm              DateTime             @default(now())
+  atualizadoEm          DateTime             @updatedAt
+  inscricao             Inscricao            @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+}
+
+model Recurso {
+  id                     String         @id @default(cuid())
+  participacaoEditalId   String
+  criadoPorId            String
+  fase                   FaseRecurso
+  status                 StatusRecurso  @default(ABERTO)
+  fundamentacao          String
+  anexoUrl               String?
+  decisao                String?
+  impactoResultado       Boolean        @default(false)
+  respondidoEm           DateTime?
+  criadoEm               DateTime       @default(now())
+  atualizadoEm           DateTime       @updatedAt
+  participacaoEdital     ParticipacaoEdital @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
+  criadoPor              Usuario        @relation("RecursoCriadoPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([participacaoEditalId, fase, status])
+}
+
+model ClassificacaoFinal {
+  id                    String                  @id @default(cuid())
+  participacaoEditalId  String                  @unique
+  linhaPesquisaId       String?
+  modalidadeConcorrencia ModalidadeConcorrencia @default(AMPLA_CONCORRENCIA)
+  notaEtapa1            Decimal?                @db.Decimal(5, 2)
+  notaEtapa2            Decimal?                @db.Decimal(5, 2)
+  notaFinal             Decimal?                @db.Decimal(5, 2)
+  posicaoGeral          Int?
+  posicaoLinha          Int?
+  status                StatusClassificacaoFinal @default(PRELIMINAR)
+  publicadoPreliminarEm DateTime?
+  publicadoFinalEm      DateTime?
+  criadoEm              DateTime                @default(now())
+  atualizadoEm          DateTime                @updatedAt
+  participacaoEdital    ParticipacaoEdital      @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
+  linhaPesquisa         LinhaPesquisa?          @relation(fields: [linhaPesquisaId], references: [id], onDelete: SetNull)
+}
+
+model PublicacaoOficial {
+  id                 String               @id @default(cuid())
+  editalId           String
+  criadoPorId        String?
+  tipo               TipoPublicacaoOficial
+  titulo             String
+  descricao          String?
+  versaoFinal        Boolean              @default(false)
+  arquivoUrl         String?
+  dadosConsolidados  Json?
+  publicadoEm        DateTime?
+  criadoEm           DateTime             @default(now())
+  atualizadoEm       DateTime             @updatedAt
+  edital             Edital               @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  criadoPor          Usuario?             @relation("PublicacaoCriadaPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([editalId, tipo, publicadoEm])
+}
