@@ -3,6 +3,7 @@ import { Router } from "express";
 
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
+import type { HomologacaoMotivo } from "./homologacao.rules.js";
 
 import {
   homologacaoDecisionSchema,
@@ -10,12 +11,22 @@ import {
   listInscricoesAdminQuerySchema,
 } from "./homologacao.schemas.js";
 import {
+  listFundamentosHomologacao,
   listInscricoesParaHomologacao,
   registrarHomologacaoFinal,
   registrarHomologacaoPreliminar,
 } from "./homologacao.service.js";
 
 export const homologacaoRouter = Router();
+
+homologacaoRouter.get("/v1/admin/homologacao/fundamentos", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
+  const items = listFundamentosHomologacao();
+
+  return response.status(200).json({
+    items,
+    total: items.length,
+  });
+});
 
 homologacaoRouter.get("/v1/admin/inscricoes", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
   const parsedQuery = listInscricoesAdminQuerySchema.safeParse(request.query);
@@ -51,10 +62,12 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/preliminar"
     parsedParams.data.inscricaoId,
     parsedBody.data.homologada as boolean,
     parsedBody.data.parecer as string,
+    parsedBody.data.motivos as HomologacaoMotivo[],
   );
 
   if ("error" in result) {
-    return response.status(404).json({ message: result.error });
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    return response.status(status).json({ message: result.error, details: "details" in result ? result.details : undefined });
   }
 
   return response.status(200).json(result.homologacao);
@@ -76,11 +89,12 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/final", req
     parsedParams.data.inscricaoId,
     parsedBody.data.homologada as boolean,
     parsedBody.data.parecer as string,
+    parsedBody.data.motivos as HomologacaoMotivo[],
   );
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    return response.status(status).json({ message: result.error, details: "details" in result ? result.details : undefined });
   }
 
   return response.status(200).json(result.homologacao);

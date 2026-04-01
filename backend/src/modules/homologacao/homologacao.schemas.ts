@@ -1,3 +1,4 @@
+import { TipoDocumentoInscricao } from "@prisma/client";
 import { z } from "zod";
 
 export const inscricaoIdParamSchema = z.object({
@@ -8,7 +9,25 @@ export const listInscricoesAdminQuerySchema = z.object({
   editalId: z.string().min(1).optional(),
 });
 
+export const homologacaoMotivoSchema = z.object({
+  codigo: z.string().trim().min(1),
+  itemEdital: z.string().trim().min(1),
+  titulo: z.string().trim().min(3),
+  descricao: z.string().trim().min(3),
+  documentoTipo: z.nativeEnum(TipoDocumentoInscricao).optional(),
+  sanavel: z.boolean().default(false),
+});
+
 export const homologacaoDecisionSchema = z.object({
   homologada: z.boolean(),
   parecer: z.string().trim().min(5),
+  motivos: z.array(homologacaoMotivoSchema).max(10).default([]),
+}).superRefine((data, context) => {
+  if (!data.homologada && data.motivos.length === 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["motivos"],
+      message: "Todo indeferimento deve informar ao menos um motivo objetivo vinculado ao edital.",
+    });
+  }
 });

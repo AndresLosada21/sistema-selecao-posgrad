@@ -340,10 +340,16 @@ model HomologacaoInscricao {
   id                    String         @id @default(cuid())
   inscricaoId           String         @unique
   statusPreliminar      StatusInscricao?
+  motivosPreliminar     Json?
   parecerPreliminar     String?
+  submissaoSnapshotPreliminar Json?
+  versaoSubmissaoPreliminar   Int?
   publicadoPreliminarEm DateTime?
   statusFinal           StatusInscricao?
+  motivosFinal          Json?
   parecerFinal          String?
+  submissaoSnapshotFinal Json?
+  versaoSubmissaoFinal   Int?
   publicadoFinalEm      DateTime?
   criadoEm              DateTime       @default(now())
   atualizadoEm          DateTime       @updatedAt
