@@ -10,6 +10,8 @@ import {
   ClassificacaoListResponseSchema,
   ConflictErrorResponseSchema,
   CreateIsencaoRequestSchema,
+  CreateHomologacaoPublicacaoRequestSchema,
+  CreateHomologacaoPublicacaoResponseSchema,
   CreatePublicacaoRequestSchema,
   CreateRecursoRequestSchema,
   DecidirRecursoRequestSchema,
@@ -31,6 +33,7 @@ import {
   ListRecursosAdminQuerySchema,
   LoginRequestSchema,
   MessageResponseSchema,
+  HomologacaoPublicacaoPreviewSchema,
   OptionalEditalIdQuerySchema,
   ParamsBodyValidationErrorResponseSchema,
   ParticipacaoListResponseSchema,
@@ -38,6 +41,7 @@ import {
   PedidoIsencaoListResponseSchema,
   PublicacaoListResponseSchema,
   PublicacaoModelSchema,
+  PreviewHomologacaoPublicacaoQuerySchema,
   RecalcularClassificacaoRequestSchema,
   RecursoAdminListResponseSchema,
   RecursoIdParamSchema,
@@ -655,6 +659,50 @@ registry.registerPath({
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/publicacoes/homologacao/preview",
+  tags: ["Publicacoes", "Homologacao"],
+  operationId: "buildHomologacaoPublicacaoPreview",
+  summary: "Gera preview da publicacao de homologacao",
+  description: withAuthDescription("Consolida o resultado preliminar ou final da homologacao em payload auditavel antes da publicacao oficial."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    query: PreviewHomologacaoPublicacaoQuerySchema,
+  }),
+  responses: {
+    200: { description: "Preview consolidado da homologacao.", content: jsonContent(HomologacaoPublicacaoPreviewSchema) },
+    400: { description: "Dados invalidos para gerar o preview.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Nao ha dados suficientes de homologacao para a fase informada.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/publicacoes/homologacao",
+  tags: ["Publicacoes", "Homologacao"],
+  operationId: "createHomologacaoPublicacao",
+  summary: "Cria publicacao oficial da homologacao",
+  description: withAuthDescription("Congela em `dadosConsolidados` o preview auditavel da homologacao preliminar ou final e cria a publicacao oficial correspondente."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(CreateHomologacaoPublicacaoRequestSchema) },
+  }),
+  responses: {
+    201: { description: "Publicacao oficial de homologacao criada.", content: jsonContent(CreateHomologacaoPublicacaoResponseSchema) },
+    400: { description: "Dados invalidos para a publicacao.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Nao ha dados suficientes de homologacao para a fase informada.", content: jsonContent(MessageResponseSchema) },
   },
 });
 
