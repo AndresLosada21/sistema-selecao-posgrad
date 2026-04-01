@@ -13,3 +13,14 @@ export const createPublicacaoSchema = z.object({
   arquivoUrl: z.string().trim().url().optional(),
   dadosConsolidados: z.record(z.any()).optional(),
 });
+
+export const previewHomologacaoPublicacaoQuerySchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+});
+
+export const createHomologacaoPublicacaoSchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+  titulo: z.string().trim().min(5).optional(),
+  descricao: z.string().trim().min(5).optional(),
+  arquivoUrl: z.string().trim().url().optional(),
+});

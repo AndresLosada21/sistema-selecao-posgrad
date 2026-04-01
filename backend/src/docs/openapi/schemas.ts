@@ -493,10 +493,50 @@ export const PublicacaoResumoSchema = z
     descricao: z.string().nullable(),
     versaoFinal: z.boolean(),
     arquivoUrl: z.string().nullable(),
+    dadosConsolidados: JsonValueSchema.nullable().optional(),
     publicadoEm: isoDate().nullable(),
     criadoPor: CandidatoResumoSchema.nullable(),
   })
   .openapi("PublicacaoResumo");
+
+export const HomologacaoPublicacaoPreviewItemSchema = z
+  .object({
+    inscricaoId: z.string(),
+    candidato: CandidatoResumoSchema,
+    linhaPesquisa: LinhaPesquisaCurtaSchema,
+    statusHomologacao: z.nativeEnum(StatusInscricao).nullable(),
+    situacaoPublica: z.string().nullable(),
+    motivoPublico: z.string().nullable(),
+    motivos: z.array(HomologacaoMotivoSchema),
+    parecer: z.string().nullable(),
+    versaoSubmissao: z.number().int().nullable(),
+    snapshotSubmissao: JsonValueSchema.nullable(),
+    publicadoEm: isoDate().nullable(),
+  })
+  .openapi("HomologacaoPublicacaoPreviewItem");
+
+export const HomologacaoPublicacaoPreviewSchema = z
+  .object({
+    edital: EditalResumoCurtoSchema,
+    fase: z.enum(["PRELIMINAR", "FINAL"]),
+    tipo: z.nativeEnum(TipoPublicacaoOficial),
+    tituloSugerido: z.string(),
+    geradoEm: isoDate(),
+    resumo: z.object({
+      total: z.number().int(),
+      deferidos: z.number().int(),
+      indeferidos: z.number().int(),
+    }),
+    itens: z.array(HomologacaoPublicacaoPreviewItemSchema),
+  })
+  .openapi("HomologacaoPublicacaoPreview");
+
+export const CreateHomologacaoPublicacaoResponseSchema = z
+  .object({
+    publicacao: PublicacaoModelSchema,
+    preview: HomologacaoPublicacaoPreviewSchema,
+  })
+  .openapi("CreateHomologacaoPublicacaoResponse");
 
 export const RecursoModelSchema = z
   .object({
@@ -765,6 +805,26 @@ export const CreatePublicacaoRequestSchema = createPublicacaoSchema.openapi("Cre
     arquivoUrl: "https://arquivos.exemplo/homologacao-preliminar.pdf",
   },
 });
+export const PreviewHomologacaoPublicacaoQuerySchema = z
+  .object({
+    fase: z.enum(["PRELIMINAR", "FINAL"]),
+  })
+  .openapi("PreviewHomologacaoPublicacaoQuery");
+export const CreateHomologacaoPublicacaoRequestSchema = z
+  .object({
+    fase: z.enum(["PRELIMINAR", "FINAL"]),
+    titulo: z.string().trim().min(5).optional(),
+    descricao: z.string().trim().min(5).optional(),
+    arquivoUrl: z.string().trim().url().optional(),
+  })
+  .openapi("CreateHomologacaoPublicacaoRequest", {
+    example: {
+      fase: "PRELIMINAR",
+      titulo: "Resultado preliminar da homologacao das inscricoes",
+      descricao: "Publicacao administrativa consolidada a partir dos snapshots da homologacao preliminar.",
+      arquivoUrl: "https://arquivos.exemplo/homologacao-preliminar.pdf",
+    },
+  });
 export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request", {
   example: {
     tema: "Controle e automacao aplicada a sistemas energeticos",
