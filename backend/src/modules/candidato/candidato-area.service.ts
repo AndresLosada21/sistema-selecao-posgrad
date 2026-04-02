@@ -6,6 +6,35 @@ function toIsoOrNull(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
 
+function resolvePublicacaoArquivoUrl(publicacao: {
+  id: string;
+  arquivoUrl: string | null;
+}) {
+  return publicacao.arquivoUrl ?? `/v1/publicacoes/${publicacao.id}/arquivo.pdf`;
+}
+
+type PublicacaoDashboardRecord = {
+  id: string;
+  editalId: string;
+  criadoPorId: string | null;
+  republicacaoDeId: string | null;
+  tipo: string;
+  titulo: string;
+  descricao: string | null;
+  versao: number;
+  versaoFinal: boolean;
+  arquivoUrl: string | null;
+  dadosConsolidados: unknown;
+  publicadoEm: Date | null;
+  criadoPor:
+    | {
+        id: string;
+        nomeCompleto: string;
+        email: string;
+      }
+    | null;
+};
+
 export async function getCandidateDashboard(usuarioId: string) {
   const participacoes = await prisma.participacaoEdital.findMany({
     where: {
@@ -15,6 +44,12 @@ export async function getCandidateDashboard(usuarioId: string) {
       edital: {
         include: {
           cronogramas: true,
+          publicacoesOficiais: {
+            include: {
+              criadoPor: true,
+            },
+            orderBy: [{ publicadoEm: "desc" }, { criadoEm: "desc" }],
+          },
         },
       },
       pedidoIsencao: true,
@@ -40,6 +75,42 @@ export async function getCandidateDashboard(usuarioId: string) {
   });
 
   return participacoes.map((participacao) => ({
+    ...(function () {
+      const publicacoesOficiais = participacao.edital.publicacoesOficiais as unknown as PublicacaoDashboardRecord[];
+      const latestPublicacoesByTipo = new Map<string, PublicacaoDashboardRecord>();
+
+      for (const publicacao of publicacoesOficiais) {
+        const current = latestPublicacoesByTipo.get(publicacao.tipo);
+
+        if (!current || publicacao.versao > current.versao) {
+          latestPublicacoesByTipo.set(publicacao.tipo, publicacao);
+        }
+      }
+
+      return {
+        publicacoesDestaque: Array.from(latestPublicacoesByTipo.values()).map((publicacao) => ({
+          id: publicacao.id,
+          editalId: publicacao.editalId,
+          criadoPorId: publicacao.criadoPorId,
+          republicacaoDeId: publicacao.republicacaoDeId,
+          tipo: publicacao.tipo,
+          titulo: publicacao.titulo,
+          descricao: publicacao.descricao,
+          versao: publicacao.versao,
+          versaoFinal: publicacao.versaoFinal,
+          arquivoUrl: resolvePublicacaoArquivoUrl(publicacao),
+          dadosConsolidados: publicacao.dadosConsolidados,
+          publicadoEm: toIsoOrNull(publicacao.publicadoEm),
+          criadoPor: publicacao.criadoPor
+            ? {
+                id: publicacao.criadoPor.id,
+                nomeCompleto: publicacao.criadoPor.nomeCompleto,
+                email: publicacao.criadoPor.email,
+              }
+            : null,
+        })),
+      };
+    })(),
     id: participacao.id,
     statusParticipacao: participacao.status,
     edital: {
@@ -174,12 +245,13 @@ export async function getCandidateDashboard(usuarioId: string) {
         }
       : null,
     classificacao: participacao.classificacaoFinal
-      ? {
-          id: participacao.classificacaoFinal.id,
-          status: participacao.classificacaoFinal.status,
-          notaEtapa1: participacao.classificacaoFinal.notaEtapa1?.toNumber() ?? null,
-          notaEtapa2: participacao.classificacaoFinal.notaEtapa2?.toNumber() ?? null,
-          notaFinal: participacao.classificacaoFinal.notaFinal?.toNumber() ?? null,
+        ? {
+            id: participacao.classificacaoFinal.id,
+            status: participacao.classificacaoFinal.status,
+            modalidadeConcorrencia: participacao.classificacaoFinal.modalidadeConcorrencia,
+            notaEtapa1: participacao.classificacaoFinal.notaEtapa1?.toNumber() ?? null,
+            notaEtapa2: participacao.classificacaoFinal.notaEtapa2?.toNumber() ?? null,
+            notaFinal: participacao.classificacaoFinal.notaFinal?.toNumber() ?? null,
           posicaoGeral: participacao.classificacaoFinal.posicaoGeral,
           posicaoLinha: participacao.classificacaoFinal.posicaoLinha,
           publicadoPreliminarEm: toIsoOrNull(participacao.classificacaoFinal.publicadoPreliminarEm),
@@ -197,5 +269,34 @@ export async function getCandidateDashboard(usuarioId: string) {
       criadoEm: recurso.criadoEm.toISOString(),
       respondidoEm: toIsoOrNull(recurso.respondidoEm),
     })),
+    publicacoes: [...(participacao.edital.publicacoesOficiais as unknown as PublicacaoDashboardRecord[])]
+      .sort((a, b) => {
+        if (a.tipo !== b.tipo) {
+          return a.tipo.localeCompare(b.tipo);
+        }
+
+        return b.versao - a.versao;
+      })
+      .map((publicacao) => ({
+      id: publicacao.id,
+      editalId: publicacao.editalId,
+      criadoPorId: publicacao.criadoPorId,
+      republicacaoDeId: publicacao.republicacaoDeId,
+      tipo: publicacao.tipo,
+      titulo: publicacao.titulo,
+      descricao: publicacao.descricao,
+      versao: publicacao.versao,
+      versaoFinal: publicacao.versaoFinal,
+      arquivoUrl: resolvePublicacaoArquivoUrl(publicacao),
+      dadosConsolidados: publicacao.dadosConsolidados,
+      publicadoEm: toIsoOrNull(publicacao.publicadoEm),
+      criadoPor: publicacao.criadoPor
+        ? {
+            id: publicacao.criadoPor.id,
+            nomeCompleto: publicacao.criadoPor.nomeCompleto,
+            email: publicacao.criadoPor.email,
+          }
+        : null,
+      })),
   }));
 }

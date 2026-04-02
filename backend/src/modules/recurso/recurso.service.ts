@@ -1,5 +1,6 @@
 import {
   FaseRecurso,
+  TipoPublicacaoOficial,
   StatusAvaliacaoEtapa,
   StatusInscricao,
   StatusIsencao,
@@ -8,8 +9,11 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { recalcularClassificacao } from "../classificacao/classificacao.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import { getInscricaoStatusAfterFinalHomologacao, normalizeFinalHomologacaoStatus } from "../homologacao/homologacao.rules.js";
+import { createClassificacaoPublicacao, createHomologacaoPublicacao } from "../publicacao/publicacao.service.js";
+import { resolveClassificacaoPublicacaoAtual, shouldReprocessClassificacaoAfterRecurso } from "./recurso.rules.js";
 
 function getRecursoWindowType(fase: FaseRecurso) {
   switch (fase) {
@@ -226,6 +230,7 @@ export async function listRecursosAdmin(filters: { editalId?: string; fase?: Fas
 export async function decidirRecurso(
   recursoId: string,
   input: {
+    decididoPorId: string;
     deferido: boolean;
     decisao: string;
     impactoResultado: boolean;
@@ -260,8 +265,92 @@ export async function decidirRecurso(
     return { error: "RECURSO_NAO_ENCONTRADO" as const };
   }
 
-  if (input.impactoResultado) {
-    switch (recurso.fase) {
+  const recursoAtual = recurso;
+
+  const editalId = recursoAtual.participacaoEdital.editalId;
+
+  async function reprocessClassificacaoDerivada() {
+    if (!shouldReprocessClassificacaoAfterRecurso(recursoAtual.fase)) {
+      return;
+    }
+
+    const classificacoesAtuais = await prisma.classificacaoFinal.findMany({
+      where: {
+        participacaoEdital: {
+          editalId,
+        },
+      },
+      select: {
+        status: true,
+      },
+    });
+
+    const faseAtualClassificacao = resolveClassificacaoPublicacaoAtual(
+      classificacoesAtuais.map((classificacao) => classificacao.status),
+    );
+
+    if (!faseAtualClassificacao) {
+      return;
+    }
+
+    await recalcularClassificacao(editalId, faseAtualClassificacao);
+
+    const publicacaoClassificacaoExistente = await prisma.publicacaoOficial.findFirst({
+      where: {
+        editalId,
+        tipo:
+          faseAtualClassificacao === "PRELIMINAR"
+            ? TipoPublicacaoOficial.CLASSIFICACAO_PRELIMINAR
+            : TipoPublicacaoOficial.CLASSIFICACAO_FINAL,
+      },
+      orderBy: {
+        publicadoEm: "desc",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (publicacaoClassificacaoExistente) {
+      await createClassificacaoPublicacao({
+        editalId,
+        criadoPorId: input.decididoPorId,
+        fase: faseAtualClassificacao,
+        descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
+      });
+    }
+  }
+
+  async function republicarHomologacaoFinalSeNecessario() {
+    if (recursoAtual.fase !== FaseRecurso.HOMOLOGACAO) {
+      return;
+    }
+
+    const publicacaoHomologacaoFinalExistente = await prisma.publicacaoOficial.findFirst({
+      where: {
+        editalId,
+        tipo: TipoPublicacaoOficial.HOMOLOGACAO_FINAL,
+      },
+      orderBy: {
+        publicadoEm: "desc",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (publicacaoHomologacaoFinalExistente) {
+      await createHomologacaoPublicacao({
+        editalId,
+        criadoPorId: input.decididoPorId,
+        fase: "FINAL",
+        descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
+      });
+    }
+  }
+
+  if (input.deferido && input.impactoResultado) {
+      switch (recursoAtual.fase) {
       case FaseRecurso.ISENCAO:
         if (recurso.participacaoEdital.pedidoIsencao && input.novoStatusIsencao) {
           await prisma.pedidoIsencao.update({
@@ -337,6 +426,9 @@ export async function decidirRecurso(
       case FaseRecurso.CLASSIFICACAO:
         break;
     }
+
+    await republicarHomologacaoFinalSeNecessario();
+    await reprocessClassificacaoDerivada();
   }
 
   const updated = await prisma.recurso.update({

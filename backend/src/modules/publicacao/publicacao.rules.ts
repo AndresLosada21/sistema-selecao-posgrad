@@ -1,6 +1,25 @@
 import { TipoPublicacaoOficial } from "@prisma/client";
 
 export type FaseHomologacaoPublicacao = "PRELIMINAR" | "FINAL";
+export type FaseClassificacaoPublicacao = "PRELIMINAR" | "FINAL";
+
+export function resolvePublicacaoVersionamento(existing: Array<{ id: string; versao: number }>) {
+  if (existing.length === 0) {
+    return {
+      versao: 1,
+      republicacaoDeId: null,
+      republicacaoDaVersao: null,
+    };
+  }
+
+  const latest = existing.reduce((current, item) => (item.versao > current.versao ? item : current));
+
+  return {
+    versao: latest.versao + 1,
+    republicacaoDeId: latest.id,
+    republicacaoDaVersao: latest.versao,
+  };
+}
 
 export function resolveHomologacaoTipoPublicacao(fase: FaseHomologacaoPublicacao) {
   return fase === "PRELIMINAR"
@@ -12,4 +31,16 @@ export function buildHomologacaoPublicacaoTitulo(fase: FaseHomologacaoPublicacao
   return fase === "PRELIMINAR"
     ? "Resultado preliminar da homologacao das inscricoes"
     : "Resultado final da homologacao das inscricoes";
+}
+
+export function resolveClassificacaoTipoPublicacao(fase: FaseClassificacaoPublicacao) {
+  return fase === "PRELIMINAR"
+    ? TipoPublicacaoOficial.CLASSIFICACAO_PRELIMINAR
+    : TipoPublicacaoOficial.CLASSIFICACAO_FINAL;
+}
+
+export function buildClassificacaoPublicacaoTitulo(fase: FaseClassificacaoPublicacao) {
+  return fase === "PRELIMINAR"
+    ? "Resultado preliminar da classificacao final"
+    : "Resultado final da classificacao final";
 }

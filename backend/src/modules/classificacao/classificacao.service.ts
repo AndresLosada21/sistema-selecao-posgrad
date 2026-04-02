@@ -1,9 +1,22 @@
-import { StatusClassificacaoFinal, StatusInscricao } from "@prisma/client";
+import { Prisma, StatusClassificacaoFinal, StatusConfirmacaoReserva, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { rankClassificacao } from "./classificacao.rules.js";
 
-function calculateNotaFinal(notaEtapa1: number, notaEtapa2: number) {
-  return Number(((notaEtapa1 + 2 * notaEtapa2) / 3).toFixed(2));
+function parseFichaDataNascimento(value: Prisma.JsonValue | null | undefined) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const dataNascimento = (value as Record<string, unknown>).dataNascimento;
+
+  if (typeof dataNascimento !== "string" || dataNascimento.trim().length === 0) {
+    return null;
+  }
+
+  const parsed = new Date(dataNascimento);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export async function recalcularClassificacao(editalId: string, publicacao: "PRELIMINAR" | "FINAL") {
@@ -33,107 +46,110 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
       },
     },
     include: {
-      participacaoEdital: true,
+      participacaoEdital: {
+        include: {
+          usuario: true,
+        },
+      },
       avaliacaoEtapa1: true,
       avaliacaoEtapa2: true,
       linhaPesquisa: true,
     },
   });
 
-  const classificacoesBase = inscricoesElegiveis
-    .filter(
-      (inscricao) =>
-        inscricao.linhaPesquisa &&
-        inscricao.avaliacaoEtapa1?.nota &&
-        inscricao.avaliacaoEtapa2?.notaNormalizada,
-    )
-    .map((inscricao) => ({
-      inscricao,
-      notaEtapa1: inscricao.avaliacaoEtapa1!.nota!.toNumber(),
-      notaEtapa2: inscricao.avaliacaoEtapa2!.notaNormalizada!.toNumber(),
-      notaFinal: calculateNotaFinal(
-        inscricao.avaliacaoEtapa1!.nota!.toNumber(),
-        inscricao.avaliacaoEtapa2!.notaNormalizada!.toNumber(),
-      ),
-    }))
-    .sort((a, b) => b.notaFinal - a.notaFinal);
+  const classificacoes = rankClassificacao({
+    candidates: inscricoesElegiveis
+      .filter(
+        (inscricao) =>
+          inscricao.linhaPesquisa &&
+          inscricao.avaliacaoEtapa1?.nota !== null &&
+          inscricao.avaliacaoEtapa1?.nota !== undefined &&
+          inscricao.avaliacaoEtapa2?.notaNormalizada !== null &&
+          inscricao.avaliacaoEtapa2?.notaNormalizada !== undefined,
+      )
+      .map((inscricao) => ({
+        inscricaoId: inscricao.id,
+        participacaoEditalId: inscricao.participacaoEditalId,
+        linhaPesquisaId: inscricao.linhaPesquisaId!,
+        modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+        confirmacaoAcoesAfirmativas: inscricao.confirmacaoAcoesAfirmativas ?? StatusConfirmacaoReserva.NAO_SE_APLICA,
+        confirmacaoPcd: inscricao.confirmacaoPcd ?? StatusConfirmacaoReserva.NAO_SE_APLICA,
+        notaEtapa1: inscricao.avaliacaoEtapa1!.nota!.toNumber(),
+        notaEtapa2: inscricao.avaliacaoEtapa2!.notaNormalizada!.toNumber(),
+        dataNascimento:
+          inscricao.participacaoEdital.usuario.dataNascimento ?? parseFichaDataNascimento(inscricao.dadosFormulario),
+      })),
+    linhas: edital.linhasPesquisa.map((linha) => ({
+      id: linha.id,
+      vagasAmplaConcorrencia: linha.vagasAmplaConcorrencia,
+      vagasAcoesAfirmativas: linha.vagasAcoesAfirmativas,
+      vagasPcd: linha.vagasPcd,
+    })),
+    publicacao,
+  });
 
-  const rankingPorLinha = new Map<string, typeof classificacoesBase>();
+  const participacoesClassificadasIds = classificacoes.map((item) => item.participacaoEditalId);
 
-  for (const classificacao of classificacoesBase) {
-    const linhaId = classificacao.inscricao.linhaPesquisaId!;
-    const current = rankingPorLinha.get(linhaId) ?? [];
-    current.push(classificacao);
-    rankingPorLinha.set(linhaId, current);
-  }
+  await prisma.classificacaoFinal.deleteMany({
+    where: {
+      participacaoEdital: {
+        editalId,
+      },
+      ...(participacoesClassificadasIds.length > 0
+        ? {
+            participacaoEditalId: {
+              notIn: participacoesClassificadasIds,
+            },
+          }
+        : {}),
+    },
+  });
 
-  for (const [linhaId, items] of rankingPorLinha.entries()) {
-    const linha = edital.linhasPesquisa.find((current) => current.id === linhaId);
+  for (const item of classificacoes) {
+    await prisma.classificacaoFinal.upsert({
+      where: {
+        participacaoEditalId: item.participacaoEditalId,
+      },
+      update: {
+        linhaPesquisaId: item.linhaPesquisaId,
+        notaEtapa1: item.notaEtapa1,
+        notaEtapa2: item.notaEtapa2,
+        notaFinal: item.notaFinal,
+        posicaoGeral: item.posicaoGeral,
+        posicaoLinha: item.posicaoLinha,
+        modalidadeConcorrencia: item.modalidadeConcorrencia,
+        status: item.status,
+        publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
+        publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
+      },
+      create: {
+        participacaoEditalId: item.participacaoEditalId,
+        linhaPesquisaId: item.linhaPesquisaId,
+        modalidadeConcorrencia: item.modalidadeConcorrencia,
+        notaEtapa1: item.notaEtapa1,
+        notaEtapa2: item.notaEtapa2,
+        notaFinal: item.notaFinal,
+        posicaoGeral: item.posicaoGeral,
+        posicaoLinha: item.posicaoLinha,
+        status: item.status,
+        publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
+        publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
+      },
+    });
 
-    if (!linha) {
-      continue;
-    }
+    const statusInscricao =
+      publicacao === "PRELIMINAR"
+        ? StatusInscricao.CLASSIFICACAO_PRELIMINAR
+        : item.status === StatusClassificacaoFinal.APROVADO
+          ? StatusInscricao.APROVADA
+          : StatusInscricao.LISTA_DE_ESPERA;
 
-    const totalVagas =
-      linha.vagasAmplaConcorrencia + linha.vagasAcoesAfirmativas + linha.vagasPcd;
-
-    for (const [index, item] of items.entries()) {
-      const posicaoLinha = index + 1;
-      const posicaoGeral = classificacoesBase.findIndex(
-        (current) => current.inscricao.id === item.inscricao.id,
-      ) + 1;
-
-      const statusClassificacao =
-        publicacao === "PRELIMINAR"
-          ? StatusClassificacaoFinal.PRELIMINAR
-          : posicaoLinha <= totalVagas
-            ? StatusClassificacaoFinal.APROVADO
-            : StatusClassificacaoFinal.LISTA_DE_ESPERA;
-
-      await prisma.classificacaoFinal.upsert({
-        where: {
-          participacaoEditalId: item.inscricao.participacaoEditalId,
-        },
-        update: {
-          linhaPesquisaId: linhaId,
-          notaEtapa1: item.notaEtapa1,
-          notaEtapa2: item.notaEtapa2,
-          notaFinal: item.notaFinal,
-          posicaoGeral,
-          posicaoLinha,
-          status: statusClassificacao,
-          publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
-          publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
-        },
-        create: {
-          participacaoEditalId: item.inscricao.participacaoEditalId,
-          linhaPesquisaId: linhaId,
-          modalidadeConcorrencia: item.inscricao.modalidadeConcorrencia,
-          notaEtapa1: item.notaEtapa1,
-          notaEtapa2: item.notaEtapa2,
-          notaFinal: item.notaFinal,
-          posicaoGeral,
-          posicaoLinha,
-          status: statusClassificacao,
-          publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
-          publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
-        },
-      });
-
-      const statusInscricao =
-        publicacao === "PRELIMINAR"
-          ? StatusInscricao.CLASSIFICACAO_PRELIMINAR
-          : posicaoLinha <= totalVagas
-            ? StatusInscricao.APROVADA
-            : StatusInscricao.LISTA_DE_ESPERA;
-
-      await prisma.inscricao.update({
-        where: { id: item.inscricao.id },
-        data: {
-          status: statusInscricao,
-        },
-      });
-    }
+    await prisma.inscricao.update({
+      where: { id: item.inscricaoId },
+      data: {
+        status: statusInscricao,
+      },
+    });
   }
 
   return listClassificacao(editalId);
@@ -151,6 +167,7 @@ export async function listClassificacao(editalId: string) {
         include: {
           usuario: true,
           edital: true,
+          inscricao: true,
         },
       },
       linhaPesquisa: true,
@@ -177,6 +194,9 @@ export async function listClassificacao(editalId: string) {
           nome: classificacao.linhaPesquisa.nome,
         }
       : null,
+    modalidadeConcorrencia: classificacao.modalidadeConcorrencia,
+    confirmacaoAcoesAfirmativas: classificacao.participacaoEdital.inscricao?.confirmacaoAcoesAfirmativas ?? null,
+    confirmacaoPcd: classificacao.participacaoEdital.inscricao?.confirmacaoPcd ?? null,
     notaEtapa1: classificacao.notaEtapa1?.toNumber() ?? null,
     notaEtapa2: classificacao.notaEtapa2?.toNumber() ?? null,
     notaFinal: classificacao.notaFinal?.toNumber() ?? null,

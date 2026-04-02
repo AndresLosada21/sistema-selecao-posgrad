@@ -56,6 +56,14 @@ enum ModalidadeConcorrencia {
   PCD
 }
 
+enum StatusConfirmacaoReserva {
+  NAO_SE_APLICA
+  PENDENTE
+  CONFIRMADA
+  NAO_CONFIRMADA
+  AUSENTE
+}
+
 enum StatusParticipacaoEdital {
   ATIVA
   ENCERRADA
@@ -295,6 +303,8 @@ model Inscricao {
   participacaoEditalId        String                   @unique
   linhaPesquisaId             String?
   modalidadeConcorrencia      ModalidadeConcorrencia   @default(AMPLA_CONCORRENCIA)
+  confirmacaoAcoesAfirmativas StatusConfirmacaoReserva @default(NAO_SE_APLICA)
+  confirmacaoPcd              StatusConfirmacaoReserva @default(NAO_SE_APLICA)
   status                      StatusInscricao          @default(RASCUNHO)
   statusPagamento             StatusPagamentoInscricao @default(PENDENTE)
   temaRedacao                 String?
@@ -445,9 +455,11 @@ model PublicacaoOficial {
   id                 String               @id @default(cuid())
   editalId           String
   criadoPorId        String?
+  republicacaoDeId   String?
   tipo               TipoPublicacaoOficial
   titulo             String
   descricao          String?
+  versao             Int                  @default(1)
   versaoFinal        Boolean              @default(false)
   arquivoUrl         String?
   dadosConsolidados  Json?
@@ -456,6 +468,9 @@ model PublicacaoOficial {
   atualizadoEm       DateTime             @updatedAt
   edital             Edital               @relation(fields: [editalId], references: [id], onDelete: Cascade)
   criadoPor          Usuario?             @relation("PublicacaoCriadaPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+  republicacaoDe     PublicacaoOficial?   @relation("PublicacaoOficialRepublicacao", fields: [republicacaoDeId], references: [id], onDelete: SetNull)
+  republicacoes      PublicacaoOficial[]  @relation("PublicacaoOficialRepublicacao")
 
+  @@unique([editalId, tipo, versao])
   @@index([editalId, tipo, publicadoEm])
 }

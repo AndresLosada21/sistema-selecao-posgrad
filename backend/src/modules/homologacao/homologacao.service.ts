@@ -1,4 +1,4 @@
-import { Prisma, StatusInscricao } from "@prisma/client";
+import { Prisma, StatusConfirmacaoReserva, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
@@ -48,6 +48,8 @@ export async function listInscricoesParaHomologacao(editalId?: string) {
     status: inscricao.status,
     statusPagamento: inscricao.statusPagamento,
     modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+    confirmacaoAcoesAfirmativas: inscricao.confirmacaoAcoesAfirmativas,
+    confirmacaoPcd: inscricao.confirmacaoPcd,
     candidato: {
       id: inscricao.participacaoEdital.usuario.id,
       nomeCompleto: inscricao.participacaoEdital.usuario.nomeCompleto,
@@ -106,6 +108,55 @@ export async function listInscricoesParaHomologacao(editalId?: string) {
 
 export function listFundamentosHomologacao() {
   return listFundamentosHomologacaoPadrao();
+}
+
+export async function atualizarConfirmacaoReserva(
+  inscricaoId: string,
+  input: {
+    confirmacaoAcoesAfirmativas?: StatusConfirmacaoReserva;
+    confirmacaoPcd?: StatusConfirmacaoReserva;
+  },
+) {
+  const inscricao = await prisma.inscricao.findUnique({
+    where: { id: inscricaoId },
+  });
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  const data: {
+    confirmacaoAcoesAfirmativas?: StatusConfirmacaoReserva;
+    confirmacaoPcd?: StatusConfirmacaoReserva;
+  } = {};
+
+  if (input.confirmacaoAcoesAfirmativas !== undefined) {
+    data.confirmacaoAcoesAfirmativas =
+      inscricao.modalidadeConcorrencia === "ACOES_AFIRMATIVAS"
+        ? input.confirmacaoAcoesAfirmativas
+        : StatusConfirmacaoReserva.NAO_SE_APLICA;
+  }
+
+  if (input.confirmacaoPcd !== undefined) {
+    data.confirmacaoPcd =
+      inscricao.modalidadeConcorrencia === "PCD"
+        ? input.confirmacaoPcd
+        : StatusConfirmacaoReserva.NAO_SE_APLICA;
+  }
+
+  const updated = await prisma.inscricao.update({
+    where: { id: inscricaoId },
+    data,
+  });
+
+  return {
+    inscricao: {
+      id: updated.id,
+      modalidadeConcorrencia: updated.modalidadeConcorrencia,
+      confirmacaoAcoesAfirmativas: updated.confirmacaoAcoesAfirmativas,
+      confirmacaoPcd: updated.confirmacaoPcd,
+    },
+  };
 }
 
 export async function registrarHomologacaoPreliminar(

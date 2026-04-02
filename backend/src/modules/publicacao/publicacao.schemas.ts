@@ -5,6 +5,10 @@ export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
 });
 
+export const publicacaoIdParamSchema = z.object({
+  publicacaoId: z.string().min(1),
+});
+
 export const createPublicacaoSchema = z.object({
   tipo: z.nativeEnum(TipoPublicacaoOficial),
   titulo: z.string().trim().min(5),
@@ -18,7 +22,18 @@ export const previewHomologacaoPublicacaoQuerySchema = z.object({
   fase: z.enum(["PRELIMINAR", "FINAL"]),
 });
 
+export const previewClassificacaoPublicacaoQuerySchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+});
+
 export const createHomologacaoPublicacaoSchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+  titulo: z.string().trim().min(5).optional(),
+  descricao: z.string().trim().min(5).optional(),
+  arquivoUrl: z.string().trim().url().optional(),
+});
+
+export const createClassificacaoPublicacaoSchema = z.object({
   fase: z.enum(["PRELIMINAR", "FINAL"]),
   titulo: z.string().trim().min(5).optional(),
   descricao: z.string().trim().min(5).optional(),

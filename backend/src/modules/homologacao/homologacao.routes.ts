@@ -6,11 +6,13 @@ import { requireRole } from "../../middleware/role.middleware.js";
 import type { HomologacaoMotivo } from "./homologacao.rules.js";
 
 import {
+  confirmacaoReservaSchema,
   homologacaoDecisionSchema,
   inscricaoIdParamSchema,
   listInscricoesAdminQuerySchema,
 } from "./homologacao.schemas.js";
 import {
+  atualizarConfirmacaoReserva,
   listFundamentosHomologacao,
   listInscricoesParaHomologacao,
   registrarHomologacaoFinal,
@@ -71,6 +73,30 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/preliminar"
   }
 
   return response.status(200).json(result.homologacao);
+});
+
+homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/confirmacao-reserva", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+  const parsedBody = confirmacaoReservaSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json({
+      message: "Dados de confirmacao de reserva invalidos.",
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    });
+  }
+
+  const result = await atualizarConfirmacaoReserva(parsedParams.data.inscricaoId, {
+    confirmacaoAcoesAfirmativas: parsedBody.data.confirmacaoAcoesAfirmativas,
+    confirmacaoPcd: parsedBody.data.confirmacaoPcd,
+  });
+
+  if ("error" in result) {
+    return response.status(404).json({ message: result.error });
+  }
+
+  return response.status(200).json(result.inscricao);
 });
 
 homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/final", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
