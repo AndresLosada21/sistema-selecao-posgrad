@@ -7,7 +7,12 @@ import {
   AuthenticatedUserSchema,
   AuthorizationHeaderSchema,
   CandidateDashboardListResponseSchema,
+  ClassificacaoPublicacaoPreviewSchema,
   ClassificacaoListResponseSchema,
+  ConfirmacaoReservaResumoSchema,
+  ConfirmacaoReservaRequestSchema,
+  CreateClassificacaoPublicacaoRequestSchema,
+  CreateClassificacaoPublicacaoResponseSchema,
   ConflictErrorResponseSchema,
   CreateIsencaoRequestSchema,
   CreateHomologacaoPublicacaoRequestSchema,
@@ -33,6 +38,7 @@ import {
   InscricaoModelSchema,
   PacoteDocumentalDetalheResponseSchema,
   PacoteDocumentalResumoSchema,
+  PublicacaoIdParamSchema,
   ListEditaisQuerySchema,
   ListRecursosAdminQuerySchema,
   LoginRequestSchema,
@@ -45,6 +51,7 @@ import {
   PedidoIsencaoListResponseSchema,
   PublicacaoListResponseSchema,
   PublicacaoModelSchema,
+  PreviewClassificacaoPublicacaoQuerySchema,
   PreviewHomologacaoPublicacaoQuerySchema,
   RecalcularClassificacaoRequestSchema,
   RecursoAdminListResponseSchema,
@@ -178,7 +185,7 @@ registry.registerPath({
   tags: ["Area do Candidato"],
   operationId: "getCandidateDashboard",
   summary: "Retorna painel consolidado do candidato",
-  description: withAuthDescription("Consolida edital, isencao, inscricao, homologacao, etapas, classificacao e recursos."),
+  description: withAuthDescription("Consolida edital, isencao, inscricao, homologacao, etapas, classificacao, recursos e publicacoes oficiais versionadas do edital."),
   security: bearerAuth,
   request: withAuthHeaders(),
   responses: {
@@ -471,7 +478,7 @@ registry.registerPath({
   tags: ["Homologacao"],
   operationId: "listInscricoesParaHomologacao",
   summary: "Lista inscricoes para homologacao",
-  description: withAuthDescription("Lista inscricoes com documentos, snapshots e estado de homologacao para analise administrativa."),
+  description: withAuthDescription("Lista inscricoes com documentos, snapshots, estado de homologacao e confirmacoes operacionais de reserva para analise administrativa."),
   security: bearerAuth,
   request: withAuthHeaders({ query: OptionalEditalIdQuerySchema }),
   responses: {
@@ -479,6 +486,27 @@ registry.registerPath({
     400: { description: "Filtro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/inscricoes/{inscricaoId}/confirmacao-reserva",
+  tags: ["Homologacao"],
+  operationId: "atualizarConfirmacaoReserva",
+  summary: "Atualiza confirmacao operacional de reserva",
+  description: withAuthDescription("Registra a confirmacao operacional de acoes afirmativas e/ou PCD para uso na distribuicao final de vagas reservadas."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(ConfirmacaoReservaRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Confirmacao operacional atualizada.", content: jsonContent(ConfirmacaoReservaResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
   },
 });
 
@@ -741,7 +769,7 @@ registry.registerPath({
   tags: ["Classificacao"],
   operationId: "listClassificacao",
   summary: "Lista classificacao por edital",
-  description: withAuthDescription("Lista a classificacao atual por edital, com posicao geral e por linha."),
+  description: withAuthDescription("Lista a classificacao atual por edital, com posicao geral, por linha e modalidade de concorrencia."),
   security: bearerAuth,
   request: withAuthHeaders({ params: EditalIdParamSchema }),
   responses: {
@@ -758,7 +786,7 @@ registry.registerPath({
   tags: ["Classificacao"],
   operationId: "recalcularClassificacao",
   summary: "Recalcula classificacao do edital",
-  description: withAuthDescription("Recalcula a classificacao preliminar ou final do edital conforme os resultados lancados."),
+  description: withAuthDescription("Recalcula a classificacao preliminar ou final do edital aplicando NF, desempate operacional e distribuicao de vagas por linha e modalidade."),
   security: bearerAuth,
   request: withAuthHeaders({
     params: EditalIdParamSchema,
@@ -770,6 +798,50 @@ registry.registerPath({
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/publicacoes/classificacao/preview",
+  tags: ["Publicacoes"],
+  operationId: "buildClassificacaoPublicacaoPreview",
+  summary: "Previsualiza publicacao da classificacao",
+  description: withAuthDescription("Gera o preview auditavel da publicacao de classificacao preliminar ou final a partir do snapshot atual da classificacao, informando a proxima versao e eventual republicacao encadeada."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    query: PreviewClassificacaoPublicacaoQuerySchema,
+  }),
+  responses: {
+    200: { description: "Preview da publicacao de classificacao gerado.", content: jsonContent(ClassificacaoPublicacaoPreviewSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Classificacao ausente ou incompleta para a fase solicitada.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/publicacoes/classificacao",
+  tags: ["Publicacoes"],
+  operationId: "createClassificacaoPublicacao",
+  summary: "Publica classificacao oficial",
+  description: withAuthDescription("Cria a publicacao oficial da classificacao preliminar ou final, preservando o snapshot consolidado no momento da publicacao com versionamento e encadeamento explicito de republicacao."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(CreateClassificacaoPublicacaoRequestSchema) },
+  }),
+  responses: {
+    201: { description: "Publicacao da classificacao criada.", content: jsonContent(CreateClassificacaoPublicacaoResponseSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Classificacao ausente ou incompleta para publicacao.", content: jsonContent(ConflictErrorResponseSchema) },
   },
 });
 
@@ -829,7 +901,7 @@ registry.registerPath({
   tags: ["Recursos"],
   operationId: "decidirRecurso",
   summary: "Registra decisao administrativa do recurso",
-  description: withAuthDescription("Registra decisao final do recurso e, quando aplicavel, propaga impacto no resultado."),
+  description: withAuthDescription("Registra decisao final do recurso e, quando deferido com impacto, reprocessa resultados derivados e republica snapshots administrativos aplicaveis."),
   security: bearerAuth,
   request: withAuthHeaders({
     params: RecursoIdParamSchema,
@@ -854,6 +926,23 @@ registry.registerPath({
   responses: {
     200: { description: "Publicacoes retornadas com sucesso.", content: jsonContent(PublicacaoListResponseSchema) },
     400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/publicacoes/{publicacaoId}/arquivo.pdf",
+  tags: ["Publicacoes"],
+  operationId: "downloadPublicacaoPdf",
+  summary: "Gera PDF oficial da publicacao",
+  description: "Gera o PDF oficial de forma deterministica a partir do snapshot salvo em `dadosConsolidados`.",
+  request: {
+    params: PublicacaoIdParamSchema,
+  },
+  responses: {
+    200: { description: "Arquivo PDF gerado com sucesso.", content: pdfContent },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    404: { description: "Publicacao nao encontrada.", content: jsonContent(MessageResponseSchema) },
   },
 });
 
@@ -884,7 +973,7 @@ registry.registerPath({
   tags: ["Publicacoes", "Homologacao"],
   operationId: "buildHomologacaoPublicacaoPreview",
   summary: "Gera preview da publicacao de homologacao",
-  description: withAuthDescription("Consolida o resultado preliminar ou final da homologacao em payload auditavel antes da publicacao oficial."),
+  description: withAuthDescription("Consolida o resultado preliminar ou final da homologacao em payload auditavel antes da publicacao oficial, informando a proxima versao e eventual republicacao encadeada."),
   security: bearerAuth,
   request: withAuthHeaders({
     params: EditalIdParamSchema,
@@ -906,7 +995,7 @@ registry.registerPath({
   tags: ["Publicacoes", "Homologacao"],
   operationId: "createHomologacaoPublicacao",
   summary: "Cria publicacao oficial da homologacao",
-  description: withAuthDescription("Congela em `dadosConsolidados` o preview auditavel da homologacao preliminar ou final e cria a publicacao oficial correspondente."),
+  description: withAuthDescription("Congela em `dadosConsolidados` o preview auditavel da homologacao preliminar ou final e cria a publicacao oficial correspondente com versionamento e encadeamento explicito de republicacao."),
   security: bearerAuth,
   request: withAuthHeaders({
     params: EditalIdParamSchema,

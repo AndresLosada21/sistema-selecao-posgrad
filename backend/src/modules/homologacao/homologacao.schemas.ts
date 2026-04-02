@@ -1,4 +1,4 @@
-import { TipoDocumentoInscricao } from "@prisma/client";
+import { StatusConfirmacaoReserva, TipoDocumentoInscricao } from "@prisma/client";
 import { z } from "zod";
 
 export const inscricaoIdParamSchema = z.object({
@@ -31,3 +31,14 @@ export const homologacaoDecisionSchema = z.object({
     });
   }
 });
+
+export const confirmacaoReservaSchema = z.object({
+  confirmacaoAcoesAfirmativas: z.nativeEnum(StatusConfirmacaoReserva).optional(),
+  confirmacaoPcd: z.nativeEnum(StatusConfirmacaoReserva).optional(),
+}).refine(
+  (data) => data.confirmacaoAcoesAfirmativas !== undefined || data.confirmacaoPcd !== undefined,
+  {
+    message: "Informe ao menos uma confirmacao operacional de reserva.",
+    path: ["confirmacaoAcoesAfirmativas"],
+  },
+);

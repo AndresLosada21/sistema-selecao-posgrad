@@ -5,6 +5,7 @@ import {
   Role,
   StatusAvaliacaoEtapa,
   StatusClassificacaoFinal,
+  StatusConfirmacaoReserva,
   StatusConta,
   StatusDocumentoInscricao,
   StatusEdital,
@@ -24,10 +25,15 @@ import { loginSchema, registerSchema } from "../../modules/auth/auth.schemas.js"
 import { recalcularClassificacaoSchema } from "../../modules/classificacao/classificacao.schemas.js";
 import { resultadoEtapa1Schema } from "../../modules/etapa1/etapa1.schemas.js";
 import { resultadoEtapa2Schema } from "../../modules/etapa2/etapa2.schemas.js";
-import { homologacaoDecisionSchema, homologacaoMotivoSchema } from "../../modules/homologacao/homologacao.schemas.js";
+import { confirmacaoReservaSchema, homologacaoDecisionSchema, homologacaoMotivoSchema } from "../../modules/homologacao/homologacao.schemas.js";
 import { addDocumentoSchema, fichaInscricaoSchema, saveDraftSchema } from "../../modules/inscricao/inscricao.schemas.js";
 import { createIsencaoSchema } from "../../modules/isencao/isencao.schemas.js";
-import { createPublicacaoSchema } from "../../modules/publicacao/publicacao.schemas.js";
+import {
+  createClassificacaoPublicacaoSchema,
+  createPublicacaoSchema,
+  publicacaoIdParamSchema,
+  previewClassificacaoPublicacaoQuerySchema,
+} from "../../modules/publicacao/publicacao.schemas.js";
 import { createRecursoSchema, decidirRecursoSchema } from "../../modules/recurso/recurso.schemas.js";
 
 extendZodWithOpenApi(z);
@@ -387,6 +393,8 @@ export const HomologacaoAdminInscricaoSchema = z
     status: z.nativeEnum(StatusInscricao),
     statusPagamento: z.nativeEnum(StatusPagamentoInscricao),
     modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia),
+    confirmacaoAcoesAfirmativas: z.nativeEnum(StatusConfirmacaoReserva),
+    confirmacaoPcd: z.nativeEnum(StatusConfirmacaoReserva),
     candidato: CandidatoResumoSchema,
     edital: EditalResumoCurtoSchema,
     linhaPesquisa: LinhaPesquisaCurtaSchema,
@@ -534,6 +542,9 @@ export const ClassificacaoItemSchema = z
     candidato: CandidatoResumoSchema,
     edital: z.object({ id: z.string(), numero: z.string(), titulo: z.string() }),
     linhaPesquisa: LinhaPesquisaCurtaSchema,
+    modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia),
+    confirmacaoAcoesAfirmativas: z.nativeEnum(StatusConfirmacaoReserva).nullable(),
+    confirmacaoPcd: z.nativeEnum(StatusConfirmacaoReserva).nullable(),
     notaEtapa1: z.number().nullable(),
     notaEtapa2: z.number().nullable(),
     notaFinal: z.number().nullable(),
@@ -547,9 +558,11 @@ export const PublicacaoModelSchema = z
     id: z.string(),
     editalId: z.string(),
     criadoPorId: z.string().nullable(),
+    republicacaoDeId: z.string().nullable(),
     tipo: z.nativeEnum(TipoPublicacaoOficial),
     titulo: z.string(),
     descricao: z.string().nullable(),
+    versao: z.number().int().positive(),
     versaoFinal: z.boolean(),
     arquivoUrl: z.string().nullable(),
     dadosConsolidados: JsonValueSchema.nullable().optional(),
@@ -562,9 +575,13 @@ export const PublicacaoModelSchema = z
 export const PublicacaoResumoSchema = z
   .object({
     id: z.string(),
+    editalId: z.string(),
+    criadoPorId: z.string().nullable(),
+    republicacaoDeId: z.string().nullable(),
     tipo: z.nativeEnum(TipoPublicacaoOficial),
     titulo: z.string(),
     descricao: z.string().nullable(),
+    versao: z.number().int().positive(),
     versaoFinal: z.boolean(),
     arquivoUrl: z.string().nullable(),
     dadosConsolidados: JsonValueSchema.nullable().optional(),
@@ -572,6 +589,14 @@ export const PublicacaoResumoSchema = z
     criadoPor: CandidatoResumoSchema.nullable(),
   })
   .openapi("PublicacaoResumo");
+
+export const PublicacaoVersionamentoSchema = z
+  .object({
+    versao: z.number().int().positive(),
+    republicacaoDeId: z.string().nullable(),
+    republicacaoDaVersao: z.number().int().positive().nullable(),
+  })
+  .openapi("PublicacaoVersionamento");
 
 export const HomologacaoPublicacaoPreviewItemSchema = z
   .object({
@@ -596,6 +621,7 @@ export const HomologacaoPublicacaoPreviewSchema = z
     tipo: z.nativeEnum(TipoPublicacaoOficial),
     tituloSugerido: z.string(),
     geradoEm: isoDate(),
+    versionamento: PublicacaoVersionamentoSchema,
     resumo: z.object({
       total: z.number().int(),
       deferidos: z.number().int(),
@@ -611,6 +637,49 @@ export const CreateHomologacaoPublicacaoResponseSchema = z
     preview: HomologacaoPublicacaoPreviewSchema,
   })
   .openapi("CreateHomologacaoPublicacaoResponse");
+
+export const ClassificacaoPublicacaoPreviewItemSchema = z
+  .object({
+    classificacaoId: z.string(),
+    candidato: CandidatoResumoSchema,
+    linhaPesquisa: LinhaPesquisaCurtaSchema,
+    modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia),
+    modalidadePublica: z.string(),
+    statusClassificacao: z.nativeEnum(StatusClassificacaoFinal),
+    situacaoPublica: z.string(),
+    notaEtapa1: z.number().nullable(),
+    notaEtapa2: z.number().nullable(),
+    notaFinal: z.number().nullable(),
+    posicaoGeral: z.number().int().nullable(),
+    posicaoLinha: z.number().int().nullable(),
+    publicadoEm: isoDate().nullable(),
+  })
+  .openapi("ClassificacaoPublicacaoPreviewItem");
+
+export const ClassificacaoPublicacaoPreviewSchema = z
+  .object({
+    edital: EditalResumoCurtoSchema,
+    fase: z.enum(["PRELIMINAR", "FINAL"]),
+    tipo: z.nativeEnum(TipoPublicacaoOficial),
+    tituloSugerido: z.string(),
+    geradoEm: isoDate(),
+    versionamento: PublicacaoVersionamentoSchema,
+    resumo: z.object({
+      total: z.number().int(),
+      aprovados: z.number().int(),
+      listaDeEspera: z.number().int(),
+      preliminares: z.number().int(),
+    }),
+    itens: z.array(ClassificacaoPublicacaoPreviewItemSchema),
+  })
+  .openapi("ClassificacaoPublicacaoPreview");
+
+export const CreateClassificacaoPublicacaoResponseSchema = z
+  .object({
+    publicacao: PublicacaoModelSchema,
+    preview: ClassificacaoPublicacaoPreviewSchema,
+  })
+  .openapi("CreateClassificacaoPublicacaoResponse");
 
 export const RecursoModelSchema = z
   .object({
@@ -659,6 +728,15 @@ export const RecursoAdminResumoSchema = z
     respondidoEm: isoDate().nullable(),
   })
   .openapi("RecursoAdminResumo");
+
+export const ConfirmacaoReservaResumoSchema = z
+  .object({
+    id: z.string().optional(),
+    modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia).optional(),
+    confirmacaoAcoesAfirmativas: z.nativeEnum(StatusConfirmacaoReserva),
+    confirmacaoPcd: z.nativeEnum(StatusConfirmacaoReserva),
+  })
+  .openapi("ConfirmacaoReservaResumo");
 
 export const CandidateDashboardItemSchema = z
   .object({
@@ -775,6 +853,7 @@ export const CandidateDashboardItemSchema = z
       .object({
         id: z.string(),
         status: z.nativeEnum(StatusClassificacaoFinal),
+        modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia),
         notaEtapa1: z.number().nullable(),
         notaEtapa2: z.number().nullable(),
         notaFinal: z.number().nullable(),
@@ -784,6 +863,7 @@ export const CandidateDashboardItemSchema = z
         publicadoFinalEm: isoDate().nullable(),
       })
       .nullable(),
+    publicacoesDestaque: z.array(PublicacaoResumoSchema),
     recursos: z.array(
       z.object({
         id: z.string(),
@@ -797,6 +877,7 @@ export const CandidateDashboardItemSchema = z
         respondidoEm: isoDate().nullable(),
       }),
     ),
+    publicacoes: z.array(PublicacaoResumoSchema),
   })
   .openapi("CandidateDashboardItem");
 
@@ -881,6 +962,12 @@ export const HomologacaoDecisionRequestSchema = homologacaoDecisionSchema.openap
     ],
   },
 });
+export const ConfirmacaoReservaRequestSchema = confirmacaoReservaSchema.openapi("ConfirmacaoReservaRequest", {
+  example: {
+    confirmacaoAcoesAfirmativas: "CONFIRMADA",
+    confirmacaoPcd: "NAO_SE_APLICA",
+  },
+});
 export const CreateRecursoRequestSchema = createRecursoSchema.openapi("CreateRecursoRequest", {
   example: {
     editalId: "cedital123",
@@ -892,7 +979,7 @@ export const CreateRecursoRequestSchema = createRecursoSchema.openapi("CreateRec
 export const DecidirRecursoRequestSchema = decidirRecursoSchema.openapi("DecidirRecursoRequest", {
   example: {
     deferido: true,
-    decisao: "Recurso deferido apos reanalise documental.",
+    decisao: "Recurso deferido apos reanalise documental e reprocessamento do resultado derivado.",
     impactoResultado: true,
     novoStatusInscricao: "HOMOLOGADA_FINAL",
   },
@@ -911,6 +998,8 @@ export const PreviewHomologacaoPublicacaoQuerySchema = z
     fase: z.enum(["PRELIMINAR", "FINAL"]),
   })
   .openapi("PreviewHomologacaoPublicacaoQuery");
+export const PreviewClassificacaoPublicacaoQuerySchema = previewClassificacaoPublicacaoQuerySchema
+  .openapi("PreviewClassificacaoPublicacaoQuery");
 export const CreateHomologacaoPublicacaoRequestSchema = z
   .object({
     fase: z.enum(["PRELIMINAR", "FINAL"]),
@@ -924,6 +1013,15 @@ export const CreateHomologacaoPublicacaoRequestSchema = z
       titulo: "Resultado preliminar da homologacao das inscricoes",
       descricao: "Publicacao administrativa consolidada a partir dos snapshots da homologacao preliminar.",
       arquivoUrl: "https://arquivos.exemplo/homologacao-preliminar.pdf",
+    },
+  });
+export const CreateClassificacaoPublicacaoRequestSchema = createClassificacaoPublicacaoSchema
+  .openapi("CreateClassificacaoPublicacaoRequest", {
+    example: {
+      fase: "FINAL",
+      titulo: "Resultado final da classificacao final",
+      descricao: "Publicacao administrativa consolidada a partir do snapshot da classificacao final.",
+      arquivoUrl: "https://arquivos.exemplo/classificacao-final.pdf",
     },
   });
 export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request", {
@@ -1010,6 +1108,8 @@ export const RecursoIdParamSchema = z
     recursoId: z.string().min(1),
   })
   .openapi("RecursoIdParam");
+
+export const PublicacaoIdParamSchema = publicacaoIdParamSchema.openapi("PublicacaoIdParam");
 
 export function buildListResponseSchema(name: string, itemSchema: z.ZodTypeAny) {
   return z

@@ -78,6 +78,7 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
 
   const payload = parsedBody.data;
   const result = await decidirRecurso(parsedParams.data.recursoId, {
+    decididoPorId: request.auth!.userId,
     deferido: payload.deferido,
     decisao: payload.decisao,
     impactoResultado: payload.impactoResultado,
