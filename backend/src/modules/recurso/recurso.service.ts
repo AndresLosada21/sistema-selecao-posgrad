@@ -102,6 +102,18 @@ export async function createRecurso(input: {
     }
   }
 
+  if (input.fase === FaseRecurso.ETAPA_2) {
+    const avaliacaoEtapa2 = participacao.inscricao?.avaliacaoEtapa2 as any;
+
+    if (!avaliacaoEtapa2?.espelhoSolicitadoEm) {
+      return { error: "ESPELHO_ETAPA_2_NAO_SOLICITADO" as const };
+    }
+
+    if (!avaliacaoEtapa2.espelhoLiberadoEm) {
+      return { error: "ESPELHO_ETAPA_2_NAO_LIBERADO" as const };
+    }
+  }
+
   const existing = await prisma.recurso.findFirst({
     where: {
       participacaoEditalId: participacao.id,

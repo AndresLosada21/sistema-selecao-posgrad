@@ -390,7 +390,11 @@ model AvaliacaoEtapa2 {
   pontuacaoItens        Json?
   pontuacaoBruta        Decimal?             @db.Decimal(7, 2)
   notaNormalizada       Decimal?             @db.Decimal(5, 2)
+  memoriaCalculo        Json?
+  glosas                Json?
   espelhoCorrecao       String?
+  espelhoSolicitadoEm   DateTime?
+  espelhoLiberadoEm     DateTime?
   status                StatusAvaliacaoEtapa @default(PENDENTE)
   resultadoPreliminarEm DateTime?
   resultadoFinalEm      DateTime?

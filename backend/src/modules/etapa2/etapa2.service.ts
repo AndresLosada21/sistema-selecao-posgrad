@@ -1,6 +1,7 @@
-import { StatusAvaliacaoEtapa, StatusInscricao } from "@prisma/client";
+import { Prisma, StatusAvaliacaoEtapa, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { buildEspelhoEtapa2, buildMemoriaCalculoEtapa2, calcularNotaNormalizadaEtapa2, type GlosaEtapa2 } from "./etapa2.rules.js";
 
 export async function listInscricoesParaEtapa2(editalId?: string) {
   const inscricoes = await prisma.inscricao.findMany({
@@ -55,7 +56,11 @@ export async function listInscricoesParaEtapa2(editalId?: string) {
           pontuacaoItens: inscricao.avaliacaoEtapa2.pontuacaoItens,
           pontuacaoBruta: inscricao.avaliacaoEtapa2.pontuacaoBruta?.toNumber() ?? null,
           notaNormalizada: inscricao.avaliacaoEtapa2.notaNormalizada?.toNumber() ?? null,
+          memoriaCalculo: (inscricao.avaliacaoEtapa2 as any).memoriaCalculo,
+          glosas: (inscricao.avaliacaoEtapa2 as any).glosas,
           espelhoCorrecao: inscricao.avaliacaoEtapa2.espelhoCorrecao,
+          espelhoSolicitadoEm: (inscricao.avaliacaoEtapa2 as any).espelhoSolicitadoEm?.toISOString() ?? null,
+          espelhoLiberadoEm: (inscricao.avaliacaoEtapa2 as any).espelhoLiberadoEm?.toISOString() ?? null,
           status: inscricao.avaliacaoEtapa2.status,
         }
       : null,
@@ -67,8 +72,10 @@ export async function registrarResultadoEtapa2(
   input: {
     pontuacaoItens: Record<string, number>;
     pontuacaoBruta: number;
-    notaNormalizada: number;
+    maiorPontuacaoBruta: number;
+    glosas: GlosaEtapa2[];
     espelhoCorrecao: string;
+    liberarEspelho: boolean;
     publicacao: "PRELIMINAR" | "FINAL";
   },
 ) {
@@ -89,6 +96,19 @@ export async function registrarResultadoEtapa2(
     return { error: "INSCRICAO_NAO_APTA_ETAPA_2" as const };
   }
 
+  const notaNormalizada = calcularNotaNormalizadaEtapa2({
+    pontuacaoBruta: input.pontuacaoBruta,
+    maiorPontuacaoBruta: input.maiorPontuacaoBruta,
+  });
+
+  const memoriaCalculo = buildMemoriaCalculoEtapa2({
+    pontuacaoItens: input.pontuacaoItens,
+    pontuacaoBruta: input.pontuacaoBruta,
+    maiorPontuacaoBruta: input.maiorPontuacaoBruta,
+    notaNormalizada,
+    glosas: input.glosas,
+  });
+
   const statusAvaliacao =
     input.publicacao === "PRELIMINAR"
       ? StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA
@@ -99,22 +119,28 @@ export async function registrarResultadoEtapa2(
     update: {
       pontuacaoItens: input.pontuacaoItens,
       pontuacaoBruta: input.pontuacaoBruta,
-      notaNormalizada: input.notaNormalizada,
+      notaNormalizada,
+      memoriaCalculo: memoriaCalculo as Prisma.InputJsonValue,
+      glosas: input.glosas as unknown as Prisma.InputJsonValue,
       espelhoCorrecao: input.espelhoCorrecao,
+      espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
       resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
-    },
+    } as any,
     create: {
       inscricaoId,
       pontuacaoItens: input.pontuacaoItens,
       pontuacaoBruta: input.pontuacaoBruta,
-      notaNormalizada: input.notaNormalizada,
+      notaNormalizada,
+      memoriaCalculo: memoriaCalculo as Prisma.InputJsonValue,
+      glosas: input.glosas as unknown as Prisma.InputJsonValue,
       espelhoCorrecao: input.espelhoCorrecao,
+      espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
       resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
-    },
+    } as any,
   });
 
   if (input.publicacao === "FINAL") {
@@ -127,4 +153,142 @@ export async function registrarResultadoEtapa2(
   }
 
   return { avaliacao };
+}
+
+export async function solicitarEspelhoEtapa2(inscricaoId: string, usuarioId: string) {
+  const inscricao = await prisma.inscricao.findFirst({
+    where: {
+      id: inscricaoId,
+      participacaoEdital: {
+        usuarioId,
+      },
+    },
+    include: {
+      avaliacaoEtapa2: true,
+    },
+  });
+
+  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (!avaliacao || avaliacao.status !== StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
+    return { error: "RESULTADO_PRELIMINAR_ETAPA_2_OBRIGATORIO" as const };
+  }
+
+  const atualizada = await prisma.avaliacaoEtapa2.update({
+    where: { inscricaoId },
+    data: {
+      espelhoSolicitadoEm: new Date(),
+    } as any,
+  });
+
+  return { avaliacao: atualizada };
+}
+
+export async function liberarEspelhoEtapa2(inscricaoId: string) {
+  const inscricao = await prisma.inscricao.findUnique({
+    where: { id: inscricaoId },
+    include: {
+      avaliacaoEtapa2: true,
+    },
+  });
+
+  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (!avaliacao || !avaliacao.espelhoCorrecao) {
+    return { error: "ESPELHO_ETAPA_2_INDISPONIVEL" as const };
+  }
+
+  const atualizada = await prisma.avaliacaoEtapa2.update({
+    where: { inscricaoId },
+    data: {
+      espelhoLiberadoEm: new Date(),
+    } as any,
+  });
+
+  return { avaliacao: atualizada };
+}
+
+export async function getEspelhoEtapa2ForCandidate(inscricaoId: string, usuarioId: string) {
+  const inscricao = await prisma.inscricao.findFirst({
+    where: {
+      id: inscricaoId,
+      participacaoEdital: {
+        usuarioId,
+      },
+    },
+    include: {
+      avaliacaoEtapa2: true,
+    },
+  });
+
+  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (!avaliacao || !avaliacao.espelhoCorrecao) {
+    return { error: "ESPELHO_ETAPA_2_INDISPONIVEL" as const };
+  }
+
+  if (!avaliacao.espelhoLiberadoEm) {
+    return { error: "ESPELHO_ETAPA_2_NAO_LIBERADO" as const };
+  }
+
+  return {
+    espelho: buildEspelhoEtapa2({
+      pontuacaoItens: avaliacao.pontuacaoItens,
+      pontuacaoBruta: avaliacao.pontuacaoBruta?.toNumber() ?? null,
+      notaNormalizada: avaliacao.notaNormalizada?.toNumber() ?? null,
+      memoriaCalculo: avaliacao.memoriaCalculo,
+      glosas: avaliacao.glosas,
+      espelhoCorrecao: avaliacao.espelhoCorrecao,
+      espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm,
+      espelhoLiberadoEm: avaliacao.espelhoLiberadoEm,
+      resultadoPreliminarEm: avaliacao.resultadoPreliminarEm,
+      resultadoFinalEm: avaliacao.resultadoFinalEm,
+    }),
+  };
+}
+
+export async function getEspelhoEtapa2ForAdmin(inscricaoId: string) {
+  const inscricao = await prisma.inscricao.findUnique({
+    where: { id: inscricaoId },
+    include: {
+      avaliacaoEtapa2: true,
+    },
+  });
+
+  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (!avaliacao || !avaliacao.espelhoCorrecao) {
+    return { error: "ESPELHO_ETAPA_2_INDISPONIVEL" as const };
+  }
+
+  return {
+    espelho: buildEspelhoEtapa2({
+      pontuacaoItens: avaliacao.pontuacaoItens,
+      pontuacaoBruta: avaliacao.pontuacaoBruta?.toNumber() ?? null,
+      notaNormalizada: avaliacao.notaNormalizada?.toNumber() ?? null,
+      memoriaCalculo: avaliacao.memoriaCalculo,
+      glosas: avaliacao.glosas,
+      espelhoCorrecao: avaliacao.espelhoCorrecao,
+      espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm,
+      espelhoLiberadoEm: avaliacao.espelhoLiberadoEm,
+      resultadoPreliminarEm: avaliacao.resultadoPreliminarEm,
+      resultadoFinalEm: avaliacao.resultadoFinalEm,
+    }),
+  };
 }
