@@ -453,7 +453,11 @@ export const AvaliacaoEtapa2ModelSchema = z
     pontuacaoItens: z.record(z.number()).nullable(),
     pontuacaoBruta: z.number().nullable(),
     notaNormalizada: z.number().nullable(),
+    memoriaCalculo: JsonValueSchema.nullable(),
+    glosas: JsonValueSchema.nullable(),
     espelhoCorrecao: z.string().nullable(),
+    espelhoSolicitadoEm: isoDate().nullable(),
+    espelhoLiberadoEm: isoDate().nullable(),
     status: z.nativeEnum(StatusAvaliacaoEtapa),
     resultadoPreliminarEm: isoDate().nullable(),
     resultadoFinalEm: isoDate().nullable(),
@@ -461,6 +465,21 @@ export const AvaliacaoEtapa2ModelSchema = z
     atualizadoEm: isoDate(),
   })
   .openapi("AvaliacaoEtapa2Model");
+
+export const Etapa2EspelhoSchema = z
+  .object({
+    pontuacaoItens: JsonValueSchema.nullable(),
+    pontuacaoBruta: z.number().nullable(),
+    notaNormalizada: z.number().nullable(),
+    memoriaCalculo: JsonValueSchema.nullable(),
+    glosas: JsonValueSchema.nullable(),
+    espelhoCorrecao: z.string().nullable(),
+    espelhoSolicitadoEm: isoDate().nullable(),
+    espelhoLiberadoEm: isoDate().nullable(),
+    resultadoPreliminarEm: isoDate().nullable(),
+    resultadoFinalEm: isoDate().nullable(),
+  })
+  .openapi("Etapa2Espelho");
 
 export const Etapa1AdminItemSchema = z
   .object({
@@ -497,7 +516,11 @@ export const Etapa2AdminItemSchema = z
         pontuacaoItens: z.record(z.number()).nullable(),
         pontuacaoBruta: z.number().nullable(),
         notaNormalizada: z.number().nullable(),
+        memoriaCalculo: JsonValueSchema.nullable(),
+        glosas: JsonValueSchema.nullable(),
         espelhoCorrecao: z.string().nullable(),
+        espelhoSolicitadoEm: isoDate().nullable(),
+        espelhoLiberadoEm: isoDate().nullable(),
         status: z.nativeEnum(StatusAvaliacaoEtapa),
       })
       .nullable(),
@@ -735,7 +758,12 @@ export const CandidateDashboardItemSchema = z
             pontuacaoItens: JsonValueSchema.nullable(),
             pontuacaoBruta: z.number().nullable(),
             notaNormalizada: z.number().nullable(),
+            memoriaCalculo: JsonValueSchema.nullable(),
+            glosas: JsonValueSchema.nullable(),
+            espelhoDisponivel: z.boolean(),
             espelhoCorrecao: z.string().nullable(),
+            espelhoSolicitadoEm: isoDate().nullable(),
+            espelhoLiberadoEm: isoDate().nullable(),
             status: z.nativeEnum(StatusAvaliacaoEtapa),
             resultadoPreliminarEm: isoDate().nullable(),
             resultadoFinalEm: isoDate().nullable(),
@@ -925,8 +953,16 @@ export const ResultadoEtapa2RequestSchema = resultadoEtapa2Schema.openapi("Resul
       experiencia: 5,
     },
     pontuacaoBruta: 25,
-    notaNormalizada: 9.2,
+    maiorPontuacaoBruta: 30,
+    glosas: [
+      {
+        item: "artigo-sem-doi",
+        descricao: "Artigo sem DOI nao pontuado.",
+        pontosGlosados: 0.5,
+      },
+    ],
     espelhoCorrecao: "Espelho de pontuacao do Anexo II.",
+    liberarEspelho: false,
     publicacao: "FINAL",
   },
 });
