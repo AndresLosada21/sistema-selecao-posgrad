@@ -10,6 +10,7 @@ import {
 
 import { prisma } from "../../lib/prisma.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
+import { syncEtapaPoliticasAfirmativasForInscricao } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { buildCandidateAnexoIvUrl } from "./inscricao-anexo-iv.service.js";
 import {
   buildInscricaoSubmissionSnapshot,
@@ -211,6 +212,11 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
       assinaturaImagemUrl: input.assinaturaImagemUrl,
       status: StatusInscricao.RASCUNHO,
     },
+  });
+
+  await syncEtapaPoliticasAfirmativasForInscricao({
+    inscricaoId: inscricao.id,
+    modalidadeConcorrencia: input.modalidadeConcorrencia,
   });
 
   return { inscricao };

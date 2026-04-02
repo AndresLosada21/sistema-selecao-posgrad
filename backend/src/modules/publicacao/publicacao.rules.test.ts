@@ -6,9 +6,11 @@ import { TipoPublicacaoOficial } from "@prisma/client";
 import {
   buildClassificacaoPublicacaoTitulo,
   buildHomologacaoPublicacaoTitulo,
+  buildPoliticasAfirmativasPublicacaoTitulo,
   resolvePublicacaoVersionamento,
   resolveClassificacaoTipoPublicacao,
   resolveHomologacaoTipoPublicacao,
+  resolvePoliticasAfirmativasTipoPublicacao,
 } from "./publicacao.rules.js";
 
 test("resolve tipo de publicacao de homologacao por fase", () => {
@@ -29,6 +31,16 @@ test("resolve tipo de publicacao de classificacao por fase", () => {
 test("gera titulo padrao coerente com a fase da classificacao", () => {
   assert.equal(buildClassificacaoPublicacaoTitulo("PRELIMINAR"), "Resultado preliminar da classificacao final");
   assert.equal(buildClassificacaoPublicacaoTitulo("FINAL"), "Resultado final da classificacao final");
+});
+
+test("resolve tipo de publicacao de politicas afirmativas por fase", () => {
+  assert.equal(resolvePoliticasAfirmativasTipoPublicacao("PRELIMINAR"), TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_PRELIMINAR);
+  assert.equal(resolvePoliticasAfirmativasTipoPublicacao("FINAL"), TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_FINAL);
+});
+
+test("gera titulo padrao coerente com a fase de politicas afirmativas", () => {
+  assert.equal(buildPoliticasAfirmativasPublicacaoTitulo("PRELIMINAR"), "Resultado preliminar da etapa de politicas afirmativas");
+  assert.equal(buildPoliticasAfirmativasPublicacaoTitulo("FINAL"), "Resultado final da etapa de politicas afirmativas");
 });
 
 test("resolve versionamento inicial de publicacao sem historico", () => {

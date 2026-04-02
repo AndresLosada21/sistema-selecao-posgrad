@@ -7,6 +7,7 @@ import {
   StatusClassificacaoFinal,
   StatusConfirmacaoReserva,
   StatusConta,
+  StatusOperacaoPoliticasAfirmativas,
   StatusDocumentoInscricao,
   StatusEdital,
   StatusInscricao,
@@ -14,8 +15,10 @@ import {
   StatusPagamentoInscricao,
   StatusParticipacaoEdital,
   StatusRecurso,
+  ResultadoPoliticasAfirmativas,
   TipoCronogramaEdital,
   TipoDocumentoInscricao,
+  TipoEtapaPoliticasAfirmativas,
   TipoPublicacaoOficial,
 } from "@prisma/client";
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
@@ -28,6 +31,12 @@ import { resultadoEtapa2Schema } from "../../modules/etapa2/etapa2.schemas.js";
 import { confirmacaoReservaSchema, homologacaoDecisionSchema, homologacaoMotivoSchema } from "../../modules/homologacao/homologacao.schemas.js";
 import { addDocumentoSchema, fichaInscricaoSchema, saveDraftSchema } from "../../modules/inscricao/inscricao.schemas.js";
 import { createIsencaoSchema } from "../../modules/isencao/isencao.schemas.js";
+import {
+  createPoliticasAfirmativasPublicacaoSchema,
+  encaminhamentoPoliticasAfirmativasSchema,
+  previewPoliticasAfirmativasPublicacaoQuerySchema,
+  resultadoPoliticasAfirmativasSchema,
+} from "../../modules/politicas-afirmativas/politicas-afirmativas.schemas.js";
 import {
   createClassificacaoPublicacaoSchema,
   createPublicacaoSchema,
@@ -674,12 +683,51 @@ export const ClassificacaoPublicacaoPreviewSchema = z
   })
   .openapi("ClassificacaoPublicacaoPreview");
 
+export const PoliticasAfirmativasPublicacaoPreviewSchema = z
+  .object({
+    edital: EditalResumoCurtoSchema,
+    fase: z.enum(["PRELIMINAR", "FINAL"]),
+    tipo: z.nativeEnum(TipoPublicacaoOficial),
+    tituloSugerido: z.string(),
+    geradoEm: isoDate(),
+    versionamento: PublicacaoVersionamentoSchema,
+    resumo: z.object({
+      total: z.number().int(),
+      confirmados: z.number().int(),
+      naoConfirmados: z.number().int(),
+      ausentes: z.number().int(),
+      heteroidentificacao: z.number().int(),
+      pcd: z.number().int(),
+    }),
+    itens: z.array(
+      z.object({
+        inscricaoId: z.string(),
+        candidato: CandidatoResumoSchema,
+        linhaPesquisa: LinhaPesquisaCurtaSchema,
+        tipoEtapa: z.nativeEnum(TipoEtapaPoliticasAfirmativas),
+        resultado: z.nativeEnum(ResultadoPoliticasAfirmativas),
+        situacaoPublica: z.string(),
+        parecer: z.string().nullable(),
+        arquivoRetornoUrl: z.string().nullable(),
+        publicadoEm: isoDate().nullable(),
+      }),
+    ),
+  })
+  .openapi("PoliticasAfirmativasPublicacaoPreview");
+
 export const CreateClassificacaoPublicacaoResponseSchema = z
   .object({
     publicacao: PublicacaoModelSchema,
     preview: ClassificacaoPublicacaoPreviewSchema,
   })
   .openapi("CreateClassificacaoPublicacaoResponse");
+
+export const CreatePoliticasAfirmativasPublicacaoResponseSchema = z
+  .object({
+    publicacao: PublicacaoModelSchema,
+    preview: PoliticasAfirmativasPublicacaoPreviewSchema,
+  })
+  .openapi("CreatePoliticasAfirmativasPublicacaoResponse");
 
 export const RecursoModelSchema = z
   .object({
@@ -737,6 +785,49 @@ export const ConfirmacaoReservaResumoSchema = z
     confirmacaoPcd: z.nativeEnum(StatusConfirmacaoReserva),
   })
   .openapi("ConfirmacaoReservaResumo");
+
+export const PoliticasAfirmativasResumoSchema = z
+  .object({
+    id: z.string(),
+    tipo: z.nativeEnum(TipoEtapaPoliticasAfirmativas),
+    statusOperacao: z.nativeEnum(StatusOperacaoPoliticasAfirmativas),
+    convocadoEm: isoDate().nullable(),
+    documentosEncaminhadosEm: isoDate().nullable(),
+    protocoloEncaminhamento: z.string().nullable(),
+    observacaoEncaminhamento: z.string().nullable(),
+    resultadoPreliminar: z.nativeEnum(ResultadoPoliticasAfirmativas),
+    parecerPreliminar: z.string().nullable(),
+    arquivoRetornoPreliminarUrl: z.string().nullable(),
+    resultadoPreliminarEm: isoDate().nullable(),
+    resultadoFinal: z.nativeEnum(ResultadoPoliticasAfirmativas),
+    parecerFinal: z.string().nullable(),
+    arquivoRetornoFinalUrl: z.string().nullable(),
+    resultadoFinalEm: isoDate().nullable(),
+  })
+  .openapi("PoliticasAfirmativasResumo");
+
+export const PoliticasAfirmativasAdminItemSchema = z
+  .object({
+    ...PoliticasAfirmativasResumoSchema.shape,
+    inscricao: z.object({
+      id: z.string(),
+      status: z.nativeEnum(StatusInscricao),
+      modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia),
+    }),
+    edital: z.object({ id: z.string(), numero: z.string(), titulo: z.string() }),
+    candidato: CandidatoResumoSchema,
+    linhaPesquisa: LinhaPesquisaCurtaSchema,
+    documentosReserva: z.array(
+      z.object({
+        id: z.string(),
+        tipo: z.nativeEnum(TipoDocumentoInscricao),
+        nomeArquivo: z.string(),
+        urlArquivo: z.string(),
+        statusValidacao: z.nativeEnum(StatusDocumentoInscricao),
+      }),
+    ),
+  })
+  .openapi("PoliticasAfirmativasAdminItem");
 
 export const CandidateDashboardItemSchema = z
   .object({
@@ -847,6 +938,7 @@ export const CandidateDashboardItemSchema = z
             resultadoFinalEm: isoDate().nullable(),
           })
           .nullable(),
+        politicasAfirmativas: PoliticasAfirmativasResumoSchema.nullable(),
       })
       .nullable(),
     classificacao: z
@@ -968,6 +1060,21 @@ export const ConfirmacaoReservaRequestSchema = confirmacaoReservaSchema.openapi(
     confirmacaoPcd: "NAO_SE_APLICA",
   },
 });
+export const EncaminhamentoPoliticasAfirmativasRequestSchema = encaminhamentoPoliticasAfirmativasSchema.openapi("EncaminhamentoPoliticasAfirmativasRequest", {
+  example: {
+    convocadoEm: "2026-02-09T08:00:00.000Z",
+    documentosEncaminhadosEm: "2026-02-09T10:00:00.000Z",
+    protocoloEncaminhamento: "CGH-2026-001",
+    observacaoEncaminhamento: "Documentos consolidados e enviados para a comissao da UFAM.",
+  },
+});
+export const ResultadoPoliticasAfirmativasRequestSchema = resultadoPoliticasAfirmativasSchema.openapi("ResultadoPoliticasAfirmativasRequest", {
+  example: {
+    resultado: "CONFIRMADO",
+    parecer: "Resultado recebido da comissao e registrado no sistema.",
+    arquivoRetornoUrl: "https://arquivos.exemplo/resultado-hetero.pdf",
+  },
+});
 export const CreateRecursoRequestSchema = createRecursoSchema.openapi("CreateRecursoRequest", {
   example: {
     editalId: "cedital123",
@@ -1000,6 +1107,8 @@ export const PreviewHomologacaoPublicacaoQuerySchema = z
   .openapi("PreviewHomologacaoPublicacaoQuery");
 export const PreviewClassificacaoPublicacaoQuerySchema = previewClassificacaoPublicacaoQuerySchema
   .openapi("PreviewClassificacaoPublicacaoQuery");
+export const PreviewPoliticasAfirmativasPublicacaoQuerySchema = previewPoliticasAfirmativasPublicacaoQuerySchema
+  .openapi("PreviewPoliticasAfirmativasPublicacaoQuery");
 export const CreateHomologacaoPublicacaoRequestSchema = z
   .object({
     fase: z.enum(["PRELIMINAR", "FINAL"]),
@@ -1022,6 +1131,14 @@ export const CreateClassificacaoPublicacaoRequestSchema = createClassificacaoPub
       titulo: "Resultado final da classificacao final",
       descricao: "Publicacao administrativa consolidada a partir do snapshot da classificacao final.",
       arquivoUrl: "https://arquivos.exemplo/classificacao-final.pdf",
+    },
+  });
+export const CreatePoliticasAfirmativasPublicacaoRequestSchema = createPoliticasAfirmativasPublicacaoSchema
+  .openapi("CreatePoliticasAfirmativasPublicacaoRequest", {
+    example: {
+      fase: "FINAL",
+      titulo: "Resultado final da etapa de politicas afirmativas",
+      descricao: "Versao consolidada apos retorno final da comissao da UFAM.",
     },
   });
 export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request", {
@@ -1131,5 +1248,6 @@ export const RecursoListResponseSchema = buildListResponseSchema("RecursoListRes
 export const RecursoAdminListResponseSchema = buildListResponseSchema("RecursoAdminListResponse", RecursoAdminResumoSchema);
 export const PublicacaoListResponseSchema = buildListResponseSchema("PublicacaoListResponse", PublicacaoResumoSchema);
 export const ClassificacaoListResponseSchema = buildListResponseSchema("ClassificacaoListResponse", ClassificacaoItemSchema);
+export const PoliticasAfirmativasAdminListResponseSchema = buildListResponseSchema("PoliticasAfirmativasAdminListResponse", PoliticasAfirmativasAdminItemSchema);
 export const Etapa1ListResponseSchema = buildListResponseSchema("Etapa1ListResponse", Etapa1AdminItemSchema);
 export const Etapa2ListResponseSchema = buildListResponseSchema("Etapa2ListResponse", Etapa2AdminItemSchema);

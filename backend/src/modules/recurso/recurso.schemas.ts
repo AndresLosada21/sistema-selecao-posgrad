@@ -1,4 +1,4 @@
-import { FaseRecurso, StatusInscricao, StatusIsencao } from "@prisma/client";
+import { FaseRecurso, ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao } from "@prisma/client";
 import { z } from "zod";
 
 export const createRecursoSchema = z.object({
@@ -28,4 +28,6 @@ export const decidirRecursoSchema = z.object({
   novaPontuacaoBrutaEtapa2: z.number().min(0).optional(),
   novaNotaNormalizadaEtapa2: z.number().min(0).max(10).optional(),
   novoEspelhoEtapa2: z.string().trim().min(5).optional(),
+  novoResultadoFinalPoliticasAfirmativas: z.nativeEnum(ResultadoPoliticasAfirmativas).optional(),
+  novoParecerFinalPoliticasAfirmativas: z.string().trim().min(5).optional(),
 });

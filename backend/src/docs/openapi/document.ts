@@ -11,6 +11,9 @@ import {
   ClassificacaoListResponseSchema,
   ConfirmacaoReservaResumoSchema,
   ConfirmacaoReservaRequestSchema,
+  EncaminhamentoPoliticasAfirmativasRequestSchema,
+  CreatePoliticasAfirmativasPublicacaoRequestSchema,
+  CreatePoliticasAfirmativasPublicacaoResponseSchema,
   CreateClassificacaoPublicacaoRequestSchema,
   CreateClassificacaoPublicacaoResponseSchema,
   ConflictErrorResponseSchema,
@@ -38,6 +41,9 @@ import {
   InscricaoModelSchema,
   PacoteDocumentalDetalheResponseSchema,
   PacoteDocumentalResumoSchema,
+  PoliticasAfirmativasAdminListResponseSchema,
+  PoliticasAfirmativasResumoSchema,
+  PoliticasAfirmativasPublicacaoPreviewSchema,
   PublicacaoIdParamSchema,
   ListEditaisQuerySchema,
   ListRecursosAdminQuerySchema,
@@ -51,7 +57,9 @@ import {
   PedidoIsencaoListResponseSchema,
   PublicacaoListResponseSchema,
   PublicacaoModelSchema,
+  PreviewPoliticasAfirmativasPublicacaoQuerySchema,
   PreviewClassificacaoPublicacaoQuerySchema,
+  ResultadoPoliticasAfirmativasRequestSchema,
   PreviewHomologacaoPublicacaoQuerySchema,
   RecalcularClassificacaoRequestSchema,
   RecursoAdminListResponseSchema,
@@ -510,6 +518,86 @@ registry.registerPath({
   },
 });
 
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/politicas-afirmativas",
+  tags: ["PoliticasAfirmativas"],
+  operationId: "listPoliticasAfirmativasByEdital",
+  summary: "Lista a etapa de politicas afirmativas do edital",
+  description: withAuthDescription("Lista inscricoes reservadas com documentos, encaminhamento a comissao externa da UFAM e resultados preliminar/final da etapa de politicas afirmativas."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: EditalIdParamSchema }),
+  responses: {
+    200: { description: "Etapa listada com sucesso.", content: jsonContent(PoliticasAfirmativasAdminListResponseSchema) },
+    400: { description: "Edital invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/inscricoes/{inscricaoId}/politicas-afirmativas/encaminhamento",
+  tags: ["PoliticasAfirmativas"],
+  operationId: "registrarEncaminhamentoPoliticasAfirmativas",
+  summary: "Registra encaminhamento para a comissao externa",
+  description: withAuthDescription("Registra convocacao e encaminhamento documental da etapa de politicas afirmativas para a comissao de heteroidentificacao/PCD da UFAM."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(EncaminhamentoPoliticasAfirmativasRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Encaminhamento registrado.", content: jsonContent(PoliticasAfirmativasResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Etapa nao encontrada para a inscricao.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/inscricoes/{inscricaoId}/politicas-afirmativas/resultado-preliminar",
+  tags: ["PoliticasAfirmativas"],
+  operationId: "registrarResultadoPreliminarPoliticasAfirmativas",
+  summary: "Registra resultado preliminar da etapa",
+  description: withAuthDescription("Registra o resultado preliminar devolvido pela comissao externa da UFAM para a etapa de politicas afirmativas."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(ResultadoPoliticasAfirmativasRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Resultado preliminar registrado.", content: jsonContent(PoliticasAfirmativasResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Etapa nao encontrada para a inscricao.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/inscricoes/{inscricaoId}/politicas-afirmativas/resultado-final",
+  tags: ["PoliticasAfirmativas"],
+  operationId: "registrarResultadoFinalPoliticasAfirmativas",
+  summary: "Registra resultado final da etapa",
+  description: withAuthDescription("Registra o resultado final devolvido pela comissao externa da UFAM para a etapa de politicas afirmativas e sincroniza o efeito na ocupacao de vagas reservadas."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(ResultadoPoliticasAfirmativasRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Resultado final registrado.", content: jsonContent(PoliticasAfirmativasResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Etapa nao encontrada para a inscricao.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
 for (const phase of [
   { suffix: "preliminar", operationId: "registrarHomologacaoPreliminar", summary: "Registra homologacao preliminar" },
   { suffix: "final", operationId: "registrarHomologacaoFinal", summary: "Registra homologacao final" },
@@ -824,6 +912,28 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/publicacoes/politicas-afirmativas/preview",
+  tags: ["Publicacoes"],
+  operationId: "buildPoliticasAfirmativasPublicacaoPreview",
+  summary: "Previsualiza publicacao da etapa de politicas afirmativas",
+  description: withAuthDescription("Gera o preview auditavel da publicacao preliminar ou final da etapa de politicas afirmativas a partir do retorno registrado da comissao externa da UFAM."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    query: PreviewPoliticasAfirmativasPublicacaoQuerySchema,
+  }),
+  responses: {
+    200: { description: "Preview da etapa gerado.", content: jsonContent(PoliticasAfirmativasPublicacaoPreviewSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Etapa sem dados ou incompleta para a fase solicitada.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
   method: "post",
   path: "/v1/admin/editais/{editalId}/publicacoes/classificacao",
   tags: ["Publicacoes"],
@@ -842,6 +952,28 @@ registry.registerPath({
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
     409: { description: "Classificacao ausente ou incompleta para publicacao.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/publicacoes/politicas-afirmativas",
+  tags: ["Publicacoes"],
+  operationId: "createPoliticasAfirmativasPublicacao",
+  summary: "Publica resultado oficial da etapa de politicas afirmativas",
+  description: withAuthDescription("Cria a publicacao oficial preliminar ou final da etapa de politicas afirmativas, preservando o snapshot consolidado e versionado do retorno da comissao externa da UFAM."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(CreatePoliticasAfirmativasPublicacaoRequestSchema) },
+  }),
+  responses: {
+    201: { description: "Publicacao criada.", content: jsonContent(CreatePoliticasAfirmativasPublicacaoResponseSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Etapa sem dados ou incompleta para publicacao.", content: jsonContent(ConflictErrorResponseSchema) },
   },
 });
 

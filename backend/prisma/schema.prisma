@@ -45,6 +45,7 @@ enum TipoCronogramaEdital {
   RECURSO_ETAPA_2
   CLASSIFICACAO_PRELIMINAR
   RECURSO_CLASSIFICACAO
+  RECURSO_HETEROIDENTIFICACAO
   CLASSIFICACAO_FINAL
   PUBLICACAO
   MATRICULA
@@ -147,6 +148,7 @@ enum FaseRecurso {
   ETAPA_1
   ETAPA_2
   CLASSIFICACAO
+  POLITICAS_AFIRMATIVAS
 }
 
 enum StatusAvaliacaoEtapa {
@@ -173,9 +175,31 @@ enum TipoPublicacaoOficial {
   HOMOLOGACAO_FINAL
   RESULTADO_ETAPA_1
   RESULTADO_ETAPA_2
+  POLITICAS_AFIRMATIVAS_PRELIMINAR
+  POLITICAS_AFIRMATIVAS_FINAL
   CLASSIFICACAO_PRELIMINAR
   CLASSIFICACAO_FINAL
   COMUNICADO
+}
+
+enum TipoEtapaPoliticasAfirmativas {
+  HETEROIDENTIFICACAO
+  PCD
+}
+
+enum StatusOperacaoPoliticasAfirmativas {
+  PENDENTE
+  CONVOCADO
+  DOCUMENTOS_ENCAMINHADOS
+  RESULTADO_PRELIMINAR_REGISTRADO
+  RESULTADO_FINAL_REGISTRADO
+}
+
+enum ResultadoPoliticasAfirmativas {
+  PENDENTE
+  CONFIRMADO
+  NAO_CONFIRMADO
+  AUSENTE
 }
 
 model Usuario {
@@ -333,6 +357,7 @@ model Inscricao {
   homologacao                 HomologacaoInscricao?
   avaliacaoEtapa1             AvaliacaoEtapa1?
   avaliacaoEtapa2             AvaliacaoEtapa2?
+  etapaPoliticasAfirmativas   EtapaPoliticasAfirmativas?
 }
 
 model DocumentoInscricao {
@@ -473,4 +498,31 @@ model PublicacaoOficial {
 
   @@unique([editalId, tipo, versao])
   @@index([editalId, tipo, publicadoEm])
+}
+
+model EtapaPoliticasAfirmativas {
+  id                             String                            @id @default(cuid())
+  inscricaoId                     String                            @unique
+  tipo                           TipoEtapaPoliticasAfirmativas
+  statusOperacao                 StatusOperacaoPoliticasAfirmativas @default(PENDENTE)
+  convocadoEm                    DateTime?
+  documentosEncaminhadosEm       DateTime?
+  protocoloEncaminhamento        String?
+  observacaoEncaminhamento       String?
+  encaminhadoPorId               String?
+  resultadoPreliminar            ResultadoPoliticasAfirmativas      @default(PENDENTE)
+  parecerPreliminar              String?
+  arquivoRetornoPreliminarUrl    String?
+  resultadoPreliminarEm          DateTime?
+  resultadoPreliminarRegistradoPorId String?
+  resultadoFinal                 ResultadoPoliticasAfirmativas      @default(PENDENTE)
+  parecerFinal                   String?
+  arquivoRetornoFinalUrl         String?
+  resultadoFinalEm               DateTime?
+  resultadoFinalRegistradoPorId  String?
+  criadoEm                       DateTime                          @default(now())
+  atualizadoEm                   DateTime                          @updatedAt
+  inscricao                      Inscricao                         @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+
+  @@index([tipo, statusOperacao])
 }

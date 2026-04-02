@@ -53,7 +53,7 @@ function createToken(userId: string, email: string) {
 }
 
 async function createE2eContext(): Promise<E2eContext> {
-  const suffix = `e2e-publicacao-${Date.now()}`;
+  const suffix = `e2e-publicacao-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const senhaHash = await bcrypt.hash("Senha123456", 10);
 
   const admin = await prisma.usuario.create({
@@ -82,7 +82,7 @@ async function createE2eContext(): Promise<E2eContext> {
 
   const edital = await prisma.edital.create({
     data: {
-      numero: `E2E-${Date.now()}`,
+      numero: `E2E-${suffix}`,
       titulo: `Edital ${suffix}`,
       ano: 2026,
       semestre: 1,

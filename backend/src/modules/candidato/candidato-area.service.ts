@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { buildCandidateAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
 import { parseHomologacaoMotivos } from "../homologacao/homologacao.rules.js";
+import { buildPoliticasAfirmativasResumo } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 
 function toIsoOrNull(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
@@ -60,6 +61,7 @@ export async function getCandidateDashboard(usuarioId: string) {
           homologacao: true,
           avaliacaoEtapa1: true,
           avaliacaoEtapa2: true,
+          etapaPoliticasAfirmativas: true,
         },
       },
       classificacaoFinal: true,
@@ -241,6 +243,9 @@ export async function getCandidateDashboard(usuarioId: string) {
                 resultadoPreliminarEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa2.resultadoPreliminarEm),
                 resultadoFinalEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa2.resultadoFinalEm),
               }
+            : null,
+          politicasAfirmativas: participacao.inscricao.etapaPoliticasAfirmativas
+            ? buildPoliticasAfirmativasResumo(participacao.inscricao.etapaPoliticasAfirmativas)
             : null,
         }
       : null,
