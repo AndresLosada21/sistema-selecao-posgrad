@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { Router } from "express";
 
+import { conflict, internalError, notFound, requestValidationError, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 
@@ -31,21 +32,22 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/previe
   const parsedQuery = previewHomologacaoPublicacaoQuerySchema.safeParse(request.query);
 
   if (!parsedParams.success || !parsedQuery.success) {
-    return response.status(400).json({
-      message: "Dados para preview da publicacao de homologacao invalidos.",
+    return response.status(400).json(requestValidationError("Dados para preview da publicacao de homologacao invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
-    });
+    }));
   }
 
   const result = await buildHomologacaoPublicacaoPreview(parsedParams.data.editalId, parsedQuery.data.fase);
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json({
-      message: result.error,
-      details: "details" in result ? result.details : undefined,
-    });
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+    );
   }
 
   return response.status(200).json(result.preview);
@@ -56,21 +58,22 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/classificacao/prev
   const parsedQuery = previewClassificacaoPublicacaoQuerySchema.safeParse(request.query);
 
   if (!parsedParams.success || !parsedQuery.success) {
-    return response.status(400).json({
-      message: "Dados para preview da publicacao de classificacao invalidos.",
+    return response.status(400).json(requestValidationError("Dados para preview da publicacao de classificacao invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
-    });
+    }));
   }
 
   const result = await buildClassificacaoPublicacaoPreview(parsedParams.data.editalId, parsedQuery.data.fase);
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json({
-      message: result.error,
-      details: "details" in result ? result.details : undefined,
-    });
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+    );
   }
 
   return response.status(200).json(result.preview);
@@ -80,10 +83,7 @@ publicacaoRouter.get("/v1/editais/:editalId/publicacoes", async (request, respon
   const parsedParams = editalIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Edital invalido.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
   }
 
   const items = await listPublicacoesByEdital(parsedParams.data.editalId);
@@ -98,16 +98,14 @@ publicacaoRouter.get("/v1/publicacoes/:publicacaoId/arquivo.pdf", async (request
   const parsedParams = publicacaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Publicacao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Publicacao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await getPublicacaoById(parsedParams.data.publicacaoId);
 
   if ("error" in result) {
-    return response.status(404).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(404).json(notFound(errorCode, errorCode));
   }
 
   const pdfBuffer = await generatePublicacaoPdfBuffer({
@@ -134,11 +132,10 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes", requireAuth, re
   const parsedBody = createPublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados de publicacao invalidos.",
+    return response.status(400).json(requestValidationError("Dados de publicacao invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await createPublicacao({
@@ -153,9 +150,8 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes", requireAuth, re
   });
 
   if ("error" in result) {
-    return response.status(404).json({
-      message: result.error,
-    });
+    const errorCode = result.error as string;
+    return response.status(404).json(notFound(errorCode, errorCode));
   }
 
   return response.status(201).json(result.publicacao);
@@ -166,11 +162,10 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/homologacao", req
   const parsedBody = createHomologacaoPublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados para publicacao de homologacao invalidos.",
+    return response.status(400).json(requestValidationError("Dados para publicacao de homologacao invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await createHomologacaoPublicacao({
@@ -183,15 +178,17 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/homologacao", req
   });
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json({
-      message: result.error,
-      details: "details" in result ? result.details : undefined,
-    });
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+    );
   }
 
   if (!("publicacao" in result)) {
-    return response.status(500).json({ message: "PUBLICACAO_HOMOLOGACAO_INVALIDA" });
+    return response.status(500).json(internalError("PUBLICACAO_HOMOLOGACAO_INVALIDA"));
   }
 
   return response.status(201).json({
@@ -205,11 +202,10 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/classificacao", r
   const parsedBody = createClassificacaoPublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados para publicacao de classificacao invalidos.",
+    return response.status(400).json(requestValidationError("Dados para publicacao de classificacao invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await createClassificacaoPublicacao({
@@ -222,15 +218,17 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/classificacao", r
   });
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json({
-      message: result.error,
-      details: "details" in result ? result.details : undefined,
-    });
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+    );
   }
 
   if (!("publicacao" in result)) {
-    return response.status(500).json({ message: "PUBLICACAO_CLASSIFICACAO_INVALIDA" });
+    return response.status(500).json(internalError("PUBLICACAO_CLASSIFICACAO_INVALIDA"));
   }
 
   return response.status(201).json({

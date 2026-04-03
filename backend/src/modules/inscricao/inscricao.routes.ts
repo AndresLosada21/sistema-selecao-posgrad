@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Role } from "@prisma/client";
 
+import { conflict, notFound, requestValidationError, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 
@@ -30,19 +31,13 @@ inscricaoRouter.put("/v1/editais/:editalId/inscricao/rascunho", requireAuth, asy
   const parsedParams = editalIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Edital invalido.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
   }
 
   const parsedBody = saveDraftSchema.safeParse(request.body);
 
   if (!parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados da inscricao invalidos.",
-      errors: parsedBody.error.flatten(),
-    });
+    return response.status(400).json(validationError("Dados da inscricao invalidos.", parsedBody.error.flatten()));
   }
 
   const result = await saveInscricaoDraft({
@@ -59,7 +54,8 @@ inscricaoRouter.put("/v1/editais/:editalId/inscricao/rascunho", requireAuth, asy
 
   if ("error" in result) {
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result.inscricao);
@@ -70,11 +66,10 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/documentos", requireAuth, asyn
   const parsedBody = addDocumentoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados do documento invalidos.",
+    return response.status(400).json(requestValidationError("Dados do documento invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await addDocumentoToInscricao({
@@ -91,8 +86,12 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/documentos", requireAuth, asyn
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    const message = result.error === "DOCUMENTO_FORA_PADRAO" ? "Documentos da inscricao devem estar em PDF." : result.error;
-    return response.status(status).json({ message });
+    const message: string =
+      result.error === "DOCUMENTO_FORA_PADRAO"
+        ? "Documentos da inscricao devem usar URL https, nome de arquivo .pdf e mimeType application/pdf quando informado."
+        : String(result.error);
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(201).json(result.documento);
@@ -102,21 +101,25 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/submeter", requireAuth, async 
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await submitInscricao(parsedParams.data.inscricaoId, request.auth!.userId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({
-      message: result.error,
-      details: "details" in result ? result.details : undefined,
-      checklist: "checklist" in result ? result.checklist : undefined,
-    });
+    const errorCode = result.error as string;
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, {
+            details: "details" in result ? result.details : undefined,
+            checklist: "checklist" in result ? result.checklist : undefined,
+          })
+        : conflict(errorCode, errorCode, {
+            details: "details" in result ? result.details : undefined,
+            checklist: "checklist" in result ? result.checklist : undefined,
+          }),
+    );
   }
 
   return response.status(200).json(result.inscricao);
@@ -126,17 +129,15 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/cancelar-submissao", requireAu
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await cancelInscricaoSubmission(parsedParams.data.inscricaoId, request.auth!.userId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result.inscricao);
@@ -155,17 +156,15 @@ inscricaoRouter.get("/v1/inscricoes/:inscricaoId/anexo-iv", requireAuth, async (
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await getInscricaoAnexoIvForCandidate(parsedParams.data.inscricaoId, request.auth!.userId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   response.setHeader("Content-Type", result.contentType);
@@ -177,17 +176,15 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/anexo-iv", requireAuth, r
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await getInscricaoAnexoIvForAdmin(parsedParams.data.inscricaoId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   response.setHeader("Content-Type", result.contentType);
@@ -199,17 +196,15 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/anexo-iv/flatten", requir
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await getInscricaoAnexoIvFlattenForAdmin(parsedParams.data.inscricaoId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   response.setHeader("Content-Type", result.contentType);
@@ -222,11 +217,10 @@ inscricaoRouter.post("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requ
   const parsedBody = registrarPacoteDocumentalSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados do pacote documental invalidos.",
+    return response.status(400).json(requestValidationError("Dados do pacote documental invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await registrarPacoteDocumentalConsolidado({
@@ -240,8 +234,12 @@ inscricaoRouter.post("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requ
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    const message = result.error === "PACOTE_FORA_PADRAO" ? "Pacote documental consolidado deve estar em PDF." : result.error;
-    return response.status(status).json({ message });
+    const message: string =
+      result.error === "PACOTE_FORA_PADRAO"
+        ? "Pacote documental consolidado deve usar URL https, nome de arquivo .pdf e mimeType application/pdf quando informado."
+        : String(result.error);
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(201).json(result.pacoteDocumental);
@@ -251,17 +249,15 @@ inscricaoRouter.get("/v1/inscricoes/:inscricaoId/pacote-documental", requireAuth
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await getPacoteDocumentalDaInscricao(parsedParams.data.inscricaoId, request.auth!.userId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result);
@@ -271,17 +267,15 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requi
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await getPacoteDocumentalDaInscricaoAdmin(parsedParams.data.inscricaoId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result);

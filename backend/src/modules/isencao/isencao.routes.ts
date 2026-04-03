@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import { conflict, notFound, requestValidationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 
 import { editalIdParamSchema, createIsencaoSchema } from "./isencao.schemas.js";
@@ -11,21 +12,17 @@ isencaoRouter.post("/v1/editais/:editalId/isencao", requireAuth, async (request,
   const parsedParams = editalIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Dados do pedido de isencao invalidos.",
+    return response.status(400).json(requestValidationError("Dados do pedido de isencao invalidos.", {
       paramsErrors: parsedParams.error.flatten(),
-      bodyErrors: null,
-    });
+    }));
   }
 
   const parsedBody = createIsencaoSchema.safeParse(request.body);
 
   if (!parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados do pedido de isencao invalidos.",
-      paramsErrors: null,
+    return response.status(400).json(requestValidationError("Dados do pedido de isencao invalidos.", {
       bodyErrors: parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const payload = parsedBody.data as {
@@ -50,19 +47,14 @@ isencaoRouter.post("/v1/editais/:editalId/isencao", requireAuth, async (request,
 
   if ("error" in result) {
     if (result.error === "EDITAL_NAO_ENCONTRADO") {
-      return response.status(404).json({ message: "Edital nao encontrado." });
+      return response.status(404).json(notFound("Edital nao encontrado.", result.error));
     }
 
     if (result.error === "CURSO_NIVEL_INCOMPATIVEL") {
-      return response.status(400).json({
-        message: "Curso informado diverge do curso do edital.",
-      });
+      return response.status(400).json(conflict("Curso informado diverge do curso do edital.", result.error));
     }
 
-    return response.status(409).json({
-      message: "Pedido de isencao fora da janela permitida.",
-      reason: result.reason,
-    });
+    return response.status(409).json(conflict("Pedido de isencao fora da janela permitida.", result.error, { reason: result.reason }));
   }
 
   return response.status(201).json({

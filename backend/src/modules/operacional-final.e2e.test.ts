@@ -141,6 +141,7 @@ test("publica homologacao final oficialmente e gera PDF", async () => {
       .send({ fase: "FINAL", descricao: "Publicacao final da homologacao." });
     assert.equal(publicacao.status, 201);
     assert.equal(publicacao.body.publicacao.tipo, TipoPublicacaoOficial.HOMOLOGACAO_FINAL);
+    assert.equal(publicacao.body.preview.itens[0].candidato.email, undefined);
 
     const pdfResponse = await request(app)
       .get(`/v1/publicacoes/${publicacao.body.publicacao.id}/arquivo.pdf`)
@@ -149,6 +150,7 @@ test("publica homologacao final oficialmente e gera PDF", async () => {
 
     assert.equal(pdfResponse.status, 200);
     assert.equal(pdfResponse.body.subarray(0, 4).toString(), "%PDF");
+    assert.equal(pdfResponse.body.toString("latin1").includes(candidato.email), false);
   } finally {
     if (editalId) await prisma.publicacaoOficial.deleteMany({ where: { editalId } });
     if (inscricaoId) await prisma.homologacaoInscricao.deleteMany({ where: { inscricaoId } });
@@ -262,12 +264,14 @@ test("recurso com impacto em politicas afirmativas reprocessa classificacao e re
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ fase: "FINAL", descricao: "Publicacao inicial politicas." });
     assert.equal(politicasPublicacao.status, 201);
+    assert.equal(politicasPublicacao.body.preview.itens[0].candidato.email, undefined);
 
     const classificacaoPublicacao = await request(app)
       .post(`/v1/admin/editais/${editalId}/publicacoes/classificacao`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({ fase: "FINAL", descricao: "Publicacao inicial classificacao." });
     assert.equal(classificacaoPublicacao.status, 201);
+    assert.equal(classificacaoPublicacao.body.preview.itens[0].candidato.email, undefined);
 
     const recurso = await request(app)
       .post("/v1/candidato/recursos")

@@ -1,35 +1,18 @@
 import type { NextFunction, Request, Response } from "express";
 import type { Role } from "@prisma/client";
 
-import { prisma } from "../lib/prisma.js";
+import { forbidden, unauthorized } from "../lib/http-errors.js";
 
 function createRoleGuard(roles: Role[]) {
   return async (request: Request, response: Response, next: NextFunction) => {
     if (!request.auth) {
-      return response.status(401).json({
-        message: "Autenticacao obrigatoria.",
-      });
+      return response.status(401).json(unauthorized("Autenticacao obrigatoria."));
     }
 
-    const user = await prisma.usuario.findUnique({
-      where: { id: request.auth.userId },
-      include: {
-        perfis: true,
-      },
-    });
-
-    if (!user) {
-      return response.status(404).json({
-        message: "Usuario nao encontrado.",
-      });
-    }
-
-    const allowed = user.perfis.some((perfil) => roles.includes(perfil.role));
+    const allowed = request.auth.perfis.some((perfil) => roles.includes(perfil));
 
     if (!allowed) {
-      return response.status(403).json({
-        message: "Perfil sem permissao para esta operacao.",
-      });
+      return response.status(403).json(forbidden("Perfil sem permissao para esta operacao."));
     }
 
     return next();

@@ -50,6 +50,7 @@ import {
   LoginRequestSchema,
   MessageResponseSchema,
   HomologacaoPublicacaoPreviewSchema,
+  PayloadTooLargeResponseSchema,
   OptionalEditalIdQuerySchema,
   ParamsBodyValidationErrorResponseSchema,
   ParticipacaoListResponseSchema,
@@ -71,6 +72,7 @@ import {
   ResultadoEtapa1RequestSchema,
   ResultadoEtapa2RequestSchema,
   SaveDraftRequestSchema,
+  TooManyRequestsResponseSchema,
   UnauthorizedResponseSchema,
   ValidationErrorResponseSchema,
   DocumentoInscricaoModelSchema,
@@ -138,7 +140,9 @@ registry.registerPath({
   responses: {
     201: { description: "Conta criada com token de acesso.", content: jsonContent(AuthResponseSchema) },
     400: { description: "Payload invalido.", content: jsonContent(ValidationErrorResponseSchema) },
-    409: { description: "E-mail ja utilizado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "E-mail ou CPF ja utilizado.", content: jsonContent(MessageResponseSchema) },
+    413: { description: "Payload acima do limite permitido.", content: jsonContent(PayloadTooLargeResponseSchema) },
+    429: { description: "Muitas tentativas consecutivas.", content: jsonContent(TooManyRequestsResponseSchema) },
   },
 });
 
@@ -153,6 +157,8 @@ registry.registerPath({
     200: { description: "Login bem-sucedido.", content: jsonContent(AuthResponseSchema) },
     400: { description: "Payload invalido.", content: jsonContent(ValidationErrorResponseSchema) },
     401: { description: "Credenciais invalidas ou conta bloqueada.", content: jsonContent(UnauthorizedResponseSchema) },
+    413: { description: "Payload acima do limite permitido.", content: jsonContent(PayloadTooLargeResponseSchema) },
+    429: { description: "Muitas tentativas consecutivas.", content: jsonContent(TooManyRequestsResponseSchema) },
   },
 });
 

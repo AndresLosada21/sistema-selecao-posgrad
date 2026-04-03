@@ -17,7 +17,6 @@ function resolvePublicacaoArquivoUrl(publicacao: {
 type PublicacaoDashboardRecord = {
   id: string;
   editalId: string;
-  criadoPorId: string | null;
   republicacaoDeId: string | null;
   tipo: string;
   titulo: string;
@@ -25,16 +24,23 @@ type PublicacaoDashboardRecord = {
   versao: number;
   versaoFinal: boolean;
   arquivoUrl: string | null;
-  dadosConsolidados: unknown;
   publicadoEm: Date | null;
-  criadoPor:
-    | {
-        id: string;
-        nomeCompleto: string;
-        email: string;
-      }
-    | null;
 };
+
+function buildPublicacaoResumo(publicacao: PublicacaoDashboardRecord) {
+  return {
+    id: publicacao.id,
+    editalId: publicacao.editalId,
+    republicacaoDeId: publicacao.republicacaoDeId,
+    tipo: publicacao.tipo,
+    titulo: publicacao.titulo,
+    descricao: publicacao.descricao,
+    versao: publicacao.versao,
+    versaoFinal: publicacao.versaoFinal,
+    arquivoUrl: resolvePublicacaoArquivoUrl(publicacao),
+    publicadoEm: toIsoOrNull(publicacao.publicadoEm),
+  };
+}
 
 export async function getCandidateDashboard(usuarioId: string) {
   const participacoes = await prisma.participacaoEdital.findMany({
@@ -46,9 +52,6 @@ export async function getCandidateDashboard(usuarioId: string) {
         include: {
           cronogramas: true,
           publicacoesOficiais: {
-            include: {
-              criadoPor: true,
-            },
             orderBy: [{ publicadoEm: "desc" }, { criadoEm: "desc" }],
           },
         },
@@ -90,27 +93,7 @@ export async function getCandidateDashboard(usuarioId: string) {
       }
 
       return {
-        publicacoesDestaque: Array.from(latestPublicacoesByTipo.values()).map((publicacao) => ({
-          id: publicacao.id,
-          editalId: publicacao.editalId,
-          criadoPorId: publicacao.criadoPorId,
-          republicacaoDeId: publicacao.republicacaoDeId,
-          tipo: publicacao.tipo,
-          titulo: publicacao.titulo,
-          descricao: publicacao.descricao,
-          versao: publicacao.versao,
-          versaoFinal: publicacao.versaoFinal,
-          arquivoUrl: resolvePublicacaoArquivoUrl(publicacao),
-          dadosConsolidados: publicacao.dadosConsolidados,
-          publicadoEm: toIsoOrNull(publicacao.publicadoEm),
-          criadoPor: publicacao.criadoPor
-            ? {
-                id: publicacao.criadoPor.id,
-                nomeCompleto: publicacao.criadoPor.nomeCompleto,
-                email: publicacao.criadoPor.email,
-              }
-            : null,
-        })),
+        publicacoesDestaque: Array.from(latestPublicacoesByTipo.values()).map(buildPublicacaoResumo),
       };
     })(),
     id: participacao.id,
@@ -282,26 +265,6 @@ export async function getCandidateDashboard(usuarioId: string) {
 
         return b.versao - a.versao;
       })
-      .map((publicacao) => ({
-      id: publicacao.id,
-      editalId: publicacao.editalId,
-      criadoPorId: publicacao.criadoPorId,
-      republicacaoDeId: publicacao.republicacaoDeId,
-      tipo: publicacao.tipo,
-      titulo: publicacao.titulo,
-      descricao: publicacao.descricao,
-      versao: publicacao.versao,
-      versaoFinal: publicacao.versaoFinal,
-      arquivoUrl: resolvePublicacaoArquivoUrl(publicacao),
-      dadosConsolidados: publicacao.dadosConsolidados,
-      publicadoEm: toIsoOrNull(publicacao.publicadoEm),
-      criadoPor: publicacao.criadoPor
-        ? {
-            id: publicacao.criadoPor.id,
-            nomeCompleto: publicacao.criadoPor.nomeCompleto,
-            email: publicacao.criadoPor.email,
-          }
-        : null,
-      })),
+      .map(buildPublicacaoResumo),
   }));
 }

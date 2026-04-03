@@ -165,6 +165,7 @@ test("cria publicacao de classificacao e gera PDF oficial", async () => {
 
   try {
     const admin = await prisma.usuario.findUniqueOrThrow({ where: { id: context.adminId } });
+    const candidato = await prisma.usuario.findUniqueOrThrow({ where: { id: context.candidatoId } });
     const adminToken = createToken(admin.id, admin.email);
 
     const createResponse = await request(app)
@@ -178,12 +179,16 @@ test("cria publicacao de classificacao e gera PDF oficial", async () => {
     assert.equal(createResponse.status, 201);
     assert.equal(createResponse.body.publicacao.versao, 1);
     assert.equal(createResponse.body.preview.tipo, "CLASSIFICACAO_FINAL");
+    assert.equal(createResponse.body.preview.itens[0].candidato.email, undefined);
 
     const listResponse = await request(app).get(`/v1/editais/${context.editalId}/publicacoes`);
 
     assert.equal(listResponse.status, 200);
     assert.equal(listResponse.body.total, 1);
     assert.equal(listResponse.body.items[0].arquivoUrl, `/v1/publicacoes/${createResponse.body.publicacao.id}/arquivo.pdf`);
+    assert.equal("dadosConsolidados" in listResponse.body.items[0], false);
+    assert.equal("criadoPor" in listResponse.body.items[0], false);
+    assert.equal("criadoPorId" in listResponse.body.items[0], false);
 
     const pdfResponse = await request(app)
       .get(`/v1/publicacoes/${createResponse.body.publicacao.id}/arquivo.pdf`)
@@ -194,6 +199,7 @@ test("cria publicacao de classificacao e gera PDF oficial", async () => {
     assert.equal(pdfResponse.headers["content-type"], "application/pdf");
     assert.equal(Buffer.isBuffer(pdfResponse.body), true);
     assert.equal(pdfResponse.body.subarray(0, 4).toString(), "%PDF");
+    assert.equal(pdfResponse.body.toString("latin1").includes(candidato.email), false);
   } finally {
     await cleanupE2eContext(context);
   }
@@ -239,6 +245,12 @@ test("dashboard do candidato expõe publicacoes destacadas e historico versionad
     assert.equal(destaque.versao, 2);
     assert.equal(destaque.republicacaoDeId, first.body.publicacao.id);
     assert.equal(destaque.arquivoUrl, `/v1/publicacoes/${second.body.publicacao.id}/arquivo.pdf`);
+    assert.equal("dadosConsolidados" in destaque, false);
+    assert.equal("criadoPor" in destaque, false);
+    assert.equal("criadoPorId" in destaque, false);
+    assert.equal("dadosConsolidados" in item.publicacoes[0], false);
+    assert.equal("criadoPor" in item.publicacoes[0], false);
+    assert.equal("criadoPorId" in item.publicacoes[0], false);
   } finally {
     await cleanupE2eContext(context);
   }

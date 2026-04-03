@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { Router } from "express";
 
+import { conflict, notFound, requestValidationError, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 import type { HomologacaoMotivo } from "./homologacao.rules.js";
@@ -34,10 +35,7 @@ homologacaoRouter.get("/v1/admin/inscricoes", requireAuth, requireRole(Role.ADMI
   const parsedQuery = listInscricoesAdminQuerySchema.safeParse(request.query);
 
   if (!parsedQuery.success) {
-    return response.status(400).json({
-      message: "Filtro invalido.",
-      errors: parsedQuery.error.flatten(),
-    });
+    return response.status(400).json(validationError("Filtro invalido.", parsedQuery.error.flatten()));
   }
 
   const items = await listInscricoesParaHomologacao(parsedQuery.data.editalId as string | undefined);
@@ -53,11 +51,10 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/preliminar"
   const parsedBody = homologacaoDecisionSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados de homologacao preliminar invalidos.",
+    return response.status(400).json(requestValidationError("Dados de homologacao preliminar invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await registrarHomologacaoPreliminar(
@@ -68,8 +65,13 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/preliminar"
   );
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error, details: "details" in result ? result.details : undefined });
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+    );
   }
 
   return response.status(200).json(result.homologacao);
@@ -80,11 +82,10 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/confirmacao-reserva", r
   const parsedBody = confirmacaoReservaSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados de confirmacao de reserva invalidos.",
+    return response.status(400).json(requestValidationError("Dados de confirmacao de reserva invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await atualizarConfirmacaoReserva(parsedParams.data.inscricaoId, {
@@ -93,7 +94,8 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/confirmacao-reserva", r
   });
 
   if ("error" in result) {
-    return response.status(404).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(404).json(notFound(errorCode, errorCode));
   }
 
   return response.status(200).json(result.inscricao);
@@ -104,11 +106,10 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/final", req
   const parsedBody = homologacaoDecisionSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados de homologacao final invalidos.",
+    return response.status(400).json(requestValidationError("Dados de homologacao final invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await registrarHomologacaoFinal(
@@ -119,8 +120,13 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/final", req
   );
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error, details: "details" in result ? result.details : undefined });
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+    );
   }
 
   return response.status(200).json(result.homologacao);

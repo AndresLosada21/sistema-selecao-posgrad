@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { Router } from "express";
 
+import { conflict, notFound, requestValidationError, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 import {
@@ -32,10 +33,7 @@ politicasAfirmativasRouter.get(
     const parsedParams = editalIdParamSchema.safeParse(request.params);
 
     if (!parsedParams.success) {
-      return response.status(400).json({
-        message: "Edital invalido.",
-        errors: parsedParams.error.flatten(),
-      });
+      return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
     }
 
     const items = await listEtapasPoliticasAfirmativasByEdital(parsedParams.data.editalId);
@@ -53,11 +51,10 @@ politicasAfirmativasRouter.put(
     const parsedBody = encaminhamentoPoliticasAfirmativasSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json({
-        message: "Dados de encaminhamento invalidos.",
+      return response.status(400).json(requestValidationError("Dados de encaminhamento invalidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-      });
+      }));
     }
 
     const result = await registrarEncaminhamentoPoliticasAfirmativas({
@@ -67,7 +64,8 @@ politicasAfirmativasRouter.put(
     });
 
     if ("error" in result) {
-      return response.status(404).json({ message: result.error });
+      const errorCode = result.error as string;
+      return response.status(404).json(notFound(errorCode, errorCode));
     }
 
     return response.status(200).json(result.etapa);
@@ -83,11 +81,10 @@ politicasAfirmativasRouter.put(
     const parsedBody = resultadoPoliticasAfirmativasSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json({
-        message: "Dados do resultado preliminar invalidos.",
+      return response.status(400).json(requestValidationError("Dados do resultado preliminar invalidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-      });
+      }));
     }
 
     const result = await registrarResultadoPreliminarPoliticasAfirmativas({
@@ -99,7 +96,8 @@ politicasAfirmativasRouter.put(
     });
 
     if ("error" in result) {
-      return response.status(404).json({ message: result.error });
+      const errorCode = result.error as string;
+      return response.status(404).json(notFound(errorCode, errorCode));
     }
 
     return response.status(200).json(result.etapa);
@@ -115,11 +113,10 @@ politicasAfirmativasRouter.put(
     const parsedBody = resultadoPoliticasAfirmativasSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json({
-        message: "Dados do resultado final invalidos.",
+      return response.status(400).json(requestValidationError("Dados do resultado final invalidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-      });
+      }));
     }
 
     const result = await registrarResultadoFinalPoliticasAfirmativas({
@@ -131,7 +128,8 @@ politicasAfirmativasRouter.put(
     });
 
     if ("error" in result) {
-      return response.status(404).json({ message: result.error });
+      const errorCode = result.error as string;
+      return response.status(404).json(notFound(errorCode, errorCode));
     }
 
     return response.status(200).json(result.etapa);
@@ -147,21 +145,22 @@ politicasAfirmativasRouter.get(
     const parsedQuery = previewPoliticasAfirmativasPublicacaoQuerySchema.safeParse(request.query);
 
     if (!parsedParams.success || !parsedQuery.success) {
-      return response.status(400).json({
-        message: "Dados para preview da publicacao de politicas afirmativas invalidos.",
+      return response.status(400).json(requestValidationError("Dados para preview da publicacao de politicas afirmativas invalidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
-      });
+      }));
     }
 
     const result = await buildPoliticasAfirmativasPublicacaoPreview(parsedParams.data.editalId, parsedQuery.data.fase);
 
     if ("error" in result) {
+      const errorCode = result.error as string;
       const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-      return response.status(status).json({
-        message: result.error,
-        details: "details" in result ? result.details : undefined,
-      });
+      return response.status(status).json(
+        status === 404
+          ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+      );
     }
 
     return response.status(200).json(result.preview);
@@ -177,11 +176,10 @@ politicasAfirmativasRouter.post(
     const parsedBody = createPoliticasAfirmativasPublicacaoSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json({
-        message: "Dados para publicacao de politicas afirmativas invalidos.",
+      return response.status(400).json(requestValidationError("Dados para publicacao de politicas afirmativas invalidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-      });
+      }));
     }
 
     const result = await createPoliticasAfirmativasPublicacao({
@@ -191,11 +189,13 @@ politicasAfirmativasRouter.post(
     });
 
     if ("error" in result) {
+      const errorCode = result.error as string;
       const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-      return response.status(status).json({
-        message: result.error,
-        details: "details" in result ? result.details : undefined,
-      });
+      return response.status(status).json(
+        status === 404
+          ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+      );
     }
 
     return response.status(201).json(result);
