@@ -1,12 +1,8 @@
 import { TipoDocumentoInscricao } from "@prisma/client";
-import { PDFCheckBox, PDFDocument, PDFTextField, StandardFonts } from "pdf-lib";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { prisma } from "../../lib/prisma.js";
 import { type FichaInscricao } from "./inscricao.rules.js";
-
-const TEMPLATE_FILE_NAMES = ["Ficha_Cadastral (6).pdf", "Ficha_Cadastral (4).pdf", "ANEXO IV - FICHA DE INSCRIÇÃO (1).pdf"] as const;
 
 function parseFicha(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -20,153 +16,156 @@ function hasDocument(documentos: Array<{ tipo: TipoDocumentoInscricao }>, tipo: 
   return documentos.some((documento) => documento.tipo === tipo);
 }
 
-async function loadTemplatePdfBytes() {
-  const baseDirs = [
-    process.env.DOCUMENTOS_EDITAL_DIR ?? null,
-    path.resolve(process.cwd(), "..", "..", "tmp-publicacoes"),
-    path.resolve(process.cwd(), "..", "..", "Documentos-Edital"),
-    path.resolve("/documentos-edital"),
-  ].filter((value): value is string => Boolean(value));
+function wrapText(value: string, maxLength = 88) {
+  if (value.length <= maxLength) {
+    return [value];
+  }
 
-  const candidates = baseDirs.flatMap((baseDir) => TEMPLATE_FILE_NAMES.map((fileName) => path.join(baseDir, fileName)));
+  const words = value.split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
 
-  for (const candidate of candidates) {
-    try {
-      return await readFile(candidate);
-    } catch {
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+
+    if (candidate.length <= maxLength) {
+      current = candidate;
       continue;
     }
-  }
 
-  return null;
-}
-
-function bool(value: boolean | undefined, expected: boolean) {
-  return value === expected;
-}
-
-function setTextField(form: ReturnType<PDFDocument["getForm"]>, fieldName: string, value: string | undefined) {
-  const field = form.getTextField(fieldName);
-  field.setText(value?.trim() ?? "");
-  field.enableReadOnly();
-}
-
-function setMarkField(form: ReturnType<PDFDocument["getForm"]>, fieldName: string, checked: boolean) {
-  const field = form.getField(fieldName);
-
-  if (field instanceof PDFCheckBox) {
-    if (checked) {
-      field.check();
-    } else {
-      field.uncheck();
+    if (current) {
+      lines.push(current);
     }
-    field.enableReadOnly();
-    return;
+
+    current = word;
   }
 
-  if (field instanceof PDFTextField) {
-    field.setText(checked ? "X" : "");
-    field.enableReadOnly();
-    return;
+  if (current) {
+    lines.push(current);
   }
 
-  throw new Error(`Campo de marcacao nao suportado: ${fieldName}`);
+  return lines;
 }
 
-async function buildFlattenedPdfBytes(templateBytes: Uint8Array, input: {
+function buildFichaLines(input: {
   ficha: FichaInscricao;
-  documentos: Array<{ tipo: TipoDocumentoInscricao }>;
+  documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
   pagamentoDispensado: boolean;
   linhaNome: string;
+  inscricaoId: string;
+  editalNumero: string;
+  editalTitulo: string;
 }) {
-  const pdfDoc = await PDFDocument.load(templateBytes);
-  const form = pdfDoc.getForm();
-  const textFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const documentosObrigatorios = [
+    { label: "Formulario de inscricao", present: hasDocument(input.documentos, TipoDocumentoInscricao.ANEXO_IV) },
+    { label: "Documento de identificacao", present: hasDocument(input.documentos, TipoDocumentoInscricao.DOCUMENTO_IDENTIFICACAO) },
+    { label: "RNE ou passaporte", present: hasDocument(input.documentos, TipoDocumentoInscricao.RNE_PASSAPORTE) },
+    { label: "Comprovante de pagamento", present: input.pagamentoDispensado || hasDocument(input.documentos, TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO) },
+    { label: "Diploma ou declaracao de conclusao", present: hasDocument(input.documentos, TipoDocumentoInscricao.DIPLOMA) },
+    { label: "Historico escolar", present: hasDocument(input.documentos, TipoDocumentoInscricao.HISTORICO) },
+    { label: "Curriculo Lattes com comprovacoes", present: hasDocument(input.documentos, TipoDocumentoInscricao.CURRICULO) },
+  ];
 
-  fillPdfForm(form, input);
-  form.updateFieldAppearances(textFont);
-  form.flatten();
+  const lines = [
+    "ANEXO IV - FICHA DE INSCRICAO",
+    "",
+    `inscricaoId: ${input.inscricaoId}`,
+    `edital: ${input.editalNumero} - ${input.editalTitulo}`,
+    `linhaPesquisa: ${input.linhaNome || "-"}`,
+    "",
+    "DADOS PESSOAIS",
+    `nomeCompleto: ${input.ficha.nomeCompleto ?? "-"}`,
+    `rg: ${input.ficha.rg ?? "-"}`,
+    `dataExpedicaoRG: ${input.ficha.rgDataExpedicao ?? "-"}`,
+    `cpf: ${input.ficha.cpf ?? "-"}`,
+    `passaporte: ${input.ficha.passaporte ?? "-"}`,
+    `nacionalidade: ${input.ficha.nacionalidade ?? "-"}`,
+    `naturalidade: ${input.ficha.naturalidade ?? "-"}`,
+    `email: ${input.ficha.email ?? "-"}`,
+    `telefoneWhatsapp: ${input.ficha.telefoneWhatsapp ?? "-"}`,
+    `dataNascimento: ${input.ficha.dataNascimento ?? "-"}`,
+    `estadoCivil: ${input.ficha.estadoCivil ?? "-"}`,
+    `genero: ${input.ficha.genero ?? "-"}`,
+    `tipoSanguineo: ${input.ficha.tipoSanguineo ?? "-"}`,
+    `fatorRh: ${input.ficha.fatorRh ?? "-"}`,
+    `racaCor: ${input.ficha.racaCor ?? "-"}`,
+    `pcd: ${input.ficha.pessoaComDeficiencia === true ? "SIM" : input.ficha.pessoaComDeficiencia === false ? "NAO" : "-"}`,
+    `acoesAfirmativas: ${input.ficha.concorreAcoesAfirmativas === true ? "SIM" : input.ficha.concorreAcoesAfirmativas === false ? "NAO" : "-"}`,
+    `solicitaBolsa: ${input.ficha.vaiSolicitarBolsa === true ? "SIM" : input.ficha.vaiSolicitarBolsa === false ? "NAO" : "-"}`,
+    `nomePai: ${input.ficha.nomePai ?? "-"}`,
+    `nomeMae: ${input.ficha.nomeMae ?? "-"}`,
+    `enderecoResidencial: ${input.ficha.enderecoResidencial ?? "-"}`,
+    `cepResidencial: ${input.ficha.cepResidencial ?? "-"}`,
+    `bairroResidencial: ${input.ficha.bairroResidencial ?? "-"}`,
+    `ufResidencial: ${input.ficha.ufResidencial ?? "-"}`,
+    `cidadeResidencial: ${input.ficha.cidadeResidencial ?? "-"}`,
+    "",
+    "TRABALHO",
+    `situacaoEmprego: ${input.ficha.empregadoSituacao ?? "-"}`,
+    `regimeTrabalho: ${input.ficha.regimeTrabalho ?? "-"}`,
+    `instituicaoTrabalho: ${input.ficha.instituicaoTrabalho ?? "-"}`,
+    `unidadeDepartamentoTrabalho: ${input.ficha.unidadeDepartamentoTrabalho ?? "-"}`,
+    `enderecoTrabalho: ${input.ficha.enderecoTrabalho ?? "-"}`,
+    `cepTrabalho: ${input.ficha.cepTrabalho ?? "-"}`,
+    `cidadeBairroTrabalho: ${input.ficha.cidadeBairroTrabalho ?? "-"}`,
+    "",
+    "DOCUMENTOS",
+    ...documentosObrigatorios.map((documento) => `- ${documento.label}: ${documento.present ? "SIM" : "NAO"}`),
+    "",
+    "ARQUIVOS RECEBIDOS",
+    ...input.documentos.map((documento) => `- ${documento.tipo}: ${documento.nomeArquivo}`),
+  ];
 
-  return Buffer.from(await pdfDoc.save());
+  return lines.flatMap((line) => wrapText(line));
 }
 
-function fillPdfForm(form: ReturnType<PDFDocument["getForm"]>, input: {
+async function buildGenericPdfBytes(input: {
   ficha: FichaInscricao;
-  documentos: Array<{ tipo: TipoDocumentoInscricao }>;
+  documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
   pagamentoDispensado: boolean;
   linhaNome: string;
+  inscricaoId: string;
+  editalNumero: string;
+  editalTitulo: string;
 }) {
-  setTextField(form, "nomeCompleto", input.ficha.nomeCompleto);
-  setTextField(form, "rg", input.ficha.rg);
-  setTextField(form, "rgData", input.ficha.rgDataExpedicao);
-  setTextField(form, "cpf", input.ficha.cpf);
-  setTextField(form, "passaporte", input.ficha.passaporte);
-  setTextField(form, "nacionalidade", input.ficha.nacionalidade);
-  setTextField(form, "naturalidade", input.ficha.naturalidade);
-  setTextField(form, "email", input.ficha.email);
-  setTextField(form, "telefone", input.ficha.telefoneWhatsapp);
-  setTextField(form, "dataNasc", input.ficha.dataNascimento);
-  setTextField(form, "estadoCivil", input.ficha.estadoCivil);
-  setTextField(form, "tipoSang", input.ficha.tipoSanguineo);
-  setTextField(form, "fatorRH", input.ficha.fatorRh);
-  setTextField(form, "pai", input.ficha.nomePai);
-  setTextField(form, "mae", input.ficha.nomeMae);
-  setTextField(form, "endRes", input.ficha.enderecoResidencial);
-  setTextField(form, "cep", input.ficha.cepResidencial);
-  setTextField(form, "bairro", input.ficha.bairroResidencial);
-  setTextField(form, "uf", input.ficha.ufResidencial);
-  setTextField(form, "cidade", input.ficha.cidadeResidencial);
-  setTextField(form, "instituicao", input.ficha.instituicaoTrabalho);
-  setTextField(form, "unidade", input.ficha.unidadeDepartamentoTrabalho);
-  setTextField(form, "endTrabalho", input.ficha.enderecoTrabalho);
-  setTextField(form, "cepTrab", input.ficha.cepTrabalho);
-  setTextField(form, "cidadeTrab", input.ficha.cidadeBairroTrabalho);
+  const pdfDoc = await PDFDocument.create();
+  const regular = await pdfDoc.embedFont(StandardFonts.Courier);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const lines = buildFichaLines(input);
 
-  setMarkField(form, "genMasc", input.ficha.genero === "MASCULINO");
-  setMarkField(form, "genFem", input.ficha.genero === "FEMININO");
+  let page = pdfDoc.addPage([595.28, 841.89]);
+  let y = 800;
 
-  setMarkField(form, "racBranca", input.ficha.racaCor === "BRANCA");
-  setMarkField(form, "racPreta", input.ficha.racaCor === "PRETA");
-  setMarkField(form, "racParda", input.ficha.racaCor === "PARDA");
-  setMarkField(form, "racAmarela", input.ficha.racaCor === "AMARELA");
-  setMarkField(form, "racIndigena", input.ficha.racaCor === "INDIGENA");
-  setMarkField(form, "racQuilombola", input.ficha.racaCor === "QUILOMBOLA");
-  setMarkField(form, "racNaoDecl", input.ficha.racaCor === "NAO_DECLARADA");
+  page.drawText("ANEXO IV - FICHA DE INSCRICAO", {
+    x: 40,
+    y,
+    size: 14,
+    font: bold,
+    color: rgb(0, 0, 0),
+  });
 
-  setMarkField(form, "pcdSim", bool(input.ficha.pessoaComDeficiencia, true));
-  setMarkField(form, "pcdNao", bool(input.ficha.pessoaComDeficiencia, false));
-  setMarkField(form, "aaSim", bool(input.ficha.concorreAcoesAfirmativas, true));
-  setMarkField(form, "aaNao", bool(input.ficha.concorreAcoesAfirmativas, false));
-  setMarkField(form, "bolsaSim", bool(input.ficha.vaiSolicitarBolsa, true));
-  setMarkField(form, "bolsaNao", bool(input.ficha.vaiSolicitarBolsa, false));
+  y -= 26;
 
-  setMarkField(form, "empSim", input.ficha.empregadoSituacao === "EMPREGADO");
-  setMarkField(form, "empNao", input.ficha.empregadoSituacao === "NAO_EMPREGADO");
-  setMarkField(form, "empAposen", input.ficha.empregadoSituacao === "APOSENTADO");
+  for (const line of lines.slice(1)) {
+    if (y < 45) {
+      page = pdfDoc.addPage([595.28, 841.89]);
+      y = 800;
+    }
 
-  setMarkField(form, "regParcial", input.ficha.regimeTrabalho === "PARCIAL");
-  setMarkField(form, "regIntegral", input.ficha.regimeTrabalho === "INTEGRAL");
-  setMarkField(form, "regDE", input.ficha.regimeTrabalho === "DEDICACAO_EXCLUSIVA");
+    page.drawText(line, {
+      x: 40,
+      y,
+      size: 9,
+      font: regular,
+      color: rgb(0, 0, 0),
+      maxWidth: 515,
+      lineHeight: 11,
+    });
 
-  setMarkField(form, "docFormulario", hasDocument(input.documentos, TipoDocumentoInscricao.ANEXO_IV));
-  setMarkField(form, "docIdentidade", hasDocument(input.documentos, TipoDocumentoInscricao.DOCUMENTO_IDENTIFICACAO));
-  setMarkField(form, "docRNE", hasDocument(input.documentos, TipoDocumentoInscricao.RNE_PASSAPORTE));
-  setMarkField(
-    form,
-    "docPagamento",
-    input.pagamentoDispensado || hasDocument(input.documentos, TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO),
-  );
-  setMarkField(form, "docDiploma", hasDocument(input.documentos, TipoDocumentoInscricao.DIPLOMA));
-  setMarkField(form, "docHistorico", hasDocument(input.documentos, TipoDocumentoInscricao.HISTORICO));
-  setMarkField(form, "docLattes", hasDocument(input.documentos, TipoDocumentoInscricao.CURRICULO));
+    y -= 12;
+  }
 
-  setMarkField(form, "linha1", input.linhaNome.includes("Sistemas Inteligentes e Microeletr"));
-  setMarkField(
-    form,
-    "linha2",
-    input.linhaNome.includes("Sistemas de Controle e Automação Modernos") ||
-      input.linhaNome.includes("Sistemas de Controle e Automacao Modernos"),
-  );
+  return Buffer.from(await pdfDoc.save({ useObjectStreams: false }));
 }
 
 async function getInscricaoForDocument(inscricaoId: string) {
@@ -195,46 +194,22 @@ async function buildInscricaoAnexoIvResponse(inscricao: InscricaoForDocument, fl
     return { error: "INSCRICAO_SEM_FICHA" as const };
   }
 
-  const templateBytes = await loadTemplatePdfBytes();
-
-  if (!templateBytes) {
-    return { error: "MODELO_ANEXO_IV_NAO_ENCONTRADO" as const };
-  }
-
   const pagamentoDispensado =
     inscricao.statusPagamento === "DISPENSADO" || inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL";
 
-  const pdfDoc = await PDFDocument.load(templateBytes);
-  const form = pdfDoc.getForm();
-  const textFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  fillPdfForm(form, {
+  const content = await buildGenericPdfBytes({
     ficha: {
       ...ficha,
       nomeCompleto: ficha.nomeCompleto ?? inscricao.participacaoEdital.usuario.nomeCompleto,
       email: ficha.email ?? inscricao.participacaoEdital.usuario.email,
     },
-    documentos: inscricao.documentos,
+    documentos: inscricao.documentos.map((documento) => ({ tipo: documento.tipo, nomeArquivo: documento.nomeArquivo })),
     pagamentoDispensado,
     linhaNome: inscricao.linhaPesquisa?.nome ?? "",
+    inscricaoId: inscricao.id,
+    editalNumero: inscricao.participacaoEdital.edital.numero,
+    editalTitulo: inscricao.participacaoEdital.edital.titulo,
   });
-  form.updateFieldAppearances(textFont);
-
-  const editableBytes = await pdfDoc.save();
-  let content = Buffer.from(editableBytes);
-
-  if (flatten) {
-    content = await buildFlattenedPdfBytes(templateBytes, {
-      ficha: {
-        ...ficha,
-        nomeCompleto: ficha.nomeCompleto ?? inscricao.participacaoEdital.usuario.nomeCompleto,
-        email: ficha.email ?? inscricao.participacaoEdital.usuario.email,
-      },
-      documentos: inscricao.documentos,
-      pagamentoDispensado,
-      linhaNome: inscricao.linhaPesquisa?.nome ?? "",
-    });
-  }
 
   return {
     filename: `anexo-iv-inscricao-${inscricao.id}${flatten ? "-flatten" : ""}.pdf`,
