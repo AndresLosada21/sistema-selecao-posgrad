@@ -318,7 +318,7 @@ test("recurso com impacto em politicas afirmativas reprocessa classificacao e re
   }
 });
 
-test("downloads do anexo iv formulario e flattened funcionam e o flattened nao retém campos", async () => {
+test("downloads do anexo iv formulario e flattened funcionam com pdf generico sem campos interativos", async () => {
   const suffix = `e2e-anexoiv-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const { admin, candidato } = await createUsers(suffix);
 
@@ -401,7 +401,7 @@ test("downloads do anexo iv formulario e flattened funcionam e o flattened nao r
       .parse(parseBinaryResponse);
     assert.equal(formResponse.status, 200);
     const formPdf = await PDFDocument.load(formResponse.body);
-    assert.ok(formPdf.getForm().getFields().length > 0);
+    assert.equal(formPdf.getForm().getFields().length, 0);
 
     const flattenResponse = await request(app)
       .get(`/v1/admin/inscricoes/${inscricaoId}/anexo-iv/flatten`)
