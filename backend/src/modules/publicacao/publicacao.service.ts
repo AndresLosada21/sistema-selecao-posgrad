@@ -1,15 +1,25 @@
-import { ModalidadeConcorrencia, Prisma, StatusClassificacaoFinal, StatusInscricao } from "@prisma/client";
+import {
+  ModalidadeConcorrencia,
+  Prisma,
+  ResultadoPoliticasAfirmativas,
+  StatusClassificacaoFinal,
+  StatusInscricao,
+  TipoEtapaPoliticasAfirmativas,
+} from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { parseHomologacaoMotivos } from "../homologacao/homologacao.rules.js";
 import {
   buildClassificacaoPublicacaoTitulo,
   buildHomologacaoPublicacaoTitulo,
+  buildPoliticasAfirmativasPublicacaoTitulo,
   resolvePublicacaoVersionamento,
   resolveClassificacaoTipoPublicacao,
   resolveHomologacaoTipoPublicacao,
+  resolvePoliticasAfirmativasTipoPublicacao,
   type FaseClassificacaoPublicacao,
   type FaseHomologacaoPublicacao,
+  type FasePoliticasAfirmativasPublicacao,
 } from "./publicacao.rules.js";
 
 function toNullableJson(value: Prisma.JsonValue | undefined) {
@@ -50,6 +60,10 @@ function getModalidadeLabel(modalidade: ModalidadeConcorrencia) {
   }
 
   return "AMPLA_CONCORRENCIA";
+}
+
+function getResultadoPoliticasAfirmativasLabel(resultado: ResultadoPoliticasAfirmativas) {
+  return resultado;
 }
 
 async function getPublicacaoVersionamento(editalId: string, tipo: string) {
@@ -409,6 +423,157 @@ export async function createClassificacaoPublicacao(input: {
       republicacaoDeId: versionamento.republicacaoDeId,
       tipo: resolveClassificacaoTipoPublicacao(input.fase),
       titulo: input.titulo?.trim() || buildClassificacaoPublicacaoTitulo(input.fase),
+      descricao: input.descricao,
+      versao: versionamento.versao,
+      versaoFinal: input.fase === "FINAL",
+      arquivoUrl: input.arquivoUrl,
+      dadosConsolidados: previewResult.preview as Prisma.InputJsonValue,
+      publicadoEm: new Date(),
+    },
+  });
+
+  return {
+    publicacao,
+    preview: previewResult.preview,
+  };
+}
+
+export async function buildPoliticasAfirmativasPublicacaoPreview(editalId: string, fase: FasePoliticasAfirmativasPublicacao) {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId } });
+
+  if (!edital) {
+    return { error: "EDITAL_NAO_ENCONTRADO" as const };
+  }
+
+  const etapas = await prisma.etapaPoliticasAfirmativas.findMany({
+    where: {
+      inscricao: {
+        participacaoEdital: {
+          editalId,
+        },
+      },
+    },
+    include: {
+      inscricao: {
+        include: {
+          linhaPesquisa: true,
+          participacaoEdital: {
+            include: {
+              usuario: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      inscricao: {
+        criadoEm: "asc",
+      },
+    },
+  });
+
+  if (etapas.length === 0) {
+    return { error: "POLITICAS_AFIRMATIVAS_SEM_DADOS" as const };
+  }
+
+  const pendencias = etapas
+    .filter((etapa) => (fase === "PRELIMINAR" ? etapa.resultadoPreliminar === ResultadoPoliticasAfirmativas.PENDENTE : etapa.resultadoFinal === ResultadoPoliticasAfirmativas.PENDENTE))
+    .map((etapa) => ({
+      inscricaoId: etapa.inscricaoId,
+      candidatoId: etapa.inscricao.participacaoEdital.usuario.id,
+      candidatoNome: etapa.inscricao.participacaoEdital.usuario.nomeCompleto,
+      tipo: etapa.tipo,
+    }));
+
+  if (pendencias.length > 0) {
+    return {
+      error: "POLITICAS_AFIRMATIVAS_INCOMPLETA" as const,
+      details: pendencias,
+    };
+  }
+
+  const tipoPublicacao = resolvePoliticasAfirmativasTipoPublicacao(fase);
+  const versionamento = await getPublicacaoVersionamento(editalId, tipoPublicacao);
+
+  const itens = etapas.map((etapa) => {
+    const resultado = fase === "PRELIMINAR" ? etapa.resultadoPreliminar : etapa.resultadoFinal;
+    const parecer = fase === "PRELIMINAR" ? etapa.parecerPreliminar : etapa.parecerFinal;
+    const arquivoRetornoUrl = fase === "PRELIMINAR" ? etapa.arquivoRetornoPreliminarUrl : etapa.arquivoRetornoFinalUrl;
+    const resultadoEm = fase === "PRELIMINAR" ? etapa.resultadoPreliminarEm : etapa.resultadoFinalEm;
+
+    return {
+      inscricaoId: etapa.inscricaoId,
+      candidato: {
+        id: etapa.inscricao.participacaoEdital.usuario.id,
+        nomeCompleto: etapa.inscricao.participacaoEdital.usuario.nomeCompleto,
+        email: etapa.inscricao.participacaoEdital.usuario.email,
+      },
+      linhaPesquisa: etapa.inscricao.linhaPesquisa
+        ? {
+            id: etapa.inscricao.linhaPesquisa.id,
+            nome: etapa.inscricao.linhaPesquisa.nome,
+          }
+        : null,
+      tipoEtapa: etapa.tipo,
+      resultado,
+      situacaoPublica: getResultadoPoliticasAfirmativasLabel(resultado),
+      parecer,
+      arquivoRetornoUrl,
+      publicadoEm: resultadoEm?.toISOString() ?? null,
+    };
+  });
+
+  const resumo = {
+    total: itens.length,
+    confirmados: itens.filter((item) => item.resultado === ResultadoPoliticasAfirmativas.CONFIRMADO).length,
+    naoConfirmados: itens.filter((item) => item.resultado === ResultadoPoliticasAfirmativas.NAO_CONFIRMADO).length,
+    ausentes: itens.filter((item) => item.resultado === ResultadoPoliticasAfirmativas.AUSENTE).length,
+    heteroidentificacao: itens.filter((item) => item.tipoEtapa === TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO).length,
+    pcd: itens.filter((item) => item.tipoEtapa === TipoEtapaPoliticasAfirmativas.PCD).length,
+  };
+
+  return {
+    preview: {
+      edital: {
+        id: edital.id,
+        numero: edital.numero,
+        titulo: edital.titulo,
+        cursoNivel: edital.cursoNivel,
+      },
+      fase,
+      tipo: tipoPublicacao,
+      tituloSugerido: buildPoliticasAfirmativasPublicacaoTitulo(fase),
+      geradoEm: new Date().toISOString(),
+      versionamento,
+      resumo,
+      itens,
+    },
+  };
+}
+
+export async function createPoliticasAfirmativasPublicacao(input: {
+  editalId: string;
+  criadoPorId: string;
+  fase: FasePoliticasAfirmativasPublicacao;
+  titulo?: string;
+  descricao?: string;
+  arquivoUrl?: string;
+}) {
+  const previewResult = await buildPoliticasAfirmativasPublicacaoPreview(input.editalId, input.fase);
+
+  if ("error" in previewResult) {
+    return previewResult;
+  }
+
+  const versionamento = previewResult.preview.versionamento;
+
+  const publicacao = await prisma.publicacaoOficial.create({
+    data: {
+      editalId: input.editalId,
+      criadoPorId: input.criadoPorId,
+      republicacaoDeId: versionamento.republicacaoDeId,
+      tipo: resolvePoliticasAfirmativasTipoPublicacao(input.fase),
+      titulo: input.titulo?.trim() || buildPoliticasAfirmativasPublicacaoTitulo(input.fase),
       descricao: input.descricao,
       versao: versionamento.versao,
       versaoFinal: input.fase === "FINAL",

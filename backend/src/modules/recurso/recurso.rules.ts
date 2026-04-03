@@ -5,7 +5,8 @@ export function shouldReprocessClassificacaoAfterRecurso(fase: FaseRecurso) {
     fase === FaseRecurso.HOMOLOGACAO ||
     fase === FaseRecurso.ETAPA_1 ||
     fase === FaseRecurso.ETAPA_2 ||
-    fase === FaseRecurso.CLASSIFICACAO
+    fase === FaseRecurso.CLASSIFICACAO ||
+    fase === FaseRecurso.POLITICAS_AFIRMATIVAS
   );
 }
 

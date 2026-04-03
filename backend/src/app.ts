@@ -14,6 +14,7 @@ import { homologacaoRouter } from "./modules/homologacao/homologacao.routes.js";
 import { inscricaoRouter } from "./modules/inscricao/inscricao.routes.js";
 import { isencaoRouter } from "./modules/isencao/isencao.routes.js";
 import { publicacaoRouter } from "./modules/publicacao/publicacao.routes.js";
+import { politicasAfirmativasRouter } from "./modules/politicas-afirmativas/politicas-afirmativas.routes.js";
 import { recursoRouter } from "./modules/recurso/recurso.routes.js";
 import { healthRouter } from "./routes/health.routes.js";
 
@@ -84,4 +85,5 @@ app.use(homologacaoRouter);
 app.use(isencaoRouter);
 app.use(inscricaoRouter);
 app.use(publicacaoRouter);
+app.use(politicasAfirmativasRouter);
 app.use(recursoRouter);

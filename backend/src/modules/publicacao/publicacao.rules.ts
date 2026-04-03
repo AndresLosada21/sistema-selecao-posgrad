@@ -2,6 +2,7 @@ import { TipoPublicacaoOficial } from "@prisma/client";
 
 export type FaseHomologacaoPublicacao = "PRELIMINAR" | "FINAL";
 export type FaseClassificacaoPublicacao = "PRELIMINAR" | "FINAL";
+export type FasePoliticasAfirmativasPublicacao = "PRELIMINAR" | "FINAL";
 
 export function resolvePublicacaoVersionamento(existing: Array<{ id: string; versao: number }>) {
   if (existing.length === 0) {
@@ -43,4 +44,16 @@ export function buildClassificacaoPublicacaoTitulo(fase: FaseClassificacaoPublic
   return fase === "PRELIMINAR"
     ? "Resultado preliminar da classificacao final"
     : "Resultado final da classificacao final";
+}
+
+export function resolvePoliticasAfirmativasTipoPublicacao(fase: FasePoliticasAfirmativasPublicacao) {
+  return fase === "PRELIMINAR"
+    ? TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_PRELIMINAR
+    : TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_FINAL;
+}
+
+export function buildPoliticasAfirmativasPublicacaoTitulo(fase: FasePoliticasAfirmativasPublicacao) {
+  return fase === "PRELIMINAR"
+    ? "Resultado preliminar da etapa de politicas afirmativas"
+    : "Resultado final da etapa de politicas afirmativas";
 }

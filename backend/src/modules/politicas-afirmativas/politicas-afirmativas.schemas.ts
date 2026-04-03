@@ -1,0 +1,41 @@
+import {
+  ResultadoPoliticasAfirmativas,
+  TipoEtapaPoliticasAfirmativas,
+} from "@prisma/client";
+import { z } from "zod";
+
+export const editalIdParamSchema = z.object({
+  editalId: z.string().min(1),
+});
+
+export const inscricaoIdParamSchema = z.object({
+  inscricaoId: z.string().min(1),
+});
+
+export const encaminhamentoPoliticasAfirmativasSchema = z.object({
+  convocadoEm: z.string().datetime().optional(),
+  documentosEncaminhadosEm: z.string().datetime().optional(),
+  protocoloEncaminhamento: z.string().trim().min(3).optional(),
+  observacaoEncaminhamento: z.string().trim().min(3).optional(),
+});
+
+export const resultadoPoliticasAfirmativasSchema = z.object({
+  resultado: z.nativeEnum(ResultadoPoliticasAfirmativas).refine((value) => value !== ResultadoPoliticasAfirmativas.PENDENTE, {
+    message: "Resultado preliminar/final nao pode permanecer pendente.",
+  }),
+  parecer: z.string().trim().min(5),
+  arquivoRetornoUrl: z.string().trim().url().optional(),
+});
+
+export const previewPoliticasAfirmativasPublicacaoQuerySchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+});
+
+export const createPoliticasAfirmativasPublicacaoSchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+  titulo: z.string().trim().min(5).optional(),
+  descricao: z.string().trim().min(5).optional(),
+  arquivoUrl: z.string().trim().url().optional(),
+});
+
+export const tipoEtapaPoliticasAfirmativasSchema = z.nativeEnum(TipoEtapaPoliticasAfirmativas);
