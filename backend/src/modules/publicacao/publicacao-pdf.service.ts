@@ -111,7 +111,6 @@ function buildItemLines(snapshot: SnapshotRecord) {
     const lines = [
       `Item ${index + 1}`,
       ...formatValue("candidato", candidato?.nomeCompleto ?? null),
-      ...formatValue("email", candidato?.email ?? null),
       ...formatValue("linha", linhaPesquisa?.nome ?? null),
     ];
 

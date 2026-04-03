@@ -1,3 +1,5 @@
+import type { Role, StatusConta } from "@prisma/client";
+
 export {};
 
 declare global {
@@ -6,6 +8,8 @@ declare global {
       auth?: {
         userId: string;
         email: string;
+        statusConta: StatusConta;
+        perfis: Role[];
       };
     }
   }

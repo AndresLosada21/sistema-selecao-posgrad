@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { Router } from "express";
 
+import { conflict, notFound, requestValidationError, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 
@@ -18,10 +19,7 @@ recursoRouter.post("/v1/candidato/recursos", requireAuth, async (request, respon
   const parsedBody = createRecursoSchema.safeParse(request.body);
 
   if (!parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados do recurso invalidos.",
-      errors: parsedBody.error.flatten(),
-    });
+    return response.status(400).json(validationError("Dados do recurso invalidos.", parsedBody.error.flatten()));
   }
 
   const result = await createRecurso({
@@ -34,7 +32,12 @@ recursoRouter.post("/v1/candidato/recursos", requireAuth, async (request, respon
 
   if ("error" in result) {
     const status = result.error === "PARTICIPACAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error, reason: "reason" in result ? result.reason : undefined });
+    const errorCode = result.error as string;
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode, { reason: "reason" in result ? result.reason : undefined })
+        : conflict(errorCode, errorCode, { reason: "reason" in result ? result.reason : undefined }),
+    );
   }
 
   return response.status(201).json(result.recurso);
@@ -50,10 +53,7 @@ recursoRouter.get("/v1/admin/recursos", requireAuth, requireRole(Role.ADMIN), as
   const parsedQuery = listRecursosAdminQuerySchema.safeParse(request.query);
 
   if (!parsedQuery.success) {
-    return response.status(400).json({
-      message: "Filtro invalido.",
-      errors: parsedQuery.error.flatten(),
-    });
+    return response.status(400).json(validationError("Filtro invalido.", parsedQuery.error.flatten()));
   }
 
   const items = await listRecursosAdmin({
@@ -69,11 +69,10 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
   const parsedBody = decidirRecursoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados de decisao do recurso invalidos.",
+    return response.status(400).json(requestValidationError("Dados de decisao do recurso invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const payload = parsedBody.data;
@@ -94,7 +93,8 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
   });
 
   if ("error" in result) {
-    return response.status(404).json({ message: result.error });
+    const errorCode = result.error as string;
+    return response.status(404).json(notFound(errorCode, errorCode));
   }
 
   return response.status(200).json(result.recurso);

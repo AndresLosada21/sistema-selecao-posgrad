@@ -22,6 +22,36 @@ import {
   type FasePoliticasAfirmativasPublicacao,
 } from "./publicacao.rules.js";
 
+function buildPublicacaoArquivoUrl(publicacao: { id: string; arquivoUrl: string | null }) {
+  return publicacao.arquivoUrl ?? `/v1/publicacoes/${publicacao.id}/arquivo.pdf`;
+}
+
+function buildPublicacaoResumo(publicacao: {
+  id: string;
+  editalId: string;
+  republicacaoDeId: string | null;
+  tipo: string;
+  titulo: string;
+  descricao: string | null;
+  versao: number;
+  versaoFinal: boolean;
+  arquivoUrl: string | null;
+  publicadoEm: Date | null;
+}) {
+  return {
+    id: publicacao.id,
+    editalId: publicacao.editalId,
+    republicacaoDeId: publicacao.republicacaoDeId,
+    tipo: publicacao.tipo,
+    titulo: publicacao.titulo,
+    descricao: publicacao.descricao,
+    versao: publicacao.versao,
+    versaoFinal: publicacao.versaoFinal,
+    arquivoUrl: buildPublicacaoArquivoUrl(publicacao),
+    publicadoEm: publicacao.publicadoEm?.toISOString() ?? null,
+  };
+}
+
 function toNullableJson(value: Prisma.JsonValue | undefined) {
   return value ? (value as Prisma.InputJsonValue) : undefined;
 }
@@ -203,13 +233,10 @@ export async function buildHomologacaoPublicacaoPreview(editalId: string, fase: 
     return {
       inscricaoId: inscricao.id,
       candidato: {
-        id: inscricao.participacaoEdital.usuario.id,
         nomeCompleto: inscricao.participacaoEdital.usuario.nomeCompleto,
-        email: inscricao.participacaoEdital.usuario.email,
       },
       linhaPesquisa: inscricao.linhaPesquisa
         ? {
-            id: inscricao.linhaPesquisa.id,
             nome: inscricao.linhaPesquisa.nome,
           }
         : null,
@@ -351,13 +378,10 @@ export async function buildClassificacaoPublicacaoPreview(editalId: string, fase
   const itens = classificacoes.map((classificacao) => ({
     classificacaoId: classificacao.id,
     candidato: {
-      id: classificacao.participacaoEdital.usuario.id,
       nomeCompleto: classificacao.participacaoEdital.usuario.nomeCompleto,
-      email: classificacao.participacaoEdital.usuario.email,
     },
     linhaPesquisa: classificacao.linhaPesquisa
       ? {
-          id: classificacao.linhaPesquisa.id,
           nome: classificacao.linhaPesquisa.nome,
         }
       : null,
@@ -504,13 +528,10 @@ export async function buildPoliticasAfirmativasPublicacaoPreview(editalId: strin
     return {
       inscricaoId: etapa.inscricaoId,
       candidato: {
-        id: etapa.inscricao.participacaoEdital.usuario.id,
         nomeCompleto: etapa.inscricao.participacaoEdital.usuario.nomeCompleto,
-        email: etapa.inscricao.participacaoEdital.usuario.email,
       },
       linhaPesquisa: etapa.inscricao.linhaPesquisa
         ? {
-            id: etapa.inscricao.linhaPesquisa.id,
             nome: etapa.inscricao.linhaPesquisa.nome,
           }
         : null,
@@ -594,43 +615,17 @@ export async function listPublicacoesByEdital(editalId: string) {
     where: {
       editalId,
     },
-    include: {
-      criadoPor: true,
-    },
     orderBy: {
       publicadoEm: "desc",
     },
   });
 
-  return publicacoes.map((publicacao) => ({
-    id: publicacao.id,
-    editalId: publicacao.editalId,
-    criadoPorId: publicacao.criadoPorId,
-    tipo: publicacao.tipo,
-    titulo: publicacao.titulo,
-    descricao: publicacao.descricao,
-    versao: publicacao.versao,
-    versaoFinal: publicacao.versaoFinal,
-    republicacaoDeId: publicacao.republicacaoDeId,
-    arquivoUrl: publicacao.arquivoUrl ?? `/v1/publicacoes/${publicacao.id}/arquivo.pdf`,
-    dadosConsolidados: publicacao.dadosConsolidados,
-    publicadoEm: publicacao.publicadoEm?.toISOString() ?? null,
-    criadoPor: publicacao.criadoPor
-      ? {
-          id: publicacao.criadoPor.id,
-          nomeCompleto: publicacao.criadoPor.nomeCompleto,
-          email: publicacao.criadoPor.email,
-        }
-      : null,
-  }));
+  return publicacoes.map(buildPublicacaoResumo);
 }
 
 export async function getPublicacaoById(publicacaoId: string) {
   const publicacao = await prisma.publicacaoOficial.findUnique({
     where: { id: publicacaoId },
-    include: {
-      criadoPor: true,
-    },
   });
 
   if (!publicacao) {

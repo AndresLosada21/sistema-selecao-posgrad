@@ -55,9 +55,21 @@ type RegistrarPacoteDocumentalInput = {
 function isPdfFile(input: { mimeType?: string; nomeArquivo: string; urlArquivo: string }) {
   const mimeType = input.mimeType?.trim().toLowerCase() ?? "";
   const nomeArquivo = input.nomeArquivo.trim().toLowerCase();
-  const urlArquivo = input.urlArquivo.trim().toLowerCase();
+  const urlArquivo = input.urlArquivo.trim();
 
-  return mimeType === "application/pdf" || nomeArquivo.endsWith(".pdf") || urlArquivo.endsWith(".pdf");
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(urlArquivo);
+  } catch {
+    return false;
+  }
+
+  const isPdfMimeType = mimeType === "" || mimeType === "application/pdf";
+  const isPdfFileName = nomeArquivo.endsWith(".pdf");
+  const isSecurePdfUrl = parsedUrl.protocol === "https:" && parsedUrl.pathname.toLowerCase().endsWith(".pdf");
+
+  return isPdfMimeType && isPdfFileName && isSecurePdfUrl;
 }
 
 function parseFichaInscricao(value: Prisma.JsonValue | null | undefined) {

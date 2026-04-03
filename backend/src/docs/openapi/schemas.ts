@@ -53,6 +53,7 @@ const JsonValueSchema = z.any().openapi("JsonValue");
 
 export const MessageResponseSchema = z
   .object({
+    code: z.string(),
     message: z.string(),
   })
   .openapi("MessageResponse");
@@ -66,6 +67,7 @@ export const ValidationFlattenSchema = z
 
 export const ValidationErrorResponseSchema = z
   .object({
+    code: z.string(),
     message: z.string(),
     errors: ValidationFlattenSchema,
   })
@@ -73,14 +75,17 @@ export const ValidationErrorResponseSchema = z
 
 export const ParamsBodyValidationErrorResponseSchema = z
   .object({
+    code: z.string(),
     message: z.string(),
     paramsErrors: ValidationFlattenSchema.nullable(),
+    queryErrors: ValidationFlattenSchema.nullable().optional(),
     bodyErrors: ValidationFlattenSchema.nullable(),
   })
   .openapi("ParamsBodyValidationErrorResponse");
 
 export const ConflictErrorResponseSchema = z
   .object({
+    code: z.string(),
     message: z.string(),
     reason: z.string().nullable().optional(),
     details: z.array(z.string()).optional(),
@@ -90,9 +95,38 @@ export const ConflictErrorResponseSchema = z
 
 export const UnauthorizedResponseSchema = z
   .object({
+    code: z.string(),
     message: z.string(),
   })
   .openapi("UnauthorizedResponse");
+
+export const ForbiddenResponseSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+  })
+  .openapi("ForbiddenResponse");
+
+export const TooManyRequestsResponseSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+  })
+  .openapi("TooManyRequestsResponse");
+
+export const PayloadTooLargeResponseSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+  })
+  .openapi("PayloadTooLargeResponse");
+
+export const InternalErrorResponseSchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+  })
+  .openapi("InternalErrorResponse");
 
 export const AuthorizationHeaderSchema = z
   .object({
@@ -165,6 +199,13 @@ export const LinhaPesquisaCurtaSchema = z
   .nullable()
   .openapi("LinhaPesquisaCurta");
 
+export const LinhaPesquisaPublicacaoSchema = z
+  .object({
+    nome: z.string(),
+  })
+  .nullable()
+  .openapi("LinhaPesquisaPublicacao");
+
 export const CandidatoResumoSchema = z
   .object({
     id: z.string(),
@@ -172,6 +213,12 @@ export const CandidatoResumoSchema = z
     email: z.string().email(),
   })
   .openapi("CandidatoResumo");
+
+export const CandidatoPublicacaoSchema = z
+  .object({
+    nomeCompleto: z.string(),
+  })
+  .openapi("CandidatoPublicacao");
 
 export const ParticipacaoResumoSchema = z
   .object({
@@ -585,17 +632,14 @@ export const PublicacaoResumoSchema = z
   .object({
     id: z.string(),
     editalId: z.string(),
-    criadoPorId: z.string().nullable(),
     republicacaoDeId: z.string().nullable(),
     tipo: z.nativeEnum(TipoPublicacaoOficial),
     titulo: z.string(),
     descricao: z.string().nullable(),
     versao: z.number().int().positive(),
     versaoFinal: z.boolean(),
-    arquivoUrl: z.string().nullable(),
-    dadosConsolidados: JsonValueSchema.nullable().optional(),
+    arquivoUrl: z.string(),
     publicadoEm: isoDate().nullable(),
-    criadoPor: CandidatoResumoSchema.nullable(),
   })
   .openapi("PublicacaoResumo");
 
@@ -610,8 +654,8 @@ export const PublicacaoVersionamentoSchema = z
 export const HomologacaoPublicacaoPreviewItemSchema = z
   .object({
     inscricaoId: z.string(),
-    candidato: CandidatoResumoSchema,
-    linhaPesquisa: LinhaPesquisaCurtaSchema,
+    candidato: CandidatoPublicacaoSchema,
+    linhaPesquisa: LinhaPesquisaPublicacaoSchema,
     statusHomologacao: z.nativeEnum(StatusInscricao).nullable(),
     situacaoPublica: z.string().nullable(),
     motivoPublico: z.string().nullable(),
@@ -650,8 +694,8 @@ export const CreateHomologacaoPublicacaoResponseSchema = z
 export const ClassificacaoPublicacaoPreviewItemSchema = z
   .object({
     classificacaoId: z.string(),
-    candidato: CandidatoResumoSchema,
-    linhaPesquisa: LinhaPesquisaCurtaSchema,
+    candidato: CandidatoPublicacaoSchema,
+    linhaPesquisa: LinhaPesquisaPublicacaoSchema,
     modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia),
     modalidadePublica: z.string(),
     statusClassificacao: z.nativeEnum(StatusClassificacaoFinal),
@@ -702,8 +746,8 @@ export const PoliticasAfirmativasPublicacaoPreviewSchema = z
     itens: z.array(
       z.object({
         inscricaoId: z.string(),
-        candidato: CandidatoResumoSchema,
-        linhaPesquisa: LinhaPesquisaCurtaSchema,
+        candidato: CandidatoPublicacaoSchema,
+        linhaPesquisa: LinhaPesquisaPublicacaoSchema,
         tipoEtapa: z.nativeEnum(TipoEtapaPoliticasAfirmativas),
         resultado: z.nativeEnum(ResultadoPoliticasAfirmativas),
         situacaoPublica: z.string(),

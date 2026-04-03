@@ -1,9 +1,12 @@
 import cors from "cors";
 import express from "express";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 
 import { env } from "./config/env.js";
 import { openApiDocument } from "./docs/openapi/document.js";
+import { payloadTooLarge, tooManyRequests, validationError } from "./lib/http-errors.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { candidatoAreaRouter } from "./modules/candidato/candidato-area.routes.js";
 import { classificacaoRouter } from "./modules/classificacao/classificacao.routes.js";
@@ -20,13 +23,39 @@ import { healthRouter } from "./routes/health.routes.js";
 
 export const app = express();
 
+const jsonBodyLimit = "1mb";
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (request) => {
+    const email = typeof request.body?.email === "string" ? request.body.email.trim().toLowerCase() : "anon";
+    return `${ipKeyGenerator(request.ip ?? "")}:${request.path}:${email}`;
+  },
+  message: {
+    ...tooManyRequests("Muitas tentativas consecutivas. Tente novamente em instantes."),
+  },
+});
+
+app.disable("x-powered-by");
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }),
+);
+
 app.use(
   cors({
     origin: env.FRONTEND_URL,
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: jsonBodyLimit }));
+app.use("/v1/auth/login", authRateLimiter);
+app.use("/v1/auth/register", authRateLimiter);
 
 app.get("/docs/openapi.json", (_request, response) => {
   response.status(200).json(openApiDocument);
@@ -87,3 +116,15 @@ app.use(inscricaoRouter);
 app.use(publicacaoRouter);
 app.use(politicasAfirmativasRouter);
 app.use(recursoRouter);
+
+app.use((error: unknown, _request: express.Request, response: express.Response, next: express.NextFunction) => {
+  if (error instanceof SyntaxError && "body" in error) {
+    return response.status(400).json(validationError("JSON invalido.", { formErrors: ["Corpo JSON malformado."], fieldErrors: {} }));
+  }
+
+  if (typeof error === "object" && error && "type" in error && error.type === "entity.too.large") {
+    return response.status(413).json(payloadTooLarge("Payload excede o limite permitido."));
+  }
+
+  return next(error);
+});

@@ -1,6 +1,7 @@
 import { Role } from "@prisma/client";
 import { Router } from "express";
 
+import { conflict, notFound, requestValidationError, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireAnyRole } from "../../middleware/role.middleware.js";
 
@@ -24,10 +25,7 @@ etapa1Router.get("/v1/admin/etapa-1/inscricoes", requireAuth, requireAnyRole([Ro
   const parsedQuery = listEtapa1QuerySchema.safeParse(request.query);
 
   if (!parsedQuery.success) {
-    return response.status(400).json({
-      message: "Filtro invalido.",
-      errors: parsedQuery.error.flatten(),
-    });
+    return response.status(400).json(validationError("Filtro invalido.", parsedQuery.error.flatten()));
   }
 
   const items = await listInscricoesParaEtapa1(parsedQuery.data.editalId as string | undefined);
@@ -43,11 +41,10 @@ etapa1Router.put("/v1/admin/etapa-1/inscricoes/:inscricaoId/resultado", requireA
   const parsedBody = resultadoEtapa1Schema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json({
-      message: "Dados de etapa 1 invalidos.",
+    return response.status(400).json(requestValidationError("Dados de etapa 1 invalidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
-    });
+    }));
   }
 
   const result = await registrarResultadoEtapa1(parsedParams.data.inscricaoId, {
@@ -61,8 +58,9 @@ etapa1Router.put("/v1/admin/etapa-1/inscricoes/:inscricaoId/resultado", requireA
   });
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result.avaliacao);
@@ -72,17 +70,15 @@ etapa1Router.post("/v1/inscricoes/:inscricaoId/etapa-1/espelho/solicitar", requi
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await solicitarEspelhoEtapa1(parsedParams.data.inscricaoId, request.auth!.userId);
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result.avaliacao);
@@ -96,17 +92,15 @@ etapa1Router.post(
     const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
     if (!parsedParams.success) {
-      return response.status(400).json({
-        message: "Inscricao invalida.",
-        errors: parsedParams.error.flatten(),
-      });
+      return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
     }
 
     const result = await liberarEspelhoEtapa1(parsedParams.data.inscricaoId);
 
     if ("error" in result) {
+      const errorCode = result.error as string;
       const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-      return response.status(status).json({ message: result.error });
+      return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
     }
 
     return response.status(200).json(result.avaliacao);
@@ -117,17 +111,15 @@ etapa1Router.get("/v1/inscricoes/:inscricaoId/etapa-1/espelho", requireAuth, asy
   const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json({
-      message: "Inscricao invalida.",
-      errors: parsedParams.error.flatten(),
-    });
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
   const result = await getEspelhoEtapa1ForCandidate(parsedParams.data.inscricaoId, request.auth!.userId);
 
   if ("error" in result) {
+    const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json({ message: result.error });
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result.espelho);
@@ -141,17 +133,15 @@ etapa1Router.get(
     const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
     if (!parsedParams.success) {
-      return response.status(400).json({
-        message: "Inscricao invalida.",
-        errors: parsedParams.error.flatten(),
-      });
+      return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
     }
 
     const result = await getEspelhoEtapa1ForAdmin(parsedParams.data.inscricaoId);
 
     if ("error" in result) {
+      const errorCode = result.error as string;
       const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-      return response.status(status).json({ message: result.error });
+      return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
     }
 
     return response.status(200).json(result.espelho);

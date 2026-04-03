@@ -212,6 +212,7 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
     assert.equal(previewResponse.status, 200);
     assert.equal(previewResponse.body.tipo, TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_PRELIMINAR);
     assert.equal(previewResponse.body.resumo.confirmados, 1);
+    assert.equal(previewResponse.body.itens[0].candidato.email, undefined);
 
     const finalResponse = await request(app)
       .put(`/v1/admin/inscricoes/${context.inscricaoId}/politicas-afirmativas/resultado-final`)
@@ -232,6 +233,7 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
 
     assert.equal(createPublicacaoResponse.status, 201);
     assert.equal(createPublicacaoResponse.body.publicacao.versao, 1);
+    assert.equal(createPublicacaoResponse.body.preview.itens[0].candidato.email, undefined);
 
     const dashboardResponse = await request(app)
       .get("/v1/candidato/area")
@@ -241,6 +243,9 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
     assert.equal(dashboardResponse.body.items[0].inscricao.politicasAfirmativas.resultadoFinal, ResultadoPoliticasAfirmativas.CONFIRMADO);
     const destaque = dashboardResponse.body.items[0].publicacoesDestaque.find((item: { tipo: string }) => item.tipo === TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_FINAL);
     assert.ok(destaque);
+    assert.equal("dadosConsolidados" in destaque, false);
+    assert.equal("criadoPor" in destaque, false);
+    assert.equal("criadoPorId" in destaque, false);
   } finally {
     await cleanupContext(context);
   }
