@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
@@ -51,6 +52,17 @@ export default function EditaisPage() {
             <small>Curso: {edital.cursoNivel}</small>
             <small>Fase atual: {edital.faseAtual?.titulo ?? "sem fase ativa"}</small>
             <small>Proxima fase: {edital.proximaFase?.titulo ?? "sem previsao imediata"}</small>
+            <div className="content-item-links">
+              <Link className="nav-link" href={`/editais/${edital.id}`}>
+                Detalhe do edital
+              </Link>
+              <Link className="nav-link" href={`/editais/${edital.id}/cronograma`}>
+                Cronograma
+              </Link>
+              <Link className="nav-link" href={`/editais/${edital.id}/publicacoes`}>
+                Publicacoes oficiais
+              </Link>
+            </div>
           </article>
         ))}
       </div>

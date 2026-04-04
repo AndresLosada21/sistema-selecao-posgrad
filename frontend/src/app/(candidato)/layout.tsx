@@ -20,6 +20,9 @@ export default function CandidateLayout({ children }: CandidateLayoutProps) {
         description="Modulo autenticado base para participacoes, inscricoes, publicacoes e acompanhamento por edital."
         navigation={[
           { href: "/candidato", label: "Painel" },
+          { href: "/candidato/participacoes", label: "Participacoes" },
+          { href: "/candidato/isencoes", label: "Isencoes" },
+          { href: "/candidato/inscricoes", label: "Inscricoes" },
           { href: "/editais", label: "Editais" },
         ]}
         actions={
