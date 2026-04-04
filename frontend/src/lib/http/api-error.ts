@@ -39,3 +39,7 @@ export function getErrorMessage(error: unknown) {
 
   return "Falha inesperada na requisicao.";
 }
+
+export function isUnauthorizedError(error: unknown) {
+  return error instanceof ApiError && error.status === 401;
+}

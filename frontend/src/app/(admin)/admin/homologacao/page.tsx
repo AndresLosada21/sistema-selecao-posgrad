@@ -1,0 +1,141 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { SectionCard } from "@/components/shared/section-card";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { useSession } from "@/lib/auth/session-provider";
+import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { formatIsoDate } from "@/modules/edital/formatters";
+
+import { listFundamentosHomologacao, listInscricoesParaHomologacao } from "@/modules/admin-homologacao/api";
+import type { AdminInscricoesHomologacaoResponse, HomologacaoFundamentosResponse } from "@/modules/admin-homologacao/types";
+
+export default function AdminHomologacaoPage() {
+  const session = useSession();
+  const [data, setData] = useState<AdminInscricoesHomologacaoResponse | null>(null);
+  const [fundamentos, setFundamentos] = useState<HomologacaoFundamentosResponse | null>(null);
+  const [filter, setFilter] = useState("");
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session.token) {
+      return;
+    }
+
+    Promise.all([
+      listInscricoesParaHomologacao(session.token, filter || undefined),
+      listFundamentosHomologacao(session.token),
+    ])
+      .then(([items, fundamentosResponse]) => {
+        setData(items);
+        setFundamentos(fundamentosResponse);
+        setStatus("ready");
+      })
+      .catch((error) => {
+        if (isUnauthorizedError(error)) {
+          session.signOut();
+          return;
+        }
+
+        setMessage(getErrorMessage(error));
+        setStatus("error");
+      });
+  }, [filter, session]);
+
+  const resumo = useMemo(() => ({
+    total: data?.total ?? 0,
+    comParecerPreliminar: data?.items.filter((item) => item.homologacao?.statusPreliminar).length ?? 0,
+    comParecerFinal: data?.items.filter((item) => item.homologacao?.statusFinal).length ?? 0,
+  }), [data]);
+
+  if (status === "loading") {
+    return <LoadingState title="Carregando fila de homologacao" description="Consultando inscricoes, filtros e fundamentos operacionais." />;
+  }
+
+  if (status === "error") {
+    return <ErrorState title="Falha ao carregar homologacao" description={message ?? undefined} />;
+  }
+
+  return (
+    <div className="stack-layout">
+      <SectionCard title="Resumo da fila de homologacao" description="Leitura inicial dos contratos administrativos do modulo de homologacao.">
+        <div className="summary-grid">
+          <article className="summary-card">
+            <span>Total de inscricoes</span>
+            <strong>{resumo.total}</strong>
+          </article>
+          <article className="summary-card">
+            <span>Com preliminar</span>
+            <strong>{resumo.comParecerPreliminar}</strong>
+          </article>
+          <article className="summary-card">
+            <span>Com final</span>
+            <strong>{resumo.comParecerFinal}</strong>
+          </article>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Filtro operacional" description="Filtra a fila por edital quando necessario.">
+        <div className="field-block">
+          <span>ID do edital</span>
+          <input onChange={(event) => setFilter(event.target.value)} placeholder="Opcional" value={filter} />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Fila de inscricoes" description="Lista administrativa para abertura do detalhe operacional da homologacao.">
+        {data?.items.length ? (
+          <div className="content-list">
+            {data.items.map((item) => (
+              <article className="content-item" key={item.id}>
+                <div className="content-item-row">
+                  <strong>{item.candidato.nomeCompleto}</strong>
+                  <StatusBadge>{item.status}</StatusBadge>
+                </div>
+                <small>Edital: {item.edital.numero}</small>
+                <small>Curso: {item.edital.cursoNivel}</small>
+                <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
+                <small>Pagamento: {item.statusPagamento}</small>
+                <small>Documentos: {item.documentosTotal}</small>
+                <small>Submetida em: {formatIsoDate(item.submetidaEm)}</small>
+                <small>Homologacao preliminar: {item.homologacao?.statusPreliminar ?? "SEM_PARECER"}</small>
+                <small>Homologacao final: {item.homologacao?.statusFinal ?? "SEM_PARECER"}</small>
+                <div className="content-item-links">
+                  <Link className="nav-link" href={`/admin/homologacao/${item.id}`}>
+                    Abrir detalhe
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="Fila vazia" description="Nenhuma inscricao foi retornada para o filtro atual." />
+        )}
+      </SectionCard>
+
+      <SectionCard title="Fundamentos operacionais" description="Catalogo de fundamentos devolvido pelo backend para apoiar os pareceres.">
+        {fundamentos?.items.length ? (
+          <div className="content-list">
+            {fundamentos.items.map((fundamento) => (
+              <article className="content-item" key={fundamento.codigo}>
+                <div className="content-item-row">
+                  <strong>{fundamento.codigo}</strong>
+                  <StatusBadge>{fundamento.sanavel ? "SANAVEL" : "NAO_SANAVEL"}</StatusBadge>
+                </div>
+                <p>{fundamento.titulo}</p>
+                <small>Item do edital: {fundamento.itemEdital}</small>
+                <small>Documento: {fundamento.documentoTipo ?? "nao vinculado"}</small>
+                <small>{fundamento.descricao}</small>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="Sem fundamentos" description="O backend nao retornou fundamentos operacionais para a homologacao." />
+        )}
+      </SectionCard>
+    </div>
+  );
+}

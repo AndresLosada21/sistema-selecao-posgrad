@@ -1,14 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage } from "@/lib/http/api-error";
+import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
+import { formatIsoDate } from "@/modules/edital/formatters";
 
 export default function CandidateDashboardPage() {
   const session = useSession();
@@ -27,10 +29,15 @@ export default function CandidateDashboardPage() {
         setStatus("ready");
       })
       .catch((error) => {
+        if (isUnauthorizedError(error)) {
+          session.signOut();
+          return;
+        }
+
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [session.token]);
+  }, [session]);
 
   const summary = useMemo(() => {
     const first = data?.items[0];
@@ -90,8 +97,41 @@ export default function CandidateDashboardPage() {
               <small>Classificacao: {item.classificacao?.status ?? "SEM_CLASSIFICACAO"}</small>
               <small>Recursos: {item.recursos.length}</small>
               <small>Publicacoes em destaque: {item.publicacoesDestaque.length}</small>
+              <div className="content-item-links">
+                <Link className="nav-link" href={`/candidato/editais/${item.edital.id}`}>
+                  Abrir acompanhamento
+                </Link>
+                {item.publicacoesDestaque[0] ? (
+                  <Link className="nav-link" href={item.publicacoesDestaque[0].arquivoUrl} target="_blank">
+                    Abrir ultimo PDF oficial
+                  </Link>
+                ) : null}
+              </div>
             </article>
           ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Publicacoes em destaque" description="Atalhos para os artefatos oficiais mais recentes por edital.">
+        <div className="content-list">
+          {data.items.flatMap((item) =>
+            item.publicacoesDestaque.map((publicacao) => (
+              <article className="content-item" key={`${item.id}-${publicacao.id}`}>
+                <div className="content-item-row">
+                  <strong>{publicacao.titulo}</strong>
+                  <StatusBadge>{publicacao.tipo}</StatusBadge>
+                </div>
+                <small>Edital: {item.edital.numero}</small>
+                <small>Versao: {publicacao.versao}</small>
+                <small>Publicado em: {formatIsoDate(publicacao.publicadoEm ?? null)}</small>
+                <div className="content-item-links">
+                  <Link className="nav-link" href={publicacao.arquivoUrl} target="_blank">
+                    Abrir PDF oficial
+                  </Link>
+                </div>
+              </article>
+            )),
+          )}
         </div>
       </SectionCard>
     </div>

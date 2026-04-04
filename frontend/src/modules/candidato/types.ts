@@ -2,6 +2,7 @@ export type CandidateDashboardResponse = {
   total: number;
   items: Array<{
     id: string;
+    statusParticipacao: string;
     edital: {
       id: string;
       numero: string;
@@ -17,8 +18,30 @@ export type CandidateDashboardResponse = {
       id: string;
       status: string;
       statusPagamento: string;
-      linhaPesquisa: { nome: string } | null;
-      documentos: Array<{ id: string; nome: string; tipo: string }>;
+      linhaPesquisa: { id: string; nome: string } | null;
+      temaRedacao: string | null;
+      resumoCurriculo: string | null;
+      redacaoTexto: string | null;
+      dadosFormulario: Record<string, unknown> | null;
+      assinaturaImagemUrl?: string | null;
+      documentos: Array<{
+        id: string;
+        nome: string;
+        tipo: string;
+        nomeArquivo?: string;
+        urlArquivo?: string;
+        statusValidacao?: string | null;
+        observacaoValidacao?: string | null;
+      }>;
+      pacoteDocumental?: {
+        urlArquivo: string;
+        nomeArquivo: string | null;
+        mimeType: string | null;
+        tamanhoBytes: number | null;
+        versaoSubmissao: number | null;
+        geradoEm: string | null;
+        geradoPorId: string | null;
+      } | null;
       homologacao: {
         statusFinal: string | null;
         parecerFinal: string | null;
@@ -30,6 +53,10 @@ export type CandidateDashboardResponse = {
       etapa2: {
         notaNormalizada: number | null;
         status: string;
+      } | null;
+      politicasAfirmativas: {
+        statusOperacional: string;
+        resultadoFinal: string | null;
       } | null;
     } | null;
     classificacao: {
@@ -44,6 +71,7 @@ export type CandidateDashboardResponse = {
       descricao: string | null;
       arquivoUrl: string;
       versao: number;
+      publicadoEm: string | null;
     }>;
     publicacoes: Array<{
       id: string;
@@ -52,6 +80,7 @@ export type CandidateDashboardResponse = {
       descricao: string | null;
       arquivoUrl: string;
       versao: number;
+      publicadoEm: string | null;
     }>;
     recursos: Array<{
       id: string;
