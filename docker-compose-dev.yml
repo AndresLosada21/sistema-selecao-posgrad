@@ -40,7 +40,7 @@ services:
       - ./backend:/app
       - ../Documentos-Edital:/documentos-edital:ro
       - backend_node_modules:/app/node_modules
-    command: sh -c "npm install && npm run prisma:generate && npm run dev"
+    command: sh /app/docker/dev-entrypoint.sh
 
   frontend:
     build:
@@ -60,7 +60,7 @@ services:
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
-    command: sh -c "npm install && npm run dev"
+    command: sh /app/docker/dev-entrypoint.sh
 
 volumes:
   postgres_dev_data:
