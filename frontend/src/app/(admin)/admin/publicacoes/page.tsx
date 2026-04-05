@@ -1,17 +1,83 @@
-import Link from "next/link";
+"use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
+import { getErrorMessage } from "@/lib/http/api-error";
+import { listEditais } from "@/modules/edital/api";
+import type { EditaisResponse } from "@/modules/edital/types";
 
 export default function AdminPublicacoesIndexPage() {
+  const [draftEditalId, setDraftEditalId] = useState("");
+  const [data, setData] = useState<EditaisResponse | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    listEditais()
+      .then((response) => {
+        setData(response);
+        setStatus("ready");
+      })
+      .catch((error) => {
+        setMessage(getErrorMessage(error));
+        setStatus("error");
+      });
+  }, []);
+
+  if (status === "loading") {
+    return <LoadingState title="Carregando editais" description="Consultando editais para abrir o modulo de publicacoes." />;
+  }
+
+  if (status === "error") {
+    return <ErrorState title="Falha ao carregar editais" description={message ?? undefined} />;
+  }
+
   return (
-    <SectionCard title="Publicacoes oficiais" description="Use a rota por edital para operar previews e criacao de publicacoes oficiais.">
-      <div className="content-list">
-        <article className="content-item">
-          <strong>Operacao por edital</strong>
-          <small>Use a rota `/admin/publicacoes/[editalId]` para operar homologacao, classificacao e politicas afirmativas por edital.</small>
-          <div className="content-item-links"><Link className="nav-link" href="/editais">Abrir modulo publico de editais para localizar o ID desejado</Link></div>
-        </article>
-      </div>
-    </SectionCard>
+    <div className="stack-layout">
+      <PageFeedback
+        type="info"
+        title="Entrada operacional das publicacoes oficiais"
+        description="Selecione um edital publicado abaixo ou informe o ID manualmente para abrir o modulo de previews e publicacao oficial."
+      />
+
+      <SectionCard title="Abrir publicacoes por ID" description="Use esta opcao quando precisar abrir diretamente um edital especifico pelo identificador. ">
+        <div className="content-list">
+          <label className="field-block">
+            <span>ID do edital</span>
+            <input onChange={(event) => setDraftEditalId(event.target.value)} value={draftEditalId} />
+          </label>
+          <div className="content-item-links">
+            <Link className="nav-link" href={draftEditalId.trim() ? `/admin/publicacoes/${draftEditalId.trim()}` : "/admin/publicacoes"}>
+              Abrir rota por ID
+            </Link>
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Editais disponiveis" description="Atalhos para abrir rapidamente o modulo de publicacoes por edital.">
+        {data?.items.length ? (
+          <div className="content-list">
+            {data.items.map((edital) => (
+              <article className="content-item" key={edital.id}>
+                <strong>{edital.numero}</strong>
+                <p>{edital.titulo}</p>
+                <small>ID: {edital.id}</small>
+                <div className="content-item-links">
+                  <Link className="nav-link" href={`/admin/publicacoes/${edital.id}`}>
+                    Abrir publicacoes
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="Sem editais disponiveis" description="Nenhum edital publico foi retornado para abrir o modulo de publicacoes." />
+        )}
+      </SectionCard>
+    </div>
   );
 }

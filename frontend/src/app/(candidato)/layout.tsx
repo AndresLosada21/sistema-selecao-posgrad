@@ -23,6 +23,7 @@ export default function CandidateLayout({ children }: CandidateLayoutProps) {
           { href: "/candidato/participacoes", label: "Participacoes" },
           { href: "/candidato/isencoes", label: "Isencoes" },
           { href: "/candidato/inscricoes", label: "Inscricoes" },
+          { href: "/candidato/recursos", label: "Recursos" },
           { href: "/editais", label: "Editais" },
         ]}
         actions={

@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/shared/page-states";
 import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { sanitizePayload } from "@/lib/http/sanitize";
 import { createIsencao } from "@/modules/isencao/api";
 
 type IsencaoFormProps = {
@@ -39,18 +40,18 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
     try {
       await createIsencao(
         editalId,
-        {
+        sanitizePayload({
           cursoNivel,
           inscritoCadUnico,
           nis: nis || undefined,
           justificativa: inscritoCadUnico ? undefined : justificativa || undefined,
           comprovanteUrl: inscritoCadUnico ? undefined : comprovanteUrl || undefined,
           comprovanteNomeArquivo: inscritoCadUnico ? undefined : comprovanteNomeArquivo || undefined,
-        },
+        }),
         session.token,
       );
 
-      router.replace("/candidato/isencoes");
+      router.replace(`/candidato/editais/${editalId}`);
     } catch (error) {
       if (isUnauthorizedError(error)) {
         session.signOut();

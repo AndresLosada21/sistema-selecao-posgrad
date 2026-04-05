@@ -1,10 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
@@ -17,6 +20,7 @@ import {
   getPacoteDocumentalAdmin,
   listFundamentosHomologacao,
   listInscricoesParaHomologacao,
+  registrarPacoteDocumentalAdmin,
   registrarHomologacaoFinal,
   registrarHomologacaoPreliminar,
 } from "@/modules/admin-homologacao/api";
@@ -45,24 +49,32 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   const [confirmacaoAcoesAfirmativas, setConfirmacaoAcoesAfirmativas] = useState<string>(confirmacaoReservaOptions[0]);
   const [confirmacaoPcd, setConfirmacaoPcd] = useState<string>(confirmacaoReservaOptions[0]);
   const [busy, setBusy] = useState(false);
+  const [pacoteResumo, setPacoteResumo] = useState<{ urlArquivo: string; nomeArquivo: string | null; mimeType: string | null; tamanhoBytes: number | null; versaoSubmissao: number | null; geradoEm: string | null; geradoPorId: string | null } | null>(null);
+  const [pacoteForm, setPacoteForm] = useState({ urlArquivo: "", nomeArquivo: "", mimeType: "application/pdf", tamanhoBytes: "" });
 
   useEffect(() => {
     params.then((resolved) => setInscricaoId(resolved.inscricaoId));
   }, [params]);
+
+  const loadItem = useCallback(async () => {
+    if (!session.token || !inscricaoId) {
+      return;
+    }
+
+    const [inscricoes, fundamentosResponse] = await Promise.all([listInscricoesParaHomologacao(session.token), listFundamentosHomologacao(session.token)]);
+    const found = inscricoes.items.find((entry) => entry.id === inscricaoId) ?? null;
+    setItem(found);
+    setFundamentos(fundamentosResponse.items);
+    setSelectedMotivoCodigo(fundamentosResponse.items[0]?.codigo ?? "");
+  }, [inscricaoId, session]);
 
   useEffect(() => {
     if (!session.token || !inscricaoId) {
       return;
     }
 
-    Promise.all([listInscricoesParaHomologacao(session.token), listFundamentosHomologacao(session.token)])
-      .then(([inscricoes, fundamentosResponse]) => {
-        const found = inscricoes.items.find((entry) => entry.id === inscricaoId) ?? null;
-        setItem(found);
-        setFundamentos(fundamentosResponse.items);
-        setSelectedMotivoCodigo(fundamentosResponse.items[0]?.codigo ?? "");
-        setStatus("ready");
-      })
+    loadItem()
+      .then(() => setStatus("ready"))
       .catch((error) => {
         if (isUnauthorizedError(error)) {
           session.signOut();
@@ -72,7 +84,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         setMessage({ title: "Falha ao carregar inscricao", description: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [inscricaoId, session]);
+  }, [inscricaoId, loadItem, session]);
 
   useEffect(() => {
     if (!item) {
@@ -150,6 +162,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
 
     try {
       const pacote = await getPacoteDocumentalAdmin(item.id, session.token);
+      setPacoteResumo(pacote.pacoteDocumental);
       setMessage({
         title: "Pacote documental carregado",
         description: `Arquivo: ${pacote.pacoteDocumental.nomeArquivo ?? "sem nome"} · Gerado em: ${formatIsoDate(pacote.pacoteDocumental.geradoEm)}`,
@@ -160,6 +173,37 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       }
 
       setMessage({ title: "Falha ao carregar pacote documental", description: getErrorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRegistrarPacote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!session.token || !item) {
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+
+    try {
+      const response = await registrarPacoteDocumentalAdmin(item.id, {
+        urlArquivo: pacoteForm.urlArquivo,
+        nomeArquivo: pacoteForm.nomeArquivo,
+        mimeType: pacoteForm.mimeType || undefined,
+        tamanhoBytes: pacoteForm.tamanhoBytes ? Number(pacoteForm.tamanhoBytes) : undefined,
+      }, session.token);
+
+      setPacoteResumo(response);
+      setMessage({ title: "Pacote documental registrado", description: "O pacote documental consolidado foi registrado para esta inscricao." });
+    } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
+
+      setMessage({ title: "Falha ao registrar pacote documental", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -182,6 +226,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         motivos: motivosPreliminar,
       }, session.token);
 
+      await loadItem();
       setMessage({ title: "Homologacao preliminar registrada", description: "O parecer preliminar foi aceito pelo backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
@@ -211,6 +256,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         motivos: motivosFinal,
       }, session.token);
 
+      await loadItem();
       setMessage({ title: "Homologacao final registrada", description: "O parecer final foi aceito pelo backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
@@ -239,6 +285,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         confirmacaoPcd,
       }, session.token);
 
+      await loadItem();
       setMessage({ title: "Confirmacao de reserva atualizada", description: "A confirmacao operacional foi enviada ao backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
@@ -265,24 +312,20 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
 
   return (
     <div className="stack-layout">
+      {message ? <PageFeedback description={message.description} title={message.title} type={message.title.startsWith("Falha") ? "error" : "success"} /> : null}
+
       <SectionCard title={`Homologacao de ${item.candidato.nomeCompleto}`} description={`Edital ${item.edital.numero} · ${item.edital.titulo}`}>
         <div className="content-list">
           <small>E-mail do candidato: {item.candidato.email}</small>
-          <small>Modalidade: {item.modalidadeConcorrencia}</small>
-          <small>Status da inscricao: {item.status}</small>
-          <small>Status do pagamento: {item.statusPagamento}</small>
+          <small>Modalidade: {getStatusLabel(item.modalidadeConcorrencia)}</small>
+          <small>Status da inscricao: {getStatusLabel(item.status)}</small>
+          <small>Status do pagamento: {getStatusLabel(item.statusPagamento)}</small>
           <small>Submetida em: {formatIsoDate(item.submetidaEm)}</small>
           <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
           <div className="content-item-links">
-            <button className="secondary-button" disabled={busy} onClick={() => handleDownload("formulario")} type="button">
-              Baixar Anexo IV formulario
-            </button>
-            <button className="secondary-button" disabled={busy} onClick={() => handleDownload("flatten")} type="button">
-              Baixar Anexo IV flattened
-            </button>
-            <button className="secondary-button" disabled={busy} onClick={handlePacote} type="button">
-              Ler pacote documental
-            </button>
+            <ActionButton disabled={busy} onClick={() => handleDownload("formulario")} type="button" variant="secondary">Baixar Anexo IV formulario</ActionButton>
+            <ActionButton disabled={busy} onClick={() => handleDownload("flatten")} type="button" variant="secondary">Baixar Anexo IV flattened</ActionButton>
+            <ActionButton disabled={busy} onClick={handlePacote} type="button" variant="secondary">Ler pacote documental</ActionButton>
           </div>
         </div>
       </SectionCard>
@@ -293,7 +336,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
             <article className="content-item" key={documento.id}>
               <div className="content-item-row">
                 <strong>{documento.tipo}</strong>
-                <StatusBadge>{documento.statusValidacao ?? "SEM_VALIDACAO"}</StatusBadge>
+                <StatusBadge variant={getStatusVariant(documento.statusValidacao ?? "SEM_VALIDACAO")}>{getStatusLabel(documento.statusValidacao ?? "SEM_VALIDACAO")}</StatusBadge>
               </div>
               <small>Nome: {documento.nome}</small>
               <small>Arquivo: {documento.nomeArquivo ?? "nao informado"}</small>
@@ -315,13 +358,13 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
             ))}
           </select>
           <div className="content-item-links">
-            <button className="secondary-button" onClick={() => addMotivo("preliminar")} type="button">
-              Adicionar na preliminar
-            </button>
-            <button className="secondary-button" onClick={() => addMotivo("final")} type="button">
-              Adicionar na final
-            </button>
-          </div>
+             <ActionButton onClick={() => addMotivo("preliminar")} type="button" variant="secondary">
+               Adicionar na preliminar
+             </ActionButton>
+             <ActionButton onClick={() => addMotivo("final")} type="button" variant="secondary">
+               Adicionar na final
+             </ActionButton>
+           </div>
         </div>
       </SectionCard>
 
@@ -344,9 +387,29 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
               </article>
             ))}
           </div>
-          <button className="action-button" disabled={busy} type="submit">
-            Registrar preliminar
-          </button>
+          <ActionButton disabled={busy} loading={busy} type="submit">Registrar preliminar</ActionButton>
+        </form>
+      </SectionCard>
+
+      <SectionCard title="Pacote documental" description="Consulta e registro do pacote documental consolidado da inscricao.">
+        <div className="content-item-links">
+          <ActionButton disabled={busy} onClick={handlePacote} type="button" variant="secondary">Atualizar leitura do pacote</ActionButton>
+        </div>
+        {pacoteResumo ? (
+          <div className="content-item">
+            <small>Arquivo: {pacoteResumo.nomeArquivo ?? "sem nome"}</small>
+            <small>URL: {pacoteResumo.urlArquivo}</small>
+            <small>Versao da submissao: {pacoteResumo.versaoSubmissao ?? "nao informada"}</small>
+            <small>Gerado em: {formatIsoDate(pacoteResumo.geradoEm)}</small>
+          </div>
+        ) : null}
+
+        <form className="form-grid" onSubmit={handleRegistrarPacote}>
+          <label className="field-block"><span>URL do pacote</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, urlArquivo: event.target.value }))} required value={pacoteForm.urlArquivo} /></label>
+          <label className="field-block"><span>Nome do arquivo</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, nomeArquivo: event.target.value }))} required value={pacoteForm.nomeArquivo} /></label>
+          <label className="field-block"><span>MIME type</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, mimeType: event.target.value }))} value={pacoteForm.mimeType} /></label>
+          <label className="field-block"><span>Tamanho em bytes</span><input min="1" onChange={(event) => setPacoteForm((current) => ({ ...current, tamanhoBytes: event.target.value }))} type="number" value={pacoteForm.tamanhoBytes} /></label>
+          <ActionButton disabled={busy} loading={busy} type="submit">Registrar pacote documental</ActionButton>
         </form>
       </SectionCard>
 
@@ -372,9 +435,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
               ))}
             </select>
           </label>
-          <button className="secondary-button" disabled={busy} type="submit">
-            Atualizar confirmacao
-          </button>
+          <ActionButton disabled={busy} loading={busy} type="submit" variant="secondary">Atualizar confirmacao</ActionButton>
         </form>
       </SectionCard>
 
@@ -397,13 +458,9 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
               </article>
             ))}
           </div>
-          <button className="action-button" disabled={busy} type="submit">
-            Registrar final
-          </button>
+          <ActionButton disabled={busy} loading={busy} type="submit">Registrar final</ActionButton>
         </form>
       </SectionCard>
-
-      {message ? <ErrorState title={message.title} description={message.description} /> : null}
     </div>
   );
 }

@@ -1,9 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
+import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { previewPublicacaoPoliticas, publicarPoliticas, registrarEncaminhamentoPoliticas, registrarResultadoFinalPoliticas, registrarResultadoPreliminarPoliticas, listPoliticas } from "@/modules/admin-politicas/api";
@@ -14,10 +18,11 @@ type Props = { params: Promise<{ inscricaoId: string }> };
 
 export default function AdminPoliticasDetailPage({ params }: Props) {
   const session = useSession();
+  const searchParams = useSearchParams();
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<PoliticasEtapaItem | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [editalId, setEditalId] = useState("");
   const [encaminhamento, setEncaminhamento] = useState({ convocadoEm: "", documentosEncaminhadosEm: "", protocoloEncaminhamento: "", observacaoEncaminhamento: "" });
@@ -28,12 +33,19 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   useEffect(() => { params.then((resolved) => setInscricaoId(resolved.inscricaoId)); }, [params]);
 
   useEffect(() => {
+    const editalIdFromQuery = searchParams?.get("editalId");
+    if (editalIdFromQuery) {
+      setEditalId(editalIdFromQuery);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!session.token || !inscricaoId) return;
     // busca ampla por edital precisa do editalId; usar listagem do edital informado pela url interna do item quando carregado posteriormente nao existe endpoint por inscricao
     setStatus("ready");
   }, [inscricaoId, session]);
 
-  async function loadByEdital() {
+  const loadByEdital = useCallback(async () => {
     if (!session.token || !editalId || !inscricaoId) return;
     setBusy(true); setMessage(null);
     try {
@@ -47,31 +59,51 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
           protocoloEncaminhamento: found.protocoloEncaminhamento ?? "",
           observacaoEncaminhamento: found.observacaoEncaminhamento ?? "",
         });
+        setPreliminar({
+          resultado: (found.resultadoPreliminar as (typeof resultadoPoliticasOptions)[number]) ?? resultadoPoliticasOptions[0],
+          parecer: found.parecerPreliminar ?? "",
+          arquivoRetornoUrl: found.arquivoRetornoPreliminarUrl ?? "",
+        });
+        setFinalResult({
+          resultado: (found.resultadoFinal as (typeof resultadoPoliticasOptions)[number]) ?? resultadoPoliticasOptions[0],
+          parecer: found.parecerFinal ?? "",
+          arquivoRetornoUrl: found.arquivoRetornoFinalUrl ?? "",
+        });
+      } else {
+        setMessage({ type: "warning", text: "Nenhuma etapa de politicas afirmativas foi encontrada para esta inscricao no edital informado." });
       }
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage(getErrorMessage(error));
+      setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
-  }
+  }, [editalId, inscricaoId, session]);
+
+  useEffect(() => {
+    if (!editalId || !inscricaoId || !session.token) {
+      return;
+    }
+
+    loadByEdital();
+  }, [editalId, inscricaoId, loadByEdital, session.token]);
 
   async function submitEncaminhamento(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session.token || !inscricaoId) return; setBusy(true); setMessage(null);
-    try { await registrarEncaminhamentoPoliticas(inscricaoId, encaminhamento, session.token); setMessage("Encaminhamento registrado."); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage(getErrorMessage(error)); }
+    try { await registrarEncaminhamentoPoliticas(inscricaoId, encaminhamento, session.token); await loadByEdital(); setMessage({ type: "success", text: "Encaminhamento registrado e estado recarregado." }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function submitPreliminar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session.token || !inscricaoId) return; setBusy(true); setMessage(null);
-    try { await registrarResultadoPreliminarPoliticas(inscricaoId, { ...preliminar, arquivoRetornoUrl: preliminar.arquivoRetornoUrl || undefined }, session.token); setMessage("Resultado preliminar registrado."); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage(getErrorMessage(error)); }
+    try { await registrarResultadoPreliminarPoliticas(inscricaoId, { ...preliminar, arquivoRetornoUrl: preliminar.arquivoRetornoUrl || undefined }, session.token); await loadByEdital(); setMessage({ type: "success", text: "Resultado preliminar registrado e estado recarregado." }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function submitFinal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!session.token || !inscricaoId) return; setBusy(true); setMessage(null);
-    try { await registrarResultadoFinalPoliticas(inscricaoId, { ...finalResult, arquivoRetornoUrl: finalResult.arquivoRetornoUrl || undefined }, session.token); setMessage("Resultado final registrado."); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage(getErrorMessage(error)); }
+    try { await registrarResultadoFinalPoliticas(inscricaoId, { ...finalResult, arquivoRetornoUrl: finalResult.arquivoRetornoUrl || undefined }, session.token); await loadByEdital(); setMessage({ type: "success", text: "Resultado final registrado e estado recarregado." }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -79,15 +111,15 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
     if (!session.token || !editalId) return;
     setBusy(true); setMessage(null);
     try { setPreview(await previewPublicacaoPoliticas(editalId, fase, session.token)); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage(getErrorMessage(error)); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function publish(fase: "PRELIMINAR" | "FINAL") {
     if (!session.token || !editalId) return;
     setBusy(true); setMessage(null);
-    try { await publicarPoliticas(editalId, { fase, descricao: `Publicacao ${fase.toLowerCase()} de politicas afirmativas.` }, session.token); setMessage(`Publicacao ${fase.toLowerCase()} criada.`); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage(getErrorMessage(error)); }
+    try { await publicarPoliticas(editalId, { fase, descricao: `Publicacao ${fase.toLowerCase()} de politicas afirmativas.` }, session.token); setMessage({ type: "success", text: `Publicacao ${fase.toLowerCase()} criada.` }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -95,19 +127,21 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
 
   return (
     <div className="stack-layout">
-      <SectionCard title="Carga do detalhe" description="Informe o edital para localizar a etapa vinculada a esta inscricao.">
+      {message ? <PageFeedback description={message.text} title="Retorno operacional" type={message.type} /> : null}
+
+      <SectionCard title="Carga do detalhe" description="O detalhe pode ser carregado automaticamente quando o edital vier da fila; ajuste manualmente apenas quando necessario.">
         <div className="field-block"><span>ID do edital</span><input onChange={(e) => setEditalId(e.target.value)} value={editalId} /></div>
-        <div className="content-item-links"><button className="secondary-button" disabled={busy} onClick={loadByEdital} type="button">Carregar etapa</button></div>
+        <div className="content-item-links"><ActionButton disabled={busy} onClick={loadByEdital} type="button" variant="secondary">Carregar etapa</ActionButton></div>
       </SectionCard>
 
       {item ? (
         <>
           <SectionCard title={`Politicas afirmativas de ${item.candidato.nomeCompleto}`} description={`Edital ${item.edital.numero} · ${item.edital.titulo}`}>
             <div className="content-list">
-              <small>Tipo: {item.tipo}</small>
-              <small>Status operacional: {item.statusOperacao}</small>
-              <small>Resultado preliminar: {item.resultadoPreliminar}</small>
-              <small>Resultado final: {item.resultadoFinal}</small>
+              <small>Tipo: {getStatusLabel(item.tipo)}</small>
+              <small>Status operacional: {getStatusLabel(item.statusOperacao)}</small>
+              <small>Resultado preliminar: {getStatusLabel(item.resultadoPreliminar)}</small>
+              <small>Resultado final: {getStatusLabel(item.resultadoFinal)}</small>
             </div>
           </SectionCard>
 
@@ -118,7 +152,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
                   <strong>{documento.tipo}</strong>
                   <small>Arquivo: {documento.nomeArquivo ?? "sem nome"}</small>
                   <small>URL: {documento.urlArquivo}</small>
-                  <small>Status: {documento.statusValidacao ?? "SEM_VALIDACAO"}</small>
+                  <small>Status: {getStatusLabel(documento.statusValidacao ?? "SEM_VALIDACAO")}</small>
                 </article>
               ))}
             </div>
@@ -130,41 +164,39 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
               <label className="field-block"><span>Documentos encaminhados em (ISO)</span><input onChange={(e) => setEncaminhamento((c) => ({ ...c, documentosEncaminhadosEm: e.target.value }))} value={encaminhamento.documentosEncaminhadosEm} /></label>
               <label className="field-block"><span>Protocolo</span><input onChange={(e) => setEncaminhamento((c) => ({ ...c, protocoloEncaminhamento: e.target.value }))} value={encaminhamento.protocoloEncaminhamento} /></label>
               <label className="field-block"><span>Observacao</span><textarea className="text-area" onChange={(e) => setEncaminhamento((c) => ({ ...c, observacaoEncaminhamento: e.target.value }))} value={encaminhamento.observacaoEncaminhamento} /></label>
-              <button className="action-button" disabled={busy} type="submit">Registrar encaminhamento</button>
-            </form>
-          </SectionCard>
+               <ActionButton disabled={busy} loading={busy} type="submit">Registrar encaminhamento</ActionButton>
+             </form>
+           </SectionCard>
 
           <SectionCard title="Resultado preliminar" description="Registro preliminar da etapa de politicas afirmativas.">
             <form className="form-grid" onSubmit={submitPreliminar}>
               <label className="field-block"><span>Resultado</span><select className="select-field" onChange={(e) => setPreliminar((c) => ({ ...c, resultado: e.target.value as (typeof resultadoPoliticasOptions)[number] }))} value={preliminar.resultado}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
               <label className="field-block"><span>Parecer</span><textarea className="text-area" onChange={(e) => setPreliminar((c) => ({ ...c, parecer: e.target.value }))} value={preliminar.parecer} /></label>
               <label className="field-block"><span>Arquivo de retorno</span><input onChange={(e) => setPreliminar((c) => ({ ...c, arquivoRetornoUrl: e.target.value }))} value={preliminar.arquivoRetornoUrl} /></label>
-              <button className="action-button" disabled={busy} type="submit">Registrar preliminar</button>
-            </form>
-          </SectionCard>
+               <ActionButton disabled={busy} loading={busy} type="submit">Registrar preliminar</ActionButton>
+             </form>
+           </SectionCard>
 
           <SectionCard title="Resultado final" description="Registro final da etapa de politicas afirmativas.">
             <form className="form-grid" onSubmit={submitFinal}>
               <label className="field-block"><span>Resultado</span><select className="select-field" onChange={(e) => setFinalResult((c) => ({ ...c, resultado: e.target.value as (typeof resultadoPoliticasOptions)[number] }))} value={finalResult.resultado}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
               <label className="field-block"><span>Parecer</span><textarea className="text-area" onChange={(e) => setFinalResult((c) => ({ ...c, parecer: e.target.value }))} value={finalResult.parecer} /></label>
               <label className="field-block"><span>Arquivo de retorno</span><input onChange={(e) => setFinalResult((c) => ({ ...c, arquivoRetornoUrl: e.target.value }))} value={finalResult.arquivoRetornoUrl} /></label>
-              <button className="action-button" disabled={busy} type="submit">Registrar final</button>
-            </form>
-          </SectionCard>
+               <ActionButton disabled={busy} loading={busy} type="submit">Registrar final</ActionButton>
+             </form>
+           </SectionCard>
 
           <SectionCard title="Publicacao da etapa" description="Preview e criacao da publicacao oficial de politicas afirmativas.">
             <div className="content-item-links">
-              <button className="secondary-button" disabled={busy} onClick={() => loadPreview("PRELIMINAR")} type="button">Preview preliminar</button>
-              <button className="secondary-button" disabled={busy} onClick={() => loadPreview("FINAL")} type="button">Preview final</button>
-              <button className="action-button" disabled={busy} onClick={() => publish("PRELIMINAR")} type="button">Publicar preliminar</button>
-              <button className="action-button" disabled={busy} onClick={() => publish("FINAL")} type="button">Publicar final</button>
-            </div>
-            {preview ? <pre className="preformatted-block">{JSON.stringify(preview, null, 2)}</pre> : null}
-          </SectionCard>
-        </>
-      ) : <EmptyState title="Etapa nao carregada" description="Carregue a etapa pelo edital para operar este modulo." />}
-
-      {message ? <ErrorState title="Retorno operacional" description={message} /> : null}
+               <ActionButton disabled={busy} onClick={() => loadPreview("PRELIMINAR")} type="button" variant="secondary">Preview preliminar</ActionButton>
+               <ActionButton disabled={busy} onClick={() => loadPreview("FINAL")} type="button" variant="secondary">Preview final</ActionButton>
+               <ActionButton disabled={busy} onClick={() => publish("PRELIMINAR")} type="button">Publicar preliminar</ActionButton>
+               <ActionButton disabled={busy} onClick={() => publish("FINAL")} type="button">Publicar final</ActionButton>
+             </div>
+             {preview ? <pre className="preformatted-block">{JSON.stringify(preview, null, 2)}</pre> : null}
+           </SectionCard>
+         </>
+       ) : <EmptyState title="Etapa nao carregada" description="Carregue a etapa pelo edital para operar este modulo." />}
     </div>
   );
 }

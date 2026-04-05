@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -16,6 +19,8 @@ import type { AdminRecursosResponse } from "@/modules/admin-recursos/types";
 export default function AdminRecursosPage() {
   const session = useSession();
   const [data, setData] = useState<AdminRecursosResponse | null>(null);
+  const [draftEditalId, setDraftEditalId] = useState("");
+  const [draftFase, setDraftFase] = useState("");
   const [editalId, setEditalId] = useState("");
   const [fase, setFase] = useState("");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -36,10 +41,21 @@ export default function AdminRecursosPage() {
 
   return (
     <div className="stack-layout">
+      <PageFeedback
+        type="info"
+        title="Fila administrativa de recursos"
+        description="Use filtros apenas quando precisar restringir a consulta. Sem filtros aplicados, a pagina busca a fila administrativa completa de recursos."
+      />
+
       <SectionCard title="Filtros de recursos" description="Filtra a fila administrativa por edital e fase.">
         <div className="form-grid">
-          <label className="field-block"><span>ID do edital</span><input onChange={(e) => setEditalId(e.target.value)} value={editalId} /></label>
-          <label className="field-block"><span>Fase</span><select className="select-field" onChange={(e) => setFase(e.target.value)} value={fase}><option value="">todas</option>{faseRecursoOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="field-block"><span>ID do edital</span><input onChange={(e) => setDraftEditalId(e.target.value)} value={draftEditalId} /></label>
+          <label className="field-block"><span>Fase</span><select className="select-field" onChange={(e) => setDraftFase(e.target.value)} value={draftFase}><option value="">todas</option>{faseRecursoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+        </div>
+        <div className="content-item-links">
+          <ActionButton onClick={() => { setEditalId(draftEditalId.trim()); setFase(draftFase); }} type="button" variant="secondary">Aplicar filtros</ActionButton>
+          <ActionButton onClick={() => { setDraftEditalId(""); setDraftFase(""); setEditalId(""); setFase(""); }} type="button" variant="ghost">Limpar filtros</ActionButton>
+          <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
         </div>
       </SectionCard>
 
@@ -48,8 +64,8 @@ export default function AdminRecursosPage() {
           <div className="content-list">
             {data.items.map((item) => (
               <article className="content-item" key={item.id}>
-                <div className="content-item-row"><strong>{item.candidato.nomeCompleto}</strong><StatusBadge>{item.status}</StatusBadge></div>
-                <small>Fase: {item.fase}</small>
+                <div className="content-item-row"><strong>{item.candidato.nomeCompleto}</strong><StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge></div>
+                <small>Fase: {getStatusLabel(item.fase)}</small>
                 <small>Edital: {item.edital.numero}</small>
                 <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
                 <small>Respondido em: {formatIsoDate(item.respondidoEm)}</small>
