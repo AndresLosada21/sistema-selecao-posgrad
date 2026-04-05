@@ -101,6 +101,10 @@ export async function listEditais(filters: EditalListFilters): Promise<EditalRes
   return editais.map((edital) => mapEditalResumo(edital, now));
 }
 
+export async function listAdminEditais(): Promise<EditalResumo[]> {
+  return await listEditais({ ativosSomente: false });
+}
+
 export async function getEditalById(editalId: string): Promise<EditalDetalhe | null> {
   const edital = await prisma.edital.findUnique({
     where: { id: editalId },
@@ -121,6 +125,10 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
     ...resumo,
     cronogramas: [...edital.cronogramas].sort(sortCronogramas).map((item) => mapCronograma(item, now)),
   };
+}
+
+export async function getAdminEditalById(editalId: string): Promise<EditalDetalhe | null> {
+  return await getEditalById(editalId);
 }
 
 function resolvePublicadoEm(input: UpsertEditalInput) {

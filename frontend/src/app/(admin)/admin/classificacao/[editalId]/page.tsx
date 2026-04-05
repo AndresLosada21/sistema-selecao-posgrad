@@ -20,6 +20,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   const session = useSession();
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<ClassificacaoAdminResponse | null>(null);
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,7 +29,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
 
   useEffect(() => {
     if (!session.token || !editalId) return;
-    listClassificacaoAdmin(editalId, session.token)
+    listClassificacaoAdmin(editalId, session.token, { page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
@@ -38,7 +39,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [editalId, session]);
+  }, [editalId, page, session]);
 
   async function recalculate(publicacao: "PRELIMINAR" | "FINAL") {
     if (!session.token || !editalId) return;
@@ -46,7 +47,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
     try {
       await recalcularClassificacaoAdmin(editalId, publicacao, session.token);
       setMessage({ type: "success", text: `Classificacao recalculada em modo ${publicacao}.` });
-      const response = await listClassificacaoAdmin(editalId, session.token);
+      const response = await listClassificacaoAdmin(editalId, session.token, { page, pageSize: 20 });
       setData(response);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
@@ -94,6 +95,11 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
             ))}
           </div>
         ) : <EmptyState title="Sem classificacao" description="Nenhum item de classificacao foi retornado para este edital." />}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

@@ -79,7 +79,8 @@ authRouter.post("/v1/auth/password-reset/confirm", async (request, response) => 
   const result = await confirmPasswordReset(parsedBody.data);
 
   if ("error" in result) {
-    return response.status(401).json(unauthorized("Token invalido ou expirado.", result.error));
+    const status = result.error === "ACCOUNT_BLOCKED" ? 403 : 401;
+    return response.status(status).json(unauthorized(result.error === "ACCOUNT_BLOCKED" ? "Conta bloqueada. Procure a administracao do sistema." : "Token invalido ou expirado.", result.error));
   }
 
   return response.status(200).json(result);
@@ -135,7 +136,8 @@ authRouter.post("/v1/auth/email-verification/confirm", async (request, response)
   const result = await confirmEmailVerification(parsedBody.data.token);
 
   if ("error" in result) {
-    return response.status(401).json(unauthorized("Token invalido ou expirado.", result.error));
+    const status = result.error === "ACCOUNT_BLOCKED" ? 403 : 401;
+    return response.status(status).json(unauthorized(result.error === "ACCOUNT_BLOCKED" ? "Conta bloqueada. Procure a administracao do sistema." : "Token invalido ou expirado.", result.error));
   }
 
   return response.status(200).json(result);

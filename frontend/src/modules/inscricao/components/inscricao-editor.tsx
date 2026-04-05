@@ -38,6 +38,10 @@ type DocumentoFormState = {
   mimeType: string;
 };
 
+type SignatureUploadState = {
+  nomeArquivo: string;
+};
+
 type FormMessage = {
   title: string;
   description: string;
@@ -48,6 +52,7 @@ const fichaTextFields: Array<{ key: keyof NonNullable<InscricaoEditorState["fich
   { key: "rg", label: "RG" },
   { key: "rgDataExpedicao", label: "Data de expedicao do RG" },
   { key: "cpf", label: "CPF" },
+  { key: "passaporte", label: "Passaporte" },
   { key: "nacionalidade", label: "Nacionalidade" },
   { key: "naturalidade", label: "Naturalidade" },
   { key: "email", label: "E-mail" },
@@ -154,6 +159,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [submitting, setSubmitting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [uploadingDocumento, setUploadingDocumento] = useState(false);
+  const [uploadingAssinatura, setUploadingAssinatura] = useState(false);
+  const [signatureUpload, setSignatureUpload] = useState<SignatureUploadState>({ nomeArquivo: "" });
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [checklist, setChecklist] = useState<string[]>([]);
   const [documentos, setDocumentos] = useState(dashboardItem?.inscricao?.documentos ?? []);
@@ -283,6 +290,30 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       setMessage({ title: "Falha no upload do documento", description: getErrorMessage(error) });
     } finally {
       setUploadingDocumento(false);
+    }
+  }
+
+  async function handleAssinaturaFileSelect(file: File) {
+    if (!session.token) {
+      return;
+    }
+
+    setUploadingAssinatura(true);
+    resetMessage();
+
+    try {
+      const uploaded = await uploadPrivateFile(file, session.token);
+      setFormState((current) => ({ ...current, assinaturaImagemUrl: uploaded.urlArquivo }));
+      setSignatureUpload({ nomeArquivo: uploaded.nomeArquivo });
+      setMessage({ title: "Assinatura enviada", description: "A imagem da assinatura foi enviada e sera salva com o rascunho." });
+    } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
+
+      setMessage({ title: "Falha no upload da assinatura", description: getErrorMessage(error) });
+    } finally {
+      setUploadingAssinatura(false);
     }
   }
 
@@ -450,10 +481,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             <small>{`Caracteres: ${redacaoLength}${redacaoDentroDaFaixa ? "" : " (fora da faixa 500-1500)"}`}</small>
           </label>
 
-          <label className="field-block">
-            <span>URL da assinatura</span>
-            <input onChange={(event) => setFormState((current) => ({ ...current, assinaturaImagemUrl: event.target.value }))} value={formState.assinaturaImagemUrl} />
-          </label>
+          <FileField
+            disabled={uploadingAssinatura}
+            hint={signatureUpload.nomeArquivo ? `Imagem enviada: ${signatureUpload.nomeArquivo}` : "Envie uma imagem da assinatura do candidato (PNG ou JPEG)."}
+            label="Assinatura do candidato"
+            onFileSelect={handleAssinaturaFileSelect}
+          />
 
           {fichaTextFields.map((field) => (
             <label className="field-block" key={field.key}>

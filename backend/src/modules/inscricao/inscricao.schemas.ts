@@ -1,6 +1,10 @@
 import { ModalidadeConcorrencia, TipoDocumentoInscricao } from "@prisma/client";
 import { z } from "zod";
 
+const uploadedFileUrlSchema = z.string().trim().refine((value) => value.startsWith("/v1/uploads/") || /^https?:\/\//i.test(value), {
+  message: "Invalid url",
+});
+
 export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
 });
@@ -51,13 +55,13 @@ export const saveDraftSchema = z.object({
   resumoCurriculo: z.string().trim().min(10).optional(),
   redacaoTexto: z.string().trim().min(30).optional(),
   fichaInscricao: fichaInscricaoSchema.optional(),
-  assinaturaImagemUrl: z.string().trim().url().optional(),
+  assinaturaImagemUrl: uploadedFileUrlSchema.optional(),
 });
 
 export const addDocumentoSchema = z.object({
   tipo: z.nativeEnum(TipoDocumentoInscricao),
   nome: z.string().trim().min(3),
-  urlArquivo: z.string().trim().url(),
+  urlArquivo: uploadedFileUrlSchema,
   nomeArquivo: z.string().trim().min(3),
   mimeType: z.string().trim().min(3).optional(),
   tamanhoBytes: z.number().int().positive().optional(),
@@ -65,7 +69,7 @@ export const addDocumentoSchema = z.object({
 });
 
 export const registrarPacoteDocumentalSchema = z.object({
-  urlArquivo: z.string().trim().url(),
+  urlArquivo: uploadedFileUrlSchema,
   nomeArquivo: z.string().trim().min(3),
   mimeType: z.string().trim().min(3).optional(),
   tamanhoBytes: z.number().int().positive().optional(),

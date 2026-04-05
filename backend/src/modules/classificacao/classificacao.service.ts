@@ -155,30 +155,40 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
   return listClassificacao(editalId);
 }
 
-export async function listClassificacao(editalId: string) {
-  const classificacoes = await prisma.classificacaoFinal.findMany({
-    where: {
-      participacaoEdital: {
-        editalId,
-      },
+export async function listClassificacao(editalId: string, pagination?: { page: number; pageSize: number }) {
+  const page = pagination?.page ?? 1;
+  const pageSize = pagination?.pageSize ?? 20;
+  const where = {
+    participacaoEdital: {
+      editalId,
     },
-    include: {
-      participacaoEdital: {
-        include: {
-          usuario: true,
-          edital: true,
-          inscricao: true,
-        },
-      },
-      linhaPesquisa: true,
-    },
-    orderBy: [{ posicaoGeral: "asc" }],
-  });
+  };
 
-  return classificacoes.map((classificacao) => ({
-    id: classificacao.id,
-    status: classificacao.status,
-    candidato: {
+  const [classificacoes, total] = await prisma.$transaction([
+    prisma.classificacaoFinal.findMany({
+      where,
+      include: {
+        participacaoEdital: {
+          include: {
+            usuario: true,
+            edital: true,
+            inscricao: true,
+          },
+        },
+        linhaPesquisa: true,
+      },
+      orderBy: [{ posicaoGeral: "asc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.classificacaoFinal.count({ where }),
+  ]);
+
+  return {
+    items: classificacoes.map((classificacao) => ({
+      id: classificacao.id,
+      status: classificacao.status,
+      candidato: {
       id: classificacao.participacaoEdital.usuario.id,
       nomeCompleto: classificacao.participacaoEdital.usuario.nomeCompleto,
       email: classificacao.participacaoEdital.usuario.email,
@@ -199,8 +209,12 @@ export async function listClassificacao(editalId: string) {
     confirmacaoPcd: classificacao.participacaoEdital.inscricao?.confirmacaoPcd ?? null,
     notaEtapa1: classificacao.notaEtapa1?.toNumber() ?? null,
     notaEtapa2: classificacao.notaEtapa2?.toNumber() ?? null,
-    notaFinal: classificacao.notaFinal?.toNumber() ?? null,
-    posicaoGeral: classificacao.posicaoGeral,
-    posicaoLinha: classificacao.posicaoLinha,
-  }));
+      notaFinal: classificacao.notaFinal?.toNumber() ?? null,
+      posicaoGeral: classificacao.posicaoGeral,
+      posicaoLinha: classificacao.posicaoLinha,
+    })),
+    total,
+    page,
+    pageSize,
+  };
 }

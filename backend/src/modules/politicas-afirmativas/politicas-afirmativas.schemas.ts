@@ -8,6 +8,11 @@ export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
 });
 
+export const listPoliticasQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 export const inscricaoIdParamSchema = z.object({
   inscricaoId: z.string().min(1),
 });

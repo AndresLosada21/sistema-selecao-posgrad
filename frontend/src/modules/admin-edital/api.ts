@@ -10,11 +10,11 @@ import type {
 } from "./types";
 
 export function listAdminEditais() {
-  return listEditais() as Promise<AdminEditaisResponse>;
+  return apiGet<AdminEditaisResponse>("/v1/admin/editais");
 }
 
 export function getAdminEditalById(editalId: string) {
-  return getEditalById(editalId) as Promise<AdminEditalDetalhe>;
+  return apiGet<AdminEditalDetalhe>(`/v1/admin/editais/${editalId}`);
 }
 
 export function createAdminEdital(payload: AdminEditalPayload, token: string) {
