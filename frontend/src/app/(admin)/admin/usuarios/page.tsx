@@ -19,51 +19,57 @@ const accountStatusOptions = ["CRIADA", "ATIVA", "BLOQUEADA"] as const;
 
 export default function AdminUsuariosPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<AdminUsuariosResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
-    if (!session.token) return;
-    const response = await listAdminUsuarios(session.token);
+    if (!token) return;
+    const response = await listAdminUsuarios(token, { page, pageSize: 20 });
     setData(response);
-  }, [session.token]);
+  }, [page, token]);
 
   useEffect(() => {
     load().then(() => setStatus("ready")).catch((error) => {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
       setStatus("error");
     });
-  }, [load, session]);
+  }, [load, signOut]);
 
   async function handleStatus(usuarioId: string, statusConta: string) {
-    if (!session.token) return;
+    if (!token) return;
     setBusyUserId(usuarioId); setMessage(null);
-    try { await updateAdminUsuarioStatus(usuarioId, { statusConta }, session.token); await load(); setMessage({ type: "success", text: "Status da conta atualizado." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    try { await updateAdminUsuarioStatus(usuarioId, { statusConta }, token); await load(); setMessage({ type: "success", text: "Status da conta atualizado." }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusyUserId(null); }
   }
 
   async function handleRoleToggle(usuarioId: string, nextRoles: string[]) {
-    if (!session.token) return;
+    if (!token) return;
     setBusyUserId(usuarioId); setMessage(null);
-    try { await updateAdminUsuarioPerfis(usuarioId, { perfis: nextRoles }, session.token); await load(); setMessage({ type: "success", text: "Perfis atualizados." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    try { await updateAdminUsuarioPerfis(usuarioId, { perfis: nextRoles }, token); await load(); setMessage({ type: "success", text: "Perfis atualizados." }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusyUserId(null); }
   }
 
   async function handleEscopos(usuarioId: string, raw: string) {
-    if (!session.token) return;
+    if (!token) return;
     const escopos = raw
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean)
-      .map((editalId) => ({ editalId }));
+      .map((scope) => {
+        const [editalId, linhaPesquisaId] = scope.split(":").map((value) => value.trim());
+        return { editalId, linhaPesquisaId: linhaPesquisaId || undefined };
+      });
     setBusyUserId(usuarioId); setMessage(null);
-    try { await updateAdminUsuarioEscopos(usuarioId, { escopos }, session.token); await load(); setMessage({ type: "success", text: "Escopos do avaliador atualizados." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    try { await updateAdminUsuarioEscopos(usuarioId, { escopos }, token); await load(); setMessage({ type: "success", text: "Escopos do avaliador atualizados." }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusyUserId(null); }
   }
 
@@ -88,7 +94,7 @@ export default function AdminUsuariosPage() {
                   <small>Telefone: {item.telefone ?? "nao informado"}</small>
                   <small>E-mail verificado em: {formatIsoDate(item.emailVerificadoEm)}</small>
                   <small>Perfis atuais: {item.perfis.map((role) => getStatusLabel(role)).join(", ")}</small>
-                  <small>Escopos de avaliacao: {item.escoposAvaliacao.length ? item.escoposAvaliacao.map((escopo) => escopo.editalId).join(", ") : "nenhum"}</small>
+                  <small>Escopos de avaliacao: {item.escoposAvaliacao.length ? item.escoposAvaliacao.map((escopo) => escopo.linhaPesquisaId ? `${escopo.editalId}:${escopo.linhaPesquisaId}` : escopo.editalId).join(", ") : "nenhum"}</small>
                   <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
 
                   <label className="field-block"><span>Status da conta</span><select className="select-field" disabled={busyUserId === item.id} onChange={(event) => handleStatus(item.id, event.target.value)} value={item.statusConta}>{accountStatusOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
@@ -107,8 +113,8 @@ export default function AdminUsuariosPage() {
                   </div>
                   {currentRoles.has("AVALIADOR") ? (
                     <label className="field-block">
-                      <span>Escopos do avaliador (IDs de edital separados por virgula)</span>
-                      <input defaultValue={item.escoposAvaliacao.map((escopo) => escopo.editalId).join(", ")} disabled={busyUserId === item.id} onBlur={(event) => handleEscopos(item.id, event.target.value)} />
+                      <span>Escopos do avaliador (editalId ou editalId:linhaPesquisaId, separados por virgula)</span>
+                      <input defaultValue={item.escoposAvaliacao.map((escopo) => escopo.linhaPesquisaId ? `${escopo.editalId}:${escopo.linhaPesquisaId}` : escopo.editalId).join(", ")} disabled={busyUserId === item.id} onBlur={(event) => handleEscopos(item.id, event.target.value)} />
                     </label>
                   ) : null}
                   {busyUserId === item.id ? <ActionButton disabled loading type="button">Atualizando...</ActionButton> : null}
@@ -117,6 +123,11 @@ export default function AdminUsuariosPage() {
             })}
           </div>
         ) : <EmptyState title="Sem usuarios" description="Nenhum usuario foi retornado pela base administrativa." />}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.page ?? page) * (data?.pageSize ?? 20) >= (data?.total ?? 0)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

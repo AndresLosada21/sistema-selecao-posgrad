@@ -40,6 +40,7 @@ function mapCronograma(cronograma: EditalWithRelations["cronogramas"][number], n
     id: cronograma.id,
     tipo: cronograma.tipo,
     titulo: cronograma.titulo,
+    descricao: cronograma.descricao,
     inicioEm: cronograma.inicioEm.toISOString(),
     fimEm: cronograma.fimEm.toISOString(),
     ativaAgora,
@@ -78,7 +79,6 @@ function mapEditalResumo(edital: EditalWithRelations, now: Date): EditalResumo {
 export async function listEditais(filters: EditalListFilters): Promise<EditalResumo[]> {
   const where: Prisma.EditalWhereInput = {
     cursoNivel: filters.cursoNivel,
-    status: filters.status,
   };
 
   const now = new Date();
@@ -86,6 +86,10 @@ export async function listEditais(filters: EditalListFilters): Promise<EditalRes
   if (filters.ativosSomente) {
     where.status = {
       in: ["PUBLICADO", "EM_ANDAMENTO"],
+    };
+  } else if (filters.status?.length) {
+    where.status = {
+      in: filters.status,
     };
   }
 
@@ -101,8 +105,8 @@ export async function listEditais(filters: EditalListFilters): Promise<EditalRes
   return editais.map((edital) => mapEditalResumo(edital, now));
 }
 
-export async function listAdminEditais(): Promise<EditalResumo[]> {
-  return await listEditais({ ativosSomente: false });
+export async function listAdminEditais(filters?: EditalListFilters): Promise<EditalResumo[]> {
+  return await listEditais({ ...filters, ativosSomente: false });
 }
 
 export async function getEditalById(editalId: string): Promise<EditalDetalhe | null> {

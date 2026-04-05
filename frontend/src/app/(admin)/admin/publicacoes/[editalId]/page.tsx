@@ -13,7 +13,7 @@ import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { publicationPhaseOptions } from "@/modules/admin-operacao/constants";
-import { previewClassificacaoPublicacao, previewHomologacaoPublicacao, publicarClassificacao, publicarGenerica, publicarHomologacao } from "@/modules/admin-publicacao/api";
+import { listAdminPublicacoesByEdital, previewClassificacaoPublicacao, previewHomologacaoPublicacao, publicarClassificacao, publicarGenerica, publicarHomologacao } from "@/modules/admin-publicacao/api";
 import { previewPublicacaoPoliticas, publicarPoliticas } from "@/modules/admin-politicas/api";
 import { listPublicacoesByEdital } from "@/modules/publicacao/api";
 import type { PublicacoesResponse } from "@/modules/publicacao/types";
@@ -59,8 +59,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   useEffect(() => { params.then((resolved) => setEditalId(resolved.editalId)); }, [params]);
 
   useEffect(() => {
-    if (!editalId) return;
-    listPublicacoesByEdital(editalId)
+    if (!editalId || !session.token) return;
+    listAdminPublicacoesByEdital(editalId, session.token)
       .then((response) => {
         setHistory(response);
         setStatus("ready");
@@ -69,7 +69,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [editalId]);
+  }, [editalId, session.token]);
 
   async function loadPreview(type: "homologacao" | "classificacao" | "politicas") {
     if (!session.token || !editalId) return;
@@ -100,7 +100,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         await publicarPoliticas(editalId, { fase: fasePoliticas, descricao: `Publicacao ${fasePoliticas.toLowerCase()} de politicas afirmativas.` }, session.token);
       }
       setMessage({ type: "success", text: `Publicacao de ${type} criada com sucesso.` });
-      const response = await listPublicacoesByEdital(editalId);
+      const response = await listAdminPublicacoesByEdital(editalId, session.token);
       setHistory(response);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
@@ -113,7 +113,17 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     if (!session.token || !editalId) return;
     setBusy(true); setMessage(null);
     try {
-      const dadosConsolidados = dadosConsolidadosGenerico.trim() ? JSON.parse(dadosConsolidadosGenerico) as Record<string, unknown> : undefined;
+      let dadosConsolidados: Record<string, unknown> | undefined;
+
+      if (dadosConsolidadosGenerico.trim()) {
+        try {
+          dadosConsolidados = JSON.parse(dadosConsolidadosGenerico) as Record<string, unknown>;
+        } catch {
+          setMessage({ type: "error", text: "Os dados consolidados precisam ser um JSON valido antes da publicacao." });
+          return;
+        }
+      }
+
       await publicarGenerica(editalId, {
         tipo: tipoGenerico,
         titulo: tituloGenerico,
@@ -128,7 +138,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       setArquivoUrlGenerico("");
       setVersaoFinalGenerica(false);
       setDadosConsolidadosGenerico("{}");
-      setHistory(await listPublicacoesByEdital(editalId));
+      setHistory(await listAdminPublicacoesByEdital(editalId, session.token));
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });

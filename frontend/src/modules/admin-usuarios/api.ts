@@ -2,8 +2,14 @@ import { apiGet, apiPut } from "@/lib/http/client";
 
 import type { AdminUsuariosResponse } from "./types";
 
-export function listAdminUsuarios(token: string) {
-  return apiGet<AdminUsuariosResponse>("/v1/admin/usuarios", token);
+export function listAdminUsuarios(token: string, pagination?: { page?: number; pageSize?: number }) {
+  const params = new URLSearchParams();
+
+  if (pagination?.page) params.set("page", String(pagination.page));
+  if (pagination?.pageSize) params.set("pageSize", String(pagination.pageSize));
+
+  const suffix = params.size ? `?${params.toString()}` : "";
+  return apiGet<AdminUsuariosResponse>(`/v1/admin/usuarios${suffix}`, token);
 }
 
 export function updateAdminUsuarioStatus(usuarioId: string, payload: { statusConta: string }, token: string) {

@@ -1,11 +1,12 @@
 import { FaseRecurso, ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao } from "@prisma/client";
 import { z } from "zod";
+import { pdfFileUrlSchema } from "../../lib/file-url.schemas.js";
 
 export const createRecursoSchema = z.object({
   editalId: z.string().min(1),
   fase: z.nativeEnum(FaseRecurso),
   fundamentacao: z.string().trim().min(10),
-  anexoUrl: z.string().trim().url().optional(),
+  anexoUrl: pdfFileUrlSchema.optional(),
 });
 
 export const recursoIdParamSchema = z.object({

@@ -1,3 +1,5 @@
+import type { ResultadoPoliticasAfirmativas } from "@/lib/enums";
+
 export type PoliticasEtapaItem = {
   id: string;
   tipo: string;
@@ -57,7 +59,7 @@ export type EncaminhamentoPoliticasPayload = {
 };
 
 export type ResultadoPoliticasPayload = {
-  resultado: string;
+  resultado: ResultadoPoliticasAfirmativas;
   parecer: string;
   arquivoRetornoUrl?: string;
 };

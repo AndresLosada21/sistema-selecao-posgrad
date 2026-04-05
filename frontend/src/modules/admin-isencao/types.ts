@@ -27,5 +27,7 @@ export type AdminIsencaoItem = {
 
 export type AdminIsencoesResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: AdminIsencaoItem[];
 };

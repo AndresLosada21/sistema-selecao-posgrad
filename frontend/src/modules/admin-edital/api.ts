@@ -9,12 +9,12 @@ import type {
   AdminLinhaPesquisaPayload,
 } from "./types";
 
-export function listAdminEditais() {
-  return apiGet<AdminEditaisResponse>("/v1/admin/editais");
+export function listAdminEditais(token: string) {
+  return apiGet<AdminEditaisResponse>("/v1/admin/editais", token);
 }
 
-export function getAdminEditalById(editalId: string) {
-  return apiGet<AdminEditalDetalhe>(`/v1/admin/editais/${editalId}`);
+export function getAdminEditalById(editalId: string, token: string) {
+  return apiGet<AdminEditalDetalhe>(`/v1/admin/editais/${editalId}`, token);
 }
 
 export function createAdminEdital(payload: AdminEditalPayload, token: string) {

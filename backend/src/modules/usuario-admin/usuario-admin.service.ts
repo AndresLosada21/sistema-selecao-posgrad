@@ -37,9 +37,26 @@ function mapUsuario(usuario: UsuarioAdminWithPerfis) {
   };
 }
 
-export async function listUsuariosAdmin() {
-  const usuarios = await prisma.usuario.findMany({ include: { perfis: true, escoposAvaliacao: true } as any, orderBy: { criadoEm: "desc" } });
-  return (usuarios as unknown as UsuarioAdminWithPerfis[]).map((usuario) => mapUsuario(usuario));
+export async function listUsuariosAdmin(pagination?: { page: number; pageSize: number }) {
+  const page = pagination?.page ?? 1;
+  const pageSize = pagination?.pageSize ?? 20;
+
+  const [usuarios, total] = await prisma.$transaction([
+    prisma.usuario.findMany({
+      include: { perfis: true, escoposAvaliacao: true } as any,
+      orderBy: { criadoEm: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.usuario.count(),
+  ]);
+
+  return {
+    items: (usuarios as unknown as UsuarioAdminWithPerfis[]).map((usuario) => mapUsuario(usuario)),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function updateUsuarioStatus(usuarioId: string, statusConta: StatusConta) {

@@ -75,8 +75,22 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     if (!session.token || !inscricaoId) return;
     setBusy(true); setMessage(null);
     try {
-      const pontuacaoItens = JSON.parse(pontuacaoItensRaw) as Record<string, number>;
-      const glosas = JSON.parse(glosasRaw) as Array<{ item: string; descricao: string; pontosGlosados: number }>;
+      let pontuacaoItens: Record<string, number>;
+      let glosas: Array<{ item: string; descricao: string; pontosGlosados: number }>;
+
+      try {
+        pontuacaoItens = JSON.parse(pontuacaoItensRaw) as Record<string, number>;
+      } catch {
+        setMessage({ type: "warning", text: "A pontuacao por item precisa ser um JSON valido antes do envio." });
+        return;
+      }
+
+      try {
+        glosas = JSON.parse(glosasRaw) as Array<{ item: string; descricao: string; pontosGlosados: number }>;
+      } catch {
+        setMessage({ type: "warning", text: "As glosas precisam estar em um array JSON valido antes do envio." });
+        return;
+      }
 
       if (maiorPontuacaoBruta <= 0) {
         setMessage({ type: "warning", text: "A maior pontuacao bruta deve ser maior que zero." });

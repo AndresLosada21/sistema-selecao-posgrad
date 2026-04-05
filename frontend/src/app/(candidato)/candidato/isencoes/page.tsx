@@ -16,30 +16,32 @@ import type { PedidosIsencaoResponse } from "@/modules/isencao/types";
 
 export default function CandidateIsencoesPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<PedidosIsencaoResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session.token) {
+    if (!token) {
       return;
     }
 
-    listIsencoes(session.token)
+    listIsencoes(token)
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [session]);
+  }, [signOut, token]);
 
   if (status === "loading") {
     return <LoadingState title="Carregando pedidos de isencao" description="Consultando os pedidos do candidato." />;

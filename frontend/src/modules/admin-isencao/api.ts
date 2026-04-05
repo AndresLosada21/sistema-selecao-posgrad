@@ -2,8 +2,14 @@ import { apiGet, apiPut } from "@/lib/http/client";
 
 import type { AdminIsencaoItem, AdminIsencoesResponse } from "./types";
 
-export function listAdminIsencoes(token: string) {
-  return apiGet<AdminIsencoesResponse>("/v1/admin/isencoes", token);
+export function listAdminIsencoes(token: string, pagination?: { page?: number; pageSize?: number }) {
+  const params = new URLSearchParams();
+
+  if (pagination?.page) params.set("page", String(pagination.page));
+  if (pagination?.pageSize) params.set("pageSize", String(pagination.pageSize));
+
+  const suffix = params.size ? `?${params.toString()}` : "";
+  return apiGet<AdminIsencoesResponse>(`/v1/admin/isencoes${suffix}`, token);
 }
 
 export function getAdminIsencaoById(pedidoIsencaoId: string, token: string) {

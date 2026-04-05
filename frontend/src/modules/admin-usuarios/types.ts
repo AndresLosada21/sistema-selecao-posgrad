@@ -17,5 +17,7 @@ export type AdminUsuarioItem = {
 
 export type AdminUsuariosResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: AdminUsuarioItem[];
 };

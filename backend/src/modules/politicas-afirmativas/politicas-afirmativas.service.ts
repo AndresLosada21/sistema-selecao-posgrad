@@ -130,6 +130,54 @@ async function getEtapaByInscricaoId(inscricaoId: string) {
   });
 }
 
+function toPoliticasEtapaItem(item: NonNullable<Awaited<ReturnType<typeof getEtapaByInscricaoId>>>) {
+  return {
+    ...buildPoliticasAfirmativasResumo(item),
+    inscricao: {
+      id: item.inscricao.id,
+      status: item.inscricao.status,
+      modalidadeConcorrencia: item.inscricao.modalidadeConcorrencia,
+    },
+    edital: {
+      id: item.inscricao.participacaoEdital.edital.id,
+      numero: item.inscricao.participacaoEdital.edital.numero,
+      titulo: item.inscricao.participacaoEdital.edital.titulo,
+    },
+    candidato: {
+      id: item.inscricao.participacaoEdital.usuario.id,
+      nomeCompleto: item.inscricao.participacaoEdital.usuario.nomeCompleto,
+      email: item.inscricao.participacaoEdital.usuario.email,
+    },
+    linhaPesquisa: item.inscricao.linhaPesquisa
+      ? {
+          id: item.inscricao.linhaPesquisa.id,
+          nome: item.inscricao.linhaPesquisa.nome,
+        }
+      : null,
+    documentosReserva: item.inscricao.documentos
+      .filter((documento) => getRequiredTiposDocumento(item.tipo).some((tipo) => tipo === documento.tipo))
+      .map((documento) => ({
+        id: documento.id,
+        tipo: documento.tipo,
+        nomeArquivo: documento.nomeArquivo,
+        urlArquivo: documento.urlArquivo,
+        statusValidacao: documento.statusValidacao,
+      })),
+  };
+}
+
+export async function getEtapaPoliticasAfirmativasByInscricaoId(inscricaoId: string) {
+  const etapa = await getEtapaByInscricaoId(inscricaoId);
+
+  if (!etapa) {
+    return { error: "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA" as const };
+  }
+
+  return {
+    item: toPoliticasEtapaItem(etapa),
+  };
+}
+
 export async function listEtapasPoliticasAfirmativasByEdital(editalId: string, pagination?: { page: number; pageSize: number }) {
   const page = pagination?.page ?? 1;
   const pageSize = pagination?.pageSize ?? 20;
@@ -170,39 +218,7 @@ export async function listEtapasPoliticasAfirmativasByEdital(editalId: string, p
   ]);
 
   return {
-    items: itens.map((item) => ({
-      ...buildPoliticasAfirmativasResumo(item),
-      inscricao: {
-        id: item.inscricao.id,
-      status: item.inscricao.status,
-      modalidadeConcorrencia: item.inscricao.modalidadeConcorrencia,
-    },
-    edital: {
-      id: item.inscricao.participacaoEdital.edital.id,
-      numero: item.inscricao.participacaoEdital.edital.numero,
-      titulo: item.inscricao.participacaoEdital.edital.titulo,
-    },
-    candidato: {
-      id: item.inscricao.participacaoEdital.usuario.id,
-      nomeCompleto: item.inscricao.participacaoEdital.usuario.nomeCompleto,
-      email: item.inscricao.participacaoEdital.usuario.email,
-    },
-    linhaPesquisa: item.inscricao.linhaPesquisa
-      ? {
-          id: item.inscricao.linhaPesquisa.id,
-          nome: item.inscricao.linhaPesquisa.nome,
-        }
-      : null,
-      documentosReserva: item.inscricao.documentos
-        .filter((documento) => getRequiredTiposDocumento(item.tipo).some((tipo) => tipo === documento.tipo))
-        .map((documento) => ({
-        id: documento.id,
-        tipo: documento.tipo,
-        nomeArquivo: documento.nomeArquivo,
-        urlArquivo: documento.urlArquivo,
-          statusValidacao: documento.statusValidacao,
-        })),
-    })),
+    items: itens.map(toPoliticasEtapaItem),
     total,
     page,
     pageSize,

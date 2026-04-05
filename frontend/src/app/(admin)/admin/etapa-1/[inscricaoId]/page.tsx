@@ -25,7 +25,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const [publicacao, setPublicacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
   const [usoIaComprovado, setUsoIaComprovado] = useState(false);
   const [liberarEspelho, setLiberarEspelho] = useState(false);
-  const [rubrica, setRubrica] = useState({ adequacaoDominioTema: 0, estrutura: 0, organizacaoCoerencia: 0, objetividadeSintese: 0, grafiaGramatica: 0, observacoes: { geral: "" } });
+  const [rubrica, setRubrica] = useState({ adequacaoDominioTema: 0, estrutura: 0, organizacaoCoerencia: 0, objetividadeSintese: 0, grafiaGramatica: 0, observacoes: { adequacaoDominioTema: "", estrutura: "", organizacaoCoerencia: "", objetividadeSintese: "", grafiaGramatica: "", geral: "" } });
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -145,7 +145,12 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
           <label className="field-block"><span>Organizacao e coerencia</span><input onChange={(e) => setRubrica((c) => ({ ...c, organizacaoCoerencia: Number(e.target.value) || 0 }))} type="number" value={rubrica.organizacaoCoerencia} /></label>
           <label className="field-block"><span>Objetividade e sintese</span><input onChange={(e) => setRubrica((c) => ({ ...c, objetividadeSintese: Number(e.target.value) || 0 }))} type="number" value={rubrica.objetividadeSintese} /></label>
           <label className="field-block"><span>Grafia e gramatica</span><input onChange={(e) => setRubrica((c) => ({ ...c, grafiaGramatica: Number(e.target.value) || 0 }))} type="number" value={rubrica.grafiaGramatica} /></label>
-          <label className="field-block"><span>Observacao geral</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { geral: e.target.value } }))} value={rubrica.observacoes.geral} /></label>
+          <label className="field-block"><span>Observacao - adequacao ao tema</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, adequacaoDominioTema: e.target.value } }))} value={rubrica.observacoes.adequacaoDominioTema} /></label>
+          <label className="field-block"><span>Observacao - estrutura</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, estrutura: e.target.value } }))} value={rubrica.observacoes.estrutura} /></label>
+          <label className="field-block"><span>Observacao - organizacao e coerencia</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, organizacaoCoerencia: e.target.value } }))} value={rubrica.observacoes.organizacaoCoerencia} /></label>
+          <label className="field-block"><span>Observacao - objetividade e sintese</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, objetividadeSintese: e.target.value } }))} value={rubrica.observacoes.objetividadeSintese} /></label>
+          <label className="field-block"><span>Observacao - grafia e gramatica</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, grafiaGramatica: e.target.value } }))} value={rubrica.observacoes.grafiaGramatica} /></label>
+          <label className="field-block"><span>Observacao geral</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, geral: e.target.value } }))} value={rubrica.observacoes.geral} /></label>
           <label className="field-inline"><input checked={usoIaComprovado} onChange={(e) => setUsoIaComprovado(e.target.checked)} type="checkbox" /><span>Uso de IA comprovado</span></label>
           {usoIaComprovado ? <label className="field-block"><span>Fundamento do uso de IA</span><textarea className="text-area" onChange={(e) => setFundamentoUsoIa(e.target.value)} value={fundamentoUsoIa} /></label> : null}
           <label className="field-block"><span>Espelho de correcao</span><textarea className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} /></label>

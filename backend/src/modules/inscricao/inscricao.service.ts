@@ -7,6 +7,7 @@ import {
   TipoCronogramaEdital,
   type TipoDocumentoInscricao,
 } from "@prisma/client";
+import { parse } from "node:path";
 
 import { prisma } from "../../lib/prisma.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
@@ -57,19 +58,32 @@ function isPdfFile(input: { mimeType?: string; nomeArquivo: string; urlArquivo: 
   const nomeArquivo = input.nomeArquivo.trim().toLowerCase();
   const urlArquivo = input.urlArquivo.trim();
 
-  let parsedUrl: URL;
+  const isInternalUploadUrl = urlArquivo.startsWith("/v1/uploads/");
 
-  try {
-    parsedUrl = new URL(urlArquivo);
-  } catch {
-    return false;
+  let urlPathname = "";
+  if (isInternalUploadUrl) {
+    urlPathname = urlArquivo.toLowerCase();
+  } else {
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(urlArquivo);
+    } catch {
+      return false;
+    }
+
+    if (parsedUrl.protocol !== "https:") {
+      return false;
+    }
+
+    urlPathname = parsedUrl.pathname.toLowerCase();
   }
 
   const isPdfMimeType = mimeType === "" || mimeType === "application/pdf";
-  const isPdfFileName = nomeArquivo.endsWith(".pdf");
-  const isSecurePdfUrl = parsedUrl.protocol === "https:" && parsedUrl.pathname.toLowerCase().endsWith(".pdf");
+  const isPdfFileName = parse(nomeArquivo).ext === ".pdf";
+  const isPdfUrl = urlPathname.endsWith(".pdf");
 
-  return isPdfMimeType && isPdfFileName && isSecurePdfUrl;
+  return isPdfMimeType && isPdfFileName && isPdfUrl;
 }
 
 function parseFichaInscricao(value: Prisma.JsonValue | null | undefined) {

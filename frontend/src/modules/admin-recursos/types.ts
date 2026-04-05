@@ -1,3 +1,5 @@
+import type { ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao } from "@/lib/enums";
+
 export type AdminRecursoItem = {
   id: string;
   fase: string;
@@ -31,13 +33,13 @@ export type DecisaoRecursoPayload = {
   deferido: boolean;
   decisao: string;
   impactoResultado: boolean;
-  novoStatusIsencao?: string;
-  novoStatusInscricao?: string;
+  novoStatusIsencao?: StatusIsencao;
+  novoStatusInscricao?: StatusInscricao;
   novaNotaEtapa1?: number;
   novoEspelhoEtapa1?: string;
   novaPontuacaoBrutaEtapa2?: number;
   novaNotaNormalizadaEtapa2?: number;
   novoEspelhoEtapa2?: string;
-  novoResultadoFinalPoliticasAfirmativas?: string;
+  novoResultadoFinalPoliticasAfirmativas?: ResultadoPoliticasAfirmativas;
   novoParecerFinalPoliticasAfirmativas?: string;
 };

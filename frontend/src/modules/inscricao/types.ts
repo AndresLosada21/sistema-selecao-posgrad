@@ -1,3 +1,12 @@
+import type {
+  EmpregadoSituacao,
+  Genero,
+  ModalidadeConcorrencia,
+  RacaCor,
+  RegimeTrabalho,
+  TipoDocumentoInscricao,
+} from "@/lib/enums";
+
 export type FichaInscricaoPayload = {
   nomeCompleto?: string;
   rg?: string;
@@ -10,10 +19,10 @@ export type FichaInscricaoPayload = {
   telefoneWhatsapp?: string;
   dataNascimento?: string;
   estadoCivil?: string;
-  genero?: string;
+  genero?: Genero;
   tipoSanguineo?: string;
   fatorRh?: string;
-  racaCor?: string;
+  racaCor?: RacaCor;
   pessoaComDeficiencia?: boolean;
   concorreAcoesAfirmativas?: boolean;
   vaiSolicitarBolsa?: boolean;
@@ -24,8 +33,8 @@ export type FichaInscricaoPayload = {
   bairroResidencial?: string;
   ufResidencial?: string;
   cidadeResidencial?: string;
-  empregadoSituacao?: string;
-  regimeTrabalho?: string;
+  empregadoSituacao?: EmpregadoSituacao;
+  regimeTrabalho?: RegimeTrabalho;
   instituicaoTrabalho?: string;
   unidadeDepartamentoTrabalho?: string;
   enderecoTrabalho?: string;
@@ -35,7 +44,7 @@ export type FichaInscricaoPayload = {
 
 export type SaveInscricaoDraftPayload = {
   linhaPesquisaId: string;
-  modalidadeConcorrencia: string;
+  modalidadeConcorrencia: ModalidadeConcorrencia;
   temaRedacao?: string;
   resumoCurriculo?: string;
   redacaoTexto?: string;
@@ -44,7 +53,7 @@ export type SaveInscricaoDraftPayload = {
 };
 
 export type DocumentoInscricaoPayload = {
-  tipo: string;
+  tipo: TipoDocumentoInscricao;
   nome: string;
   urlArquivo: string;
   nomeArquivo: string;

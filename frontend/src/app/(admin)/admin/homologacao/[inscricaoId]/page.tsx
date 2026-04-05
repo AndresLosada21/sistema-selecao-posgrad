@@ -11,6 +11,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import type { StatusConfirmacaoReserva } from "@/lib/enums";
 import { formatIsoDate } from "@/modules/edital/formatters";
 
 import {
@@ -46,8 +47,8 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   const [selectedMotivoCodigo, setSelectedMotivoCodigo] = useState("");
   const [motivosPreliminar, setMotivosPreliminar] = useState<HomologacaoFundamento[]>([]);
   const [motivosFinal, setMotivosFinal] = useState<HomologacaoFundamento[]>([]);
-  const [confirmacaoAcoesAfirmativas, setConfirmacaoAcoesAfirmativas] = useState<string>(confirmacaoReservaOptions[0]);
-  const [confirmacaoPcd, setConfirmacaoPcd] = useState<string>(confirmacaoReservaOptions[0]);
+  const [confirmacaoAcoesAfirmativas, setConfirmacaoAcoesAfirmativas] = useState<StatusConfirmacaoReserva>(confirmacaoReservaOptions[0]);
+  const [confirmacaoPcd, setConfirmacaoPcd] = useState<StatusConfirmacaoReserva>(confirmacaoReservaOptions[0]);
   const [busy, setBusy] = useState(false);
   const [pacoteResumo, setPacoteResumo] = useState<{ urlArquivo: string; nomeArquivo: string | null; mimeType: string | null; tamanhoBytes: number | null; versaoSubmissao: number | null; geradoEm: string | null; geradoPorId: string | null } | null>(null);
   const [pacoteForm, setPacoteForm] = useState({ urlArquivo: "", nomeArquivo: "", mimeType: "application/pdf", tamanhoBytes: "" });
@@ -90,8 +91,8 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       return;
     }
 
-    setConfirmacaoAcoesAfirmativas(item.confirmacaoAcoesAfirmativas);
-    setConfirmacaoPcd(item.confirmacaoPcd);
+    setConfirmacaoAcoesAfirmativas(item.confirmacaoAcoesAfirmativas as StatusConfirmacaoReserva);
+    setConfirmacaoPcd(item.confirmacaoPcd as StatusConfirmacaoReserva);
     setPreliminarParecer(item.homologacao?.parecerPreliminar ?? "");
     setFinalParecer(item.homologacao?.parecerFinal ?? "");
     setMotivosPreliminar(item.homologacao?.motivosPreliminar ?? []);
@@ -416,7 +417,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         <form className="form-grid" onSubmit={handleConfirmacaoReserva}>
           <label className="field-block">
             <span>Acoes afirmativas</span>
-            <select className="select-field" onChange={(event) => setConfirmacaoAcoesAfirmativas(event.target.value)} value={confirmacaoAcoesAfirmativas}>
+            <select className="select-field" onChange={(event) => setConfirmacaoAcoesAfirmativas(event.target.value as StatusConfirmacaoReserva)} value={confirmacaoAcoesAfirmativas}>
               {confirmacaoReservaOptions.map((value) => (
                 <option key={value} value={value}>
                   {value}
@@ -426,7 +427,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
           </label>
           <label className="field-block">
             <span>PCD</span>
-            <select className="select-field" onChange={(event) => setConfirmacaoPcd(event.target.value)} value={confirmacaoPcd}>
+            <select className="select-field" onChange={(event) => setConfirmacaoPcd(event.target.value as StatusConfirmacaoReserva)} value={confirmacaoPcd}>
               {confirmacaoReservaOptions.map((value) => (
                 <option key={value} value={value}>
                   {value}

@@ -3,6 +3,7 @@ import {
   TipoEtapaPoliticasAfirmativas,
 } from "@prisma/client";
 import { z } from "zod";
+import { internalOrHttpsUrlSchema, pdfFileUrlSchema } from "../../lib/file-url.schemas.js";
 
 export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
@@ -29,7 +30,7 @@ export const resultadoPoliticasAfirmativasSchema = z.object({
     message: "Resultado preliminar/final nao pode permanecer pendente.",
   }),
   parecer: z.string().trim().min(5),
-  arquivoRetornoUrl: z.string().trim().url().optional(),
+  arquivoRetornoUrl: pdfFileUrlSchema.optional(),
 });
 
 export const previewPoliticasAfirmativasPublicacaoQuerySchema = z.object({
@@ -40,7 +41,7 @@ export const createPoliticasAfirmativasPublicacaoSchema = z.object({
   fase: z.enum(["PRELIMINAR", "FINAL"]),
   titulo: z.string().trim().min(5).optional(),
   descricao: z.string().trim().min(5).optional(),
-  arquivoUrl: z.string().trim().url().optional(),
+  arquivoUrl: internalOrHttpsUrlSchema.optional(),
 });
 
 export const tipoEtapaPoliticasAfirmativasSchema = z.nativeEnum(TipoEtapaPoliticasAfirmativas);

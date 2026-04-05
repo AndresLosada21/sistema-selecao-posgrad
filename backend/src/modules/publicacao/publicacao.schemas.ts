@@ -1,5 +1,6 @@
 import { TipoPublicacaoOficial } from "@prisma/client";
 import { z } from "zod";
+import { internalOrHttpsUrlSchema } from "../../lib/file-url.schemas.js";
 
 export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
@@ -14,7 +15,7 @@ export const createPublicacaoSchema = z.object({
   titulo: z.string().trim().min(5),
   descricao: z.string().trim().min(5).optional(),
   versaoFinal: z.boolean().default(false),
-  arquivoUrl: z.string().trim().url().optional(),
+  arquivoUrl: internalOrHttpsUrlSchema.optional(),
   dadosConsolidados: z.record(z.any()).optional(),
 });
 
@@ -30,12 +31,12 @@ export const createHomologacaoPublicacaoSchema = z.object({
   fase: z.enum(["PRELIMINAR", "FINAL"]),
   titulo: z.string().trim().min(5).optional(),
   descricao: z.string().trim().min(5).optional(),
-  arquivoUrl: z.string().trim().url().optional(),
+  arquivoUrl: internalOrHttpsUrlSchema.optional(),
 });
 
 export const createClassificacaoPublicacaoSchema = z.object({
   fase: z.enum(["PRELIMINAR", "FINAL"]),
   titulo: z.string().trim().min(5).optional(),
   descricao: z.string().trim().min(5).optional(),
-  arquivoUrl: z.string().trim().url().optional(),
+  arquivoUrl: internalOrHttpsUrlSchema.optional(),
 });

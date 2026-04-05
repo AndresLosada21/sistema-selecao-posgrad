@@ -98,7 +98,7 @@ test("politica de PDF exige https, extensao .pdf e mimeType coerente", async () 
         mimeType: "application/pdf",
       });
 
-    assert.equal(httpDocumento.status, 409);
+    assert.equal(httpDocumento.status, 400);
 
     const mimeInvalidoDocumento = await request(app)
       .post(`/v1/inscricoes/${inscricaoId}/documentos`)
@@ -144,7 +144,7 @@ test("politica de PDF exige https, extensao .pdf e mimeType coerente", async () 
         mimeType: "application/pdf",
       });
 
-    assert.equal(pacoteInvalido.status, 409);
+    assert.equal(pacoteInvalido.status, 400);
 
     const pacoteValido = await request(app)
       .post(`/v1/admin/inscricoes/${inscricaoId}/pacote-documental`)

@@ -1,7 +1,12 @@
 import { apiGet, apiPost } from "@/lib/http/client";
+import type { PublicacoesResponse } from "@/modules/publicacao/types";
 
 export function previewHomologacaoPublicacao(editalId: string, fase: "PRELIMINAR" | "FINAL", token: string) {
   return apiGet<Record<string, unknown>>(`/v1/admin/editais/${editalId}/publicacoes/homologacao/preview?fase=${fase}`, token);
+}
+
+export function listAdminPublicacoesByEdital(editalId: string, token: string) {
+  return apiGet<PublicacoesResponse>(`/v1/admin/editais/${editalId}/publicacoes`, token);
 }
 
 export function publicarGenerica(

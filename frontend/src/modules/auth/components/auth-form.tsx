@@ -76,29 +76,29 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         {mode === "cadastro" ? (
           <label className="field-block">
             <span>Nome completo</span>
-            <input autoComplete="name" onChange={(event) => setNomeCompleto(event.target.value)} required value={nomeCompleto} />
+            <input autoComplete="name" onChange={(event) => { setNomeCompleto(event.target.value); setMessage(null); setStatus("idle"); }} required value={nomeCompleto} />
           </label>
         ) : null}
 
         <label className="field-block">
           <span>E-mail</span>
-          <input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+          <input autoComplete="email" onChange={(event) => { setEmail(event.target.value); setMessage(null); setStatus("idle"); }} required type="email" value={email} />
         </label>
 
         <label className="field-block">
           <span>Senha</span>
-          <input autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} onChange={(event) => setSenha(event.target.value)} required type="password" value={senha} />
+          <input autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} onChange={(event) => { setSenha(event.target.value); setMessage(null); setStatus("idle"); }} required type="password" value={senha} />
         </label>
 
         {mode === "cadastro" ? (
           <>
             <label className="field-block">
               <span>Telefone</span>
-              <input autoComplete="tel" onChange={(event) => setTelefone(event.target.value)} required value={telefone} />
+              <input autoComplete="tel" onChange={(event) => { setTelefone(event.target.value); setMessage(null); setStatus("idle"); }} required value={telefone} />
             </label>
             <label className="field-block">
               <span>CPF</span>
-              <input autoComplete="off" inputMode="numeric" onChange={(event) => setCpf(event.target.value)} required value={cpf} />
+              <input autoComplete="off" inputMode="numeric" onChange={(event) => { setCpf(event.target.value); setMessage(null); setStatus("idle"); }} required value={cpf} />
             </label>
           </>
         ) : null}

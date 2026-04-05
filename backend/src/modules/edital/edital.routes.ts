@@ -38,7 +38,11 @@ editalRouter.get("/v1/editais", async (request, response) => {
     return response.status(400).json(validationError("Parametros de consulta invalidos.", parsedQuery.error.flatten()));
   }
 
-  const editais = await listEditais({ ...parsedQuery.data, ativosSomente: true, status: undefined });
+  const editais = await listEditais({
+    ...parsedQuery.data,
+    ativosSomente: false,
+    status: parsedQuery.data.status?.length ? parsedQuery.data.status : ["PUBLICADO", "EM_ANDAMENTO"],
+  });
 
   return response.status(200).json({
     items: editais,
@@ -62,8 +66,14 @@ editalRouter.get("/v1/editais/:editalId", async (request, response) => {
   return response.status(200).json(edital);
 });
 
-editalRouter.get("/v1/admin/editais", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
-  const editais = await listAdminEditais();
+editalRouter.get("/v1/admin/editais", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedQuery = listEditaisQuerySchema.safeParse(request.query);
+
+  if (!parsedQuery.success) {
+    return response.status(400).json(validationError("Parametros de consulta invalidos.", parsedQuery.error.flatten()));
+  }
+
+  const editais = await listAdminEditais(parsedQuery.data);
   return response.status(200).json({ items: editais, total: editais.length });
 });
 

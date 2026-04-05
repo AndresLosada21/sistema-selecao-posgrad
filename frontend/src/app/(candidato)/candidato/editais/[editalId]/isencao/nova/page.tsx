@@ -17,6 +17,8 @@ type NewIsencaoPageProps = {
 
 export default function NewIsencaoPage({ params }: NewIsencaoPageProps) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<CandidateDashboardResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -27,25 +29,25 @@ export default function NewIsencaoPage({ params }: NewIsencaoPageProps) {
   }, [params]);
 
   useEffect(() => {
-    if (!session.token || !editalId) {
+    if (!token || !editalId) {
       return;
     }
 
-    getCandidateDashboard(session.token)
+    getCandidateDashboard(token)
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [editalId, session]);
+  }, [editalId, signOut, token]);
 
   const item = useMemo(() => data?.items.find((entry) => entry.edital.id === editalId) ?? null, [data, editalId]);
 

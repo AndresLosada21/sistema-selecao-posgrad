@@ -3,7 +3,7 @@ import { apiGet } from "@/lib/http/client";
 import type { EditaisResponse, EditalDetalhe } from "./types";
 
 export function listEditais() {
-  return apiGet<EditaisResponse>("/v1/editais");
+  return apiGet<EditaisResponse>("/v1/editais?status=PUBLICADO,EM_ANDAMENTO");
 }
 
 export function getEditalById(editalId: string) {

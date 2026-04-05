@@ -6,7 +6,7 @@ import { conflict, notFound, requestValidationError } from "../../lib/http-error
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 
-import { createIsencaoSchema, decidirIsencaoSchema, editalIdParamSchema, pedidoIsencaoIdParamSchema } from "./isencao.schemas.js";
+import { createIsencaoSchema, decidirIsencaoSchema, editalIdParamSchema, listPedidosIsencaoAdminQuerySchema, pedidoIsencaoIdParamSchema } from "./isencao.schemas.js";
 import {
   createOrUpdatePedidoIsencao,
   decidirIsencaoFinal,
@@ -84,9 +84,15 @@ isencaoRouter.get("/v1/candidato/isencoes", requireAuth, async (request, respons
   });
 });
 
-isencaoRouter.get("/v1/admin/isencoes", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
-  const pedidos = await listPedidosIsencaoAdmin();
-  return response.status(200).json({ items: pedidos, total: pedidos.length });
+isencaoRouter.get("/v1/admin/isencoes", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedQuery = listPedidosIsencaoAdminQuerySchema.safeParse(request.query);
+
+  if (!parsedQuery.success) {
+    return response.status(400).json(requestValidationError("Parametros invalidos para listar pedidos de isencao.", { queryErrors: parsedQuery.error.flatten() }));
+  }
+
+  const pedidos = await listPedidosIsencaoAdmin(parsedQuery.data);
+  return response.status(200).json(pedidos);
 });
 
 isencaoRouter.get("/v1/admin/isencoes/:pedidoIsencaoId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {

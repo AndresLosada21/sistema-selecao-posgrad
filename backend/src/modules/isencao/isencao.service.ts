@@ -176,20 +176,33 @@ function mapPedidoAdmin(pedido: PedidoIsencaoAdminWithRelations) {
   };
 }
 
-export async function listPedidosIsencaoAdmin() {
-  const pedidos = await prisma.pedidoIsencao.findMany({
-    include: {
-      participacaoEdital: {
-        include: {
-          edital: true,
-          usuario: true,
+export async function listPedidosIsencaoAdmin(pagination?: { page: number; pageSize: number }) {
+  const page = pagination?.page ?? 1;
+  const pageSize = pagination?.pageSize ?? 20;
+
+  const [pedidos, total] = await prisma.$transaction([
+    prisma.pedidoIsencao.findMany({
+      include: {
+        participacaoEdital: {
+          include: {
+            edital: true,
+            usuario: true,
+          },
         },
       },
-    },
-    orderBy: { criadoEm: "desc" },
-  });
+      orderBy: { criadoEm: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.pedidoIsencao.count(),
+  ]);
 
-  return pedidos.map((pedido) => mapPedidoAdmin(pedido));
+  return {
+    items: pedidos.map((pedido) => mapPedidoAdmin(pedido)),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function getPedidoIsencaoAdminById(pedidoIsencaoId: string) {

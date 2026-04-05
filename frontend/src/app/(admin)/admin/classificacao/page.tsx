@@ -3,31 +3,42 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
-import { getErrorMessage } from "@/lib/http/api-error";
-import { listEditais } from "@/modules/edital/api";
-import type { EditaisResponse } from "@/modules/edital/types";
+import { useSession } from "@/lib/auth/session-provider";
+import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { listAdminEditais } from "@/modules/admin-edital/api";
+import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 
 export default function AdminClassificacaoIndexPage() {
+  const session = useSession();
+  const token = session.token;
   const [draftEditalId, setDraftEditalId] = useState("");
-  const [data, setData] = useState<EditaisResponse | null>(null);
+  const [data, setData] = useState<AdminEditaisResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    listEditais()
+    if (!token) {
+      return;
+    }
+
+    listAdminEditais(token)
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
+        if (isUnauthorizedError(error)) {
+          session.signOut();
+          return;
+        }
+
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, []);
+  }, [session, token]);
 
   if (status === "loading") {
     return <LoadingState title="Carregando editais" description="Consultando editais para abrir o modulo de classificacao." />;
@@ -76,7 +87,7 @@ export default function AdminClassificacaoIndexPage() {
             ))}
           </div>
         ) : (
-          <EmptyState title="Sem editais disponiveis" description="Nenhum edital publico foi retornado para abrir o modulo de classificacao." />
+          <EmptyState title="Sem editais disponiveis" description="Nenhum edital administrativo foi retornado para abrir o modulo de classificacao." />
         )}
       </SectionCard>
     </div>

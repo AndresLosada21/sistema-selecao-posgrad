@@ -62,7 +62,7 @@ export type Etapa1ResultadoPayload = {
 export type Etapa1Espelho = {
   tema: string | null;
   textoSubmetido: string | null;
-  espelhoCorrecao: string;
+  espelhoCorrecao: string | null;
   rubricaDetalhada: Record<string, unknown> | null;
   espelhoSolicitadoEm: string | null;
   espelhoLiberadoEm: string | null;
@@ -127,7 +127,7 @@ export type Etapa2Espelho = {
   notaNormalizada: number | null;
   memoriaCalculo: Record<string, unknown> | null;
   glosas: Array<Record<string, unknown>>;
-  espelhoCorrecao: string;
+  espelhoCorrecao: string | null;
   espelhoSolicitadoEm: string | null;
   espelhoLiberadoEm: string | null;
   resultadoPreliminarEm: string | null;

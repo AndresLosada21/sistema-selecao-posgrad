@@ -118,21 +118,23 @@ const iconDownloadSm = <svg aria-hidden="true" width="14" height="14" viewBox="0
 
 export default function CandidateDashboardPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<CandidateDashboardResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [selectedParticipacaoId, setSelectedParticipacaoId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session.token) return;
-    getCandidateDashboard(session.token)
+    if (!token) return;
+    getCandidateDashboard(token)
       .then((response) => { setData(response); setStatus("ready"); })
       .catch((error) => {
-        if (isUnauthorizedError(error)) { session.signOut(); return; }
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [session]);
+  }, [signOut, token]);
 
   useEffect(() => {
     if (!data?.items.length) {

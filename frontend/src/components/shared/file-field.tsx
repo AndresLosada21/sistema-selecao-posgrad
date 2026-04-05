@@ -22,6 +22,18 @@ export function FileField({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
+  function getAcceptLabel() {
+    if (accept === "application/pdf") {
+      return "Apenas PDF";
+    }
+
+    if (accept === "image/png,image/jpeg") {
+      return "PNG ou JPEG";
+    }
+
+    return accept;
+  }
+
   function handleClick() {
     if (!disabled) inputRef.current?.click();
   }
@@ -64,7 +76,7 @@ export function FileField({
         </svg>
         <span className="file-field-dropzone-text">Arraste o arquivo ou clique para selecionar</span>
         <span className="file-field-dropzone-hint">
-          {accept === "application/pdf" ? "Apenas PDF" : accept} · Maximo 10 MB
+          {getAcceptLabel()} · Maximo 10 MB
         </span>
       </button>
       {error ? (

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
+import { ParticiparEditalCta } from "@/components/shared/participar-edital-cta";
 import { PublicAccessCta } from "@/components/shared/public-access-cta";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -111,6 +112,7 @@ export default function EditaisPage() {
                 <Link className="nav-link" href={`/editais/${edital.id}/publicacoes`}>
                   Publicacoes oficiais
                 </Link>
+                <ParticiparEditalCta editalId={edital.id} />
               </div>
             </article>
           ))}

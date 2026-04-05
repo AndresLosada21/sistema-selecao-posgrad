@@ -88,7 +88,7 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/documentos", requireAuth, asyn
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const message: string =
       result.error === "DOCUMENTO_FORA_PADRAO"
-        ? "Documentos da inscricao devem usar URL https, nome de arquivo .pdf e mimeType application/pdf quando informado."
+        ? "Documentos da inscricao devem usar arquivo PDF com URL publica https ou URL privada interna de upload, nome de arquivo .pdf e mimeType application/pdf quando informado."
         : String(result.error);
     const errorCode = result.error as string;
     return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
@@ -236,7 +236,7 @@ inscricaoRouter.post("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requ
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const message: string =
       result.error === "PACOTE_FORA_PADRAO"
-        ? "Pacote documental consolidado deve usar URL https, nome de arquivo .pdf e mimeType application/pdf quando informado."
+        ? "Pacote documental consolidado deve usar arquivo PDF com URL publica https ou URL privada interna de upload, nome de arquivo .pdf e mimeType application/pdf quando informado."
         : String(result.error);
     const errorCode = result.error as string;
     return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));

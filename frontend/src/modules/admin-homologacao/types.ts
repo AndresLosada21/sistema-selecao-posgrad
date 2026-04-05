@@ -1,9 +1,12 @@
+import type { TipoDocumentoInscricao } from "@/lib/enums";
+import type { StatusConfirmacaoReserva } from "@/lib/enums";
+
 export type HomologacaoFundamento = {
   codigo: string;
   itemEdital: string;
   titulo: string;
   descricao: string;
-  documentoTipo?: string;
+  documentoTipo?: TipoDocumentoInscricao;
   sanavel: boolean;
 };
 
@@ -82,8 +85,8 @@ export type HomologacaoDecisionPayload = {
 };
 
 export type ConfirmacaoReservaPayload = {
-  confirmacaoAcoesAfirmativas?: string;
-  confirmacaoPcd?: string;
+  confirmacaoAcoesAfirmativas?: StatusConfirmacaoReserva;
+  confirmacaoPcd?: StatusConfirmacaoReserva;
 };
 
 export type AdminPacoteDocumentalResponse = {
