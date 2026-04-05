@@ -30,6 +30,8 @@ export type Etapa1AdminItem = {
 
 export type Etapa1ListResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: Etapa1AdminItem[];
 };
 
@@ -100,6 +102,8 @@ export type Etapa2AdminItem = {
 
 export type Etapa2ListResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: Etapa2AdminItem[];
 };
 

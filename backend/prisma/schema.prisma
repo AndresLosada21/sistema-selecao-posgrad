@@ -219,6 +219,8 @@ model Usuario {
   editaisCriados     Edital[]             @relation("EditalCriadoPor")
   recursosCriados    Recurso[]            @relation("RecursoCriadoPor")
   publicacoesCriadas PublicacaoOficial[]  @relation("PublicacaoCriadaPor")
+  escoposAvaliacao   AvaliadorEscopo[]
+  auditoriasCriadas  AuditoriaEvento[]    @relation("AuditoriaCriadaPor")
 }
 
 model UsuarioPerfil {
@@ -229,6 +231,36 @@ model UsuarioPerfil {
   usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@unique([usuarioId, role])
+}
+
+model AvaliadorEscopo {
+  id              String        @id @default(cuid())
+  usuarioId        String
+  editalId         String
+  linhaPesquisaId  String?
+  criadoEm         DateTime      @default(now())
+  atualizadoEm     DateTime      @updatedAt
+  usuario          Usuario       @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  edital           Edital        @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  linhaPesquisa    LinhaPesquisa? @relation(fields: [linhaPesquisaId], references: [id], onDelete: SetNull)
+
+  @@unique([usuarioId, editalId, linhaPesquisaId])
+  @@index([usuarioId, editalId])
+}
+
+model AuditoriaEvento {
+  id             String   @id @default(cuid())
+  entidade       String
+  entidadeId     String?
+  acao           String
+  descricao      String?
+  payload        Json?
+  criadoPorId    String?
+  criadoEm       DateTime @default(now())
+  criadoPor      Usuario? @relation("AuditoriaCriadaPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([entidade, entidadeId, criadoEm])
+  @@index([criadoPorId, criadoEm])
 }
 
 model Edital {
@@ -247,6 +279,7 @@ model Edital {
   criadoPor             Usuario?               @relation("EditalCriadoPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
   cronogramas           CronogramaEdital[]
   linhasPesquisa        LinhaPesquisa[]
+  escoposAvaliacao      AvaliadorEscopo[]
   participacoes         ParticipacaoEdital[]
   publicacoesOficiais   PublicacaoOficial[]
 
@@ -281,6 +314,7 @@ model LinhaPesquisa {
   edital                 Edital                @relation(fields: [editalId], references: [id], onDelete: Cascade)
   inscricoes             Inscricao[]
   classificacoesFinais   ClassificacaoFinal[]
+  escoposAvaliacao       AvaliadorEscopo[]
 
   @@unique([editalId, nome])
 }

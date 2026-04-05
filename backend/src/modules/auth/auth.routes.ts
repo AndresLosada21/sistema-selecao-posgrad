@@ -3,13 +3,19 @@ import { Router } from "express";
 import { conflict, notFound, unauthorized, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 
-import { loginSchema, registerSchema } from "./auth.schemas.js";
+import { emailVerificationConfirmSchema, loginSchema, passwordResetConfirmSchema, passwordResetRequestSchema, registerSchema } from "./auth.schemas.js";
 import {
+  confirmEmailVerification,
+  confirmPasswordReset,
+  ensureUserParticipation,
   getAuthenticatedUser,
   listUserParticipations,
   login,
+  requestEmailVerification,
+  requestPasswordReset,
   registerCandidate,
 } from "./auth.service.js";
+import { editalParamsSchema } from "../edital/edital.schemas.js";
 
 export const authRouter = Router();
 
@@ -53,6 +59,32 @@ authRouter.post("/v1/auth/login", async (request, response) => {
   return response.status(200).json(result);
 });
 
+authRouter.post("/v1/auth/password-reset/request", async (request, response) => {
+  const parsedBody = passwordResetRequestSchema.safeParse(request.body);
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para solicitar recuperacao de senha.", parsedBody.error.flatten()));
+  }
+
+  return response.status(200).json(await requestPasswordReset(parsedBody.data.email));
+});
+
+authRouter.post("/v1/auth/password-reset/confirm", async (request, response) => {
+  const parsedBody = passwordResetConfirmSchema.safeParse(request.body);
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para redefinir senha.", parsedBody.error.flatten()));
+  }
+
+  const result = await confirmPasswordReset(parsedBody.data);
+
+  if ("error" in result) {
+    return response.status(401).json(unauthorized("Token invalido ou expirado.", result.error));
+  }
+
+  return response.status(200).json(result);
+});
+
 authRouter.get("/v1/auth/me", requireAuth, async (request, response) => {
   const user = await getAuthenticatedUser(request.auth!.userId);
 
@@ -70,4 +102,41 @@ authRouter.get("/v1/candidato/participacoes", requireAuth, async (request, respo
     items: participacoes,
     total: participacoes.length,
   });
+});
+
+authRouter.post("/v1/editais/:editalId/participar", requireAuth, async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  const participacao = await ensureUserParticipation(parsedParams.data.editalId, request.auth!.userId);
+  return response.status(201).json(participacao);
+});
+
+authRouter.post("/v1/auth/email-verification/request", requireAuth, async (request, response) => {
+  const result = await requestEmailVerification(request.auth!.userId);
+
+  if (!result) {
+    return response.status(404).json(notFound("Usuario nao encontrado.", "USER_NOT_FOUND"));
+  }
+
+  return response.status(200).json(result);
+});
+
+authRouter.post("/v1/auth/email-verification/confirm", async (request, response) => {
+  const parsedBody = emailVerificationConfirmSchema.safeParse(request.body);
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para verificar e-mail.", parsedBody.error.flatten()));
+  }
+
+  const result = await confirmEmailVerification(parsedBody.data.token);
+
+  if ("error" in result) {
+    return response.status(401).json(unauthorized("Token invalido ou expirado.", result.error));
+  }
+
+  return response.status(200).json(result);
 });

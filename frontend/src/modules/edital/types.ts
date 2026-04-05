@@ -29,6 +29,7 @@ export type EditaisResponse = {
 
 export type EditalDetalhe = EditalListItem & {
   cronogramas: Array<{
+    id: string;
     tipo: string;
     titulo: string;
     inicioEm: string;

@@ -1,10 +1,20 @@
 import { Router } from "express";
 
+import { Role } from "@prisma/client";
+
 import { conflict, notFound, requestValidationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
+import { requireRole } from "../../middleware/role.middleware.js";
 
-import { editalIdParamSchema, createIsencaoSchema } from "./isencao.schemas.js";
-import { createOrUpdatePedidoIsencao, listPedidosIsencaoDoUsuario } from "./isencao.service.js";
+import { createIsencaoSchema, decidirIsencaoSchema, editalIdParamSchema, pedidoIsencaoIdParamSchema } from "./isencao.schemas.js";
+import {
+  createOrUpdatePedidoIsencao,
+  decidirIsencaoFinal,
+  decidirIsencaoPreliminar,
+  getPedidoIsencaoAdminById,
+  listPedidosIsencaoAdmin,
+  listPedidosIsencaoDoUsuario,
+} from "./isencao.service.js";
 
 export const isencaoRouter = Router();
 
@@ -72,4 +82,60 @@ isencaoRouter.get("/v1/candidato/isencoes", requireAuth, async (request, respons
     items: pedidos,
     total: pedidos.length,
   });
+});
+
+isencaoRouter.get("/v1/admin/isencoes", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
+  const pedidos = await listPedidosIsencaoAdmin();
+  return response.status(200).json({ items: pedidos, total: pedidos.length });
+});
+
+isencaoRouter.get("/v1/admin/isencoes/:pedidoIsencaoId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = pedidoIsencaoIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(requestValidationError("Identificador do pedido invalido.", { paramsErrors: parsedParams.error.flatten() }));
+  }
+
+  const pedido = await getPedidoIsencaoAdminById(parsedParams.data.pedidoIsencaoId);
+
+  if (!pedido) {
+    return response.status(404).json(notFound("Pedido de isencao nao encontrado.", "PEDIDO_ISENCAO_NAO_ENCONTRADO"));
+  }
+
+  return response.status(200).json(pedido);
+});
+
+isencaoRouter.put("/v1/admin/isencoes/:pedidoIsencaoId/preliminar", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = pedidoIsencaoIdParamSchema.safeParse(request.params);
+  const parsedBody = decidirIsencaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json(requestValidationError("Dados invalidos para decisao preliminar.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    }));
+  }
+
+  const pedido = await decidirIsencaoPreliminar(parsedParams.data.pedidoIsencaoId, parsedBody.data, request.auth!.userId);
+  return response.status(200).json(pedido);
+});
+
+isencaoRouter.put("/v1/admin/isencoes/:pedidoIsencaoId/final", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = pedidoIsencaoIdParamSchema.safeParse(request.params);
+  const parsedBody = decidirIsencaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json(requestValidationError("Dados invalidos para decisao final.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    }));
+  }
+
+  const pedido = await decidirIsencaoFinal(parsedParams.data.pedidoIsencaoId, parsedBody.data, request.auth!.userId);
+
+  if (!pedido) {
+    return response.status(404).json(notFound("Pedido de isencao nao encontrado.", "PEDIDO_ISENCAO_NAO_ENCONTRADO"));
+  }
+
+  return response.status(200).json(pedido);
 });

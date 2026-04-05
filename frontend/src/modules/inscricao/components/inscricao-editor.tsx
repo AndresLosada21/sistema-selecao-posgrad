@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
+import { FileField } from "@/components/shared/file-field";
 import { ErrorState, LoadingState } from "@/components/shared/page-states";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -11,6 +13,7 @@ import { ApiError, getErrorMessage, isUnauthorizedError } from "@/lib/http/api-e
 import { sanitizePayload } from "@/lib/http/sanitize";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import type { EditalDetalhe } from "@/modules/edital/types";
+import { uploadPrivateFile } from "@/modules/upload/api";
 
 import {
   documentoTipoOptions,
@@ -150,6 +153,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [uploadingDocumento, setUploadingDocumento] = useState(false);
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [checklist, setChecklist] = useState<string[]>([]);
   const [documentos, setDocumentos] = useState(dashboardItem?.inscricao?.documentos ?? []);
@@ -158,6 +162,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [pacoteResumo, setPacoteResumo] = useState(dashboardItem?.inscricao?.pacoteDocumental ?? null);
 
   const documentosOrdenados = useMemo(() => [...documentos].sort((a, b) => a.tipo.localeCompare(b.tipo)), [documentos]);
+  const redacaoLength = formState.redacaoTexto.trim().length;
+  const redacaoDentroDaFaixa = redacaoLength === 0 || (redacaoLength >= 500 && redacaoLength <= 1500);
 
   function resetMessage() {
     setMessage(null);
@@ -249,6 +255,34 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       }
 
       setMessage({ title: "Falha ao registrar documento", description: getErrorMessage(error) });
+    }
+  }
+
+  async function handleDocumentoFileSelect(file: File) {
+    if (!session.token) {
+      return;
+    }
+
+    setUploadingDocumento(true);
+    resetMessage();
+
+    try {
+      const uploaded = await uploadPrivateFile(file, session.token);
+      setDocumentoState((current) => ({
+        ...current,
+        urlArquivo: uploaded.urlArquivo,
+        nomeArquivo: uploaded.nomeArquivo,
+        mimeType: uploaded.mimeType,
+      }));
+      setMessage({ title: "Arquivo enviado", description: "O documento foi enviado e esta pronto para ser registrado na inscricao." });
+    } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
+
+      setMessage({ title: "Falha no upload do documento", description: getErrorMessage(error) });
+    } finally {
+      setUploadingDocumento(false);
     }
   }
 
@@ -358,12 +392,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           <small>Documentos sincronizados: {documentos.length}</small>
           <small>Pacote documental: {pacoteResumo ? "disponivel" : "nao gerado"}</small>
           <div className="content-item-links">
-            <button className="action-button" disabled={downloading || !inscricaoId} onClick={handleDownloadAnexoIv} type="button">
+            <ActionButton disabled={downloading || !inscricaoId} onClick={handleDownloadAnexoIv} type="button">
               {downloading ? "Processando..." : "Baixar Anexo IV"}
-            </button>
-            <button className="secondary-button" disabled={downloading || !inscricaoId} onClick={handleRefreshPacote} type="button">
+            </ActionButton>
+            <ActionButton disabled={downloading || !inscricaoId} onClick={handleRefreshPacote} type="button" variant="secondary">
               Atualizar pacote documental
-            </button>
+            </ActionButton>
           </div>
           {pacoteResumo ? (
             <div className="content-item">
@@ -413,6 +447,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           <label className="field-block">
             <span>Redacao</span>
             <textarea className="text-area" onChange={(event) => setFormState((current) => ({ ...current, redacaoTexto: event.target.value }))} value={formState.redacaoTexto} />
+            <small>{`Caracteres: ${redacaoLength}${redacaoDentroDaFaixa ? "" : " (fora da faixa 500-1500)"}`}</small>
           </label>
 
           <label className="field-block">
@@ -497,9 +532,9 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             <span>Vai solicitar bolsa</span>
           </label>
 
-          <button className="action-button" disabled={savingDraft} type="submit">
+          <ActionButton disabled={savingDraft} loading={savingDraft} type="submit">
             {savingDraft ? "Salvando..." : "Salvar rascunho"}
-          </button>
+          </ActionButton>
         </form>
       </SectionCard>
 
@@ -519,21 +554,15 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             <span>Nome</span>
             <input onChange={(event) => setDocumentoState((current) => ({ ...current, nome: event.target.value }))} value={documentoState.nome} />
           </label>
-          <label className="field-block">
-            <span>URL do arquivo</span>
-            <input onChange={(event) => setDocumentoState((current) => ({ ...current, urlArquivo: event.target.value }))} value={documentoState.urlArquivo} />
-          </label>
-          <label className="field-block">
-            <span>Nome do arquivo</span>
-            <input onChange={(event) => setDocumentoState((current) => ({ ...current, nomeArquivo: event.target.value }))} value={documentoState.nomeArquivo} />
-          </label>
-          <label className="field-block">
-            <span>MIME type</span>
-            <input onChange={(event) => setDocumentoState((current) => ({ ...current, mimeType: event.target.value }))} value={documentoState.mimeType} />
-          </label>
-          <button className="secondary-button" type="submit">
+          <FileField
+            disabled={uploadingDocumento}
+            hint={documentoState.nomeArquivo ? `Arquivo enviado: ${documentoState.nomeArquivo}` : "Envie o PDF e depois confirme o registro do documento."}
+            label="Arquivo do documento"
+            onFileSelect={handleDocumentoFileSelect}
+          />
+          <ActionButton disabled={uploadingDocumento || !documentoState.urlArquivo} type="submit" variant="secondary">
             Registrar documento
-          </button>
+          </ActionButton>
         </form>
 
         <div className="content-list">
@@ -554,12 +583,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
       <SectionCard title="Operacoes da inscricao" description="Submissao, cancelamento para edicao e leitura do checklist de pendencias do backend.">
         <div className="content-item-links">
-          <button className="action-button" disabled={submitting || !inscricaoId} onClick={handleSubmitInscricao} type="button">
+          <ActionButton disabled={submitting || !inscricaoId} onClick={handleSubmitInscricao} type="button">
             {submitting ? "Processando..." : "Submeter inscricao"}
-          </button>
-          <button className="secondary-button" disabled={submitting || !inscricaoId} onClick={handleCancelSubmission} type="button">
+          </ActionButton>
+          <ActionButton disabled={submitting || !inscricaoId} onClick={handleCancelSubmission} type="button" variant="secondary">
             Cancelar submissao para edicao
-          </button>
+          </ActionButton>
         </div>
         {checklist.length ? (
           <div className="content-item">

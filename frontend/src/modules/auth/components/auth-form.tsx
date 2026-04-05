@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { ActionButton } from "@/components/shared/action-button";
@@ -105,6 +106,13 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         <ActionButton disabled={status === "loading"} loading={status === "loading"} loadingText="Processando..." type="submit">
           {status === "loading" ? "Processando..." : mode === "login" ? "Entrar" : "Criar conta"}
         </ActionButton>
+        {mode === "login" ? (
+          <div className="content-item-links">
+            <Link className="nav-link" href="/esqueci-senha">
+              Esqueci minha senha
+            </Link>
+          </div>
+        ) : null}
       </form>
 
       {message ? <ErrorState description={message} title={mode === "login" ? "Falha ao entrar" : "Falha ao criar conta"} /> : null}

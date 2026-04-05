@@ -12,3 +12,16 @@ export const loginSchema = z.object({
   email: z.string().email(),
   senha: z.string().min(8),
 });
+
+export const passwordResetRequestSchema = z.object({
+  email: z.string().email(),
+});
+
+export const passwordResetConfirmSchema = z.object({
+  token: z.string().min(10),
+  senha: z.string().min(8),
+});
+
+export const emailVerificationConfirmSchema = z.object({
+  token: z.string().min(10),
+});

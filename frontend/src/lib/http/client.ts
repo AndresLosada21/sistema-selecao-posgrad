@@ -76,6 +76,13 @@ export function apiPut<T>(path: string, body?: unknown, token?: string | null) {
   });
 }
 
+export function apiDelete<T>(path: string, token?: string | null) {
+  return apiRequest<T>(path, {
+    method: "DELETE",
+    token,
+  });
+}
+
 export async function apiDownload(path: string, token?: string | null) {
   const headers = new Headers();
 
@@ -98,4 +105,37 @@ export async function apiDownload(path: string, token?: string | null) {
     contentType: response.headers.get("content-type"),
     disposition: response.headers.get("content-disposition"),
   };
+}
+
+export async function apiUpload(
+  path: string,
+  input: { file: File; fields?: Record<string, string> },
+  token?: string | null,
+) {
+  const headers = new Headers();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const formData = new FormData();
+  formData.append("file", input.file);
+
+  for (const [key, value] of Object.entries(input.fields ?? {})) {
+    formData.append(key, value);
+  }
+
+  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  const payload = await parseResponseBody(response);
+
+  if (!response.ok) {
+    throw new ApiError(response.status, toErrorPayload(payload));
+  }
+
+  return payload as Record<string, unknown>;
 }

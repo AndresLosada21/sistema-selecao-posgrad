@@ -28,8 +28,11 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/selecao_posgrad?schema=public}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-real-environments}
+      UPLOADS_DIR: /app/storage/uploads
     ports:
       - "${BACKEND_PORT:-4000}:4000"
+    volumes:
+      - backend_uploads:/app/storage/uploads
     command: sh -c "npm run prisma:deploy && npm run start"
 
   frontend:
@@ -49,3 +52,4 @@ services:
 
 volumes:
   postgres_data:
+  backend_uploads:

@@ -1,6 +1,7 @@
 import { apiDownload, apiGet, apiPost, apiPut } from "@/lib/http/client";
 
 import type {
+  AdminInscricaoHomologacao,
   AdminInscricoesHomologacaoResponse,
   AdminPacoteDocumentalResponse,
   ConfirmacaoReservaPayload,
@@ -12,9 +13,17 @@ export function listFundamentosHomologacao(token: string) {
   return apiGet<HomologacaoFundamentosResponse>("/v1/admin/homologacao/fundamentos", token);
 }
 
-export function listInscricoesParaHomologacao(token: string, editalId?: string) {
-  const query = editalId ? `?editalId=${encodeURIComponent(editalId)}` : "";
-  return apiGet<AdminInscricoesHomologacaoResponse>(`/v1/admin/inscricoes${query}`, token);
+export function listInscricoesParaHomologacao(token: string, filters?: { editalId?: string; page?: number; pageSize?: number }) {
+  const query = new URLSearchParams();
+  if (filters?.editalId) query.set("editalId", filters.editalId);
+  if (filters?.page) query.set("page", String(filters.page));
+  if (filters?.pageSize) query.set("pageSize", String(filters.pageSize));
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return apiGet<AdminInscricoesHomologacaoResponse>(`/v1/admin/inscricoes${suffix}`, token);
+}
+
+export function getInscricaoHomologacaoAdmin(inscricaoId: string, token: string) {
+  return apiGet<AdminInscricaoHomologacao>(`/v1/admin/inscricoes/${inscricaoId}`, token);
 }
 
 export function registrarHomologacaoPreliminar(inscricaoId: string, payload: HomologacaoDecisionPayload, token: string) {

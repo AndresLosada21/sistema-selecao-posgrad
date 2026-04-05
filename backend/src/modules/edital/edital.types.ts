@@ -20,6 +20,7 @@ export type EditalWithRelations = Prisma.EditalGetPayload<{
 }>;
 
 export type EditalFaseResumo = {
+  id: string;
   tipo: TipoCronogramaEdital;
   titulo: string;
   inicioEm: string;
@@ -54,4 +55,31 @@ export type EditalResumo = {
 
 export type EditalDetalhe = EditalResumo & {
   cronogramas: EditalFaseResumo[];
+};
+
+export type UpsertEditalInput = {
+  numero: string;
+  titulo: string;
+  descricao?: string;
+  ano: number;
+  semestre?: number;
+  cursoNivel: CursoNivel;
+  status: StatusEdital;
+  publicadoEm?: string;
+};
+
+export type UpsertLinhaPesquisaInput = {
+  nome: string;
+  descricao?: string;
+  vagasAmplaConcorrencia: number;
+  vagasAcoesAfirmativas: number;
+  vagasPcd: number;
+};
+
+export type UpsertCronogramaInput = {
+  tipo: TipoCronogramaEdital;
+  titulo: string;
+  descricao?: string;
+  inicioEm: string;
+  fimEm: string;
 };

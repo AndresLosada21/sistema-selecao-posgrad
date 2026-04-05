@@ -1,8 +1,8 @@
 import { apiGet, apiPut } from "@/lib/http/client";
 
-import type { AdminRecursosResponse, DecisaoRecursoPayload } from "./types";
+import type { AdminRecursoItem, AdminRecursosResponse, DecisaoRecursoPayload } from "./types";
 
-export function listRecursosAdmin(token: string, filters?: { editalId?: string; fase?: string }) {
+export function listRecursosAdmin(token: string, filters?: { editalId?: string; fase?: string; page?: number; pageSize?: number }) {
   const query = new URLSearchParams();
 
   if (filters?.editalId) {
@@ -13,8 +13,20 @@ export function listRecursosAdmin(token: string, filters?: { editalId?: string; 
     query.set("fase", filters.fase);
   }
 
+  if (filters?.page) {
+    query.set("page", String(filters.page));
+  }
+
+  if (filters?.pageSize) {
+    query.set("pageSize", String(filters.pageSize));
+  }
+
   const suffix = query.size ? `?${query.toString()}` : "";
   return apiGet<AdminRecursosResponse>(`/v1/admin/recursos${suffix}`, token);
+}
+
+export function getAdminRecursoById(recursoId: string, token: string) {
+  return apiGet<AdminRecursoItem>(`/v1/admin/recursos/${recursoId}`, token);
 }
 
 export function decidirRecursoAdmin(recursoId: string, payload: DecisaoRecursoPayload, token: string) {

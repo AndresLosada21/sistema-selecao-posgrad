@@ -1,38 +1,17 @@
 import { Prisma, StatusAvaliacaoEtapa, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { buildInscricaoWhereForAvaliador } from "../avaliacao/avaliador-scope.service.js";
 import { buildEspelhoEtapa2, buildMemoriaCalculoEtapa2, calcularNotaNormalizadaEtapa2, type GlosaEtapa2 } from "./etapa2.rules.js";
 
-export async function listInscricoesParaEtapa2(editalId?: string) {
-  const inscricoes = await prisma.inscricao.findMany({
-    where: {
-      status: {
-        in: [StatusInscricao.APTA_ETAPA_2, StatusInscricao.CLASSIFICACAO_PRELIMINAR],
-      },
-      ...(editalId
-        ? {
-            participacaoEdital: {
-              editalId,
-            },
-          }
-        : {}),
-    },
-    include: {
-      participacaoEdital: {
-        include: {
-          usuario: true,
-          edital: true,
-        },
-      },
-      linhaPesquisa: true,
-      avaliacaoEtapa2: true,
-    },
-    orderBy: {
-      criadoEm: "desc",
-    },
-  });
-
-  return inscricoes.map((inscricao) => ({
+function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
+  include: {
+    participacaoEdital: { include: { usuario: true; edital: true } };
+    linhaPesquisa: true;
+    avaliacaoEtapa2: true;
+  };
+}>) {
+  return {
     id: inscricao.id,
     status: inscricao.status,
     candidato: {
@@ -64,7 +43,67 @@ export async function listInscricoesParaEtapa2(editalId?: string) {
           status: inscricao.avaliacaoEtapa2.status,
         }
       : null,
-  }));
+  };
+}
+
+export async function listInscricoesParaEtapa2(input: { editalId?: string; page: number; pageSize: number; avaliadorUserId?: string }) {
+  const baseWhere = {
+    status: {
+      in: [StatusInscricao.APTA_ETAPA_2, StatusInscricao.CLASSIFICACAO_PRELIMINAR],
+    },
+    ...(input.editalId
+      ? {
+          participacaoEdital: {
+            editalId: input.editalId,
+          },
+        }
+      : {}),
+  };
+
+  const where = input.avaliadorUserId ? await buildInscricaoWhereForAvaliador(baseWhere, input.avaliadorUserId) : baseWhere;
+
+  const [inscricoes, total] = await prisma.$transaction([
+    prisma.inscricao.findMany({
+      where,
+      include: {
+        participacaoEdital: {
+          include: {
+            usuario: true,
+            edital: true,
+          },
+        },
+        linhaPesquisa: true,
+        avaliacaoEtapa2: true,
+      },
+      orderBy: {
+        criadoEm: "desc",
+      },
+      skip: (input.page - 1) * input.pageSize,
+      take: input.pageSize,
+    }),
+    prisma.inscricao.count({ where }),
+  ]);
+
+  return { items: inscricoes.map(mapEtapa2Inscricao), total };
+}
+
+export async function getInscricaoEtapa2ById(inscricaoId: string) {
+  const inscricao = await prisma.inscricao.findUnique({
+    where: { id: inscricaoId },
+    include: {
+      participacaoEdital: {
+        include: {
+          usuario: true,
+          edital: true,
+        },
+      },
+      linhaPesquisa: true,
+      avaliacaoEtapa2: true,
+    },
+  });
+
+  if (!inscricao) return null;
+  return mapEtapa2Inscricao(inscricao as any);
 }
 
 export async function registrarResultadoEtapa2(

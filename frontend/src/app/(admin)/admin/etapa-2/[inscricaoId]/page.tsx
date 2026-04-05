@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
-import { getEspelhoEtapa2, liberarEspelhoEtapa2, listEtapa2, registrarEtapa2 } from "@/modules/admin-etapas/api";
+import { getEspelhoEtapa2, getEtapa2Item, liberarEspelhoEtapa2, registrarEtapa2 } from "@/modules/admin-etapas/api";
 import type { Etapa2AdminItem, Etapa2Espelho } from "@/modules/admin-etapas/types";
 
 type Props = { params: Promise<{ inscricaoId: string }> };
@@ -36,8 +36,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const loadItem = useCallback(async () => {
     if (!session.token || !inscricaoId) return;
 
-    const response = await listEtapa2(session.token);
-    const found = response.items.find((entry) => entry.id === inscricaoId) ?? null;
+    const found = await getEtapa2Item(inscricaoId, session.token);
     setItem(found);
     setPontuacaoItensRaw(JSON.stringify(found?.avaliacao?.pontuacaoItens ?? { titulo: 0 }, null, 2));
     setPontuacaoBruta(found?.avaliacao?.pontuacaoBruta ?? 0);
