@@ -4,6 +4,7 @@ import { Router } from "express";
 import { conflict, notFound, requestValidationError, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireAnyRole } from "../../middleware/role.middleware.js";
+import { avaliadorPodeAcessarInscricao } from "../avaliacao/avaliador-scope.service.js";
 
 import {
   inscricaoIdParamSchema,
@@ -11,6 +12,7 @@ import {
   resultadoEtapa2Schema,
 } from "./etapa2.schemas.js";
 import {
+  getInscricaoEtapa2ById,
   getEspelhoEtapa2ForAdmin,
   getEspelhoEtapa2ForCandidate,
   liberarEspelhoEtapa2,
@@ -28,12 +30,37 @@ etapa2Router.get("/v1/admin/etapa-2/inscricoes", requireAuth, requireAnyRole([Ro
     return response.status(400).json(validationError("Filtro invalido.", parsedQuery.error.flatten()));
   }
 
-  const items = await listInscricoesParaEtapa2(parsedQuery.data.editalId as string | undefined);
+  const result = await listInscricoesParaEtapa2({
+    editalId: parsedQuery.data.editalId as string | undefined,
+    page: parsedQuery.data.page,
+    pageSize: parsedQuery.data.pageSize,
+    avaliadorUserId: request.auth!.perfis.includes(Role.ADMIN) ? undefined : request.auth!.userId,
+  });
 
   return response.status(200).json({
-    items,
-    total: items.length,
+    items: result.items,
+    total: result.total,
+    page: parsedQuery.data.page,
+    pageSize: parsedQuery.data.pageSize,
   });
+});
+
+etapa2Router.get("/v1/admin/etapa-2/inscricoes/:inscricaoId", requireAuth, requireAnyRole([Role.ADMIN, Role.AVALIADOR]), async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
+  }
+  const item = await getInscricaoEtapa2ById(parsedParams.data.inscricaoId);
+  if (request.auth!.perfis.includes(Role.AVALIADOR) && !request.auth!.perfis.includes(Role.ADMIN)) {
+    const allowed = await avaliadorPodeAcessarInscricao(request.auth!.userId, parsedParams.data.inscricaoId);
+    if (!allowed) {
+      return response.status(404).json(notFound("INSCRICAO_NAO_ENCONTRADA", "INSCRICAO_NAO_ENCONTRADA"));
+    }
+  }
+  if (!item) {
+    return response.status(404).json(notFound("INSCRICAO_NAO_ENCONTRADA", "INSCRICAO_NAO_ENCONTRADA"));
+  }
+  return response.status(200).json(item);
 });
 
 etapa2Router.put("/v1/admin/etapa-2/inscricoes/:inscricaoId/resultado", requireAuth, requireAnyRole([Role.ADMIN, Role.AVALIADOR]), async (request, response) => {
@@ -45,6 +72,13 @@ etapa2Router.put("/v1/admin/etapa-2/inscricoes/:inscricaoId/resultado", requireA
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
+  }
+
+  if (request.auth!.perfis.includes(Role.AVALIADOR) && !request.auth!.perfis.includes(Role.ADMIN)) {
+    const allowed = await avaliadorPodeAcessarInscricao(request.auth!.userId, parsedParams.data.inscricaoId);
+    if (!allowed) {
+      return response.status(404).json(notFound("INSCRICAO_NAO_ENCONTRADA", "INSCRICAO_NAO_ENCONTRADA"));
+    }
   }
 
   const result = await registrarResultadoEtapa2(parsedParams.data.inscricaoId, {
@@ -91,6 +125,13 @@ etapa2Router.post("/v1/admin/inscricoes/:inscricaoId/etapa-2/espelho/liberar", r
     return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
+  if (request.auth!.perfis.includes(Role.AVALIADOR) && !request.auth!.perfis.includes(Role.ADMIN)) {
+    const allowed = await avaliadorPodeAcessarInscricao(request.auth!.userId, parsedParams.data.inscricaoId);
+    if (!allowed) {
+      return response.status(404).json(notFound("INSCRICAO_NAO_ENCONTRADA", "INSCRICAO_NAO_ENCONTRADA"));
+    }
+  }
+
   const result = await liberarEspelhoEtapa2(parsedParams.data.inscricaoId);
 
   if ("error" in result) {
@@ -125,6 +166,13 @@ etapa2Router.get("/v1/admin/inscricoes/:inscricaoId/etapa-2/espelho", requireAut
 
   if (!parsedParams.success) {
     return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
+  }
+
+  if (request.auth!.perfis.includes(Role.AVALIADOR) && !request.auth!.perfis.includes(Role.ADMIN)) {
+    const allowed = await avaliadorPodeAcessarInscricao(request.auth!.userId, parsedParams.data.inscricaoId);
+    if (!allowed) {
+      return response.status(404).json(notFound("INSCRICAO_NAO_ENCONTRADA", "INSCRICAO_NAO_ENCONTRADA"));
+    }
   }
 
   const result = await getEspelhoEtapa2ForAdmin(parsedParams.data.inscricaoId);

@@ -6,6 +6,7 @@ export type AuthenticatedUser = {
   email: string;
   cpf: string | null;
   telefone: string | null;
+   emailVerificadoEm: string | null;
   statusConta: StatusConta;
   perfis: Role[];
 };

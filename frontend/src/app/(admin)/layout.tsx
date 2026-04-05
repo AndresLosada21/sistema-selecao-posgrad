@@ -20,6 +20,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         description="Base protegida para os modulos operacionais de homologacao, etapas, recursos, classificacao e publicacoes."
         navigation={[
           { href: "/admin", label: "Inicio admin" },
+          { href: "/admin/editais", label: "Editais" },
+          { href: "/admin/isencao", label: "Isencao" },
+          { href: "/admin/usuarios", label: "Usuarios" },
           { href: "/admin/homologacao", label: "Homologacao" },
           { href: "/admin/etapa-1", label: "Etapa 1" },
           { href: "/admin/etapa-2", label: "Etapa 2" },

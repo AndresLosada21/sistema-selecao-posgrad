@@ -20,13 +20,14 @@ export default function AdminEtapa1Page() {
   const [data, setData] = useState<Etapa1ListResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.token) return;
 
-    listEtapa1(session.token, filter || undefined)
+    listEtapa1(session.token, { editalId: filter || undefined, page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
@@ -39,7 +40,7 @@ export default function AdminEtapa1Page() {
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, session]);
+  }, [filter, page, session]);
 
   if (status === "loading") return <LoadingState title="Carregando etapa 1" description="Consultando a fila administrativa da etapa 1." />;
   if (status === "error") return <ErrorState title="Falha ao carregar etapa 1" description={message ?? undefined} />;
@@ -60,7 +61,7 @@ export default function AdminEtapa1Page() {
           </label>
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
-            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); }} type="button" variant="ghost">Limpar filtro</ActionButton>
+            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }} type="button" variant="ghost">Limpar filtro</ActionButton>
             <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
           </div>
         </div>
@@ -92,6 +93,11 @@ export default function AdminEtapa1Page() {
         ) : (
           <EmptyState title="Sem inscricoes para etapa 1" description="Nenhuma inscricao foi retornada para o filtro atual." />
         )}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

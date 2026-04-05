@@ -70,6 +70,8 @@ export type AdminInscricaoHomologacao = {
 
 export type AdminInscricoesHomologacaoResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: AdminInscricaoHomologacao[];
 };
 

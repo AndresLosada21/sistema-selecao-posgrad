@@ -8,7 +8,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
-import { decidirRecursoAdmin, listRecursosAdmin } from "@/modules/admin-recursos/api";
+import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
 import type { AdminRecursoItem } from "@/modules/admin-recursos/types";
 import { resultadoPoliticasOptions } from "@/modules/admin-operacao/constants";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
@@ -40,8 +40,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
 
   const loadItem = useCallback(async () => {
     if (!session.token || !recursoId) return;
-    const response = await listRecursosAdmin(session.token);
-    setItem(response.items.find((entry) => entry.id === recursoId) ?? null);
+    setItem(await getAdminRecursoById(recursoId, session.token));
   }, [recursoId, session]);
 
   useEffect(() => {

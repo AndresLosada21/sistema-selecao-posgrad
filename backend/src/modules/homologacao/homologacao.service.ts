@@ -18,32 +18,15 @@ function toNullableJson(value: Prisma.JsonValue | null | undefined) {
   return value ? (value as Prisma.InputJsonValue) : Prisma.DbNull;
 }
 
-export async function listInscricoesParaHomologacao(editalId?: string) {
-  const inscricoes = await prisma.inscricao.findMany({
-    where: editalId
-      ? {
-          participacaoEdital: {
-            editalId,
-          },
-        }
-      : undefined,
-    include: {
-      participacaoEdital: {
-        include: {
-          usuario: true,
-          edital: true,
-        },
-      },
-      linhaPesquisa: true,
-      documentos: true,
-      homologacao: true,
-    },
-    orderBy: {
-      criadoEm: "desc",
-    },
-  });
-
-  return inscricoes.map((inscricao) => ({
+function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
+  include: {
+    participacaoEdital: { include: { usuario: true; edital: true } };
+    linhaPesquisa: true;
+    documentos: true;
+    homologacao: true;
+  };
+}>) {
+  return {
     id: inscricao.id,
     status: inscricao.status,
     statusPagamento: inscricao.statusPagamento,
@@ -103,7 +86,65 @@ export async function listInscricoesParaHomologacao(editalId?: string) {
           submissaoSnapshotFinal: inscricao.homologacao.submissaoSnapshotFinal,
         }
       : null,
-  }));
+  };
+}
+
+export async function listInscricoesParaHomologacao(input: { editalId?: string; page: number; pageSize: number }) {
+  const where = input.editalId
+    ? {
+        participacaoEdital: {
+          editalId: input.editalId,
+        },
+      }
+    : undefined;
+
+  const [inscricoes, total] = await prisma.$transaction([
+    prisma.inscricao.findMany({
+      where,
+      include: {
+        participacaoEdital: {
+          include: {
+            usuario: true,
+            edital: true,
+          },
+        },
+        linhaPesquisa: true,
+        documentos: true,
+        homologacao: true,
+      },
+      orderBy: {
+        criadoEm: "desc",
+      },
+      skip: (input.page - 1) * input.pageSize,
+      take: input.pageSize,
+    }),
+    prisma.inscricao.count({ where }),
+  ]);
+
+  return { items: inscricoes.map(mapInscricaoHomologacao), total };
+}
+
+export async function getInscricaoHomologacaoById(inscricaoId: string) {
+  const inscricao = await prisma.inscricao.findUnique({
+    where: { id: inscricaoId },
+    include: {
+      participacaoEdital: {
+        include: {
+          usuario: true,
+          edital: true,
+        },
+      },
+      linhaPesquisa: true,
+      documentos: true,
+      homologacao: true,
+    },
+  });
+
+  if (!inscricao) {
+    return null;
+  }
+
+  return mapInscricaoHomologacao(inscricao as any);
 }
 
 export function listFundamentosHomologacao() {

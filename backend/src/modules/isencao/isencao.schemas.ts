@@ -5,6 +5,10 @@ export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
 });
 
+export const pedidoIsencaoIdParamSchema = z.object({
+  pedidoIsencaoId: z.string().min(1),
+});
+
 export const createIsencaoSchema = z
   .object({
     cursoNivel: z.nativeEnum(CursoNivel),
@@ -41,3 +45,8 @@ export const createIsencaoSchema = z
       }
     }
   });
+
+export const decidirIsencaoSchema = z.object({
+  deferida: z.boolean(),
+  parecer: z.string().trim().min(5),
+});

@@ -6,6 +6,8 @@ export const inscricaoIdParamSchema = z.object({
 
 export const listEtapa2QuerySchema = z.object({
   editalId: z.string().min(1).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export const glosaEtapa2Schema = z.object({

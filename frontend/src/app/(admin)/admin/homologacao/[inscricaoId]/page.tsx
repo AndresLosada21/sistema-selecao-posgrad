@@ -18,8 +18,8 @@ import {
   baixarAnexoIvAdmin,
   baixarAnexoIvFlattenAdmin,
   getPacoteDocumentalAdmin,
+  getInscricaoHomologacaoAdmin,
   listFundamentosHomologacao,
-  listInscricoesParaHomologacao,
   registrarPacoteDocumentalAdmin,
   registrarHomologacaoFinal,
   registrarHomologacaoPreliminar,
@@ -61,8 +61,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       return;
     }
 
-    const [inscricoes, fundamentosResponse] = await Promise.all([listInscricoesParaHomologacao(session.token), listFundamentosHomologacao(session.token)]);
-    const found = inscricoes.items.find((entry) => entry.id === inscricaoId) ?? null;
+    const [found, fundamentosResponse] = await Promise.all([getInscricaoHomologacaoAdmin(inscricaoId, session.token), listFundamentosHomologacao(session.token)]);
     setItem(found);
     setFundamentos(fundamentosResponse.items);
     setSelectedMotivoCodigo(fundamentosResponse.items[0]?.codigo ?? "");

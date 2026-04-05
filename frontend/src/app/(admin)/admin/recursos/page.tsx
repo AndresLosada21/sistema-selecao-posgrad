@@ -23,18 +23,19 @@ export default function AdminRecursosPage() {
   const [draftFase, setDraftFase] = useState("");
   const [editalId, setEditalId] = useState("");
   const [fase, setFase] = useState("");
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.token) return;
-    listRecursosAdmin(session.token, { editalId: editalId || undefined, fase: fase || undefined })
+    listRecursosAdmin(session.token, { editalId: editalId || undefined, fase: fase || undefined, page, pageSize: 20 })
       .then((response) => { setData(response); setStatus("ready"); })
       .catch((error) => {
         if (isUnauthorizedError(error)) { session.signOut(); return; }
         setMessage(getErrorMessage(error)); setStatus("error");
       });
-  }, [editalId, fase, session]);
+  }, [editalId, fase, page, session]);
 
   if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando a fila administrativa de recursos." />;
   if (status === "error") return <ErrorState title="Falha ao carregar recursos" description={message ?? undefined} />;
@@ -54,7 +55,7 @@ export default function AdminRecursosPage() {
         </div>
         <div className="content-item-links">
           <ActionButton onClick={() => { setEditalId(draftEditalId.trim()); setFase(draftFase); }} type="button" variant="secondary">Aplicar filtros</ActionButton>
-          <ActionButton onClick={() => { setDraftEditalId(""); setDraftFase(""); setEditalId(""); setFase(""); }} type="button" variant="ghost">Limpar filtros</ActionButton>
+          <ActionButton onClick={() => { setDraftEditalId(""); setDraftFase(""); setEditalId(""); setFase(""); setPage(1); }} type="button" variant="ghost">Limpar filtros</ActionButton>
           <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
         </div>
       </SectionCard>
@@ -74,6 +75,11 @@ export default function AdminRecursosPage() {
             ))}
           </div>
         ) : <EmptyState title="Sem recursos" description="Nenhum recurso foi retornado para os filtros atuais." />}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

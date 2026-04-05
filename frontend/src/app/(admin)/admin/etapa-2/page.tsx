@@ -20,12 +20,13 @@ export default function AdminEtapa2Page() {
   const [data, setData] = useState<Etapa2ListResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session.token) return;
-    listEtapa2(session.token, filter || undefined)
+    listEtapa2(session.token, { editalId: filter || undefined, page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
@@ -38,7 +39,7 @@ export default function AdminEtapa2Page() {
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, session]);
+  }, [filter, page, session]);
 
   if (status === "loading") return <LoadingState title="Carregando etapa 2" description="Consultando a fila administrativa da etapa 2." />;
   if (status === "error") return <ErrorState title="Falha ao carregar etapa 2" description={message ?? undefined} />;
@@ -56,7 +57,7 @@ export default function AdminEtapa2Page() {
           <label className="field-block"><span>ID do edital</span><input onChange={(e) => setDraftFilter(e.target.value)} value={draftFilter} /></label>
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
-            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); }} type="button" variant="ghost">Limpar filtro</ActionButton>
+            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }} type="button" variant="ghost">Limpar filtro</ActionButton>
             <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
           </div>
         </div>
@@ -78,6 +79,11 @@ export default function AdminEtapa2Page() {
             ))}
           </div>
         ) : <EmptyState title="Sem inscricoes para etapa 2" description="Nenhuma inscricao foi retornada para o filtro atual." />}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

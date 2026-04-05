@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { EmptyState } from "@/components/shared/page-states";
+import { ParticiparEditalCta } from "@/components/shared/participar-edital-cta";
 import { PublicAccessCta } from "@/components/shared/public-access-cta";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -44,6 +45,7 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
                 <Link className="nav-link" href={`/editais/${edital.id}/publicacoes`}>
                   Ver publicacoes
                 </Link>
+                <ParticiparEditalCta editalId={edital.id} />
                 <PublicAccessCta authenticatedHref="/candidato/participacoes" candidateLabel="Abrir area do candidato" nextPath="/candidato/participacoes" />
               </div>
             </div>

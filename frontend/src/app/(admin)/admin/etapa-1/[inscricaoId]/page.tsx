@@ -9,7 +9,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
-import { getEspelhoEtapa1, liberarEspelhoEtapa1, listEtapa1, registrarEtapa1 } from "@/modules/admin-etapas/api";
+import { getEspelhoEtapa1, getEtapa1Item, liberarEspelhoEtapa1, registrarEtapa1 } from "@/modules/admin-etapas/api";
 import type { Etapa1AdminItem, Etapa1Espelho } from "@/modules/admin-etapas/types";
 
 type Props = { params: Promise<{ inscricaoId: string }> };
@@ -37,8 +37,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const loadItem = useCallback(async () => {
     if (!session.token || !inscricaoId) return;
 
-    const response = await listEtapa1(session.token);
-    const found = response.items.find((entry) => entry.id === inscricaoId) ?? null;
+    const found = await getEtapa1Item(inscricaoId, session.token);
     setItem(found);
     setTema(found?.avaliacao?.tema ?? "");
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");

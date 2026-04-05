@@ -14,6 +14,7 @@ import {
 } from "./homologacao.schemas.js";
 import {
   atualizarConfirmacaoReserva,
+  getInscricaoHomologacaoById,
   listFundamentosHomologacao,
   listInscricoesParaHomologacao,
   registrarHomologacaoFinal,
@@ -38,12 +39,33 @@ homologacaoRouter.get("/v1/admin/inscricoes", requireAuth, requireRole(Role.ADMI
     return response.status(400).json(validationError("Filtro invalido.", parsedQuery.error.flatten()));
   }
 
-  const items = await listInscricoesParaHomologacao(parsedQuery.data.editalId as string | undefined);
+  const result = await listInscricoesParaHomologacao({
+    editalId: parsedQuery.data.editalId as string | undefined,
+    page: parsedQuery.data.page,
+    pageSize: parsedQuery.data.pageSize,
+  });
 
   return response.status(200).json({
-    items,
-    total: items.length,
+    items: result.items,
+    total: result.total,
+    page: parsedQuery.data.page,
+    pageSize: parsedQuery.data.pageSize,
   });
+});
+
+homologacaoRouter.get("/v1/admin/inscricoes/:inscricaoId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
+  }
+
+  const item = await getInscricaoHomologacaoById(parsedParams.data.inscricaoId);
+  if (!item) {
+    return response.status(404).json(notFound("INSCRICAO_NAO_ENCONTRADA", "INSCRICAO_NAO_ENCONTRADA"));
+  }
+
+  return response.status(200).json(item);
 });
 
 homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/preliminar", requireAuth, requireRole(Role.ADMIN), async (request, response) => {

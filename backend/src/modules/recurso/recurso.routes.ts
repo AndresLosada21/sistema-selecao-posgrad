@@ -11,7 +11,7 @@ import {
   listRecursosAdminQuerySchema,
   recursoIdParamSchema,
 } from "./recurso.schemas.js";
-import { createRecurso, decidirRecurso, listRecursosAdmin, listRecursosDoUsuario } from "./recurso.service.js";
+import { createRecurso, decidirRecurso, getRecursoAdminById, listRecursosAdmin, listRecursosDoUsuario } from "./recurso.service.js";
 
 export const recursoRouter = Router();
 
@@ -59,9 +59,23 @@ recursoRouter.get("/v1/admin/recursos", requireAuth, requireRole(Role.ADMIN), as
   const items = await listRecursosAdmin({
     editalId: parsedQuery.data.editalId as string | undefined,
     fase: parsedQuery.data.fase,
+    page: parsedQuery.data.page,
+    pageSize: parsedQuery.data.pageSize,
   });
 
-  return response.status(200).json({ items, total: items.length });
+  return response.status(200).json({ items: items.items, total: items.total, page: parsedQuery.data.page, pageSize: parsedQuery.data.pageSize });
+});
+
+recursoRouter.get("/v1/admin/recursos/:recursoId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = recursoIdParamSchema.safeParse(request.params);
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Recurso invalido.", parsedParams.error.flatten()));
+  }
+  const item = await getRecursoAdminById(parsedParams.data.recursoId);
+  if (!item) {
+    return response.status(404).json(notFound("RECURSO_NAO_ENCONTRADO", "RECURSO_NAO_ENCONTRADO"));
+  }
+  return response.status(200).json(item);
 });
 
 recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireRole(Role.ADMIN), async (request, response) => {

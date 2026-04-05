@@ -3,12 +3,15 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { ActionButton } from "@/components/shared/action-button";
+import { FileField } from "@/components/shared/file-field";
 import { ErrorState } from "@/components/shared/page-states";
 import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
 import { createIsencao } from "@/modules/isencao/api";
+import { uploadPrivateFile } from "@/modules/upload/api";
 
 type IsencaoFormProps = {
   editalId: string;
@@ -26,6 +29,30 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
   const [comprovanteNomeArquivo, setComprovanteNomeArquivo] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+
+  async function handleComprovanteSelect(file: File) {
+    if (!session.token) {
+      return;
+    }
+
+    setStatus("loading");
+    setMessage(null);
+
+    try {
+      const uploaded = await uploadPrivateFile(file, session.token);
+      setComprovanteUrl(uploaded.urlArquivo);
+      setComprovanteNomeArquivo(uploaded.nomeArquivo);
+      setStatus("idle");
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        session.signOut();
+        return;
+      }
+
+      setStatus("error");
+      setMessage(getErrorMessage(error));
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -88,21 +115,18 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
               <textarea className="text-area" onChange={(event) => setJustificativa(event.target.value)} value={justificativa} />
             </label>
 
-            <label className="field-block">
-              <span>URL do comprovante</span>
-              <input onChange={(event) => setComprovanteUrl(event.target.value)} value={comprovanteUrl} />
-            </label>
-
-            <label className="field-block">
-              <span>Nome do arquivo do comprovante</span>
-              <input onChange={(event) => setComprovanteNomeArquivo(event.target.value)} value={comprovanteNomeArquivo} />
-            </label>
+            <FileField
+              disabled={status === "loading"}
+              hint={comprovanteNomeArquivo ? `Arquivo selecionado: ${comprovanteNomeArquivo}` : "Envie o comprovante em PDF."}
+              label="Comprovante"
+              onFileSelect={handleComprovanteSelect}
+            />
           </>
         ) : null}
 
-        <button className="action-button" disabled={status === "loading"} type="submit">
+        <ActionButton disabled={status === "loading"} loading={status === "loading"} type="submit">
           {status === "loading" ? "Enviando..." : "Registrar pedido de isencao"}
-        </button>
+        </ActionButton>
       </form>
 
       {message ? <ErrorState title="Falha ao registrar isencao" description={message} /> : null}

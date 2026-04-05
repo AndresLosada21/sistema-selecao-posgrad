@@ -1,5 +1,6 @@
 import {
   FaseRecurso,
+  Prisma,
   ResultadoPoliticasAfirmativas,
   TipoPublicacaoOficial,
   StatusAvaliacaoEtapa,
@@ -188,30 +189,19 @@ export async function listRecursosDoUsuario(usuarioId: string) {
   }));
 }
 
-export async function listRecursosAdmin(filters: { editalId?: string; fase?: FaseRecurso }) {
-  const recursos = await prisma.recurso.findMany({
-    where: {
-      fase: filters.fase,
-      ...(filters.editalId
-        ? {
-            participacaoEdital: {
-              editalId: filters.editalId,
-            },
-          }
-        : {}),
-    },
-    include: {
-      criadoPor: true,
-      participacaoEdital: {
-        include: {
-          edital: true,
-        },
-      },
-    },
-    orderBy: { criadoEm: "desc" },
-  });
+type RecursoAdminWithRelations = Prisma.RecursoGetPayload<{
+  include: {
+    criadoPor: true;
+    participacaoEdital: {
+      include: {
+        edital: true;
+      };
+    };
+  };
+}>;
 
-  return recursos.map((recurso) => ({
+function mapAdminRecurso(recurso: RecursoAdminWithRelations) {
+  return {
     id: recurso.id,
     fase: recurso.fase,
     status: recurso.status,
@@ -231,7 +221,57 @@ export async function listRecursosAdmin(filters: { editalId?: string; fase?: Fas
     },
     criadoEm: recurso.criadoEm.toISOString(),
     respondidoEm: recurso.respondidoEm?.toISOString() ?? null,
-  }));
+  };
+}
+
+export async function listRecursosAdmin(filters: { editalId?: string; fase?: FaseRecurso; page: number; pageSize: number }) {
+  const where = {
+    fase: filters.fase,
+    ...(filters.editalId
+      ? {
+          participacaoEdital: {
+            editalId: filters.editalId,
+          },
+        }
+      : {}),
+  };
+
+  const [recursos, total] = await prisma.$transaction([
+    prisma.recurso.findMany({
+      where,
+      include: {
+        criadoPor: true,
+        participacaoEdital: {
+          include: {
+            edital: true,
+          },
+        },
+      },
+      orderBy: { criadoEm: "desc" },
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+    }),
+    prisma.recurso.count({ where }),
+  ]);
+
+  return { items: recursos.map((recurso) => mapAdminRecurso(recurso as any)), total };
+}
+
+export async function getRecursoAdminById(recursoId: string) {
+  const recurso = await prisma.recurso.findUnique({
+    where: { id: recursoId },
+    include: {
+      criadoPor: true,
+      participacaoEdital: {
+        include: {
+          edital: true,
+        },
+      },
+    },
+  });
+
+  if (!recurso) return null;
+  return mapAdminRecurso(recurso as any);
 }
 
 export async function decidirRecurso(

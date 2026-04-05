@@ -22,6 +22,8 @@ export type AdminRecursoItem = {
 
 export type AdminRecursosResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: AdminRecursoItem[];
 };
 

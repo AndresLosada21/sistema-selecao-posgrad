@@ -19,6 +19,8 @@ import { isencaoRouter } from "./modules/isencao/isencao.routes.js";
 import { publicacaoRouter } from "./modules/publicacao/publicacao.routes.js";
 import { politicasAfirmativasRouter } from "./modules/politicas-afirmativas/politicas-afirmativas.routes.js";
 import { recursoRouter } from "./modules/recurso/recurso.routes.js";
+import { uploadRouter } from "./modules/upload/upload.routes.js";
+import { usuarioAdminRouter } from "./modules/usuario-admin/usuario-admin.routes.js";
 import { healthRouter } from "./routes/health.routes.js";
 
 export const app = express();
@@ -39,6 +41,17 @@ const authRateLimiter = rateLimit({
   },
 });
 
+const expensiveRouteRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (request) => `${ipKeyGenerator(request.ip ?? "")}:${request.path}`,
+  message: {
+    ...tooManyRequests("Muitas operacoes custosas em sequencia. Tente novamente em instantes."),
+  },
+});
+
 app.disable("x-powered-by");
 app.use(
   helmet({
@@ -56,6 +69,11 @@ app.use(
 app.use(express.json({ limit: jsonBodyLimit }));
 app.use("/v1/auth/login", authRateLimiter);
 app.use("/v1/auth/register", authRateLimiter);
+app.use("/v1/auth/password-reset/request", authRateLimiter);
+app.use("/v1/uploads", expensiveRouteRateLimiter);
+app.use(/\/v1\/publicacoes\/.*\/arquivo\.pdf$/, expensiveRouteRateLimiter);
+app.use(/\/v1\/inscricoes\/.*\/anexo-iv/, expensiveRouteRateLimiter);
+app.use(/\/v1\/admin\/inscricoes\/.*\/anexo-iv/, expensiveRouteRateLimiter);
 
 app.get("/docs/openapi.json", (_request, response) => {
   response.status(200).json(openApiDocument);
@@ -116,6 +134,8 @@ app.use(inscricaoRouter);
 app.use(publicacaoRouter);
 app.use(politicasAfirmativasRouter);
 app.use(recursoRouter);
+app.use(uploadRouter);
+app.use(usuarioAdminRouter);
 
 app.use((error: unknown, _request: express.Request, response: express.Response, next: express.NextFunction) => {
   if (error instanceof SyntaxError && "body" in error) {
@@ -124,6 +144,10 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
 
   if (typeof error === "object" && error && "type" in error && error.type === "entity.too.large") {
     return response.status(413).json(payloadTooLarge("Payload excede o limite permitido."));
+  }
+
+  if (typeof error === "object" && error && "code" in error && error.code === "LIMIT_FILE_SIZE") {
+    return response.status(413).json(payloadTooLarge("Arquivo excede o limite permitido de upload."));
   }
 
   return next(error);

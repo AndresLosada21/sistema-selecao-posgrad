@@ -22,6 +22,7 @@ export default function AdminHomologacaoPage() {
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamentosResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -31,7 +32,7 @@ export default function AdminHomologacaoPage() {
     }
 
     Promise.all([
-      listInscricoesParaHomologacao(session.token, filter || undefined),
+      listInscricoesParaHomologacao(session.token, { editalId: filter || undefined, page, pageSize: 20 }),
       listFundamentosHomologacao(session.token),
     ])
       .then(([items, fundamentosResponse]) => {
@@ -48,7 +49,7 @@ export default function AdminHomologacaoPage() {
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, session]);
+  }, [filter, page, session]);
 
   const resumo = useMemo(() => ({
     total: data?.total ?? 0,
@@ -97,7 +98,7 @@ export default function AdminHomologacaoPage() {
           </label>
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
-            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); }} type="button" variant="ghost">Limpar filtro</ActionButton>
+            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }} type="button" variant="ghost">Limpar filtro</ActionButton>
             <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
           </div>
         </div>
@@ -131,6 +132,11 @@ export default function AdminHomologacaoPage() {
         ) : (
           <EmptyState title="Fila vazia" description="Nenhuma inscricao foi retornada para o filtro atual." />
         )}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
 
       <SectionCard title="Fundamentos operacionais" description="Catalogo de fundamentos devolvido pelo backend para apoiar os pareceres.">
