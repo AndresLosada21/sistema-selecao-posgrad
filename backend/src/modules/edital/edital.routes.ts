@@ -11,7 +11,9 @@ import {
   deleteCronograma,
   deleteEdital,
   deleteLinhaPesquisa,
+  getAdminEditalById,
   getEditalById,
+  listAdminEditais,
   listEditais,
   updateCronograma,
   updateEdital,
@@ -36,7 +38,7 @@ editalRouter.get("/v1/editais", async (request, response) => {
     return response.status(400).json(validationError("Parametros de consulta invalidos.", parsedQuery.error.flatten()));
   }
 
-  const editais = await listEditais(parsedQuery.data);
+  const editais = await listEditais({ ...parsedQuery.data, ativosSomente: true, status: undefined });
 
   return response.status(200).json({
     items: editais,
@@ -52,6 +54,27 @@ editalRouter.get("/v1/editais/:editalId", async (request, response) => {
   }
 
   const edital = await getEditalById(parsedParams.data.editalId);
+
+  if (!edital || !["PUBLICADO", "EM_ANDAMENTO"].includes(edital.status)) {
+    return response.status(404).json(notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO"));
+  }
+
+  return response.status(200).json(edital);
+});
+
+editalRouter.get("/v1/admin/editais", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
+  const editais = await listAdminEditais();
+  return response.status(200).json({ items: editais, total: editais.length });
+});
+
+editalRouter.get("/v1/admin/editais/:editalId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  const edital = await getAdminEditalById(parsedParams.data.editalId);
 
   if (!edital) {
     return response.status(404).json(notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO"));

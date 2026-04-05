@@ -130,40 +130,50 @@ async function getEtapaByInscricaoId(inscricaoId: string) {
   });
 }
 
-export async function listEtapasPoliticasAfirmativasByEdital(editalId: string) {
-  const itens = await prisma.etapaPoliticasAfirmativas.findMany({
-    where: {
-      inscricao: {
-        participacaoEdital: {
-          editalId,
-        },
+export async function listEtapasPoliticasAfirmativasByEdital(editalId: string, pagination?: { page: number; pageSize: number }) {
+  const page = pagination?.page ?? 1;
+  const pageSize = pagination?.pageSize ?? 20;
+  const where = {
+    inscricao: {
+      participacaoEdital: {
+        editalId,
       },
     },
-    include: {
-      inscricao: {
-        include: {
-          linhaPesquisa: true,
-          documentos: true,
-          participacaoEdital: {
-            include: {
-              usuario: true,
-              edital: true,
+  };
+
+  const [itens, total] = await prisma.$transaction([
+    prisma.etapaPoliticasAfirmativas.findMany({
+      where,
+      include: {
+        inscricao: {
+          include: {
+            linhaPesquisa: true,
+            documentos: true,
+            participacaoEdital: {
+              include: {
+                usuario: true,
+                edital: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      inscricao: {
-        criadoEm: "asc",
+      orderBy: {
+        inscricao: {
+          criadoEm: "asc",
+        },
       },
-    },
-  });
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.etapaPoliticasAfirmativas.count({ where }),
+  ]);
 
-  return itens.map((item) => ({
-    ...buildPoliticasAfirmativasResumo(item),
-    inscricao: {
-      id: item.inscricao.id,
+  return {
+    items: itens.map((item) => ({
+      ...buildPoliticasAfirmativasResumo(item),
+      inscricao: {
+        id: item.inscricao.id,
       status: item.inscricao.status,
       modalidadeConcorrencia: item.inscricao.modalidadeConcorrencia,
     },
@@ -183,16 +193,20 @@ export async function listEtapasPoliticasAfirmativasByEdital(editalId: string) {
           nome: item.inscricao.linhaPesquisa.nome,
         }
       : null,
-    documentosReserva: item.inscricao.documentos
-      .filter((documento) => getRequiredTiposDocumento(item.tipo).some((tipo) => tipo === documento.tipo))
-      .map((documento) => ({
+      documentosReserva: item.inscricao.documentos
+        .filter((documento) => getRequiredTiposDocumento(item.tipo).some((tipo) => tipo === documento.tipo))
+        .map((documento) => ({
         id: documento.id,
         tipo: documento.tipo,
         nomeArquivo: documento.nomeArquivo,
         urlArquivo: documento.urlArquivo,
-        statusValidacao: documento.statusValidacao,
-      })),
-  }));
+          statusValidacao: documento.statusValidacao,
+        })),
+    })),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function registrarEncaminhamentoPoliticasAfirmativas(input: {

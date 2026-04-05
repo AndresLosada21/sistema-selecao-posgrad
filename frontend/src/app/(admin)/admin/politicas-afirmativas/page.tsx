@@ -19,6 +19,7 @@ export default function AdminPoliticasPage() {
   const session = useSession();
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [data, setData] = useState<PoliticasListResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export default function AdminPoliticasPage() {
   useEffect(() => {
     if (!session.token || !filter) return;
     setStatus("loading");
-    listPoliticas(filter, session.token)
+    listPoliticas(filter, session.token, { page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
@@ -39,7 +40,7 @@ export default function AdminPoliticasPage() {
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, session]);
+  }, [filter, page, session]);
 
   return (
     <div className="stack-layout">
@@ -54,7 +55,7 @@ export default function AdminPoliticasPage() {
           <label className="field-block"><span>ID do edital</span><input onChange={(e) => setDraftFilter(e.target.value)} value={draftFilter} /></label>
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Consultar fila</ActionButton>
-            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setData(null); setStatus("idle"); }} type="button" variant="ghost">Limpar</ActionButton>
+            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setData(null); setStatus("idle"); setPage(1); }} type="button" variant="ghost">Limpar</ActionButton>
             <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
           </div>
         </div>
@@ -80,6 +81,11 @@ export default function AdminPoliticasPage() {
               ))}
             </div>
           ) : <EmptyState title="Sem etapas vinculadas" description="Nenhuma etapa de politicas afirmativas foi retornada para o edital informado." />}
+          <div className="content-item-links">
+            <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+            <small>{`Pagina ${data?.page ?? page}`}</small>
+            <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+          </div>
         </SectionCard>
       ) : null}
     </div>

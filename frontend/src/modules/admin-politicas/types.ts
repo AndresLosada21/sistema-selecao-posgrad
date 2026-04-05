@@ -44,6 +44,8 @@ export type PoliticasEtapaItem = {
 
 export type PoliticasListResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: PoliticasEtapaItem[];
 };
 

@@ -36,3 +36,18 @@ export async function sendOperationalNotification(input: NotificationInput) {
     preview: env.NODE_ENV === "production" ? undefined : JSON.stringify(info.message ?? info.envelope ?? info, null, 2),
   };
 }
+
+export async function sendOperationalNotificationSafely(input: NotificationInput) {
+  try {
+    return await sendOperationalNotification(input);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Falha desconhecida ao enviar notificacao.";
+    console.warn(`[notification] ${message}`);
+    return {
+      accepted: input.to,
+      preview: undefined,
+      failed: true as const,
+      error: message,
+    };
+  }
+}

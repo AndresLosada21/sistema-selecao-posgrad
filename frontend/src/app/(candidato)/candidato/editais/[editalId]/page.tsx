@@ -8,7 +8,9 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
+import { ActionButton } from "@/components/shared/action-button";
 import { resolveApiUrl } from "@/lib/config/api";
+import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { getCandidateDashboard } from "@/modules/candidato/api";
@@ -25,6 +27,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
   const [data, setData] = useState<CandidateDashboardResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const [downloadingPacote, setDownloadingPacote] = useState(false);
 
   useEffect(() => {
     params.then((resolved) => setEditalId(resolved.editalId));
@@ -78,6 +81,30 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
     );
   }
 
+  const pacoteNomeArquivo = item?.inscricao?.pacoteDocumental?.nomeArquivo ?? "pacote-documental.pdf";
+
+  async function handleDownloadPacote() {
+    if (!session.token || !pacoteDocumentalUrl) {
+      return;
+    }
+
+    setDownloadingPacote(true);
+    setMessage(null);
+
+    try {
+      await downloadAuthenticatedFile(pacoteDocumentalUrl, session.token, pacoteNomeArquivo);
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        session.signOut();
+        return;
+      }
+
+      setMessage(getErrorMessage(error));
+    } finally {
+      setDownloadingPacote(false);
+    }
+  }
+
   return (
     <div className="stack-layout">
       <PageFeedback
@@ -98,7 +125,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
           <small>Homologacao final: {getStatusLabel(item.inscricao?.homologacao?.statusFinal ?? "SEM_RESULTADO")}</small>
           <small>Etapa 1: {getStatusLabel(item.inscricao?.etapa1?.status ?? "SEM_RESULTADO")}</small>
           <small>Etapa 2: {getStatusLabel(item.inscricao?.etapa2?.status ?? "SEM_RESULTADO")}</small>
-          <small>Politicas afirmativas: {getStatusLabel(item.inscricao?.politicasAfirmativas?.statusOperacional ?? "SEM_RESULTADO")}</small>
+          <small>Politicas afirmativas: {getStatusLabel(item.inscricao?.politicasAfirmativas?.statusOperacao ?? "SEM_RESULTADO")}</small>
           <small>Classificacao: {getStatusLabel(item.classificacao?.status ?? "SEM_CLASSIFICACAO")}</small>
           <small>Recursos interpostos: {recursos.length}</small>
           <div className="content-item-links">
@@ -124,10 +151,10 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
               <Link className="nav-link" href={`/editais/${item.edital.id}/publicacoes`}>
                 Ver publicacoes publicas
               </Link>
-              {pacoteDocumentalUrl ? (
-              <Link className="nav-link" href={resolveApiUrl(pacoteDocumentalUrl)} rel="noreferrer" target="_blank">
-                Baixar pacote documental
-              </Link>
+            {pacoteDocumentalUrl ? (
+              <ActionButton disabled={downloadingPacote} onClick={handleDownloadPacote} size="sm" type="button" variant="secondary">
+                {downloadingPacote ? "Baixando pacote..." : "Baixar pacote documental"}
+              </ActionButton>
             ) : null}
           </div>
         </div>

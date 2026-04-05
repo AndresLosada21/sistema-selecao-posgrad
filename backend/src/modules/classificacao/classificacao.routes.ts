@@ -5,23 +5,30 @@ import { notFound, requestValidationError, validationError } from "../../lib/htt
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 
-import { editalIdParamSchema, recalcularClassificacaoSchema } from "./classificacao.schemas.js";
+import { editalIdParamSchema, listClassificacaoQuerySchema, recalcularClassificacaoSchema } from "./classificacao.schemas.js";
 import { listClassificacao, recalcularClassificacao } from "./classificacao.service.js";
 
 export const classificacaoRouter = Router();
 
 classificacaoRouter.get("/v1/admin/editais/:editalId/classificacao", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
   const parsedParams = editalIdParamSchema.safeParse(request.params);
+  const parsedQuery = listClassificacaoQuerySchema.safeParse(request.query);
 
   if (!parsedParams.success) {
     return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
   }
 
-  const items = await listClassificacao(parsedParams.data.editalId);
+  if (!parsedQuery.success) {
+    return response.status(400).json(validationError("Parametros de paginacao invalidos.", parsedQuery.error.flatten()));
+  }
+
+  const result = await listClassificacao(parsedParams.data.editalId, parsedQuery.data);
 
   return response.status(200).json({
-    items,
-    total: items.length,
+    items: result.items,
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
   });
 });
 
@@ -43,7 +50,9 @@ classificacaoRouter.post("/v1/admin/editais/:editalId/classificacao/recalcular",
   }
 
   return response.status(200).json({
-    items: result,
-    total: result.length,
+    items: result.items,
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
   });
 });

@@ -7,8 +7,12 @@ import type {
   ResultadoPoliticasPayload,
 } from "./types";
 
-export function listPoliticas(editalId: string, token: string) {
-  return apiGet<PoliticasListResponse>(`/v1/admin/editais/${editalId}/politicas-afirmativas`, token);
+export function listPoliticas(editalId: string, token: string, pagination?: { page?: number; pageSize?: number }) {
+  const query = new URLSearchParams();
+  if (pagination?.page) query.set("page", String(pagination.page));
+  if (pagination?.pageSize) query.set("pageSize", String(pagination.pageSize));
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return apiGet<PoliticasListResponse>(`/v1/admin/editais/${editalId}/politicas-afirmativas${suffix}`, token);
 }
 
 export function registrarEncaminhamentoPoliticas(inscricaoId: string, payload: EncaminhamentoPoliticasPayload, token: string) {

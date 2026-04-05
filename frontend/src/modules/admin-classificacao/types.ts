@@ -27,5 +27,7 @@ export type ClassificacaoAdminItem = {
 
 export type ClassificacaoAdminResponse = {
   total: number;
+  page: number;
+  pageSize: number;
   items: ClassificacaoAdminItem[];
 };

@@ -316,7 +316,7 @@ export default function CandidateDashboardPage() {
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <QuickAction href={`/candidato/editais/${active.edital.id}/inscricao`} icon={iconPen} title={hasInscricao ? "Editar inscricao" : "Iniciar inscricao"} subtitle={`Edital ${active.edital.numero}`} />
                 <QuickAction href={`/candidato/editais/${active.edital.id}/inscricao`} icon={iconFile} title="Gerenciar Anexo IV" subtitle="Download disponivel na tela da inscricao" />
-                <QuickAction href={pacoteDocumentalUrl ?? `/candidato/editais/${active.edital.id}`} icon={iconDownload} title={pacoteDocumentalUrl ? "Baixar pacote documental" : "Abrir acompanhamento"} subtitle={pacoteDocumentalUrl ? "Todos os documentos consolidados" : "Ver artefatos do edital"} />
+                <QuickAction href={`/candidato/editais/${active.edital.id}`} icon={iconDownload} title={pacoteDocumentalUrl ? "Pacote documental" : "Abrir acompanhamento"} subtitle={pacoteDocumentalUrl ? "Baixe pela tela do edital com sessao autenticada" : "Ver artefatos do edital"} />
                 <QuickAction href={`/candidato/recursos?editalId=${active.edital.id}`} icon={iconFile} title="Abrir recursos" subtitle="Criar e acompanhar recursos do edital" />
               </div>
             ) : null}

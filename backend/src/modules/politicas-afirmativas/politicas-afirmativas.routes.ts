@@ -9,6 +9,7 @@ import {
   editalIdParamSchema,
   encaminhamentoPoliticasAfirmativasSchema,
   inscricaoIdParamSchema,
+  listPoliticasQuerySchema,
   previewPoliticasAfirmativasPublicacaoQuerySchema,
   resultadoPoliticasAfirmativasSchema,
 } from "./politicas-afirmativas.schemas.js";
@@ -29,17 +30,22 @@ politicasAfirmativasRouter.get(
   "/v1/admin/editais/:editalId/politicas-afirmativas",
   requireAuth,
   requireRole(Role.ADMIN),
-  async (request, response) => {
-    const parsedParams = editalIdParamSchema.safeParse(request.params);
+    async (request, response) => {
+      const parsedParams = editalIdParamSchema.safeParse(request.params);
+      const parsedQuery = listPoliticasQuerySchema.safeParse(request.query);
 
-    if (!parsedParams.success) {
-      return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
-    }
+      if (!parsedParams.success) {
+        return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
+      }
 
-    const items = await listEtapasPoliticasAfirmativasByEdital(parsedParams.data.editalId);
+      if (!parsedQuery.success) {
+        return response.status(400).json(validationError("Parametros de paginacao invalidos.", parsedQuery.error.flatten()));
+      }
 
-    return response.status(200).json({ items, total: items.length });
-  },
+      const result = await listEtapasPoliticasAfirmativasByEdital(parsedParams.data.editalId, parsedQuery.data);
+
+      return response.status(200).json({ items: result.items, total: result.total, page: result.page, pageSize: result.pageSize });
+    },
 );
 
 politicasAfirmativasRouter.put(

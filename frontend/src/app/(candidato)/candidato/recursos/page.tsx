@@ -4,21 +4,23 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useSearchParams } from "next/navigation";
 
 import { ActionButton } from "@/components/shared/action-button";
+import { FileField } from "@/components/shared/file-field";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
+import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
-import { resolveApiUrl } from "@/lib/config/api";
 import { faseRecursoOptions } from "@/modules/admin-operacao/constants";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { createCandidateRecurso, listCandidateRecursos } from "@/modules/recurso/api";
 import type { CandidateRecursosResponse } from "@/modules/recurso/types";
+import { uploadPrivateFile } from "@/modules/upload/api";
 
 export default function CandidateRecursosPage() {
   const session = useSession();
@@ -32,6 +34,8 @@ export default function CandidateRecursosPage() {
   const [fase, setFase] = useState("");
   const [fundamentacao, setFundamentacao] = useState("");
   const [anexoUrl, setAnexoUrl] = useState("");
+  const [anexoNome, setAnexoNome] = useState("");
+  const [downloadingAnexoId, setDownloadingAnexoId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!session.token) {
@@ -108,6 +112,7 @@ export default function CandidateRecursosPage() {
       await loadData();
       setFundamentacao("");
       setAnexoUrl("");
+      setAnexoNome("");
       setMessage({ type: "success", text: "Recurso registrado e lista atualizada." });
     } catch (error) {
       if (isUnauthorizedError(error)) {
@@ -118,6 +123,41 @@ export default function CandidateRecursosPage() {
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleUploadAnexo(file: File) {
+    if (!session.token) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const uploaded = await uploadPrivateFile(file, session.token);
+      setAnexoUrl(uploaded.urlArquivo);
+      setAnexoNome(uploaded.nomeArquivo);
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        session.signOut();
+        return;
+      }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDownloadAnexo(recursoId: string, anexoUrl: string) {
+    if (!session.token) return;
+    setDownloadingAnexoId(recursoId);
+    try {
+      await downloadAuthenticatedFile(anexoUrl, session.token, "anexo-recurso.pdf");
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        session.signOut();
+        return;
+      }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+    } finally {
+      setDownloadingAnexoId(null);
     }
   }
 
@@ -170,10 +210,7 @@ export default function CandidateRecursosPage() {
             <textarea className="text-area" minLength={10} onChange={(event) => setFundamentacao(event.target.value)} required value={fundamentacao} />
           </label>
 
-          <label className="field-block">
-            <span>URL do anexo (opcional)</span>
-            <input onChange={(event) => setAnexoUrl(event.target.value)} value={anexoUrl} />
-          </label>
+          <FileField disabled={busy} hint={anexoNome ? `Arquivo enviado: ${anexoNome}` : "Envie um anexo opcional para fundamentar o recurso."} label="Anexo do recurso (opcional)" onFileSelect={handleUploadAnexo} />
 
           <ActionButton disabled={busy} loading={busy} type="submit">
             Registrar recurso
@@ -198,9 +235,9 @@ export default function CandidateRecursosPage() {
                 <small>Decisao: {item.decisao ?? "ainda nao registrada"}</small>
                 {item.anexoUrl ? (
                   <div className="content-item-links">
-                    <a className="nav-link" href={resolveApiUrl(item.anexoUrl)} rel="noreferrer" target="_blank">
-                      Abrir anexo
-                    </a>
+                    <ActionButton disabled={downloadingAnexoId === item.id} onClick={() => handleDownloadAnexo(item.id, item.anexoUrl!)} size="sm" type="button" variant="secondary">
+                      {downloadingAnexoId === item.id ? "Baixando..." : "Baixar anexo"}
+                    </ActionButton>
                   </div>
                 ) : null}
               </article>

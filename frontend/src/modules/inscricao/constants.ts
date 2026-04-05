@@ -5,16 +5,20 @@ export const modalidadeConcorrenciaOptions = [
 ] as const;
 
 export const documentoTipoOptions = [
-  "ANEXO_IV",
-  "ANEXO_V",
   "DOCUMENTO_IDENTIFICACAO",
+  "RNE_PASSAPORTE",
+  "CPF",
   "DIPLOMA",
-  "DECLARACAO_CONCLUSAO",
   "HISTORICO",
   "CURRICULO",
   "COMPROVANTE_PAGAMENTO",
-  "COMPROVANTE_ETNICO",
   "LAUDO_PCD",
+  "ANEXO_IV",
+  "ANEXO_V",
+  "ANEXO_VIII_AUTODECLARACAO",
+  "COMPROVANTE_ETNICO",
+  "COMPROVANTE_AFFIRMATIVA",
+  "OUTRO",
 ] as const;
 
 export const generoOptions = ["MASCULINO", "FEMININO"] as const;

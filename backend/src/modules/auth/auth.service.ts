@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 
 import { env } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
-import { sendOperationalNotification } from "../operacao/notification.service.js";
+import { sendOperationalNotificationSafely } from "../operacao/notification.service.js";
 
 import type { AuthenticatedUser, ParticipacaoResumo } from "./auth.types.js";
 
@@ -247,7 +247,7 @@ export async function requestPasswordReset(email: string) {
   }
 
   const token = createOneTimeToken(user, "PASSWORD_RESET", "30m");
-  await sendOperationalNotification({ to: user.email, subject: "Recuperacao de senha do portal", text: `Use o token a seguir para redefinir sua senha: ${token}` });
+  await sendOperationalNotificationSafely({ to: user.email, subject: "Recuperacao de senha do portal", text: `Use o token a seguir para redefinir sua senha: ${token}` });
 
   return {
     accepted: true as const,
@@ -262,8 +262,12 @@ export async function confirmPasswordReset(input: { token: string; senha: string
     return { error: "INVALID_OR_EXPIRED_TOKEN" as const };
   }
 
+  if (user.statusConta === StatusConta.BLOQUEADA) {
+    return { error: "ACCOUNT_BLOCKED" as const };
+  }
+
   const senhaHash = await bcrypt.hash(input.senha, 10);
-  await prisma.usuario.update({ where: { id: user.id }, data: { senhaHash, statusConta: StatusConta.ATIVA } });
+  await prisma.usuario.update({ where: { id: user.id }, data: { senhaHash } });
   return { accepted: true as const };
 }
 
@@ -275,7 +279,7 @@ export async function requestEmailVerification(userId: string) {
   }
 
   const token = createOneTimeToken(user, "EMAIL_VERIFICATION", "24h");
-  await sendOperationalNotification({ to: user.email, subject: "Verificacao de e-mail do portal", text: `Use o token a seguir para verificar seu e-mail: ${token}` });
+  await sendOperationalNotificationSafely({ to: user.email, subject: "Verificacao de e-mail do portal", text: `Use o token a seguir para verificar seu e-mail: ${token}` });
   return {
     accepted: true as const,
     verificationTokenPreview: env.NODE_ENV === "production" ? undefined : token,
@@ -289,6 +293,10 @@ export async function confirmEmailVerification(token: string) {
     return { error: "INVALID_OR_EXPIRED_TOKEN" as const };
   }
 
-  await prisma.usuario.update({ where: { id: user.id }, data: { emailVerificadoEm: new Date(), statusConta: StatusConta.ATIVA } });
+  if (user.statusConta === StatusConta.BLOQUEADA) {
+    return { error: "ACCOUNT_BLOCKED" as const };
+  }
+
+  await prisma.usuario.update({ where: { id: user.id }, data: { emailVerificadoEm: new Date() } });
   return { accepted: true as const };
 }

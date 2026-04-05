@@ -8,7 +8,7 @@ import {
 
 import { prisma } from "../../lib/prisma.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
-import { sendOperationalNotification } from "../operacao/notification.service.js";
+import { sendOperationalNotificationSafely } from "../operacao/notification.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 
 type CreatePedidoIsencaoInput = {
@@ -226,7 +226,7 @@ export async function decidirIsencaoPreliminar(pedidoIsencaoId: string, input: {
   });
 
   await recordAuditEvent({ entidade: "PEDIDO_ISENCAO", entidadeId: pedidoIsencaoId, acao: "DECISAO_PRELIMINAR_ISENCAO", descricao: input.deferida ? "Pedido deferido preliminarmente." : "Pedido indeferido preliminarmente.", payload: { status: updated.status }, criadoPorId: actorUserId });
-  await sendOperationalNotification({ to: updated.participacaoEdital.usuario.email, subject: `Resultado preliminar da isencao - ${updated.participacaoEdital.edital.numero}`, text: `Seu pedido de isencao recebeu resultado preliminar: ${updated.status}.` });
+  await sendOperationalNotificationSafely({ to: updated.participacaoEdital.usuario.email, subject: `Resultado preliminar da isencao - ${updated.participacaoEdital.edital.numero}`, text: `Seu pedido de isencao recebeu resultado preliminar: ${updated.status}.` });
   return updated;
 }
 
@@ -250,6 +250,6 @@ export async function decidirIsencaoFinal(pedidoIsencaoId: string, input: { defe
   });
 
   await recordAuditEvent({ entidade: "PEDIDO_ISENCAO", entidadeId: pedidoIsencaoId, acao: "DECISAO_FINAL_ISENCAO", descricao: input.deferida ? "Pedido deferido no resultado final." : "Pedido indeferido no resultado final.", payload: { status: updated.status }, criadoPorId: actorUserId });
-  await sendOperationalNotification({ to: updated.participacaoEdital.usuario.email, subject: `Resultado final da isencao - ${updated.participacaoEdital.edital.numero}`, text: `Seu pedido de isencao recebeu resultado final: ${updated.status}.` });
+  await sendOperationalNotificationSafely({ to: updated.participacaoEdital.usuario.email, subject: `Resultado final da isencao - ${updated.participacaoEdital.edital.numero}`, text: `Seu pedido de isencao recebeu resultado final: ${updated.status}.` });
   return updated;
 }

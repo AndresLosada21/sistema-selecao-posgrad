@@ -67,7 +67,7 @@ export type CandidateDashboardResponse = {
         espelhoLiberadoEm?: string | null;
       } | null;
       politicasAfirmativas: {
-        statusOperacional: string;
+        statusOperacao: string;
         resultadoFinal: string | null;
       } | null;
     } | null;
