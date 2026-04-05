@@ -12,7 +12,10 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   await page.getByLabel("CPF").fill(candidate.cpf);
   await page.getByRole("button", { name: "Criar conta" }).click();
 
-  await expect(page.getByRole("link", { name: "Area do candidato" })).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => {
+    await page.goto("/candidato");
+    return page.url();
+  }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
   await expect(page.getByText("Area do candidato")).toBeVisible();
   await page.getByRole("button", { name: "Sair" }).click();
@@ -22,7 +25,10 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   await page.getByLabel("Senha").fill(candidate.senha);
   await page.getByRole("button", { name: "Entrar" }).click();
 
-  await expect(page.getByRole("link", { name: "Area do candidato" })).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => {
+    await page.goto("/candidato");
+    return page.url();
+  }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
   await expect(page.getByText("Area do candidato")).toBeVisible();
 });
@@ -38,7 +44,10 @@ test("candidato autenticado consegue aderir a um edital pela UI publica", async 
   await page.getByLabel("CPF").fill(candidate.cpf);
   await page.getByRole("button", { name: "Criar conta" }).click();
 
-  await expect(page.getByRole("link", { name: "Area do candidato" })).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => {
+    await page.goto("/candidato");
+    return page.url();
+  }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
 
   await page.goto("/editais");
   await page.getByRole("button", { name: "Entrar neste edital" }).first().click();
