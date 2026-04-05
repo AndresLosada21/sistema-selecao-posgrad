@@ -1,9 +1,6 @@
 import { CursoNivel } from "@prisma/client";
 import { z } from "zod";
-
-const uploadedFileUrlSchema = z.string().trim().refine((value) => value.startsWith("/v1/uploads/") || /^https?:\/\//i.test(value), {
-  message: "Invalid url",
-});
+import { pdfFileUrlSchema } from "../../lib/file-url.schemas.js";
 
 export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
@@ -19,7 +16,7 @@ export const createIsencaoSchema = z
     inscritoCadUnico: z.boolean(),
     nis: z.string().trim().min(1).optional(),
     justificativa: z.string().trim().min(10).optional(),
-    comprovanteUrl: uploadedFileUrlSchema.optional(),
+    comprovanteUrl: pdfFileUrlSchema.optional(),
     comprovanteNomeArquivo: z.string().trim().min(3).optional(),
   })
   .superRefine((data, ctx) => {

@@ -1,7 +1,9 @@
 import { TipoDocumentoInscricao } from "@prisma/client";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { readFile } from "node:fs/promises";
 
 import { prisma } from "../../lib/prisma.js";
+import { resolvePrivateUploadPath } from "../upload/upload.service.js";
 import { type FichaInscricao } from "./inscricao.rules.js";
 
 function parseFicha(value: unknown) {
@@ -49,6 +51,7 @@ function wrapText(value: string, maxLength = 88) {
 
 function buildFichaLines(input: {
   ficha: FichaInscricao;
+  assinaturaImagemUrl?: string | null;
   documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
   pagamentoDispensado: boolean;
   linhaNome: string;
@@ -83,6 +86,7 @@ function buildFichaLines(input: {
     `naturalidade: ${input.ficha.naturalidade ?? "-"}`,
     `email: ${input.ficha.email ?? "-"}`,
     `telefoneWhatsapp: ${input.ficha.telefoneWhatsapp ?? "-"}`,
+    `assinaturaImagem: ${input.assinaturaImagemUrl ? "ENVIADA" : "NAO INFORMADA"}`,
     `dataNascimento: ${input.ficha.dataNascimento ?? "-"}`,
     `estadoCivil: ${input.ficha.estadoCivil ?? "-"}`,
     `genero: ${input.ficha.genero ?? "-"}`,
@@ -121,6 +125,7 @@ function buildFichaLines(input: {
 
 async function buildGenericPdfBytes(input: {
   ficha: FichaInscricao;
+  assinaturaImagemUrl?: string | null;
   documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
   pagamentoDispensado: boolean;
   linhaNome: string;
@@ -135,6 +140,30 @@ async function buildGenericPdfBytes(input: {
 
   let page = pdfDoc.addPage([595.28, 841.89]);
   let y = 800;
+
+  if (input.assinaturaImagemUrl?.startsWith("/v1/uploads/private/")) {
+    const match = input.assinaturaImagemUrl.match(/^\/v1\/uploads\/private\/([^/]+)\/(.+)$/);
+    if (match) {
+      const [, ownerId, filename] = match;
+      const imageBytes = await readFile(resolvePrivateUploadPath(ownerId, filename));
+      const lower = filename.toLowerCase();
+      const image = lower.endsWith(".png") ? await pdfDoc.embedPng(imageBytes) : await pdfDoc.embedJpg(imageBytes);
+      const scaled = image.scale(0.35);
+      page.drawImage(image, {
+        x: 430,
+        y: 735,
+        width: scaled.width,
+        height: scaled.height,
+      });
+      page.drawText("Assinatura do candidato", {
+        x: 430,
+        y: 725,
+        size: 8,
+        font: regular,
+        color: rgb(0, 0, 0),
+      });
+    }
+  }
 
   page.drawText("ANEXO IV - FICHA DE INSCRICAO", {
     x: 40,
@@ -203,6 +232,7 @@ async function buildInscricaoAnexoIvResponse(inscricao: InscricaoForDocument, fl
       nomeCompleto: ficha.nomeCompleto ?? inscricao.participacaoEdital.usuario.nomeCompleto,
       email: ficha.email ?? inscricao.participacaoEdital.usuario.email,
     },
+    assinaturaImagemUrl: inscricao.assinaturaImagemUrl,
     documentos: inscricao.documentos.map((documento) => ({ tipo: documento.tipo, nomeArquivo: documento.nomeArquivo })),
     pagamentoDispensado,
     linhaNome: inscricao.linhaPesquisa?.nome ?? "",

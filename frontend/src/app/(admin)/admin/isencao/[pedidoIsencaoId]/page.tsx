@@ -9,7 +9,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { resolveApiUrl } from "@/lib/config/api";
+import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { decidirIsencaoFinalAdmin, decidirIsencaoPreliminarAdmin, getAdminIsencaoById } from "@/modules/admin-isencao/api";
@@ -25,6 +25,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [downloadingComprovante, setDownloadingComprovante] = useState(false);
   const [preliminar, setPreliminar] = useState({ deferida: true, parecer: "" });
   const [finalDecision, setFinalDecision] = useState({ deferida: true, parecer: "" });
 
@@ -65,6 +66,17 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
     finally { setBusy(false); }
   }
 
+  async function handleDownloadComprovante() {
+    if (!session.token || !item?.comprovanteUrl) return;
+    setDownloadingComprovante(true);
+    try {
+      await downloadAuthenticatedFile(item.comprovanteUrl, session.token, item.comprovanteNomeArquivo ?? "comprovante.pdf");
+    } catch (error) {
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+    } finally { setDownloadingComprovante(false); }
+  }
+
   if (status === "loading") return <LoadingState title="Carregando pedido de isencao" description="Consultando o detalhe administrativo do pedido." />;
   if (status === "error") return <ErrorState title="Falha ao carregar pedido" description={message?.text} />;
   if (!item) return <EmptyState title="Pedido indisponivel" description="O pedido de isencao nao foi encontrado." />;
@@ -82,7 +94,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
           <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
           <small>Atualizado em: {formatIsoDate(item.atualizadoEm)}</small>
           <small>Justificativa: {item.justificativa ?? "nao informada"}</small>
-          {item.comprovanteUrl ? <div className="content-item-links"><Link className="nav-link" href={resolveApiUrl(item.comprovanteUrl)} rel="noreferrer" target="_blank">Abrir comprovante</Link></div> : null}
+          {item.comprovanteUrl ? <div className="content-item-links"><ActionButton disabled={downloadingComprovante} onClick={handleDownloadComprovante} size="sm" type="button" variant="secondary">{downloadingComprovante ? "Baixando..." : "Baixar comprovante"}</ActionButton></div> : null}
         </div>
       </SectionCard>
 
