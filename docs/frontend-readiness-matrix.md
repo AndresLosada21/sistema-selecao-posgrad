@@ -15,6 +15,8 @@ Este documento consolida o estado atual do frontend da V1, os modulos implementa
 
 - `npm run lint -w frontend`
 - `npm run build -w frontend`
+- smoke funcional das rotas alteradas em runtime quando houver mudanca de fluxo
+- atualizacao do backlog correspondente no GitHub com o estado real entregue
 
 ## Evidencia estrutural de consumo uniforme dos contratos
 
@@ -91,6 +93,12 @@ Este documento consolida o estado atual do frontend da V1, os modulos implementa
 - o frontend ainda esta agnostico a camada visual final; ha estrutura funcional, mas nao ha acabamento visual final do produto
 - parte das telas administrativas usa payloads JSON amplos do backend em `textarea` e `pre` para operacao inicial; isso e aceitavel como base funcional, mas deve ser refinado depois sem reabrir os contratos
 - a issue `#77` fecha criterio de pronto e consistencia estrutural, mas nao substitui revisao de UX ou acabamento visual futuro
+- varias rotas do candidato e do admin ainda dependem de payload consolidado amplo para resolver um unico detalhe operacional
+- a superficie publica ainda precisa separar melhor editais reais de editais tecnicos/smoke/E2E no ambiente atual
+
+## Gate funcional atual
+
+- o checklist operacional deste ciclo esta documentado em `docs/frontend-functional-gate.md`
 
 ## Ordem de validacao local recomendada
 

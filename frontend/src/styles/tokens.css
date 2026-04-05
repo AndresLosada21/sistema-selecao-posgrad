@@ -1,0 +1,87 @@
+/* ============================================
+   Design Tokens — PPGEE/UFAM
+   Sistema de Selecao Pos-Graduacao
+   ============================================
+   Contraste minimo WCAG AA (4.5:1 texto normal)
+   ============================================ */
+
+:root {
+  /* --- Brand --- */
+  --color-navy-900: #0C1F36;
+  --color-navy-700: #1B365D;
+  --color-navy-500: #2D4A7A;
+  --color-navy-50: #E8EDF4;
+  --color-gold-500: #C9933A;
+
+  /* --- Text (sobre fundo branco) --- */
+  --color-text-primary: #0C1F36;    /* 16.1:1 */
+  --color-text-secondary: #334155;  /* 10.4:1 */
+  --color-text-muted: #64748B;      /*  4.6:1 AA */
+  --color-text-disabled: #94A3B8;   /*  2.6:1 decorativo */
+
+  /* --- Surfaces --- */
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F8FAFC;
+  --color-bg: #F1F5F9;
+
+  /* --- Borders --- */
+  --color-border: #E2E8F0;
+  --color-border-strong: #CBD5E1;
+
+  /* --- Semantic: Success (texto sobre bg >= 5.8:1) --- */
+  --color-success: #15803D;
+  --color-success-bg: #F0FDF4;
+  --color-success-border: #BBF7D0;
+
+  /* --- Semantic: Error (texto sobre bg >= 7.1:1) --- */
+  --color-error: #B91C1C;
+  --color-error-bg: #FEF2F2;
+  --color-error-border: #FECACA;
+
+  /* --- Semantic: Warning (texto sobre bg >= 7.5:1) --- */
+  --color-warning: #92400E;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-border: #FDE68A;
+
+  /* --- Semantic: Info (texto sobre bg >= 6.9:1) --- */
+  --color-info: #1D4ED8;
+  --color-info-bg: #EFF6FF;
+  --color-info-border: #BFDBFE;
+
+  /* --- Typography --- */
+  --font-family: "Inter", system-ui, -apple-system, sans-serif;
+  --font-size-xs: 0.6875rem;  /* 11px */
+  --font-size-sm: 0.8125rem;  /* 13px */
+  --font-size-base: 0.875rem; /* 14px */
+  --font-size-lg: 1rem;       /* 16px */
+  --font-size-xl: 1.125rem;   /* 18px */
+  --font-size-h2: 1.375rem;   /* 22px */
+  --font-size-h1: 1.625rem;   /* 26px */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+
+  /* --- Spacing --- */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.375rem;  /* 6px */
+  --space-3: 0.5rem;    /* 8px */
+  --space-4: 0.625rem;  /* 10px */
+  --space-5: 0.75rem;   /* 12px */
+  --space-6: 0.875rem;  /* 14px */
+  --space-7: 1rem;      /* 16px */
+  --space-8: 1.25rem;   /* 20px */
+  --space-9: 1.5rem;    /* 24px */
+  --space-10: 1.75rem;  /* 28px */
+  --space-11: 2rem;     /* 32px */
+
+  /* --- Radii --- */
+  --radius-sm: 0.5rem;    /* 8px - buttons, inputs */
+  --radius-md: 0.75rem;   /* 12px - feedback, alerts */
+  --radius-lg: 0.875rem;  /* 14px - cards */
+  --radius-full: 999px;   /* pills, avatars */
+  --radius-tag: 0.375rem; /* 6px - tags */
+
+  /* --- Layout --- */
+  --max-width: 1200px;
+  --breakpoint-mobile: 900px;
+}

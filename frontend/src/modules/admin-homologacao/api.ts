@@ -1,4 +1,4 @@
-import { apiDownload, apiGet, apiPut } from "@/lib/http/client";
+import { apiDownload, apiGet, apiPost, apiPut } from "@/lib/http/client";
 
 import type {
   AdminInscricoesHomologacaoResponse,
@@ -39,4 +39,12 @@ export function baixarAnexoIvFlattenAdmin(inscricaoId: string, token: string) {
 
 export function getPacoteDocumentalAdmin(inscricaoId: string, token: string) {
   return apiGet<AdminPacoteDocumentalResponse>(`/v1/admin/inscricoes/${inscricaoId}/pacote-documental`, token);
+}
+
+export function registrarPacoteDocumentalAdmin(
+  inscricaoId: string,
+  payload: { urlArquivo: string; nomeArquivo: string; mimeType?: string; tamanhoBytes?: number },
+  token: string,
+) {
+  return apiPost<AdminPacoteDocumentalResponse["pacoteDocumental"]>(`/v1/admin/inscricoes/${inscricaoId}/pacote-documental`, payload, token);
 }

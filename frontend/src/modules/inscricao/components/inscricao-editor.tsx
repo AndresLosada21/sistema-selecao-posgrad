@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/files/download";
 import { ApiError, getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { sanitizePayload } from "@/lib/http/sanitize";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import type { EditalDetalhe } from "@/modules/edital/types";
 
@@ -91,7 +92,7 @@ function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashbo
 
   return {
     linhaPesquisaId: inscricao?.linhaPesquisa?.id ?? edital.linhasPesquisa[0]?.id ?? "",
-    modalidadeConcorrencia: (inscricao as { modalidadeConcorrencia?: string } | null)?.modalidadeConcorrencia ?? "AMPLA_CONCORRENCIA",
+    modalidadeConcorrencia: inscricao?.modalidadeConcorrencia ?? "AMPLA_CONCORRENCIA",
     temaRedacao: inscricao?.temaRedacao ?? "",
     resumoCurriculo: inscricao?.resumoCurriculo ?? "",
     redacaoTexto: inscricao?.redacaoTexto ?? "",
@@ -185,7 +186,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     try {
       const response = await saveInscricaoDraft(
         edital.id,
-        {
+        sanitizePayload({
           linhaPesquisaId: formState.linhaPesquisaId,
           modalidadeConcorrencia: formState.modalidadeConcorrencia,
           temaRedacao: formState.temaRedacao || undefined,
@@ -193,7 +194,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           redacaoTexto: formState.redacaoTexto || undefined,
           assinaturaImagemUrl: formState.assinaturaImagemUrl || undefined,
           fichaInscricao: formState.fichaInscricao,
-        },
+        }),
         session.token,
       );
 
@@ -232,7 +233,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
     try {
       const documento = await addDocumento(inscricaoId, {
-        ...documentoState,
+        ...sanitizePayload(documentoState),
         mimeType: documentoState.mimeType || undefined,
       }, session.token);
 

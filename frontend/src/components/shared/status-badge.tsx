@@ -1,7 +1,18 @@
+import type { ReactNode } from "react";
+import type { StatusVariant } from "./status-variant-map";
+
+type StatusBadgeShape = "pill" | "tag";
+
 type StatusBadgeProps = {
-  children: React.ReactNode;
+  variant?: StatusVariant;
+  shape?: StatusBadgeShape;
+  children: ReactNode;
 };
 
-export function StatusBadge({ children }: StatusBadgeProps) {
-  return <span className="status-badge">{children}</span>;
+export function StatusBadge({ variant = "neutral", shape = "pill", children }: StatusBadgeProps) {
+  return (
+    <span className={`status-badge status-badge--${variant} status-badge--${shape}`}>
+      {children}
+    </span>
+  );
 }

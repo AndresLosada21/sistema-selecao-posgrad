@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -15,6 +18,7 @@ import type { Etapa2ListResponse } from "@/modules/admin-etapas/types";
 export default function AdminEtapa2Page() {
   const session = useSession();
   const [data, setData] = useState<Etapa2ListResponse | null>(null);
+  const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
@@ -41,19 +45,33 @@ export default function AdminEtapa2Page() {
 
   return (
     <div className="stack-layout">
+      <PageFeedback
+        type="info"
+        title="Fila administrativa da etapa 2"
+        description="Use o filtro por edital apenas quando precisar restringir a fila. Sem filtro aplicado, a pagina consulta todos os itens retornados pelo backend."
+      />
+
       <SectionCard title="Filtro da etapa 2" description="Filtra a fila pelo edital quando necessario.">
-        <label className="field-block"><span>ID do edital</span><input onChange={(e) => setFilter(e.target.value)} value={filter} /></label>
+        <div className="content-list">
+          <label className="field-block"><span>ID do edital</span><input onChange={(e) => setDraftFilter(e.target.value)} value={draftFilter} /></label>
+          <div className="content-item-links">
+            <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
+            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); }} type="button" variant="ghost">Limpar filtro</ActionButton>
+            <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
+          </div>
+        </div>
       </SectionCard>
       <SectionCard title="Fila da etapa 2" description="Lista administrativa das inscricoes aptas para avaliacao curricular e espelhos.">
         {data?.items.length ? (
           <div className="content-list">
             {data.items.map((item) => (
               <article className="content-item" key={item.id}>
-                <div className="content-item-row"><strong>{item.candidato.nomeCompleto}</strong><StatusBadge>{item.status}</StatusBadge></div>
+                <div className="content-item-row"><strong>{item.candidato.nomeCompleto}</strong><StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge></div>
                 <small>Edital: {item.edital.numero}</small>
                 <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
                 <small>Pontuacao bruta: {item.avaliacao?.pontuacaoBruta ?? "sem avaliacao"}</small>
                 <small>Nota normalizada: {item.avaliacao?.notaNormalizada ?? "sem avaliacao"}</small>
+                <small>Status da avaliacao: {getStatusLabel(item.avaliacao?.status ?? "SEM_AVALIACAO")}</small>
                 <small>Espelho solicitado em: {formatIsoDate(item.avaliacao?.espelhoSolicitadoEm ?? null)}</small>
                 <div className="content-item-links"><Link className="nav-link" href={`/admin/etapa-2/${item.id}`}>Abrir detalhe</Link></div>
               </article>

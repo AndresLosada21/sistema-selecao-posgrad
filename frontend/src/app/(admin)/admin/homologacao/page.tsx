@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -17,6 +20,7 @@ export default function AdminHomologacaoPage() {
   const session = useSession();
   const [data, setData] = useState<AdminInscricoesHomologacaoResponse | null>(null);
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamentosResponse | null>(null);
+  const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
@@ -62,6 +66,12 @@ export default function AdminHomologacaoPage() {
 
   return (
     <div className="stack-layout">
+      <PageFeedback
+        type="info"
+        title="Fila administrativa de homologacao"
+        description="Use o filtro por edital apenas quando precisar restringir a fila. Sem filtro aplicado, a pagina busca todas as inscricoes retornadas pelo backend."
+      />
+
       <SectionCard title="Resumo da fila de homologacao" description="Leitura inicial dos contratos administrativos do modulo de homologacao.">
         <div className="summary-grid">
           <article className="summary-card">
@@ -80,9 +90,16 @@ export default function AdminHomologacaoPage() {
       </SectionCard>
 
       <SectionCard title="Filtro operacional" description="Filtra a fila por edital quando necessario.">
-        <div className="field-block">
-          <span>ID do edital</span>
-          <input onChange={(event) => setFilter(event.target.value)} placeholder="Opcional" value={filter} />
+        <div className="content-list">
+          <label className="field-block">
+            <span>ID do edital</span>
+            <input onChange={(event) => setDraftFilter(event.target.value)} placeholder="Opcional" value={draftFilter} />
+          </label>
+          <div className="content-item-links">
+            <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
+            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); }} type="button" variant="ghost">Limpar filtro</ActionButton>
+            <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
+          </div>
         </div>
       </SectionCard>
 
@@ -93,16 +110,16 @@ export default function AdminHomologacaoPage() {
               <article className="content-item" key={item.id}>
                 <div className="content-item-row">
                   <strong>{item.candidato.nomeCompleto}</strong>
-                  <StatusBadge>{item.status}</StatusBadge>
+                  <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
                 </div>
                 <small>Edital: {item.edital.numero}</small>
-                <small>Curso: {item.edital.cursoNivel}</small>
+                <small>Curso: {getStatusLabel(item.edital.cursoNivel)}</small>
                 <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
-                <small>Pagamento: {item.statusPagamento}</small>
+                <small>Pagamento: {getStatusLabel(item.statusPagamento)}</small>
                 <small>Documentos: {item.documentosTotal}</small>
                 <small>Submetida em: {formatIsoDate(item.submetidaEm)}</small>
-                <small>Homologacao preliminar: {item.homologacao?.statusPreliminar ?? "SEM_PARECER"}</small>
-                <small>Homologacao final: {item.homologacao?.statusFinal ?? "SEM_PARECER"}</small>
+                <small>Homologacao preliminar: {getStatusLabel(item.homologacao?.statusPreliminar ?? "SEM_PARECER")}</small>
+                <small>Homologacao final: {getStatusLabel(item.homologacao?.statusFinal ?? "SEM_PARECER")}</small>
                 <div className="content-item-links">
                   <Link className="nav-link" href={`/admin/homologacao/${item.id}`}>
                     Abrir detalhe
@@ -123,7 +140,7 @@ export default function AdminHomologacaoPage() {
               <article className="content-item" key={fundamento.codigo}>
                 <div className="content-item-row">
                   <strong>{fundamento.codigo}</strong>
-                  <StatusBadge>{fundamento.sanavel ? "SANAVEL" : "NAO_SANAVEL"}</StatusBadge>
+                  <StatusBadge variant={fundamento.sanavel ? "warning" : "error"}>{fundamento.sanavel ? "Sanavel" : "Nao sanavel"}</StatusBadge>
                 </div>
                 <p>{fundamento.titulo}</p>
                 <small>Item do edital: {fundamento.itemEdital}</small>

@@ -1,10 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { ErrorState } from "@/components/shared/page-states";
 import { SectionCard } from "@/components/shared/section-card";
+import { resolveAuthRedirectPath } from "@/lib/auth/next-path";
 import { getErrorMessage } from "@/lib/http/api-error";
 import { useSession } from "@/lib/auth/session-provider";
 import { login, register } from "@/modules/auth/api";
@@ -26,6 +28,25 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!session.isAuthenticated) {
+      return;
+    }
+
+    router.replace(resolveAuthRedirectPath(nextPath));
+  }, [nextPath, router, session.isAuthenticated]);
+
+  if (session.isAuthenticated) {
+    return (
+      <SectionCard
+        title={mode === "login" ? "Sessao ja autenticada" : "Conta ja autenticada"}
+        description="Voce ja esta autenticado. Redirecionando para a area adequada."
+      >
+        <p className="muted-text">A navegação sera atualizada automaticamente.</p>
+      </SectionCard>
+    );
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus("loading");
@@ -38,7 +59,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           : await login({ email, senha });
 
       session.setSessionFromAuthResponse(response);
-      router.replace(nextPath ?? "/candidato");
+      router.replace(resolveAuthRedirectPath(nextPath));
     } catch (error) {
       setStatus("error");
       setMessage(getErrorMessage(error));
@@ -54,39 +75,39 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         {mode === "cadastro" ? (
           <label className="field-block">
             <span>Nome completo</span>
-            <input onChange={(event) => setNomeCompleto(event.target.value)} value={nomeCompleto} />
+            <input autoComplete="name" onChange={(event) => setNomeCompleto(event.target.value)} required value={nomeCompleto} />
           </label>
         ) : null}
 
         <label className="field-block">
           <span>E-mail</span>
-          <input onChange={(event) => setEmail(event.target.value)} type="email" value={email} />
+          <input autoComplete="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
         </label>
 
         <label className="field-block">
           <span>Senha</span>
-          <input onChange={(event) => setSenha(event.target.value)} type="password" value={senha} />
+          <input autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} onChange={(event) => setSenha(event.target.value)} required type="password" value={senha} />
         </label>
 
         {mode === "cadastro" ? (
           <>
             <label className="field-block">
               <span>Telefone</span>
-              <input onChange={(event) => setTelefone(event.target.value)} value={telefone} />
+              <input autoComplete="tel" onChange={(event) => setTelefone(event.target.value)} required value={telefone} />
             </label>
             <label className="field-block">
               <span>CPF</span>
-              <input onChange={(event) => setCpf(event.target.value)} value={cpf} />
+              <input autoComplete="off" inputMode="numeric" onChange={(event) => setCpf(event.target.value)} required value={cpf} />
             </label>
           </>
         ) : null}
 
-        <button className="action-button" disabled={status === "loading"} type="submit">
+        <ActionButton disabled={status === "loading"} loading={status === "loading"} loadingText="Processando..." type="submit">
           {status === "loading" ? "Processando..." : mode === "login" ? "Entrar" : "Criar conta"}
-        </button>
+        </ActionButton>
       </form>
 
-      {message ? <ErrorState description={message} title="Falha na autenticacao" /> : null}
+      {message ? <ErrorState description={message} title={mode === "login" ? "Falha ao entrar" : "Falha ao criar conta"} /> : null}
     </SectionCard>
   );
 }

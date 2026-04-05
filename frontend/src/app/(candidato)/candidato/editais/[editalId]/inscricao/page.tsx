@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { getEditalById } from "@/modules/edital/api";
 import type { EditalDetalhe } from "@/modules/edital/types";
 import { useSession } from "@/lib/auth/session-provider";
@@ -61,6 +63,20 @@ export default function CandidateInscricaoPage({ params }: CandidateInscricaoPag
 
   if (!edital) {
     return <EmptyState title="Edital indisponivel" description="Nao foi possivel carregar o edital informado." />;
+  }
+
+  if (!dashboardItem) {
+    return (
+      <div className="stack-layout">
+        <PageFeedback
+          type="warning"
+          title="Participacao nao localizada para este edital"
+          description="A area autenticada do candidato nao reconheceu uma participacao vinculada a este edital. Antes de editar a inscricao, confirme o vinculo correto na sua area de participacoes."
+          action={<Link className="nav-link" href="/candidato/participacoes">Ver participacoes</Link>}
+        />
+        <EmptyState title="Inscricao indisponivel neste contexto" description="O editor de inscricao fica bloqueado enquanto a participacao deste edital nao estiver visivel no contexto autenticado do candidato." />
+      </div>
+    );
   }
 
   return <InscricaoEditor dashboardItem={dashboardItem} edital={edital} />;

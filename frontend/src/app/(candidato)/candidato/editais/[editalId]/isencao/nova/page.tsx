@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { getCandidateDashboard } from "@/modules/candidato/api";
@@ -56,8 +58,37 @@ export default function NewIsencaoPage({ params }: NewIsencaoPageProps) {
   }
 
   if (!item) {
-    return <EmptyState title="Edital nao encontrado" description="Nao foi encontrada participacao do candidato para o edital informado." />;
+    return (
+      <div className="stack-layout">
+        <EmptyState title="Edital nao encontrado" description="Nao foi encontrada participacao do candidato para o edital informado." />
+        <div className="content-item-links">
+          <Link className="nav-link" href="/candidato/participacoes">
+            Voltar para participacoes
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  return <IsencaoForm cursoNivel={item.edital.cursoNivel as "MESTRADO" | "DOUTORADO"} editalId={item.edital.id} />;
+  if (item.isencao) {
+    return (
+      <div className="stack-layout">
+        <PageFeedback
+          type="warning"
+          title="Ja existe pedido de isencao vinculado a este edital"
+          description="Esta rota permanece restrita a novos pedidos. Para acompanhar o pedido existente, volte ao edital ou consulte o historico de isencoes da conta."
+          action={<Link className="nav-link" href={`/candidato/editais/${item.edital.id}`}>Abrir acompanhamento</Link>}
+        />
+        <div className="content-item-links">
+          <Link className="nav-link" href="/candidato/isencoes">
+            Ver historico de isencoes
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <IsencaoForm cursoNivel={item.edital.cursoNivel as "MESTRADO" | "DOUTORADO"} editalId={item.edital.id} />
+  );
 }

@@ -1,9 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
+import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { getEspelhoEtapa1, liberarEspelhoEtapa1, listEtapa1, registrarEtapa1 } from "@/modules/admin-etapas/api";
@@ -24,33 +27,37 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const [liberarEspelho, setLiberarEspelho] = useState(false);
   const [rubrica, setRubrica] = useState({ adequacaoDominioTema: 0, estrutura: 0, organizacaoCoerencia: 0, objetividadeSintese: 0, grafiaGramatica: 0, observacoes: { geral: "" } });
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     params.then((resolved) => setInscricaoId(resolved.inscricaoId));
   }, [params]);
 
+  const loadItem = useCallback(async () => {
+    if (!session.token || !inscricaoId) return;
+
+    const response = await listEtapa1(session.token);
+    const found = response.items.find((entry) => entry.id === inscricaoId) ?? null;
+    setItem(found);
+    setTema(found?.avaliacao?.tema ?? "");
+    setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
+  }, [inscricaoId, session]);
+
   useEffect(() => {
     if (!session.token || !inscricaoId) return;
 
-    listEtapa1(session.token)
-      .then((response) => {
-        const found = response.items.find((entry) => entry.id === inscricaoId) ?? null;
-        setItem(found);
-        setTema(found?.avaliacao?.tema ?? "");
-        setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
-        setStatus("ready");
-      })
+    loadItem()
+      .then(() => setStatus("ready"))
       .catch((error) => {
         if (isUnauthorizedError(error)) {
           session.signOut();
           return;
         }
-        setMessage(getErrorMessage(error));
+        setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [inscricaoId, session]);
+  }, [inscricaoId, loadItem, session]);
 
   const notaPreview = useMemo(() => rubrica.adequacaoDominioTema * 0.5 + rubrica.estrutura * 0.1 + rubrica.organizacaoCoerencia * 0.15 + rubrica.objetividadeSintese * 0.15 + rubrica.grafiaGramatica * 0.1, [rubrica]);
 
@@ -64,7 +71,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         session.signOut();
         return;
       }
-      setMessage(getErrorMessage(error));
+      setMessage({ type: "error", text: getErrorMessage(error) });
     }
   }
 
@@ -74,14 +81,20 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     setBusy(true);
     setMessage(null);
     try {
+      if (notaPreview < 0 || notaPreview > 10) {
+        setMessage({ type: "warning", text: "A nota calculada da rubrica deve permanecer entre 0 e 10." });
+        return;
+      }
+
       await registrarEtapa1(inscricaoId, { tema: tema || undefined, rubrica, usoIaComprovado, fundamentoUsoIa: usoIaComprovado ? fundamentoUsoIa : undefined, espelhoCorrecao, liberarEspelho, publicacao }, session.token);
-      setMessage("Resultado da etapa 1 enviado ao backend.");
+      await loadItem();
+      setMessage({ type: "success", text: "Resultado da etapa 1 enviado ao backend e estado recarregado." });
     } catch (error) {
       if (isUnauthorizedError(error)) {
         session.signOut();
         return;
       }
-      setMessage(getErrorMessage(error));
+      setMessage({ type: "error", text: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -93,32 +106,35 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     setMessage(null);
     try {
       await liberarEspelhoEtapa1(inscricaoId, session.token);
-      setMessage("Espelho da etapa 1 liberado.");
+      await loadItem();
+      setMessage({ type: "success", text: "Espelho da etapa 1 liberado e estado recarregado." });
       await loadEspelho();
     } catch (error) {
       if (isUnauthorizedError(error)) {
         session.signOut();
         return;
       }
-      setMessage(getErrorMessage(error));
+      setMessage({ type: "error", text: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
   }
 
   if (status === "loading") return <LoadingState title="Carregando detalhe da etapa 1" description="Consultando a inscricao selecionada." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar etapa 1" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Falha ao carregar etapa 1" description={message?.text} />;
   if (!item) return <EmptyState title="Inscricao nao encontrada" description="A inscricao nao foi encontrada na fila atual da etapa 1." />;
 
   return (
     <div className="stack-layout">
+      {message ? <PageFeedback description={message.text} title="Retorno operacional" type={message.type} /> : null}
+
       <SectionCard title={`Etapa 1 de ${item.candidato.nomeCompleto}`} description={`Edital ${item.edital.numero} · ${item.edital.titulo}`}>
         <div className="content-list">
           <small>E-mail: {item.candidato.email}</small>
-          <small>Status da inscricao: {item.status}</small>
+          <small>Status da inscricao: {getStatusLabel(item.status)}</small>
           <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
           <small>Nota registrada: {item.avaliacao?.nota ?? "sem nota"}</small>
-          <small>Status da avaliacao: {item.avaliacao?.status ?? "sem avaliacao"}</small>
+          <small>Status da avaliacao: {getStatusLabel(item.avaliacao?.status ?? "SEM_AVALIACAO")}</small>
         </div>
       </SectionCard>
 
@@ -137,17 +153,15 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
           <label className="field-block"><span>Publicacao</span><select className="select-field" onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}><option value="PRELIMINAR">PRELIMINAR</option><option value="FINAL">FINAL</option></select></label>
           <label className="field-inline"><input checked={liberarEspelho} onChange={(e) => setLiberarEspelho(e.target.checked)} type="checkbox" /><span>Liberar espelho junto do resultado</span></label>
           <small>Nota calculada pela rubrica: {notaPreview.toFixed(2)}</small>
-          <button className="action-button" disabled={busy} type="submit">Registrar resultado</button>
-          <button className="secondary-button" disabled={busy} onClick={onLiberarEspelho} type="button">Liberar espelho</button>
+          <ActionButton disabled={busy} loading={busy} type="submit">Registrar resultado</ActionButton>
+          <ActionButton disabled={busy} onClick={onLiberarEspelho} type="button" variant="secondary">Liberar espelho</ActionButton>
         </form>
       </SectionCard>
 
       <SectionCard title="Espelho administrativo" description="Leitura do espelho retornado pelo backend no contexto admin.">
-        <div className="content-item-links"><button className="secondary-button" disabled={busy} onClick={loadEspelho} type="button">Carregar espelho</button></div>
+        <div className="content-item-links"><ActionButton disabled={busy} onClick={loadEspelho} type="button" variant="secondary">Carregar espelho</ActionButton></div>
         {espelho ? <pre className="preformatted-block">{JSON.stringify(espelho, null, 2)}</pre> : <EmptyState title="Espelho nao carregado" description="Use a acao acima para consultar o espelho administrativo." />}
       </SectionCard>
-
-      {message ? <ErrorState title="Retorno operacional" description={message} /> : null}
     </div>
   );
 }
