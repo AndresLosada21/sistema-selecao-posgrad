@@ -6,7 +6,7 @@ export type AuthUser = {
   telefone?: string | null;
   emailVerificadoEm?: string | null;
   statusConta?: string;
-  perfis: string[];
+  perfis: Array<"CANDIDATO" | "AVALIADOR" | "ADMIN">;
 };
 
 export type AuthResponse = {
@@ -23,8 +23,8 @@ export type RegisterPayload = {
   nomeCompleto: string;
   email: string;
   senha: string;
-  telefone: string;
-  cpf: string;
+  telefone?: string;
+  cpf?: string;
 };
 
 export type PasswordResetRequestPayload = {

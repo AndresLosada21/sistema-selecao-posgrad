@@ -10,7 +10,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
-import { previewPublicacaoPoliticas, publicarPoliticas, registrarEncaminhamentoPoliticas, registrarResultadoFinalPoliticas, registrarResultadoPreliminarPoliticas, listPoliticas } from "@/modules/admin-politicas/api";
+import { getPoliticasByInscricao, previewPublicacaoPoliticas, publicarPoliticas, registrarEncaminhamentoPoliticas, registrarResultadoFinalPoliticas, registrarResultadoPreliminarPoliticas } from "@/modules/admin-politicas/api";
 import type { PoliticasEtapaItem } from "@/modules/admin-politicas/types";
 import { resultadoPoliticasOptions } from "@/modules/admin-operacao/constants";
 
@@ -18,6 +18,7 @@ type Props = { params: Promise<{ inscricaoId: string }> };
 
 export default function AdminPoliticasDetailPage({ params }: Props) {
   const session = useSession();
+  const token = session.token;
   const searchParams = useSearchParams();
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<PoliticasEtapaItem | null>(null);
@@ -40,18 +41,19 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!session.token || !inscricaoId) return;
-    // busca ampla por edital precisa do editalId; usar listagem do edital informado pela url interna do item quando carregado posteriormente nao existe endpoint por inscricao
-    setStatus("ready");
-  }, [inscricaoId, session]);
+    if (!token || !inscricaoId) return;
+    setStatus("loading");
+  }, [inscricaoId, token]);
 
   const loadByEdital = useCallback(async () => {
-    if (!session.token || !editalId || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     setBusy(true); setMessage(null);
     try {
-      const response = await listPoliticas(editalId, session.token);
-      const found = response.items.find((entry) => entry.inscricao.id === inscricaoId) ?? null;
+      const found = await getPoliticasByInscricao(inscricaoId, token);
       setItem(found);
+      if (!editalId) {
+        setEditalId(found.edital.id);
+      }
       if (found) {
         setEncaminhamento({
           convocadoEm: found.convocadoEm ?? "",
@@ -72,53 +74,55 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
       } else {
         setMessage({ type: "warning", text: "Nenhuma etapa de politicas afirmativas foi encontrada para esta inscricao no edital informado." });
       }
+      setStatus("ready");
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
     } finally { setBusy(false); }
-  }, [editalId, inscricaoId, session]);
+  }, [editalId, inscricaoId, session, token]);
 
   useEffect(() => {
-    if (!editalId || !inscricaoId || !session.token) {
+    if (!inscricaoId || !token) {
       return;
     }
 
     loadByEdital();
-  }, [editalId, inscricaoId, loadByEdital, session.token]);
+  }, [inscricaoId, loadByEdital, token]);
 
   async function submitEncaminhamento(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!session.token || !inscricaoId) return; setBusy(true); setMessage(null);
-    try { await registrarEncaminhamentoPoliticas(inscricaoId, encaminhamento, session.token); await loadByEdital(); setMessage({ type: "success", text: "Encaminhamento registrado e estado recarregado." }); }
+    event.preventDefault(); if (!token || !inscricaoId) return; setBusy(true); setMessage(null);
+    try { await registrarEncaminhamentoPoliticas(inscricaoId, encaminhamento, token); await loadByEdital(); setMessage({ type: "success", text: "Encaminhamento registrado e estado recarregado." }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function submitPreliminar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!session.token || !inscricaoId) return; setBusy(true); setMessage(null);
-    try { await registrarResultadoPreliminarPoliticas(inscricaoId, { ...preliminar, arquivoRetornoUrl: preliminar.arquivoRetornoUrl || undefined }, session.token); await loadByEdital(); setMessage({ type: "success", text: "Resultado preliminar registrado e estado recarregado." }); }
+    event.preventDefault(); if (!token || !inscricaoId) return; setBusy(true); setMessage(null);
+    try { await registrarResultadoPreliminarPoliticas(inscricaoId, { ...preliminar, arquivoRetornoUrl: preliminar.arquivoRetornoUrl || undefined }, token); await loadByEdital(); setMessage({ type: "success", text: "Resultado preliminar registrado e estado recarregado." }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function submitFinal(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!session.token || !inscricaoId) return; setBusy(true); setMessage(null);
-    try { await registrarResultadoFinalPoliticas(inscricaoId, { ...finalResult, arquivoRetornoUrl: finalResult.arquivoRetornoUrl || undefined }, session.token); await loadByEdital(); setMessage({ type: "success", text: "Resultado final registrado e estado recarregado." }); }
+    event.preventDefault(); if (!token || !inscricaoId) return; setBusy(true); setMessage(null);
+    try { await registrarResultadoFinalPoliticas(inscricaoId, { ...finalResult, arquivoRetornoUrl: finalResult.arquivoRetornoUrl || undefined }, token); await loadByEdital(); setMessage({ type: "success", text: "Resultado final registrado e estado recarregado." }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function loadPreview(fase: "PRELIMINAR" | "FINAL") {
-    if (!session.token || !editalId) return;
+    if (!token || !editalId) return;
     setBusy(true); setMessage(null);
-    try { setPreview(await previewPublicacaoPoliticas(editalId, fase, session.token)); }
+    try { setPreview(await previewPublicacaoPoliticas(editalId, fase, token)); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function publish(fase: "PRELIMINAR" | "FINAL") {
-    if (!session.token || !editalId) return;
+    if (!token || !editalId) return;
     setBusy(true); setMessage(null);
-    try { await publicarPoliticas(editalId, { fase, descricao: `Publicacao ${fase.toLowerCase()} de politicas afirmativas.` }, session.token); setMessage({ type: "success", text: `Publicacao ${fase.toLowerCase()} criada.` }); }
+    try { await publicarPoliticas(editalId, { fase, descricao: `Publicacao ${fase.toLowerCase()} de politicas afirmativas.` }, token); setMessage({ type: "success", text: `Publicacao ${fase.toLowerCase()} criada.` }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }

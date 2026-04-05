@@ -19,6 +19,8 @@ type CandidateInscricaoPageProps = {
 
 export default function CandidateInscricaoPage({ params }: CandidateInscricaoPageProps) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [editalId, setEditalId] = useState<string | null>(null);
   const [edital, setEdital] = useState<EditalDetalhe | null>(null);
   const [dashboard, setDashboard] = useState<CandidateDashboardResponse | null>(null);
@@ -30,11 +32,11 @@ export default function CandidateInscricaoPage({ params }: CandidateInscricaoPag
   }, [params]);
 
   useEffect(() => {
-    if (!editalId || !session.token) {
+    if (!editalId || !token) {
       return;
     }
 
-    Promise.all([getEditalById(editalId), getCandidateDashboard(session.token)])
+    Promise.all([getEditalById(editalId), getCandidateDashboard(token)])
       .then(([editalResponse, dashboardResponse]) => {
         setEdital(editalResponse);
         setDashboard(dashboardResponse);
@@ -42,14 +44,14 @@ export default function CandidateInscricaoPage({ params }: CandidateInscricaoPag
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [editalId, session]);
+  }, [editalId, signOut, token]);
 
   const dashboardItem = useMemo(() => dashboard?.items.find((item) => item.edital.id === editalId) ?? null, [dashboard, editalId]);
 

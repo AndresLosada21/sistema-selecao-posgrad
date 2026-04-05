@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPut } from "@/lib/http/client";
 import type {
   EncaminhamentoPoliticasPayload,
   PoliticasListResponse,
+  PoliticasEtapaItem,
   PublicacaoPoliticasPayload,
   ResultadoPoliticasPayload,
 } from "./types";
@@ -13,6 +14,10 @@ export function listPoliticas(editalId: string, token: string, pagination?: { pa
   if (pagination?.pageSize) query.set("pageSize", String(pagination.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
   return apiGet<PoliticasListResponse>(`/v1/admin/editais/${editalId}/politicas-afirmativas${suffix}`, token);
+}
+
+export function getPoliticasByInscricao(inscricaoId: string, token: string) {
+  return apiGet<PoliticasEtapaItem>(`/v1/admin/inscricoes/${inscricaoId}/politicas-afirmativas`, token);
 }
 
 export function registrarEncaminhamentoPoliticas(inscricaoId: string, payload: EncaminhamentoPoliticasPayload, token: string) {

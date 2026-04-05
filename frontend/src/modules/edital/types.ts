@@ -32,6 +32,7 @@ export type EditalDetalhe = EditalListItem & {
     id: string;
     tipo: string;
     titulo: string;
+    descricao: string | null;
     inicioEm: string;
     fimEm: string;
     ativaAgora: boolean;

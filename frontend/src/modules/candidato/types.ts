@@ -7,12 +7,31 @@ export type CandidateDashboardResponse = {
       id: string;
       numero: string;
       titulo: string;
+      descricao?: string | null;
       cursoNivel: string;
       status: string;
+      publicadoEm?: string | null;
+      cronogramas?: Array<{
+        id: string;
+        tipo: string;
+        titulo: string;
+        inicioEm: string;
+        fimEm: string;
+      }>;
     };
     isencao: {
+      id: string;
       status: string;
+      cursoNivel?: string;
+      inscritoCadUnico?: boolean;
+      nis?: string | null;
+      justificativa?: string | null;
+      comprovanteUrl?: string | null;
+      comprovanteNomeArquivo?: string | null;
+      parecerPreliminar?: string | null;
       parecerFinal: string | null;
+      resultadoPreliminarEm?: string | null;
+      resultadoFinalEm?: string | null;
     } | null;
     inscricao: {
       id: string;
@@ -49,29 +68,62 @@ export type CandidateDashboardResponse = {
         geradoPorId: string | null;
       } | null;
       homologacao: {
+        statusPreliminar?: string | null;
+        motivosPreliminar?: Array<Record<string, unknown>>;
+        parecerPreliminar?: string | null;
+        publicadoPreliminarEm?: string | null;
         statusFinal: string | null;
+        motivosFinal?: Array<Record<string, unknown>>;
         parecerFinal: string | null;
+        publicadoFinalEm?: string | null;
       } | null;
       etapa1: {
         nota: number | null;
         status: string;
+        tema?: string | null;
+        espelhoCorrecao?: string | null;
+        rubricaDetalhada?: Record<string, unknown> | null;
+        usoIaComprovado?: boolean;
+        fundamentoUsoIa?: string | null;
         espelhoDisponivel?: boolean;
         espelhoSolicitadoEm?: string | null;
         espelhoLiberadoEm?: string | null;
+        resultadoPreliminarEm?: string | null;
+        resultadoFinalEm?: string | null;
       } | null;
       etapa2: {
+        pontuacaoItens?: Record<string, number>;
+        pontuacaoBruta?: number | null;
         notaNormalizada: number | null;
         status: string;
+        memoriaCalculo?: Record<string, unknown> | null;
+        glosas?: Array<Record<string, unknown>>;
+        espelhoCorrecao?: string | null;
         espelhoDisponivel?: boolean;
         espelhoSolicitadoEm?: string | null;
         espelhoLiberadoEm?: string | null;
+        resultadoPreliminarEm?: string | null;
+        resultadoFinalEm?: string | null;
       } | null;
       politicasAfirmativas: {
         statusOperacao: string;
+        tipo?: string;
+        convocadoEm?: string | null;
+        documentosEncaminhadosEm?: string | null;
+        protocoloEncaminhamento?: string | null;
+        observacaoEncaminhamento?: string | null;
+        resultadoPreliminar?: string | null;
+        parecerPreliminar?: string | null;
+        arquivoRetornoPreliminarUrl?: string | null;
+        resultadoPreliminarEm?: string | null;
         resultadoFinal: string | null;
+        parecerFinal?: string | null;
+        arquivoRetornoFinalUrl?: string | null;
+        resultadoFinalEm?: string | null;
       } | null;
     } | null;
     classificacao: {
+      id?: string;
       status: string;
       modalidadeConcorrencia?: string;
       notaEtapa1?: number | null;
@@ -79,6 +131,8 @@ export type CandidateDashboardResponse = {
       notaFinal: number | null;
       posicaoGeral: number | null;
       posicaoLinha?: number | null;
+      publicadoPreliminarEm?: string | null;
+      publicadoFinalEm?: string | null;
     } | null;
     publicacoesDestaque: Array<{
       id: string;
@@ -91,6 +145,8 @@ export type CandidateDashboardResponse = {
     }>;
     publicacoes: Array<{
       id: string;
+      editalId?: string;
+      republicacaoDeId?: string | null;
       tipo: string;
       titulo: string;
       descricao: string | null;

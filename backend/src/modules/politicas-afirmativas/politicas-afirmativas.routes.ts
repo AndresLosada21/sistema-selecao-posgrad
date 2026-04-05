@@ -14,6 +14,7 @@ import {
   resultadoPoliticasAfirmativasSchema,
 } from "./politicas-afirmativas.schemas.js";
 import {
+  getEtapaPoliticasAfirmativasByInscricaoId,
   listEtapasPoliticasAfirmativasByEdital,
   registrarEncaminhamentoPoliticasAfirmativas,
   registrarResultadoFinalPoliticasAfirmativas,
@@ -46,6 +47,28 @@ politicasAfirmativasRouter.get(
 
       return response.status(200).json({ items: result.items, total: result.total, page: result.page, pageSize: result.pageSize });
     },
+);
+
+politicasAfirmativasRouter.get(
+  "/v1/admin/inscricoes/:inscricaoId/politicas-afirmativas",
+  requireAuth,
+  requireRole(Role.ADMIN),
+  async (request, response) => {
+    const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+
+    if (!parsedParams.success) {
+      return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
+    }
+
+    const result = await getEtapaPoliticasAfirmativasByInscricaoId(parsedParams.data.inscricaoId);
+
+    if ("error" in result) {
+      const errorCode = result.error as string;
+      return response.status(404).json(notFound(errorCode, errorCode));
+    }
+
+    return response.status(200).json(result.item);
+  },
 );
 
 politicasAfirmativasRouter.put(

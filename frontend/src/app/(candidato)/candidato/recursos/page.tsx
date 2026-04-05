@@ -14,6 +14,7 @@ import { useSession } from "@/lib/auth/session-provider";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
+import type { FaseRecurso } from "@/lib/enums";
 import { faseRecursoOptions } from "@/modules/admin-operacao/constants";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
@@ -24,6 +25,8 @@ import { uploadPrivateFile } from "@/modules/upload/api";
 
 export default function CandidateRecursosPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const searchParams = useSearchParams();
   const [dashboard, setDashboard] = useState<CandidateDashboardResponse | null>(null);
   const [recursos, setRecursos] = useState<CandidateRecursosResponse | null>(null);
@@ -38,21 +41,21 @@ export default function CandidateRecursosPage() {
   const [downloadingAnexoId, setDownloadingAnexoId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!session.token) {
+    if (!token) {
       return;
     }
 
     const [dashboardResponse, recursosResponse] = await Promise.all([
-      getCandidateDashboard(session.token),
-      listCandidateRecursos(session.token),
+      getCandidateDashboard(token),
+      listCandidateRecursos(token),
     ]);
 
     setDashboard(dashboardResponse);
     setRecursos(recursosResponse);
-  }, [session.token]);
+  }, [token]);
 
   useEffect(() => {
-    if (!session.token) {
+    if (!token) {
       return;
     }
 
@@ -60,14 +63,14 @@ export default function CandidateRecursosPage() {
       .then(() => setStatus("ready"))
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [loadData, session]);
+  }, [loadData, signOut, token]);
 
   useEffect(() => {
     const editalIdFromQuery = searchParams?.get("editalId");
@@ -102,7 +105,7 @@ export default function CandidateRecursosPage() {
       await createCandidateRecurso(
         sanitizePayload({
           editalId,
-          fase,
+          fase: fase as FaseRecurso,
           fundamentacao,
           anexoUrl: anexoUrl || undefined,
         }),
@@ -116,7 +119,7 @@ export default function CandidateRecursosPage() {
       setMessage({ type: "success", text: "Recurso registrado e lista atualizada." });
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
 
@@ -136,7 +139,7 @@ export default function CandidateRecursosPage() {
       setAnexoNome(uploaded.nomeArquivo);
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
       setMessage({ type: "error", text: getErrorMessage(error) });
@@ -152,7 +155,7 @@ export default function CandidateRecursosPage() {
       await downloadAuthenticatedFile(anexoUrl, session.token, "anexo-recurso.pdf");
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
       setMessage({ type: "error", text: getErrorMessage(error) });

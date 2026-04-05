@@ -6,6 +6,18 @@ import { prisma } from "../../lib/prisma.js";
 import { resolvePrivateUploadPath } from "../upload/upload.service.js";
 import { type FichaInscricao } from "./inscricao.rules.js";
 
+function detectImageFormat(bytes: Uint8Array) {
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return "png" as const;
+  }
+
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    return "jpeg" as const;
+  }
+
+  return null;
+}
+
 function parseFicha(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -144,24 +156,31 @@ async function buildGenericPdfBytes(input: {
   if (input.assinaturaImagemUrl?.startsWith("/v1/uploads/private/")) {
     const match = input.assinaturaImagemUrl.match(/^\/v1\/uploads\/private\/([^/]+)\/(.+)$/);
     if (match) {
-      const [, ownerId, filename] = match;
-      const imageBytes = await readFile(resolvePrivateUploadPath(ownerId, filename));
-      const lower = filename.toLowerCase();
-      const image = lower.endsWith(".png") ? await pdfDoc.embedPng(imageBytes) : await pdfDoc.embedJpg(imageBytes);
-      const scaled = image.scale(0.35);
-      page.drawImage(image, {
-        x: 430,
-        y: 735,
-        width: scaled.width,
-        height: scaled.height,
-      });
-      page.drawText("Assinatura do candidato", {
-        x: 430,
-        y: 725,
-        size: 8,
-        font: regular,
-        color: rgb(0, 0, 0),
-      });
+      try {
+        const [, ownerId, filename] = match;
+        const imageBytes = await readFile(resolvePrivateUploadPath(ownerId, filename));
+        const format = detectImageFormat(imageBytes);
+
+        if (format) {
+          const image = format === "png" ? await pdfDoc.embedPng(imageBytes) : await pdfDoc.embedJpg(imageBytes);
+          const scaled = image.scale(0.35);
+          page.drawImage(image, {
+            x: 430,
+            y: 735,
+            width: scaled.width,
+            height: scaled.height,
+          });
+          page.drawText("Assinatura do candidato", {
+            x: 430,
+            y: 725,
+            size: 8,
+            font: regular,
+            color: rgb(0, 0, 0),
+          });
+        }
+      } catch {
+        // Do not fail PDF generation if the uploaded signature file is unreadable or malformed.
+      }
     }
   }
 

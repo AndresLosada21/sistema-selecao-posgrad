@@ -4,12 +4,13 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { LoadingState } from "@/components/shared/page-states";
+import type { AuthUser } from "@/modules/auth/types";
 
 import { useSession } from "./session-provider";
 
 type RouteGuardProps = {
   children: React.ReactNode;
-  requiredRole?: string;
+  requiredRole?: AuthUser["perfis"][number];
   redirectTo?: string;
 };
 

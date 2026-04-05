@@ -5,12 +5,14 @@ import { FormEvent, useMemo, useState } from "react";
 import { ActionButton } from "@/components/shared/action-button";
 import { FileField } from "@/components/shared/file-field";
 import { ErrorState, LoadingState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/files/download";
 import { ApiError, getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
+import type { ModalidadeConcorrencia, TipoDocumentoInscricao } from "@/lib/enums";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import type { EditalDetalhe } from "@/modules/edital/types";
 import { uploadPrivateFile } from "@/modules/upload/api";
@@ -24,6 +26,7 @@ import {
   regimeTrabalhoOptions,
 } from "../constants";
 import { addDocumento, cancelInscricao, downloadAnexoIv, getPacoteDocumental, saveInscricaoDraft, submitInscricao } from "../api";
+import type { FichaInscricaoPayload } from "../types";
 
 type InscricaoEditorProps = {
   edital: EditalDetalhe;
@@ -75,6 +78,8 @@ const fichaTextFields: Array<{ key: keyof NonNullable<InscricaoEditorState["fich
   { key: "cidadeBairroTrabalho", label: "Cidade / bairro de trabalho" },
 ];
 
+const assinaturaMimeTypes = new Set(["image/png", "image/jpeg"]);
+
 type InscricaoEditorState = {
   linhaPesquisaId: string;
   modalidadeConcorrencia: string;
@@ -110,6 +115,7 @@ function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashbo
       rg: (ficha.rg as string) ?? "",
       rgDataExpedicao: (ficha.rgDataExpedicao as string) ?? "",
       cpf: (ficha.cpf as string) ?? "",
+      passaporte: (ficha.passaporte as string) ?? "",
       nacionalidade: (ficha.nacionalidade as string) ?? "",
       naturalidade: (ficha.naturalidade as string) ?? "",
       email: (ficha.email as string) ?? "",
@@ -130,8 +136,8 @@ function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashbo
       bairroResidencial: (ficha.bairroResidencial as string) ?? "",
       ufResidencial: (ficha.ufResidencial as string) ?? "",
       cidadeResidencial: (ficha.cidadeResidencial as string) ?? "",
-      empregadoSituacao: (ficha.empregadoSituacao as string) ?? empregadoSituacaoOptions[0],
-      regimeTrabalho: (ficha.regimeTrabalho as string) ?? regimeTrabalhoOptions[0],
+      empregadoSituacao: (ficha.empregadoSituacao as string) ?? "",
+      regimeTrabalho: (ficha.regimeTrabalho as string) ?? "",
       instituicaoTrabalho: (ficha.instituicaoTrabalho as string) ?? "",
       unidadeDepartamentoTrabalho: (ficha.unidadeDepartamentoTrabalho as string) ?? "",
       enderecoTrabalho: (ficha.enderecoTrabalho as string) ?? "",
@@ -201,12 +207,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         edital.id,
         sanitizePayload({
           linhaPesquisaId: formState.linhaPesquisaId,
-          modalidadeConcorrencia: formState.modalidadeConcorrencia,
+          modalidadeConcorrencia: formState.modalidadeConcorrencia as ModalidadeConcorrencia,
           temaRedacao: formState.temaRedacao || undefined,
           resumoCurriculo: formState.resumoCurriculo || undefined,
           redacaoTexto: formState.redacaoTexto || undefined,
           assinaturaImagemUrl: formState.assinaturaImagemUrl || undefined,
-          fichaInscricao: formState.fichaInscricao,
+          fichaInscricao: formState.fichaInscricao as FichaInscricaoPayload,
         }),
         session.token,
       );
@@ -247,6 +253,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     try {
       const documento = await addDocumento(inscricaoId, {
         ...sanitizePayload(documentoState),
+        tipo: documentoState.tipo as TipoDocumentoInscricao,
         mimeType: documentoState.mimeType || undefined,
       }, session.token);
 
@@ -295,6 +302,11 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleAssinaturaFileSelect(file: File) {
     if (!session.token) {
+      return;
+    }
+
+    if (!assinaturaMimeTypes.has(file.type)) {
+      setMessage({ title: "Arquivo invalido", description: "A assinatura do candidato deve ser enviada em PNG ou JPEG." });
       return;
     }
 
@@ -482,6 +494,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           </label>
 
           <FileField
+            accept="image/png,image/jpeg"
             disabled={uploadingAssinatura}
             hint={signatureUpload.nomeArquivo ? `Imagem enviada: ${signatureUpload.nomeArquivo}` : "Envie uma imagem da assinatura do candidato (PNG ou JPEG)."}
             label="Assinatura do candidato"
@@ -530,7 +543,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
           <label className="field-block">
             <span>Situacao profissional</span>
-            <select className="select-field" onChange={(event) => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, empregadoSituacao: event.target.value } }))} value={String(formState.fichaInscricao.empregadoSituacao ?? empregadoSituacaoOptions[0])}>
+            <select className="select-field" onChange={(event) => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, empregadoSituacao: event.target.value || undefined } }))} value={String(formState.fichaInscricao.empregadoSituacao ?? "")}>
+              <option value="">Nao informado</option>
               {empregadoSituacaoOptions.map((value) => (
                 <option key={value} value={value}>
                   {value}
@@ -541,7 +555,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
           <label className="field-block">
             <span>Regime de trabalho</span>
-            <select className="select-field" onChange={(event) => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, regimeTrabalho: event.target.value } }))} value={String(formState.fichaInscricao.regimeTrabalho ?? regimeTrabalhoOptions[0])}>
+            <select className="select-field" onChange={(event) => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, regimeTrabalho: event.target.value || undefined } }))} value={String(formState.fichaInscricao.regimeTrabalho ?? "")}>
+              <option value="">Nao informado</option>
               {regimeTrabalhoOptions.map((value) => (
                 <option key={value} value={value}>
                   {value}
@@ -607,7 +622,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
               </div>
               <small>Nome: {documento.nome}</small>
               <small>Arquivo: {documento.nomeArquivo ?? "nao informado"}</small>
-              <small>URL: {documento.urlArquivo ?? "nao informada"}</small>
+              <small>Arquivo privado registrado no sistema.</small>
               <small>Observacao: {documento.observacaoValidacao ?? "sem observacao"}</small>
             </article>
           ))}
@@ -633,7 +648,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             </ul>
           </div>
         ) : null}
-        {message ? <ErrorState description={message.description} title={message.title} /> : null}
+        {message ? message.title.toLowerCase().startsWith("falha") ? <ErrorState description={message.description} title={message.title} /> : <PageFeedback type="success" title={message.title} description={message.description} /> : null}
         {!inscricaoId ? <LoadingState title="Rascunho ainda nao criado" description="Salve o rascunho para habilitar documentos, Anexo IV e submissao." /> : null}
       </SectionCard>
     </div>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ActionButton } from "@/components/shared/action-button";
 import { FileField } from "@/components/shared/file-field";
 import { ErrorState } from "@/components/shared/page-states";
+import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
@@ -21,6 +22,7 @@ type IsencaoFormProps = {
 export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
   const router = useRouter();
   const session = useSession();
+  const signOut = session.signOut;
 
   const [inscritoCadUnico, setInscritoCadUnico] = useState(false);
   const [nis, setNis] = useState("");
@@ -28,7 +30,11 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
   const [comprovanteUrl, setComprovanteUrl] = useState("");
   const [comprovanteNomeArquivo, setComprovanteNomeArquivo] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const justificativaValida = inscritoCadUnico || justificativa.trim().length >= 10;
+  const comprovanteValido = inscritoCadUnico || Boolean(comprovanteUrl && comprovanteNomeArquivo);
+  const canSubmit = status !== "loading" && justificativaValida && comprovanteValido;
 
   async function handleComprovanteSelect(file: File) {
     if (!session.token) {
@@ -45,12 +51,12 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
       setStatus("idle");
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
 
       setStatus("error");
-      setMessage(getErrorMessage(error));
+      setMessage({ type: "error", text: getErrorMessage(error) });
     }
   }
 
@@ -78,15 +84,17 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
         session.token,
       );
 
-      router.replace(`/candidato/editais/${editalId}`);
+      setStatus("idle");
+      setMessage({ type: "success", text: "Pedido registrado com sucesso. Redirecionando para o acompanhamento do edital." });
+      setTimeout(() => router.replace(`/candidato/editais/${editalId}`), 900);
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
 
       setStatus("error");
-      setMessage(getErrorMessage(error));
+      setMessage({ type: "error", text: getErrorMessage(error) });
     }
   }
 
@@ -112,7 +120,7 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
           <>
             <label className="field-block">
               <span>Justificativa</span>
-              <textarea className="text-area" onChange={(event) => setJustificativa(event.target.value)} value={justificativa} />
+              <textarea className="text-area" minLength={10} onChange={(event) => setJustificativa(event.target.value)} value={justificativa} />
             </label>
 
             <FileField
@@ -124,12 +132,12 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
           </>
         ) : null}
 
-        <ActionButton disabled={status === "loading"} loading={status === "loading"} type="submit">
+        <ActionButton disabled={!canSubmit} loading={status === "loading"} type="submit">
           {status === "loading" ? "Enviando..." : "Registrar pedido de isencao"}
         </ActionButton>
       </form>
 
-      {message ? <ErrorState title="Falha ao registrar isencao" description={message} /> : null}
+      {message ? message.type === "success" ? <PageFeedback type="success" title="Pedido de isencao registrado" description={message.text} /> : <ErrorState title="Falha ao registrar isencao" description={message.text} /> : null}
     </SectionCard>
   );
 }

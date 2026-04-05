@@ -623,6 +623,10 @@ export async function listPublicacoesByEdital(editalId: string) {
   return publicacoes.map(buildPublicacaoResumo);
 }
 
+export async function listPublicacoesAdminByEdital(editalId: string) {
+  return await listPublicacoesByEdital(editalId);
+}
+
 export async function getPublicacaoById(publicacaoId: string) {
   const publicacao = await prisma.publicacaoOficial.findUnique({
     where: { id: publicacaoId },

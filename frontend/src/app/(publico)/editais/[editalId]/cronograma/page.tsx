@@ -79,7 +79,7 @@ export default async function CronogramaPage({ params }: CronogramaPageProps) {
               const status = resolveCronogramaStatus(cronograma);
 
               return (
-                <article className="content-item" key={`${cronograma.tipo}-${cronograma.inicioEm}`}>
+                <article className="content-item" key={cronograma.id}>
                   <div className="content-item-row">
                     <strong>{cronograma.titulo}</strong>
                     <StatusBadge variant={getCronogramaStatusVariant(status)}>{getCronogramaStatusLabel(status)}</StatusBadge>

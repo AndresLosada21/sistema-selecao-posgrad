@@ -18,6 +18,8 @@ import type { CandidateInscricoesResponse } from "@/modules/inscricao/types";
 
 export default function CandidateInscricoesPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<CandidateInscricoesResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
@@ -47,25 +49,25 @@ export default function CandidateInscricoesPage() {
   }
 
   useEffect(() => {
-    if (!session.token) {
+    if (!token) {
       return;
     }
 
-    listInscricoes(session.token)
+    listInscricoes(token)
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [session]);
+  }, [signOut, token]);
 
   if (status === "loading") {
     return <LoadingState title="Carregando inscricoes" description="Consultando o historico de inscricoes do candidato." />;

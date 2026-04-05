@@ -22,8 +22,10 @@ import {
   createHomologacaoPublicacao,
   createPublicacao,
   listPublicacoesByEdital,
+  listPublicacoesAdminByEdital,
 } from "./publicacao.service.js";
 import { generatePublicacaoPdfBuffer } from "./publicacao-pdf.service.js";
+import { getEditalById as getPublicEditalById } from "../edital/edital.service.js";
 
 export const publicacaoRouter = Router();
 
@@ -86,7 +88,34 @@ publicacaoRouter.get("/v1/editais/:editalId/publicacoes", async (request, respon
     return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
   }
 
+  const edital = await getPublicEditalById(parsedParams.data.editalId);
+
+  if (!edital || !["PUBLICADO", "EM_ANDAMENTO"].includes(edital.status)) {
+    return response.status(404).json(notFound("EDITAL_NAO_ENCONTRADO", "EDITAL_NAO_ENCONTRADO"));
+  }
+
   const items = await listPublicacoesByEdital(parsedParams.data.editalId);
+
+  return response.status(200).json({
+    items,
+    total: items.length,
+  });
+});
+
+publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
+  }
+
+  const edital = await getPublicEditalById(parsedParams.data.editalId);
+
+  if (!edital) {
+    return response.status(404).json(notFound("EDITAL_NAO_ENCONTRADO", "EDITAL_NAO_ENCONTRADO"));
+  }
+
+  const items = await listPublicacoesAdminByEdital(parsedParams.data.editalId);
 
   return response.status(200).json({
     items,
@@ -106,6 +135,12 @@ publicacaoRouter.get("/v1/publicacoes/:publicacaoId/arquivo.pdf", async (request
   if ("error" in result) {
     const errorCode = result.error as string;
     return response.status(404).json(notFound(errorCode, errorCode));
+  }
+
+  const edital = await getPublicEditalById(result.publicacao.editalId);
+
+  if (!edital || !["PUBLICADO", "EM_ANDAMENTO"].includes(edital.status)) {
+    return response.status(404).json(notFound("PUBLICACAO_NAO_ENCONTRADA", "PUBLICACAO_NAO_ENCONTRADA"));
   }
 
   const pdfBuffer = await generatePublicacaoPdfBuffer({

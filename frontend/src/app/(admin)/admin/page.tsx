@@ -4,6 +4,9 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 
 const adminModules = [
+  { href: "/admin/editais", title: "Editais", description: "CRUD administrativo de editais, linhas de pesquisa e cronogramas." },
+  { href: "/admin/isencao", title: "Isencao", description: "Fila administrativa de pedidos de isencao, pareceres e resultados." },
+  { href: "/admin/usuarios", title: "Usuarios", description: "Gestao de contas, perfis, bloqueios e escopos de avaliacao." },
   { href: "/admin/homologacao", title: "Homologacao", description: "Fila de inscricoes, documentos, pareceres e confirmacao operacional de reserva." },
   { href: "/admin/etapa-1", title: "Etapa 1", description: "Fila de redacao, nota por rubrica e operacao de espelho." },
   { href: "/admin/etapa-2", title: "Etapa 2", description: "Fila de analise curricular, glosas e normalizacao." },

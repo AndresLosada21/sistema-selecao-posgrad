@@ -11,31 +11,51 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { cursoNivelOptions, statusEditalOptions, type CursoNivel, type StatusEdital } from "@/lib/enums";
 import { createAdminEdital, listAdminEditais } from "@/modules/admin-edital/api";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 
 export default function AdminEditaisPage() {
   const session = useSession();
+  const token = session.token;
   const [data, setData] = useState<AdminEditaisResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO", publicadoEm: "" });
+  const [form, setForm] = useState<{
+    numero: string;
+    titulo: string;
+    descricao: string;
+    ano: string;
+    semestre: string;
+    cursoNivel: CursoNivel;
+    status: StatusEdital;
+    publicadoEm: string;
+  }>({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO", publicadoEm: "" });
 
   const load = useCallback(async () => {
-    const response = await listAdminEditais();
+    if (!token) {
+      return;
+    }
+
+    const response = await listAdminEditais(token);
     setData(response);
-  }, []);
+  }, [token]);
 
   useEffect(() => {
+    if (!token) {
+      return;
+    }
+
     load()
       .then(() => setStatus("ready"))
       .catch((error) => {
+        if (isUnauthorizedError(error)) { session.signOut(); return; }
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [load]);
+  }, [load, session, token]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,8 +96,8 @@ export default function AdminEditaisPage() {
           <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setForm((c) => ({ ...c, descricao: e.target.value }))} value={form.descricao} /></label>
           <label className="field-block"><span>Ano</span><input min="2024" onChange={(e) => setForm((c) => ({ ...c, ano: e.target.value }))} required type="number" value={form.ano} /></label>
           <label className="field-block"><span>Semestre</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, semestre: e.target.value }))} value={form.semestre}><option value="1">1</option><option value="2">2</option></select></label>
-          <label className="field-block"><span>Curso</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, cursoNivel: e.target.value }))} value={form.cursoNivel}><option value="MESTRADO">Mestrado</option><option value="DOUTORADO">Doutorado</option></select></label>
-          <label className="field-block"><span>Status</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, status: e.target.value }))} value={form.status}><option value="RASCUNHO">Rascunho</option><option value="PUBLICADO">Publicado</option><option value="EM_ANDAMENTO">Em andamento</option><option value="ENCERRADO">Encerrado</option><option value="ARQUIVADO">Arquivado</option></select></label>
+          <label className="field-block"><span>Curso</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))} value={form.cursoNivel}>{cursoNivelOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
+          <label className="field-block"><span>Status</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, status: e.target.value as StatusEdital }))} value={form.status}>{statusEditalOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
           <label className="field-block"><span>Publicado em (opcional)</span><input onChange={(e) => setForm((c) => ({ ...c, publicadoEm: e.target.value }))} placeholder="2026-04-05T12:00:00.000Z" value={form.publicadoEm} /></label>
           <ActionButton disabled={busy} loading={busy} type="submit">Criar edital</ActionButton>
         </form>

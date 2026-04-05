@@ -10,6 +10,11 @@ export const pedidoIsencaoIdParamSchema = z.object({
   pedidoIsencaoId: z.string().min(1),
 });
 
+export const listPedidosIsencaoAdminQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 export const createIsencaoSchema = z
   .object({
     cursoNivel: z.nativeEnum(CursoNivel),

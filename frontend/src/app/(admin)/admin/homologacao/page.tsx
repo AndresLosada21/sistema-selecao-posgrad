@@ -80,11 +80,11 @@ export default function AdminHomologacaoPage() {
             <strong>{resumo.total}</strong>
           </article>
           <article className="summary-card">
-            <span>Com preliminar</span>
+            <span>Com preliminar nesta pagina</span>
             <strong>{resumo.comParecerPreliminar}</strong>
           </article>
           <article className="summary-card">
-            <span>Com final</span>
+            <span>Com final nesta pagina</span>
             <strong>{resumo.comParecerFinal}</strong>
           </article>
         </div>

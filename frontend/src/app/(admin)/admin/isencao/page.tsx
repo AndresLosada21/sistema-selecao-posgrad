@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -16,20 +17,23 @@ import type { AdminIsencoesResponse } from "@/modules/admin-isencao/types";
 
 export default function AdminIsencaoPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<AdminIsencoesResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    if (!session.token) return;
-    listAdminIsencoes(session.token)
+    if (!token) return;
+    listAdminIsencoes(token, { page, pageSize: 20 })
       .then((response) => { setData(response); setStatus("ready"); })
       .catch((error) => {
-        if (isUnauthorizedError(error)) { session.signOut(); return; }
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [session]);
+  }, [page, signOut, token]);
 
   if (status === "loading") return <LoadingState title="Carregando isencoes" description="Consultando a fila administrativa de isencao." />;
   if (status === "error") return <ErrorState title="Falha ao carregar isencoes" description={message ?? undefined} />;
@@ -52,6 +56,11 @@ export default function AdminIsencaoPage() {
             ))}
           </div>
         ) : <EmptyState title="Sem pedidos" description="Nenhum pedido de isencao foi localizado na fila administrativa." />}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.page ?? page) * (data?.pageSize ?? 20) >= (data?.total ?? 0)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

@@ -1,3 +1,4 @@
+import type { CursoNivel, StatusEdital, TipoCronogramaEdital } from "@/lib/enums";
 import type { EditalDetalhe, EditaisResponse } from "@/modules/edital/types";
 
 export type AdminEditalPayload = {
@@ -6,8 +7,8 @@ export type AdminEditalPayload = {
   descricao?: string;
   ano: number;
   semestre?: number;
-  cursoNivel: string;
-  status: string;
+  cursoNivel: CursoNivel;
+  status: StatusEdital;
   publicadoEm?: string;
 };
 
@@ -20,7 +21,7 @@ export type AdminLinhaPesquisaPayload = {
 };
 
 export type AdminCronogramaPayload = {
-  tipo: string;
+  tipo: TipoCronogramaEdital;
   titulo: string;
   descricao?: string;
   inicioEm: string;

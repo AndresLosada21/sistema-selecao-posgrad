@@ -1,3 +1,5 @@
+import type { FaseRecurso } from "@/lib/enums";
+
 export type CandidateRecursoItem = {
   id: string;
   fase: string;
@@ -22,7 +24,7 @@ export type CandidateRecursosResponse = {
 
 export type CreateCandidateRecursoPayload = {
   editalId: string;
-  fase: string;
+  fase: FaseRecurso;
   fundamentacao: string;
   anexoUrl?: string;
 };

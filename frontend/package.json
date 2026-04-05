@@ -6,7 +6,8 @@
     "dev": "next dev --webpack --hostname 0.0.0.0 --port 3000",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 3000",
-    "lint": "tsc -p tsconfig.lint.json --noEmit"
+    "lint": "tsc -p tsconfig.lint.json --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "^16.2.1",
@@ -14,6 +15,7 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@types/node": "^22.15.3",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",

@@ -12,6 +12,19 @@ export function getPublicApiBaseUrl() {
 
 export function resolveApiUrl(pathOrUrl: string) {
   if (/^https?:\/\//i.test(pathOrUrl)) {
+    const publicBaseUrl = getPublicApiBaseUrl();
+
+    try {
+      const targetUrl = new URL(pathOrUrl);
+      const publicUrl = new URL(publicBaseUrl);
+
+      if (targetUrl.origin !== publicUrl.origin && targetUrl.pathname.startsWith("/v1/")) {
+        return `${publicUrl.origin}${targetUrl.pathname}${targetUrl.search}`;
+      }
+    } catch {
+      return pathOrUrl;
+    }
+
     return pathOrUrl;
   }
 

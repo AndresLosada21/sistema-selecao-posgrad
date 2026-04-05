@@ -1,13 +1,29 @@
 import { CursoNivel, StatusEdital, TipoCronogramaEdital } from "@prisma/client";
 import { z } from "zod";
 
+const statusEditalValues = Object.values(StatusEdital) as [StatusEdital, ...StatusEdital[]];
+
+const statusListFromQuery = z
+  .union([z.string(), z.array(z.string()), z.undefined()])
+  .transform((value) => {
+    if (!value) {
+      return undefined;
+    }
+
+    const values = Array.isArray(value) ? value : value.split(",");
+    const normalized = values.map((item) => item.trim()).filter(Boolean);
+
+    return normalized.length ? normalized : undefined;
+  })
+  .pipe(z.array(z.enum(statusEditalValues)).optional());
+
 const booleanFromQuery = z
   .union([z.boolean(), z.enum(["true", "false"]), z.undefined()])
   .transform((value) => value === true || value === "true");
 
 export const listEditaisQuerySchema = z.object({
   cursoNivel: z.nativeEnum(CursoNivel).optional(),
-  status: z.nativeEnum(StatusEdital).optional(),
+  status: statusListFromQuery,
   ativosSomente: booleanFromQuery.optional(),
 });
 

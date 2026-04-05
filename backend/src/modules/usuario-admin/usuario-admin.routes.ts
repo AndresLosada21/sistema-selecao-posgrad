@@ -4,14 +4,20 @@ import { Router } from "express";
 import { conflict, notFound, requestValidationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
-import { updateUsuarioEscoposSchema, updateUsuarioPerfisSchema, updateUsuarioStatusSchema, usuarioIdParamSchema } from "./usuario-admin.schemas.js";
+import { listUsuariosQuerySchema, updateUsuarioEscoposSchema, updateUsuarioPerfisSchema, updateUsuarioStatusSchema, usuarioIdParamSchema } from "./usuario-admin.schemas.js";
 import { listUsuariosAdmin, updateUsuarioEscoposAvaliacao, updateUsuarioPerfis, updateUsuarioStatus } from "./usuario-admin.service.js";
 
 export const usuarioAdminRouter = Router();
 
-usuarioAdminRouter.get("/v1/admin/usuarios", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
-  const usuarios = await listUsuariosAdmin();
-  return response.status(200).json({ items: usuarios, total: usuarios.length });
+usuarioAdminRouter.get("/v1/admin/usuarios", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedQuery = listUsuariosQuerySchema.safeParse(request.query);
+
+  if (!parsedQuery.success) {
+    return response.status(400).json(requestValidationError("Parametros invalidos para listar usuarios.", { queryErrors: parsedQuery.error.flatten() }));
+  }
+
+  const usuarios = await listUsuariosAdmin(parsedQuery.data);
+  return response.status(200).json(usuarios);
 });
 
 usuarioAdminRouter.put("/v1/admin/usuarios/:usuarioId/status", requireAuth, requireRole(Role.ADMIN), async (request, response) => {

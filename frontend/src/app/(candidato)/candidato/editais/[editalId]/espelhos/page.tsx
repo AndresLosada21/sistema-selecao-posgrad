@@ -21,8 +21,60 @@ type EspelhosPageProps = {
   params: Promise<{ editalId: string }>;
 };
 
+function renderEspelhoEtapa1(espelho: CandidateEtapa1Espelho) {
+  return (
+    <div className="content-list">
+      <small>Tema: {espelho.tema ?? "nao informado"}</small>
+      <small>Solicitado em: {formatIsoDate(espelho.espelhoSolicitadoEm ?? null)}</small>
+      <small>Liberado em: {formatIsoDate(espelho.espelhoLiberadoEm ?? null)}</small>
+      <small>Resultado preliminar em: {formatIsoDate(espelho.resultadoPreliminarEm ?? null)}</small>
+      <small>Resultado final em: {formatIsoDate(espelho.resultadoFinalEm ?? null)}</small>
+      <div className="content-item">
+        <strong>Texto submetido</strong>
+        <pre className="preformatted-block">{espelho.textoSubmetido ?? "Nao informado."}</pre>
+      </div>
+      <div className="content-item">
+        <strong>Espelho de correcao</strong>
+        <pre className="preformatted-block">{espelho.espelhoCorrecao ?? "Nao informado."}</pre>
+      </div>
+      {espelho.rubricaDetalhada ? <pre className="preformatted-block">{JSON.stringify(espelho.rubricaDetalhada, null, 2)}</pre> : null}
+    </div>
+  );
+}
+
+function renderEspelhoEtapa2(espelho: CandidateEtapa2Espelho) {
+  return (
+    <div className="content-list">
+      <small>Pontuacao bruta: {espelho.pontuacaoBruta ?? "nao informada"}</small>
+      <small>Nota normalizada: {espelho.notaNormalizada ?? "nao informada"}</small>
+      <small>Solicitado em: {formatIsoDate(espelho.espelhoSolicitadoEm ?? null)}</small>
+      <small>Liberado em: {formatIsoDate(espelho.espelhoLiberadoEm ?? null)}</small>
+      <small>Resultado preliminar em: {formatIsoDate(espelho.resultadoPreliminarEm ?? null)}</small>
+      <small>Resultado final em: {formatIsoDate(espelho.resultadoFinalEm ?? null)}</small>
+      <div className="content-item">
+        <strong>Pontuacao por item</strong>
+        <pre className="preformatted-block">{JSON.stringify(espelho.pontuacaoItens, null, 2)}</pre>
+      </div>
+      <div className="content-item">
+        <strong>Glosas</strong>
+        <pre className="preformatted-block">{JSON.stringify(espelho.glosas, null, 2)}</pre>
+      </div>
+      <div className="content-item">
+        <strong>Memoria de calculo</strong>
+        <pre className="preformatted-block">{JSON.stringify(espelho.memoriaCalculo, null, 2)}</pre>
+      </div>
+      <div className="content-item">
+        <strong>Espelho de correcao</strong>
+        <pre className="preformatted-block">{espelho.espelhoCorrecao ?? "Nao informado."}</pre>
+      </div>
+    </div>
+  );
+}
+
 export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<CandidateDashboardResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -36,16 +88,16 @@ export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
   }, [params]);
 
   const loadDashboard = useCallback(async () => {
-    if (!session.token) {
+    if (!token) {
       return;
     }
 
-    const response = await getCandidateDashboard(session.token);
+    const response = await getCandidateDashboard(token);
     setData(response);
-  }, [session.token]);
+  }, [token]);
 
   useEffect(() => {
-    if (!session.token || !editalId) {
+    if (!token || !editalId) {
       return;
     }
 
@@ -53,14 +105,14 @@ export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
       .then(() => setStatus("ready"))
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [editalId, loadDashboard, session]);
+  }, [editalId, loadDashboard, signOut, token]);
 
   const item = useMemo(() => data?.items.find((entry) => entry.edital.id === editalId) ?? null, [data, editalId]);
   const inscricaoId = item?.inscricao?.id ?? null;
@@ -167,7 +219,7 @@ export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
               {podeSolicitarEtapa1 ? <ActionButton disabled={busy !== null} onClick={handleSolicitarEtapa1} type="button">Solicitar espelho da etapa 1</ActionButton> : null}
               {podeVerEtapa1 ? <ActionButton disabled={busy !== null} onClick={handleCarregarEtapa1} type="button" variant="secondary">Ver espelho da etapa 1</ActionButton> : null}
             </div>
-            {espelhoEtapa1 ? <pre className="preformatted-block">{JSON.stringify(espelhoEtapa1, null, 2)}</pre> : null}
+            {espelhoEtapa1 ? renderEspelhoEtapa1(espelhoEtapa1) : null}
           </div>
         ) : <EmptyState title="Etapa 1 indisponivel" description="Nao ha avaliacao da etapa 1 vinculada a esta inscricao." />}
       </SectionCard>
@@ -185,7 +237,7 @@ export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
               {podeSolicitarEtapa2 ? <ActionButton disabled={busy !== null} onClick={handleSolicitarEtapa2} type="button">Solicitar espelho da etapa 2</ActionButton> : null}
               {podeVerEtapa2 ? <ActionButton disabled={busy !== null} onClick={handleCarregarEtapa2} type="button" variant="secondary">Ver espelho da etapa 2</ActionButton> : null}
             </div>
-            {espelhoEtapa2 ? <pre className="preformatted-block">{JSON.stringify(espelhoEtapa2, null, 2)}</pre> : null}
+            {espelhoEtapa2 ? renderEspelhoEtapa2(espelhoEtapa2) : null}
           </div>
         ) : <EmptyState title="Etapa 2 indisponivel" description="Nao ha avaliacao da etapa 2 vinculada a esta inscricao." />}
       </SectionCard>

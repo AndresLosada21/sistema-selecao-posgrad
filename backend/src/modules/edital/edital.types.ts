@@ -8,7 +8,7 @@ import type {
 
 export type EditalListFilters = {
   cursoNivel?: CursoNivel;
-  status?: StatusEdital;
+  status?: StatusEdital[];
   ativosSomente?: boolean;
 };
 
@@ -23,6 +23,7 @@ export type EditalFaseResumo = {
   id: string;
   tipo: TipoCronogramaEdital;
   titulo: string;
+  descricao: string | null;
   inicioEm: string;
   fimEm: string;
   ativaAgora: boolean;

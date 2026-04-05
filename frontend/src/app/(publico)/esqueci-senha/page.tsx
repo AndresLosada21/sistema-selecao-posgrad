@@ -10,6 +10,7 @@ import { getErrorMessage } from "@/lib/http/api-error";
 import { requestPasswordReset } from "@/modules/auth/api";
 
 export default function ForgotPasswordPage() {
+  const canShowTokenPreview = process.env.NODE_ENV !== "production";
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -35,7 +36,7 @@ export default function ForgotPasswordPage() {
           <label className="field-block"><span>E-mail</span><input onChange={(e) => setEmail(e.target.value)} required type="email" value={email} /></label>
           <ActionButton disabled={busy} loading={busy} type="submit">Solicitar recuperacao</ActionButton>
         </form>
-        {tokenPreview ? <div className="content-item"><small>Preview de desenvolvimento:</small><code>{tokenPreview}</code><div className="content-item-links"><Link className="nav-link" href={`/redefinir-senha?token=${encodeURIComponent(tokenPreview)}`}>Abrir redefinicao com este token</Link></div></div> : null}
+        {tokenPreview && canShowTokenPreview ? <div className="content-item"><small>Preview de desenvolvimento:</small><code>{tokenPreview}</code><div className="content-item-links"><Link className="nav-link" href={`/redefinir-senha?token=${encodeURIComponent(tokenPreview)}`}>Abrir redefinicao com este token</Link></div></div> : null}
       </SectionCard>
     </div>
   );

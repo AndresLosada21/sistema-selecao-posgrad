@@ -8,6 +8,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { statusInscricaoOptions, statusIsencaoOptions, type StatusInscricao, type StatusIsencao } from "@/lib/enums";
 import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
 import type { AdminRecursoItem } from "@/modules/admin-recursos/types";
 import { resultadoPoliticasOptions } from "@/modules/admin-operacao/constants";
@@ -26,8 +27,8 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [deferido, setDeferido] = useState(false);
   const [decisao, setDecisao] = useState("");
   const [impactoResultado, setImpactoResultado] = useState(false);
-  const [novoStatusIsencao, setNovoStatusIsencao] = useState("");
-  const [novoStatusInscricao, setNovoStatusInscricao] = useState("");
+  const [novoStatusIsencao, setNovoStatusIsencao] = useState<StatusIsencao | "">("");
+  const [novoStatusInscricao, setNovoStatusInscricao] = useState<StatusInscricao | "">("");
   const [novaNotaEtapa1, setNovaNotaEtapa1] = useState("");
   const [novoEspelhoEtapa1, setNovoEspelhoEtapa1] = useState("");
   const [novaPontuacaoBrutaEtapa2, setNovaPontuacaoBrutaEtapa2] = useState("");
@@ -58,8 +59,8 @@ export default function AdminRecursoDetailPage({ params }: Props) {
     if (!session.token || !recursoId) return;
     setBusy(true); setMessage(null);
     try {
-      if (!decisao.trim()) {
-        setMessage({ type: "warning", text: "A decisao administrativa do recurso e obrigatoria." });
+      if (decisao.trim().length < 5) {
+        setMessage({ type: "warning", text: "A decisao administrativa do recurso precisa ter pelo menos 5 caracteres." });
         return;
       }
 
@@ -67,8 +68,8 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         deferido,
         decisao,
         impactoResultado,
-        novoStatusIsencao: novoStatusIsencao || undefined,
-        novoStatusInscricao: novoStatusInscricao || undefined,
+        novoStatusIsencao: (novoStatusIsencao || undefined) as StatusIsencao | undefined,
+        novoStatusInscricao: (novoStatusInscricao || undefined) as StatusInscricao | undefined,
         novaNotaEtapa1: novaNotaEtapa1 ? Number(novaNotaEtapa1) : undefined,
         novoEspelhoEtapa1: novoEspelhoEtapa1 || undefined,
         novaPontuacaoBrutaEtapa2: novaPontuacaoBrutaEtapa2 ? Number(novaPontuacaoBrutaEtapa2) : undefined,
@@ -108,11 +109,11 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         <form className="form-grid" onSubmit={onSubmit}>
           <label className="field-inline"><input checked={deferido} onChange={(e) => setDeferido(e.target.checked)} type="checkbox" /><span>Deferido</span></label>
           <label className="field-inline"><input checked={impactoResultado} onChange={(e) => setImpactoResultado(e.target.checked)} type="checkbox" /><span>Impacta o resultado</span></label>
-          <label className="field-block"><span>Decisao</span><textarea className="text-area" onChange={(e) => setDecisao(e.target.value)} required value={decisao} /></label>
+          <label className="field-block"><span>Decisao</span><textarea className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} required value={decisao} /></label>
           {impactoResultado ? (
             <>
-              <label className="field-block"><span>Novo status da isencao</span><input onChange={(e) => setNovoStatusIsencao(e.target.value)} value={novoStatusIsencao} /></label>
-              <label className="field-block"><span>Novo status da inscricao</span><input onChange={(e) => setNovoStatusInscricao(e.target.value)} value={novoStatusInscricao} /></label>
+              <label className="field-block"><span>Novo status da isencao</span><select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}><option value="">Nao alterar</option>{statusIsencaoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+              <label className="field-block"><span>Novo status da inscricao</span><select className="select-field" onChange={(e) => setNovoStatusInscricao((e.target.value || "") as StatusInscricao | "")} value={novoStatusInscricao}><option value="">Nao alterar</option>{statusInscricaoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
               <label className="field-block"><span>Nova nota etapa 1</span><input min="0" max="10" onChange={(e) => setNovaNotaEtapa1(e.target.value)} step="0.1" type="number" value={novaNotaEtapa1} /></label>
               <label className="field-block"><span>Novo espelho etapa 1</span><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} value={novoEspelhoEtapa1} /></label>
               <label className="field-block"><span>Nova pontuacao bruta etapa 2</span><input min="0" onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step="0.1" type="number" value={novaPontuacaoBrutaEtapa2} /></label>

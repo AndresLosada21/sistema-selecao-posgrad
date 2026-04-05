@@ -14,13 +14,13 @@ function hasAllowedExtension(value: string, extensions: string[]) {
 }
 
 export const internalOrHttpsUrlSchema = z.string().trim().refine((value) => isInternalUploadUrl(value) || isHttpsUrl(value), {
-  message: "Invalid url",
+  message: "URL de arquivo invalida.",
 });
 
 export const pdfFileUrlSchema = internalOrHttpsUrlSchema.refine((value) => hasAllowedExtension(value, [".pdf"]), {
-  message: "Invalid url",
+  message: "O arquivo deve ser um PDF.",
 });
 
 export const imageFileUrlSchema = internalOrHttpsUrlSchema.refine((value) => hasAllowedExtension(value, [".png", ".jpg", ".jpeg"]), {
-  message: "Invalid url",
+  message: "A assinatura deve ser uma imagem PNG ou JPEG.",
 });

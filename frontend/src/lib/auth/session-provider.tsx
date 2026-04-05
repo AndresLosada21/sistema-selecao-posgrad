@@ -14,7 +14,7 @@ type SessionContextValue = {
   token: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
-  hasRole: (role: string) => boolean;
+  hasRole: (role: AuthUser["perfis"][number]) => boolean;
   setSessionFromAuthResponse: (response: AuthResponse) => void;
   signOut: () => void;
 };
@@ -57,7 +57,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
     token,
     user,
     isAuthenticated: status === "authenticated" && !!token && !!user,
-    hasRole: (role: string) => user?.perfis.includes(role) ?? false,
+    hasRole: (role) => user?.perfis.includes(role) ?? false,
     setSessionFromAuthResponse: (response) => {
       writeStoredToken(response.token);
       setToken(response.token);
