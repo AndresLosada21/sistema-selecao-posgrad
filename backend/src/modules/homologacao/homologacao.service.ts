@@ -200,6 +200,10 @@ export async function atualizarConfirmacaoReserva(
   };
 }
 
+function isHomologavel(status: StatusInscricao) {
+  return status === StatusInscricao.SUBMETIDA || status === StatusInscricao.EM_ANALISE_DOCUMENTAL;
+}
+
 export async function registrarHomologacaoPreliminar(
   inscricaoId: string,
   homologada: boolean,
@@ -214,7 +218,7 @@ export async function registrarHomologacaoPreliminar(
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  if (!inscricao.submetidaEm) {
+  if (!inscricao.submetidaEm || !isHomologavel(inscricao.status)) {
     return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
   }
 
@@ -276,7 +280,7 @@ export async function registrarHomologacaoFinal(
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  if (!inscricao.submetidaEm) {
+  if (!inscricao.submetidaEm || !isHomologavel(inscricao.status) && inscricao.status !== StatusInscricao.HOMOLOGADA_PRELIMINAR && inscricao.status !== StatusInscricao.NAO_HOMOLOGADA_PRELIMINAR) {
     return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
   }
 

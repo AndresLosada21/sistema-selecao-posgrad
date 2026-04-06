@@ -9,11 +9,13 @@ export function roundTo2(value: number) {
 }
 
 export function calcularNotaNormalizadaEtapa2(input: { pontuacaoBruta: number; maiorPontuacaoBruta: number }) {
+  const pontuacaoBruta = Math.max(0, input.pontuacaoBruta);
+
   if (input.maiorPontuacaoBruta <= 0) {
     return 0;
   }
 
-  return roundTo2((input.pontuacaoBruta / input.maiorPontuacaoBruta) * 10);
+  return roundTo2((pontuacaoBruta / input.maiorPontuacaoBruta) * 10);
 }
 
 export function buildMemoriaCalculoEtapa2(input: {
