@@ -8,6 +8,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { listAdminEditais } from "@/modules/admin-edital/api";
 import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 
@@ -20,25 +21,26 @@ export default function AdminPublicacoesIndexPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) {
       return;
     }
 
-    listAdminEditais(token)
-      .then((response) => {
-        setData(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
+    try {
+      const response = await listAdminEditais(token);
+      if (signal.aborted) return;
+      setData(response);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
 
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
   }, [signOut, token]);
 
   if (status === "loading") {
@@ -57,15 +59,18 @@ export default function AdminPublicacoesIndexPage() {
         description="Selecione um edital publicado abaixo ou informe o ID manualmente para abrir o modulo de previews e publicacao oficial."
       />
 
-      <SectionCard title="Abrir publicacoes por ID" description="Use esta opcao quando precisar abrir diretamente um edital especifico pelo identificador. ">
+      <SectionCard title="Abrir publicacoes por edital" description="Selecione o edital desejado ou use a lista resumida abaixo.">
         <div className="content-list">
           <label className="field-block">
-            <span>ID do edital</span>
-            <input onChange={(event) => setDraftEditalId(event.target.value)} value={draftEditalId} />
+            <span>Edital</span>
+            <select className="select-field" onChange={(event) => setDraftEditalId(event.target.value)} value={draftEditalId}>
+              <option value="">Selecione um edital</option>
+              {data?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}
+            </select>
           </label>
           <div className="content-item-links">
             <Link className="nav-link" href={draftEditalId.trim() ? `/admin/publicacoes/${draftEditalId.trim()}` : "/admin/publicacoes"}>
-              Abrir rota por ID
+              Abrir publicacoes
             </Link>
           </div>
         </div>
