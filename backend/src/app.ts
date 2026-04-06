@@ -153,5 +153,9 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
     return response.status(413).json(payloadTooLarge("Arquivo excede o limite permitido de upload."));
   }
 
-  return next(error);
+  console.error("[ERROR_HANDLER]", error);
+  return response.status(500).json({
+    code: "INTERNAL_SERVER_ERROR",
+    message: "Erro interno do servidor.",
+  });
 });

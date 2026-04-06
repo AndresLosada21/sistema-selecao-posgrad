@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -47,7 +48,14 @@ export default function CandidateParticipacoesPage() {
   }
 
   if (status === "error") {
-    return <ErrorState title="Falha ao carregar participacoes" description={message ?? undefined} />;
+    return (
+      <div className="stack-layout">
+        <ErrorState title="Falha ao carregar participacoes" description={message ?? undefined} />
+        <div className="content-item-links">
+          <ActionButton onClick={() => { setStatus("loading"); setMessage(null); }} type="button" variant="secondary">Tentar novamente</ActionButton>
+        </div>
+      </div>
+    );
   }
 
   if (!data?.items.length) {

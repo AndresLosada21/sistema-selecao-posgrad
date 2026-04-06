@@ -16,11 +16,12 @@ import type { Etapa2AdminItem, Etapa2Espelho } from "@/modules/admin-etapas/type
 
 type Props = { params: Promise<{ inscricaoId: string }> };
 
-type PontuacaoItemDraft = { chave: string; valor: string };
-type GlosaDraft = { item: string; descricao: string; pontosGlosados: string };
+type PontuacaoItemDraft = { id: string; chave: string; valor: string };
+type GlosaDraft = { id: string; item: string; descricao: string; pontosGlosados: string };
 
-const emptyPontuacaoItem = (): PontuacaoItemDraft => ({ chave: "", valor: "0" });
-const emptyGlosa = (): GlosaDraft => ({ item: "", descricao: "", pontosGlosados: "0" });
+const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+const emptyPontuacaoItem = (): PontuacaoItemDraft => ({ id: uid(), chave: "", valor: "0" });
+const emptyGlosa = (): GlosaDraft => ({ id: uid(), item: "", descricao: "", pontosGlosados: "0" });
 
 export default function AdminEtapa2DetailPage({ params }: Props) {
   const session = useSession();
@@ -48,13 +49,14 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     const found = await getEtapa2Item(inscricaoId, token);
     setItem(found);
     setPontuacaoItensDraft(
-      Object.entries(found?.avaliacao?.pontuacaoItens ?? { titulo: 0 }).map(([chave, valor]) => ({ chave, valor: String(valor) })),
+      Object.entries(found?.avaliacao?.pontuacaoItens ?? { titulo: 0 }).map(([chave, valor]) => ({ id: uid(), chave, valor: String(valor) })),
     );
     setPontuacaoBruta(found?.avaliacao?.pontuacaoBruta ?? 0);
     setMaiorPontuacaoBruta(Math.max(found?.avaliacao?.pontuacaoBruta ?? 10, 10));
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
     setGlosasDraft(
       (found?.avaliacao?.glosas ?? []).map((glosa) => ({
+        id: uid(),
         item: String(glosa.item ?? ""),
         descricao: String(glosa.descricao ?? ""),
         pontosGlosados: String(glosa.pontosGlosados ?? 0),
@@ -183,7 +185,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             <span>Pontuacao por item</span>
             <div className="content-list">
               {pontuacaoItensDraft.map((entry, index) => (
-                <div className="content-item-row" key={`pontuacao-${entry.chave || "vazio"}-${index}-${entry.valor}`}>
+                <div className="content-item-row" key={entry.id}>
                   <input onChange={(e) => updatePontuacaoItem(index, "chave", e.target.value)} placeholder="criterio" value={entry.chave} />
                   <input min="0" onChange={(e) => updatePontuacaoItem(index, "valor", e.target.value)} placeholder="0" step="0.1" type="number" value={entry.valor} />
                   <ActionButton disabled={busy || pontuacaoItensDraft.length <= 1} onClick={() => setPontuacaoItensDraft((current) => current.filter((_, currentIndex) => currentIndex !== index))} type="button" variant="ghost">Remover</ActionButton>
@@ -198,7 +200,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             <span>Glosas</span>
             <div className="content-list">
               {glosasDraft.map((entry, index) => (
-                <div className="content-item" key={`glosa-${entry.item || "vazia"}-${index}-${entry.pontosGlosados}`}>
+                <div className="content-item" key={entry.id}>
                   <input onChange={(e) => updateGlosa(index, "item", e.target.value)} placeholder="item" value={entry.item} />
                   <textarea className="text-area" onChange={(e) => updateGlosa(index, "descricao", e.target.value)} placeholder="descricao da glosa" value={entry.descricao} />
                   <input min="0" onChange={(e) => updateGlosa(index, "pontosGlosados", e.target.value)} placeholder="0" step="0.1" type="number" value={entry.pontosGlosados} />
