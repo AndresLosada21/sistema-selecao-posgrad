@@ -19,6 +19,7 @@ type Props = { params: Promise<{ inscricaoId: string }> };
 export default function AdminPoliticasDetailPage({ params }: Props) {
   const session = useSession();
   const token = session.token;
+  const signOut = session.signOut;
   const searchParams = useSearchParams();
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<PoliticasEtapaItem | null>(null);
@@ -76,11 +77,11 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
       }
       setStatus("ready");
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
       setStatus("error");
     } finally { setBusy(false); }
-  }, [editalId, inscricaoId, session, token]);
+  }, [editalId, inscricaoId, signOut, token]);
 
   useEffect(() => {
     if (!inscricaoId || !token) {
@@ -93,21 +94,21 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   async function submitEncaminhamento(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!token || !inscricaoId) return; setBusy(true); setMessage(null);
     try { await registrarEncaminhamentoPoliticas(inscricaoId, encaminhamento, token); await loadByEdital(); setMessage({ type: "success", text: "Encaminhamento registrado e estado recarregado." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function submitPreliminar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!token || !inscricaoId) return; setBusy(true); setMessage(null);
     try { await registrarResultadoPreliminarPoliticas(inscricaoId, { ...preliminar, arquivoRetornoUrl: preliminar.arquivoRetornoUrl || undefined }, token); await loadByEdital(); setMessage({ type: "success", text: "Resultado preliminar registrado e estado recarregado." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function submitFinal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!token || !inscricaoId) return; setBusy(true); setMessage(null);
     try { await registrarResultadoFinalPoliticas(inscricaoId, { ...finalResult, arquivoRetornoUrl: finalResult.arquivoRetornoUrl || undefined }, token); await loadByEdital(); setMessage({ type: "success", text: "Resultado final registrado e estado recarregado." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -115,7 +116,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
     if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try { setPreview(await previewPublicacaoPoliticas(editalId, fase, token)); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -123,7 +124,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
     if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try { await publicarPoliticas(editalId, { fase, descricao: `Publicacao ${fase.toLowerCase()} de politicas afirmativas.` }, token); setMessage({ type: "success", text: `Publicacao ${fase.toLowerCase()} criada.` }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -155,7 +156,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
                 <article className="content-item" key={documento.id}>
                   <strong>{documento.tipo}</strong>
                   <small>Arquivo: {documento.nomeArquivo ?? "sem nome"}</small>
-                  <small>URL: {documento.urlArquivo}</small>
+                  <small>Arquivo privado registrado no sistema.</small>
                   <small>Status: {getStatusLabel(documento.statusValidacao ?? "SEM_VALIDACAO")}</small>
                 </article>
               ))}

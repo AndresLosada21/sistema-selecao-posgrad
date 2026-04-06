@@ -144,7 +144,7 @@ export async function getInscricaoHomologacaoById(inscricaoId: string) {
     return null;
   }
 
-  return mapInscricaoHomologacao(inscricao as any);
+  return mapInscricaoHomologacao(inscricao);
 }
 
 export function listFundamentosHomologacao() {

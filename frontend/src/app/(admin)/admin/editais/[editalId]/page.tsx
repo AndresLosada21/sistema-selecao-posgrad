@@ -27,6 +27,7 @@ type Props = { params: Promise<{ editalId: string }> };
 export default function AdminEditalDetailPage({ params }: Props) {
   const session = useSession();
   const token = session.token;
+  const signOut = session.signOut;
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<AdminEditalDetalhe | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -76,11 +77,11 @@ export default function AdminEditalDetailPage({ params }: Props) {
     load()
       .then(() => setStatus("ready"))
       .catch((error) => {
-        if (isUnauthorizedError(error)) { session.signOut(); return; }
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [editalId, load, session, token]);
+  }, [editalId, load, signOut, token]);
 
   async function submitEdital(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,7 +101,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       await load();
       setMessage({ type: "success", text: "Edital atualizado." });
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
@@ -129,7 +130,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       await load();
       setMessage({ type: "success", text: editingLinhaId ? "Linha de pesquisa atualizada." : "Linha de pesquisa criada." });
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
@@ -158,7 +159,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       await load();
       setMessage({ type: "success", text: editingCronogramaId ? "Cronograma atualizado." : "Cronograma criado." });
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
@@ -175,7 +176,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       await load();
       setMessage({ type: "success", text: "Linha removida." });
     }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -205,7 +206,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       await load();
       setMessage({ type: "success", text: "Cronograma removido." });
     }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -227,7 +228,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
     if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try { await deleteAdminEdital(editalId, token); setMessage({ type: "success", text: "Edital removido. Volte para a listagem administrativa." }); setData(null); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 

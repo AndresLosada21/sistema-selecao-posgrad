@@ -1,3 +1,5 @@
+import "express-async-errors";
+
 import cors from "cors";
 import express from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
@@ -53,6 +55,7 @@ const expensiveRouteRateLimiter = rateLimit({
 });
 
 app.disable("x-powered-by");
+// Mantemos a CSP desabilitada aqui para preservar o Swagger UI operacional em /docs.
 app.use(
   helmet({
     contentSecurityPolicy: false,

@@ -29,6 +29,8 @@ function normalizeRubricaObservacoes(observacoes: {
 
 export default function AdminEtapa1DetailPage({ params }: Props) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<Etapa1AdminItem | null>(null);
   const [espelho, setEspelho] = useState<Etapa1Espelho | null>(null);
@@ -48,39 +50,39 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   }, [params]);
 
   const loadItem = useCallback(async () => {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
 
-    const found = await getEtapa1Item(inscricaoId, session.token);
+    const found = await getEtapa1Item(inscricaoId, token);
     setItem(found);
     setTema(found?.avaliacao?.tema ?? "");
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
-  }, [inscricaoId, session]);
+  }, [inscricaoId, token]);
 
   useEffect(() => {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
 
     loadItem()
       .then(() => setStatus("ready"))
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [inscricaoId, loadItem, session]);
+  }, [inscricaoId, loadItem, signOut, token]);
 
   const notaPreview = useMemo(() => rubrica.adequacaoDominioTema * 0.5 + rubrica.estrutura * 0.1 + rubrica.organizacaoCoerencia * 0.15 + rubrica.objetividadeSintese * 0.15 + rubrica.grafiaGramatica * 0.1, [rubrica]);
 
   async function loadEspelho() {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     try {
-      const response = await getEspelhoEtapa1(inscricaoId, session.token);
+      const response = await getEspelhoEtapa1(inscricaoId, token);
       setEspelho(response);
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
       setMessage({ type: "error", text: getErrorMessage(error) });
@@ -89,7 +91,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     setBusy(true);
     setMessage(null);
     try {
@@ -109,12 +111,12 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         espelhoCorrecao,
         liberarEspelho,
         publicacao,
-      }, session.token);
+      }, token);
       await loadItem();
       setMessage({ type: "success", text: "Resultado da etapa 1 enviado ao backend e estado recarregado." });
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
       setMessage({ type: "error", text: getErrorMessage(error) });
@@ -124,17 +126,17 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   }
 
   async function onLiberarEspelho() {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     setBusy(true);
     setMessage(null);
     try {
-      await liberarEspelhoEtapa1(inscricaoId, session.token);
+      await liberarEspelhoEtapa1(inscricaoId, token);
       await loadItem();
       setMessage({ type: "success", text: "Espelho da etapa 1 liberado e estado recarregado." });
       await loadEspelho();
     } catch (error) {
       if (isUnauthorizedError(error)) {
-        session.signOut();
+        signOut();
         return;
       }
       setMessage({ type: "error", text: getErrorMessage(error) });

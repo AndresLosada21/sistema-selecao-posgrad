@@ -14,6 +14,7 @@ import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 export default function AdminPublicacoesIndexPage() {
   const session = useSession();
   const token = session.token;
+  const signOut = session.signOut;
   const [draftEditalId, setDraftEditalId] = useState("");
   const [data, setData] = useState<AdminEditaisResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -31,14 +32,14 @@ export default function AdminPublicacoesIndexPage() {
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [session, token]);
+  }, [signOut, token]);
 
   if (status === "loading") {
     return <LoadingState title="Carregando editais" description="Consultando editais para abrir o modulo de publicacoes." />;

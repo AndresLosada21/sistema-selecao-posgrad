@@ -17,6 +17,8 @@ import type { Etapa2ListResponse } from "@/modules/admin-etapas/types";
 
 export default function AdminEtapa2Page() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<Etapa2ListResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
@@ -25,21 +27,21 @@ export default function AdminEtapa2Page() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session.token) return;
-    listEtapa2(session.token, { editalId: filter || undefined, page, pageSize: 20 })
+    if (!token) return;
+    listEtapa2(token, { editalId: filter || undefined, page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, page, session]);
+  }, [filter, page, signOut, token]);
 
   if (status === "loading") return <LoadingState title="Carregando etapa 2" description="Consultando a fila administrativa da etapa 2." />;
   if (status === "error") return <ErrorState title="Falha ao carregar etapa 2" description={message ?? undefined} />;

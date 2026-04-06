@@ -109,6 +109,7 @@ export async function getCandidateDashboard(usuarioId: string) {
       cronogramas: participacao.edital.cronogramas
         .sort((a, b) => a.inicioEm.getTime() - b.inicioEm.getTime())
         .map((cronograma) => ({
+          id: cronograma.id,
           tipo: cronograma.tipo,
           titulo: cronograma.titulo,
           inicioEm: cronograma.inicioEm.toISOString(),
@@ -147,6 +148,7 @@ export async function getCandidateDashboard(usuarioId: string) {
           id: participacao.inscricao.id,
           status: participacao.inscricao.status,
           statusPagamento: participacao.inscricao.statusPagamento,
+          modalidadeConcorrencia: participacao.inscricao.modalidadeConcorrencia,
           linhaPesquisa: participacao.inscricao.linhaPesquisa
             ? {
                 id: participacao.inscricao.linhaPesquisa.id,

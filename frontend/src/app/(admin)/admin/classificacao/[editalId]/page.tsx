@@ -18,6 +18,8 @@ type Props = { params: Promise<{ editalId: string }> };
 
 export default function AdminClassificacaoDetailPage({ params }: Props) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<ClassificacaoAdminResponse | null>(null);
   const [page, setPage] = useState(1);
@@ -28,29 +30,29 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   useEffect(() => { params.then((resolved) => setEditalId(resolved.editalId)); }, [params]);
 
   useEffect(() => {
-    if (!session.token || !editalId) return;
-    listClassificacaoAdmin(editalId, session.token, { page, pageSize: 20 })
+    if (!token || !editalId) return;
+    listClassificacaoAdmin(editalId, token, { page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
-        if (isUnauthorizedError(error)) { session.signOut(); return; }
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [editalId, page, session]);
+  }, [editalId, page, signOut, token]);
 
   async function recalculate(publicacao: "PRELIMINAR" | "FINAL") {
-    if (!session.token || !editalId) return;
+    if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try {
-      await recalcularClassificacaoAdmin(editalId, publicacao, session.token);
+      await recalcularClassificacaoAdmin(editalId, publicacao, token);
       setMessage({ type: "success", text: `Classificacao recalculada em modo ${publicacao}.` });
-      const response = await listClassificacaoAdmin(editalId, session.token, { page, pageSize: 20 });
+      const response = await listClassificacaoAdmin(editalId, token, { page, pageSize: 20 });
       setData(response);
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }

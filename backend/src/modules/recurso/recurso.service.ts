@@ -115,7 +115,7 @@ export async function createRecurso(input: {
   }
 
   if (input.fase === FaseRecurso.ETAPA_2) {
-    const avaliacaoEtapa2 = participacao.inscricao?.avaliacaoEtapa2 as any;
+    const avaliacaoEtapa2 = participacao.inscricao?.avaliacaoEtapa2;
 
     if (!avaliacaoEtapa2?.espelhoSolicitadoEm) {
       return { error: "ESPELHO_ETAPA_2_NAO_SOLICITADO" as const };
@@ -254,7 +254,7 @@ export async function listRecursosAdmin(filters: { editalId?: string; fase?: Fas
     prisma.recurso.count({ where }),
   ]);
 
-  return { items: recursos.map((recurso) => mapAdminRecurso(recurso as any)), total };
+  return { items: recursos.map((recurso) => mapAdminRecurso(recurso)), total };
 }
 
 export async function getRecursoAdminById(recursoId: string) {
@@ -271,7 +271,7 @@ export async function getRecursoAdminById(recursoId: string) {
   });
 
   if (!recurso) return null;
-  return mapAdminRecurso(recurso as any);
+  return mapAdminRecurso(recurso);
 }
 
 export async function decidirRecurso(

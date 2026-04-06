@@ -19,6 +19,8 @@ type Props = { params: Promise<{ recursoId: string }> };
 
 export default function AdminRecursoDetailPage({ params }: Props) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [recursoId, setRecursoId] = useState<string | null>(null);
   const [item, setItem] = useState<AdminRecursoItem | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -40,23 +42,23 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   useEffect(() => { params.then((resolved) => setRecursoId(resolved.recursoId)); }, [params]);
 
   const loadItem = useCallback(async () => {
-    if (!session.token || !recursoId) return;
-    setItem(await getAdminRecursoById(recursoId, session.token));
-  }, [recursoId, session]);
+    if (!token || !recursoId) return;
+    setItem(await getAdminRecursoById(recursoId, token));
+  }, [recursoId, token]);
 
   useEffect(() => {
-    if (!session.token || !recursoId) return;
+    if (!token || !recursoId) return;
     loadItem()
       .then(() => setStatus("ready"))
       .catch((error) => {
-        if (isUnauthorizedError(error)) { session.signOut(); return; }
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage({ type: "error", text: getErrorMessage(error) }); setStatus("error");
       });
-  }, [loadItem, recursoId, session]);
+  }, [loadItem, recursoId, signOut, token]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session.token || !recursoId) return;
+    if (!token || !recursoId) return;
     setBusy(true); setMessage(null);
     try {
       if (decisao.trim().length < 5) {
@@ -77,11 +79,11 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         novoEspelhoEtapa2: novoEspelhoEtapa2 || undefined,
         novoResultadoFinalPoliticasAfirmativas: novoResultadoPoliticas || undefined,
         novoParecerFinalPoliticasAfirmativas: novoParecerPoliticas || undefined,
-      }, session.token);
+      }, token);
       await loadItem();
       setMessage({ type: "success", text: "Decisao do recurso enviada ao backend e estado recarregado." });
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
