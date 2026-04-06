@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 import { buildUniqueCandidate } from "./helpers/candidate";
+import { waitForAuthenticatedSession } from "./helpers/system";
 
 const backendBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:4000";
 
@@ -107,6 +108,7 @@ async function registerAndReachCandidateArea(page: Page) {
   await page.getByLabel("Telefone").fill(candidate.telefone);
   await page.getByLabel("CPF").fill(candidate.cpf);
   await page.getByRole("button", { name: "Criar conta" }).click();
+  await waitForAuthenticatedSession(page);
 
   await expect(page.getByRole("link", { name: "Area do candidato" })).toBeVisible({ timeout: 20_000 });
   return candidate;

@@ -14,7 +14,7 @@ test("admin percorre isencao, homologacao e etapa 1 pela UI real", async ({ page
     { withIsencao: true },
   );
 
-  await loginAsAdminViaUi(page);
+  await loginAsAdminViaUi(page, request);
 
   await page.goto(`/admin/isencao/${fixture.pedidoIsencaoId}`);
   await page.getByLabel("Parecer preliminar").fill("Pedido preliminarmente deferido na analise administrativa.");
