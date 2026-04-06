@@ -125,8 +125,11 @@ export default function CandidateDashboardPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [selectedParticipacaoId, setSelectedParticipacaoId] = useState<string | null>(null);
 
+  const [fetchKey, setFetchKey] = useState(0);
+
   useEffect(() => {
     if (!token) return;
+    setStatus("loading");
     getCandidateDashboard(token)
       .then((response) => { setData(response); setStatus("ready"); })
       .catch((error) => {
@@ -134,11 +137,12 @@ export default function CandidateDashboardPage() {
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [signOut, token]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchKey drives manual retry
+  }, [signOut, token, fetchKey]);
 
   function retryDashboard() {
-    setStatus("loading");
     setMessage(null);
+    setFetchKey((current) => current + 1);
   }
 
   useEffect(() => {

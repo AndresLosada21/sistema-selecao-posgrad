@@ -427,112 +427,118 @@ export async function decidirRecurso(
     }
   }
 
-  if (input.deferido && input.impactoResultado) {
+  const updated = await prisma.$transaction(async (tx) => {
+    if (input.deferido && input.impactoResultado) {
       switch (recursoAtual.fase) {
-      case FaseRecurso.ISENCAO:
-        if (recurso.participacaoEdital.pedidoIsencao && input.novoStatusIsencao) {
-          await prisma.pedidoIsencao.update({
-            where: { participacaoEditalId: recurso.participacaoEditalId },
-            data: {
-              status: input.novoStatusIsencao,
-              parecerFinal: input.decisao,
-              resultadoFinalEm: new Date(),
-            },
-          });
-        }
-        break;
-      case FaseRecurso.HOMOLOGACAO:
-        if (recurso.participacaoEdital.inscricao && recurso.participacaoEdital.inscricao.homologacao && input.novoStatusInscricao) {
-          const nextHomologacaoStatus = normalizeFinalHomologacaoStatus(input.novoStatusInscricao);
-          const nextInscricaoStatus = getInscricaoStatusAfterFinalHomologacao(nextHomologacaoStatus);
+        case FaseRecurso.ISENCAO:
+          if (recurso.participacaoEdital.pedidoIsencao && input.novoStatusIsencao) {
+            await tx.pedidoIsencao.update({
+              where: { participacaoEditalId: recurso.participacaoEditalId },
+              data: {
+                status: input.novoStatusIsencao,
+                parecerFinal: input.decisao,
+                resultadoFinalEm: new Date(),
+              },
+            });
+          }
+          break;
+        case FaseRecurso.HOMOLOGACAO:
+          if (recurso.participacaoEdital.inscricao && recurso.participacaoEdital.inscricao.homologacao && input.novoStatusInscricao) {
+            const nextHomologacaoStatus = normalizeFinalHomologacaoStatus(input.novoStatusInscricao);
+            const nextInscricaoStatus = getInscricaoStatusAfterFinalHomologacao(nextHomologacaoStatus);
 
-          await prisma.homologacaoInscricao.update({
-            where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
-            data: {
-              statusFinal: nextHomologacaoStatus,
-              parecerFinal: input.decisao,
-              publicadoFinalEm: new Date(),
-            },
-          });
-          await prisma.inscricao.update({
-            where: { id: recurso.participacaoEdital.inscricao.id },
-            data: { status: nextInscricaoStatus },
-          });
-        }
-        break;
-      case FaseRecurso.ETAPA_1:
-        if (recurso.participacaoEdital.inscricao?.avaliacaoEtapa1 && input.novaNotaEtapa1 !== undefined) {
-          await prisma.avaliacaoEtapa1.update({
-            where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
-            data: {
-              nota: input.novaNotaEtapa1,
-              espelhoCorrecao: input.novoEspelhoEtapa1 ?? input.decisao,
-              status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
-              resultadoFinalEm: new Date(),
-            },
-          });
-          await prisma.inscricao.update({
-            where: { id: recurso.participacaoEdital.inscricao.id },
-            data: {
-              status: input.novaNotaEtapa1 >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1,
-            },
-          });
-        }
-        break;
-      case FaseRecurso.ETAPA_2:
-        if (
-          recurso.participacaoEdital.inscricao?.avaliacaoEtapa2 &&
-          input.novaPontuacaoBrutaEtapa2 !== undefined &&
-          input.novaNotaNormalizadaEtapa2 !== undefined
-        ) {
-          await prisma.avaliacaoEtapa2.update({
-            where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
-            data: {
-              pontuacaoBruta: input.novaPontuacaoBrutaEtapa2,
-              notaNormalizada: input.novaNotaNormalizadaEtapa2,
-              espelhoCorrecao: input.novoEspelhoEtapa2 ?? input.decisao,
-              status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
-              resultadoFinalEm: new Date(),
-            },
-          });
-          await prisma.inscricao.update({
-            where: { id: recurso.participacaoEdital.inscricao.id },
-            data: { status: StatusInscricao.CLASSIFICACAO_PRELIMINAR },
-          });
-        }
-        break;
-      case FaseRecurso.CLASSIFICACAO:
-        break;
-      case FaseRecurso.POLITICAS_AFIRMATIVAS:
-        if (
-          recurso.participacaoEdital.inscricao?.etapaPoliticasAfirmativas &&
-          input.novoResultadoFinalPoliticasAfirmativas &&
-          input.novoParecerFinalPoliticasAfirmativas
-        ) {
-          await registrarResultadoFinalPoliticasAfirmativas({
-            inscricaoId: recurso.participacaoEdital.inscricao.id,
-            registradoPorId: input.decididoPorId,
-            resultado: input.novoResultadoFinalPoliticasAfirmativas,
-            parecer: input.novoParecerFinalPoliticasAfirmativas,
-          });
-        }
-        break;
+            await tx.homologacaoInscricao.update({
+              where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
+              data: {
+                statusFinal: nextHomologacaoStatus,
+                parecerFinal: input.decisao,
+                publicadoFinalEm: new Date(),
+              },
+            });
+            await tx.inscricao.update({
+              where: { id: recurso.participacaoEdital.inscricao.id },
+              data: { status: nextInscricaoStatus },
+            });
+          }
+          break;
+        case FaseRecurso.ETAPA_1:
+          if (recurso.participacaoEdital.inscricao?.avaliacaoEtapa1 && input.novaNotaEtapa1 !== undefined) {
+            await tx.avaliacaoEtapa1.update({
+              where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
+              data: {
+                nota: input.novaNotaEtapa1,
+                espelhoCorrecao: input.novoEspelhoEtapa1 ?? input.decisao,
+                status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
+                resultadoFinalEm: new Date(),
+              },
+            });
+            await tx.inscricao.update({
+              where: { id: recurso.participacaoEdital.inscricao.id },
+              data: {
+                status: input.novaNotaEtapa1 >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1,
+              },
+            });
+          }
+          break;
+        case FaseRecurso.ETAPA_2:
+          if (
+            recurso.participacaoEdital.inscricao?.avaliacaoEtapa2 &&
+            input.novaPontuacaoBrutaEtapa2 !== undefined &&
+            input.novaNotaNormalizadaEtapa2 !== undefined
+          ) {
+            await tx.avaliacaoEtapa2.update({
+              where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
+              data: {
+                pontuacaoBruta: input.novaPontuacaoBrutaEtapa2,
+                notaNormalizada: input.novaNotaNormalizadaEtapa2,
+                espelhoCorrecao: input.novoEspelhoEtapa2 ?? input.decisao,
+                status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
+                resultadoFinalEm: new Date(),
+              },
+            });
+            await tx.inscricao.update({
+              where: { id: recurso.participacaoEdital.inscricao.id },
+              data: { status: StatusInscricao.CLASSIFICACAO_PRELIMINAR },
+            });
+          }
+          break;
+        case FaseRecurso.CLASSIFICACAO:
+          break;
+        case FaseRecurso.POLITICAS_AFIRMATIVAS:
+          if (
+            recurso.participacaoEdital.inscricao?.etapaPoliticasAfirmativas &&
+            input.novoResultadoFinalPoliticasAfirmativas &&
+            input.novoParecerFinalPoliticasAfirmativas
+          ) {
+            await registrarResultadoFinalPoliticasAfirmativas({
+              inscricaoId: recurso.participacaoEdital.inscricao.id,
+              registradoPorId: input.decididoPorId,
+              resultado: input.novoResultadoFinalPoliticasAfirmativas,
+              parecer: input.novoParecerFinalPoliticasAfirmativas,
+            });
+          }
+          break;
+      }
     }
 
+    return tx.recurso.update({
+      where: { id: recursoId },
+      data: {
+        status: input.deferido ? StatusRecurso.DEFERIDO : StatusRecurso.INDEFERIDO,
+        decisao: input.decisao,
+        impactoResultado: input.impactoResultado,
+        respondidoEm: new Date(),
+      },
+    });
+  });
+
+  // Republicacoes e reprocessamento de classificacao rodam fora da transacao
+  // porque envolvem geracao de PDFs e snapshots que nao devem bloquear o commit principal.
+  if (input.deferido && input.impactoResultado) {
     await republicarHomologacaoFinalSeNecessario();
     await republicarPoliticasAfirmativasFinalSeNecessario();
     await reprocessClassificacaoDerivada();
   }
-
-  const updated = await prisma.recurso.update({
-    where: { id: recursoId },
-    data: {
-      status: input.deferido ? StatusRecurso.DEFERIDO : StatusRecurso.INDEFERIDO,
-      decisao: input.decisao,
-      impactoResultado: input.impactoResultado,
-      respondidoEm: new Date(),
-    },
-  });
 
   return { recurso: updated };
 }

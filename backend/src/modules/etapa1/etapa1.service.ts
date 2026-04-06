@@ -161,45 +161,49 @@ export async function registrarResultadoEtapa1(
       ? StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA
       : StatusAvaliacaoEtapa.FINAL_PUBLICADA;
 
-  const avaliacao = await prisma.avaliacaoEtapa1.upsert({
-    where: { inscricaoId },
-    update: {
-      tema: input.tema,
-      textoSubmetido: inscricao.redacaoTexto,
-      nota: notaFinal,
-      rubricaDetalhada: rubricaDetalhada as Prisma.InputJsonValue,
-      usoIaComprovado: input.usoIaComprovado,
-      fundamentoUsoIa: input.fundamentoUsoIa,
-      espelhoCorrecao: input.espelhoCorrecao,
-      espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
-      status: statusAvaliacao,
-      resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
-      resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
-    },
-    create: {
-      inscricaoId,
-      tema: input.tema,
-      textoSubmetido: inscricao.redacaoTexto,
-      nota: notaFinal,
-      rubricaDetalhada: rubricaDetalhada as Prisma.InputJsonValue,
-      usoIaComprovado: input.usoIaComprovado,
-      fundamentoUsoIa: input.fundamentoUsoIa,
-      espelhoCorrecao: input.espelhoCorrecao,
-      espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
-      status: statusAvaliacao,
-      resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
-      resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
-    },
-  });
-
-  if (input.publicacao === "FINAL") {
-    await prisma.inscricao.update({
-      where: { id: inscricaoId },
-      data: {
-        status: notaFinal >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1,
+  const avaliacao = await prisma.$transaction(async (tx) => {
+    const result = await tx.avaliacaoEtapa1.upsert({
+      where: { inscricaoId },
+      update: {
+        tema: input.tema,
+        textoSubmetido: inscricao.redacaoTexto,
+        nota: notaFinal,
+        rubricaDetalhada: rubricaDetalhada as Prisma.InputJsonValue,
+        usoIaComprovado: input.usoIaComprovado,
+        fundamentoUsoIa: input.fundamentoUsoIa,
+        espelhoCorrecao: input.espelhoCorrecao,
+        espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
+        status: statusAvaliacao,
+        resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
+        resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
+      },
+      create: {
+        inscricaoId,
+        tema: input.tema,
+        textoSubmetido: inscricao.redacaoTexto,
+        nota: notaFinal,
+        rubricaDetalhada: rubricaDetalhada as Prisma.InputJsonValue,
+        usoIaComprovado: input.usoIaComprovado,
+        fundamentoUsoIa: input.fundamentoUsoIa,
+        espelhoCorrecao: input.espelhoCorrecao,
+        espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
+        status: statusAvaliacao,
+        resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
+        resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
       },
     });
-  }
+
+    if (input.publicacao === "FINAL") {
+      await tx.inscricao.update({
+        where: { id: inscricaoId },
+        data: {
+          status: notaFinal >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1,
+        },
+      });
+    }
+
+    return result;
+  });
 
   return { avaliacao };
 }

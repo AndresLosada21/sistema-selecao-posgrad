@@ -90,67 +90,69 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
 
   const participacoesClassificadasIds = classificacoes.map((item) => item.participacaoEditalId);
 
-  await prisma.classificacaoFinal.deleteMany({
-    where: {
-      participacaoEdital: {
-        editalId,
-      },
-      ...(participacoesClassificadasIds.length > 0
-        ? {
-            participacaoEditalId: {
-              notIn: participacoesClassificadasIds,
-            },
-          }
-        : {}),
-    },
-  });
-
-  for (const item of classificacoes) {
-    await prisma.classificacaoFinal.upsert({
+  await prisma.$transaction(async (tx) => {
+    await tx.classificacaoFinal.deleteMany({
       where: {
-        participacaoEditalId: item.participacaoEditalId,
-      },
-      update: {
-        linhaPesquisaId: item.linhaPesquisaId,
-        notaEtapa1: item.notaEtapa1,
-        notaEtapa2: item.notaEtapa2,
-        notaFinal: item.notaFinal,
-        posicaoGeral: item.posicaoGeral,
-        posicaoLinha: item.posicaoLinha,
-        modalidadeConcorrencia: item.modalidadeConcorrencia,
-        status: item.status,
-        publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
-        publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
-      },
-      create: {
-        participacaoEditalId: item.participacaoEditalId,
-        linhaPesquisaId: item.linhaPesquisaId,
-        modalidadeConcorrencia: item.modalidadeConcorrencia,
-        notaEtapa1: item.notaEtapa1,
-        notaEtapa2: item.notaEtapa2,
-        notaFinal: item.notaFinal,
-        posicaoGeral: item.posicaoGeral,
-        posicaoLinha: item.posicaoLinha,
-        status: item.status,
-        publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
-        publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
+        participacaoEdital: {
+          editalId,
+        },
+        ...(participacoesClassificadasIds.length > 0
+          ? {
+              participacaoEditalId: {
+                notIn: participacoesClassificadasIds,
+              },
+            }
+          : {}),
       },
     });
 
-    const statusInscricao =
-      publicacao === "PRELIMINAR"
-        ? StatusInscricao.CLASSIFICACAO_PRELIMINAR
-        : item.status === StatusClassificacaoFinal.APROVADO
-          ? StatusInscricao.APROVADA
-          : StatusInscricao.LISTA_DE_ESPERA;
+    for (const item of classificacoes) {
+      await tx.classificacaoFinal.upsert({
+        where: {
+          participacaoEditalId: item.participacaoEditalId,
+        },
+        update: {
+          linhaPesquisaId: item.linhaPesquisaId,
+          notaEtapa1: item.notaEtapa1,
+          notaEtapa2: item.notaEtapa2,
+          notaFinal: item.notaFinal,
+          posicaoGeral: item.posicaoGeral,
+          posicaoLinha: item.posicaoLinha,
+          modalidadeConcorrencia: item.modalidadeConcorrencia,
+          status: item.status,
+          publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
+          publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
+        },
+        create: {
+          participacaoEditalId: item.participacaoEditalId,
+          linhaPesquisaId: item.linhaPesquisaId,
+          modalidadeConcorrencia: item.modalidadeConcorrencia,
+          notaEtapa1: item.notaEtapa1,
+          notaEtapa2: item.notaEtapa2,
+          notaFinal: item.notaFinal,
+          posicaoGeral: item.posicaoGeral,
+          posicaoLinha: item.posicaoLinha,
+          status: item.status,
+          publicadoPreliminarEm: publicacao === "PRELIMINAR" ? new Date() : undefined,
+          publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
+        },
+      });
 
-    await prisma.inscricao.update({
-      where: { id: item.inscricaoId },
-      data: {
-        status: statusInscricao,
-      },
-    });
-  }
+      const statusInscricao =
+        publicacao === "PRELIMINAR"
+          ? StatusInscricao.CLASSIFICACAO_PRELIMINAR
+          : item.status === StatusClassificacaoFinal.APROVADO
+            ? StatusInscricao.APROVADA
+            : StatusInscricao.LISTA_DE_ESPERA;
+
+      await tx.inscricao.update({
+        where: { id: item.inscricaoId },
+        data: {
+          status: statusInscricao,
+        },
+      });
+    }
+  });
 
   return listClassificacao(editalId);
 }

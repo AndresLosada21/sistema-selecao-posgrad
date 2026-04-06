@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
@@ -25,6 +26,7 @@ import type { AdminEditalDetalhe } from "@/modules/admin-edital/types";
 type Props = { params: Promise<{ editalId: string }> };
 
 export default function AdminEditalDetailPage({ params }: Props) {
+  const router = useRouter();
   const session = useSession();
   const token = session.token;
   const signOut = session.signOut;
@@ -140,12 +142,27 @@ export default function AdminEditalDetailPage({ params }: Props) {
     if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try {
+      if (!cronogramaForm.inicioEm || !cronogramaForm.fimEm) {
+        setMessage({ type: "error", text: "As datas de inicio e fim do cronograma sao obrigatorias." });
+        setBusy(false);
+        return;
+      }
+
+      const inicioDate = new Date(cronogramaForm.inicioEm);
+      const fimDate = new Date(cronogramaForm.fimEm);
+
+      if (Number.isNaN(inicioDate.getTime()) || Number.isNaN(fimDate.getTime())) {
+        setMessage({ type: "error", text: "As datas informadas para o cronograma sao invalidas." });
+        setBusy(false);
+        return;
+      }
+
       const payload = {
         tipo: cronogramaForm.tipo,
         titulo: cronogramaForm.titulo,
         descricao: cronogramaForm.descricao || undefined,
-        inicioEm: new Date(cronogramaForm.inicioEm).toISOString(),
-        fimEm: new Date(cronogramaForm.fimEm).toISOString(),
+        inicioEm: inicioDate.toISOString(),
+        fimEm: fimDate.toISOString(),
       };
 
       if (editingCronogramaId) {
@@ -227,7 +244,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
   async function handleDeleteEdital() {
     if (!token || !editalId) return;
     setBusy(true); setMessage(null);
-    try { await deleteAdminEdital(editalId, token); setMessage({ type: "success", text: "Edital removido. Volte para a listagem administrativa." }); setData(null); }
+    try { await deleteAdminEdital(editalId, token); setMessage({ type: "success", text: "Edital removido. Redirecionando para a listagem administrativa." }); setTimeout(() => router.replace("/admin/editais"), 800); }
     catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
