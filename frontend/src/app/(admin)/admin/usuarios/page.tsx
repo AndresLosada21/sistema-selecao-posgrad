@@ -9,6 +9,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
+import { statusContaOptions, type StatusConta } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { listAdminEditais } from "@/modules/admin-edital/api";
@@ -17,8 +18,6 @@ import type { AdminUsuariosResponse } from "@/modules/admin-usuarios/types";
 import type { EditalListItem } from "@/modules/edital/types";
 
 const availableRoles = ["CANDIDATO", "AVALIADOR", "ADMIN"] as const;
-const accountStatusOptions = ["CRIADA", "ATIVA", "BLOQUEADA"] as const;
-
 type ScopeDraft = {
   editalId: string;
   linhaPesquisaId: string;
@@ -54,7 +53,7 @@ export default function AdminUsuariosPage() {
     });
   }, [load, signOut]);
 
-  async function handleStatus(usuarioId: string, statusConta: string) {
+  async function handleStatus(usuarioId: string, statusConta: StatusConta) {
     if (!token) return;
     setBusyUserId(usuarioId); setMessage(null);
     try { await updateAdminUsuarioStatus(usuarioId, { statusConta }, token); await load(); setMessage({ type: "success", text: "Status da conta atualizado." }); }
@@ -142,7 +141,7 @@ export default function AdminUsuariosPage() {
                   <small>Escopos de avaliacao: {item.escoposAvaliacao.length ? item.escoposAvaliacao.map((escopo) => escopo.linhaPesquisaId ? `${escopo.editalId}:${escopo.linhaPesquisaId}` : escopo.editalId).join(", ") : "nenhum"}</small>
                   <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
 
-                  <label className="field-block"><span>Status da conta</span><select className="select-field" disabled={busyUserId === item.id} onChange={(event) => handleStatus(item.id, event.target.value)} value={item.statusConta}>{accountStatusOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+                  <label className="field-block"><span>Status da conta</span><select className="select-field" disabled={busyUserId === item.id} onChange={(event) => handleStatus(item.id, event.target.value as StatusConta)} value={item.statusConta}>{statusContaOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
 
                   <div className="content-list">
                     {availableRoles.map((role) => {

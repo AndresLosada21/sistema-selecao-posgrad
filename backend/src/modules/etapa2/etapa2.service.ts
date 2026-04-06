@@ -137,14 +137,16 @@ export async function registrarResultadoEtapa2(
     return { error: "INSCRICAO_NAO_APTA_ETAPA_2" as const };
   }
 
+  const pontuacaoBruta = Math.max(0, input.pontuacaoBruta);
+
   const notaNormalizada = calcularNotaNormalizadaEtapa2({
-    pontuacaoBruta: input.pontuacaoBruta,
+    pontuacaoBruta,
     maiorPontuacaoBruta: input.maiorPontuacaoBruta,
   });
 
   const memoriaCalculo = buildMemoriaCalculoEtapa2({
     pontuacaoItens: input.pontuacaoItens,
-    pontuacaoBruta: input.pontuacaoBruta,
+    pontuacaoBruta,
     maiorPontuacaoBruta: input.maiorPontuacaoBruta,
     notaNormalizada,
     glosas: input.glosas,
@@ -159,7 +161,7 @@ export async function registrarResultadoEtapa2(
     where: { inscricaoId },
     update: {
       pontuacaoItens: input.pontuacaoItens,
-      pontuacaoBruta: input.pontuacaoBruta,
+      pontuacaoBruta,
       notaNormalizada,
       memoriaCalculo: memoriaCalculo as Prisma.InputJsonValue,
       glosas: input.glosas as unknown as Prisma.InputJsonValue,

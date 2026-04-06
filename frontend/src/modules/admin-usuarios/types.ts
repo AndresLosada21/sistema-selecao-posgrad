@@ -1,3 +1,5 @@
+import type { StatusConta } from "@/lib/enums";
+
 export type AdminUsuarioItem = {
   id: string;
   nomeCompleto: string;
@@ -5,7 +7,7 @@ export type AdminUsuarioItem = {
   cpf: string | null;
   telefone: string | null;
   emailVerificadoEm: string | null;
-  statusConta: string;
+  statusConta: StatusConta;
   perfis: string[];
   escoposAvaliacao: Array<{
     editalId: string;

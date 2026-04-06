@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from "@/lib/http/client";
+import type { TipoPublicacaoOficial } from "@/lib/enums";
 import type { PublicacoesResponse } from "@/modules/publicacao/types";
 
 export function previewHomologacaoPublicacao(editalId: string, fase: "PRELIMINAR" | "FINAL", token: string) {
@@ -12,7 +13,7 @@ export function listAdminPublicacoesByEdital(editalId: string, token: string) {
 export function publicarGenerica(
   editalId: string,
   payload: {
-    tipo: string;
+    tipo: TipoPublicacaoOficial;
     titulo: string;
     descricao?: string;
     versaoFinal?: boolean;

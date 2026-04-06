@@ -85,6 +85,26 @@ export const statusInscricaoOptions = [
 ] as const;
 export type StatusInscricao = (typeof statusInscricaoOptions)[number];
 
+export const statusContaOptions = ["CRIADA", "ATIVA", "BLOQUEADA"] as const;
+export type StatusConta = (typeof statusContaOptions)[number];
+
+export const tipoPublicacaoOficialOptions = [
+  "EDITAL",
+  "RETIFICACAO",
+  "ISENCAO_PRELIMINAR",
+  "ISENCAO_FINAL",
+  "HOMOLOGACAO_PRELIMINAR",
+  "HOMOLOGACAO_FINAL",
+  "RESULTADO_ETAPA_1",
+  "RESULTADO_ETAPA_2",
+  "POLITICAS_AFIRMATIVAS_PRELIMINAR",
+  "POLITICAS_AFIRMATIVAS_FINAL",
+  "CLASSIFICACAO_PRELIMINAR",
+  "CLASSIFICACAO_FINAL",
+  "COMUNICADO",
+] as const;
+export type TipoPublicacaoOficial = (typeof tipoPublicacaoOficialOptions)[number];
+
 export const faseRecursoOptions = ["ISENCAO", "HOMOLOGACAO", "ETAPA_1", "ETAPA_2", "CLASSIFICACAO", "POLITICAS_AFIRMATIVAS"] as const;
 export type FaseRecurso = (typeof faseRecursoOptions)[number];
 

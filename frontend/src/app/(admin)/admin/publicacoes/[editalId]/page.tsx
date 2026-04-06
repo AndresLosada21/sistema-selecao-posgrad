@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
+import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { publicationPhaseOptions } from "@/modules/admin-operacao/constants";
 import { listAdminPublicacoesByEdital, previewClassificacaoPublicacao, previewHomologacaoPublicacao, publicarClassificacao, publicarGenerica, publicarHomologacao } from "@/modules/admin-publicacao/api";
@@ -34,28 +35,12 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [faseHomologacao, setFaseHomologacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
   const [faseClassificacao, setFaseClassificacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
   const [fasePoliticas, setFasePoliticas] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
-  const [tipoGenerico, setTipoGenerico] = useState("COMUNICADO");
+  const [tipoGenerico, setTipoGenerico] = useState<TipoPublicacaoOficial>("COMUNICADO");
   const [tituloGenerico, setTituloGenerico] = useState("");
   const [descricaoGenerica, setDescricaoGenerica] = useState("");
   const [arquivoUrlGenerico, setArquivoUrlGenerico] = useState("");
   const [versaoFinalGenerica, setVersaoFinalGenerica] = useState(false);
   const [dadosConsolidadosGenerico, setDadosConsolidadosGenerico] = useState("{}");
-
-  const genericTypeOptions = [
-    "EDITAL",
-    "RETIFICACAO",
-    "ISENCAO_PRELIMINAR",
-    "ISENCAO_FINAL",
-    "HOMOLOGACAO_PRELIMINAR",
-    "HOMOLOGACAO_FINAL",
-    "RESULTADO_ETAPA_1",
-    "RESULTADO_ETAPA_2",
-    "POLITICAS_AFIRMATIVAS_PRELIMINAR",
-    "POLITICAS_AFIRMATIVAS_FINAL",
-    "CLASSIFICACAO_PRELIMINAR",
-    "CLASSIFICACAO_FINAL",
-    "COMUNICADO",
-  ] as const;
 
   useEffect(() => { params.then((resolved) => setEditalId(resolved.editalId)); }, [params]);
 
@@ -174,7 +159,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
       <SectionCard title="Publicacao generica" description="Cria publicacoes administrativas fora dos fluxos especializados, como comunicados, retificacoes e avisos gerais.">
         <form className="form-grid" onSubmit={handlePublicacaoGenerica}>
-          <label className="field-block"><span>Tipo</span><select className="select-field" onChange={(event) => setTipoGenerico(event.target.value)} value={tipoGenerico}>{genericTypeOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+          <label className="field-block"><span>Tipo</span><select className="select-field" onChange={(event) => setTipoGenerico(event.target.value as TipoPublicacaoOficial)} value={tipoGenerico}>{tipoPublicacaoOficialOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
           <label className="field-block"><span>Titulo</span><input onChange={(event) => setTituloGenerico(event.target.value)} required value={tituloGenerico} /></label>
           <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(event) => setDescricaoGenerica(event.target.value)} value={descricaoGenerica} /></label>
           <label className="field-block"><span>Arquivo URL (opcional)</span><input onChange={(event) => setArquivoUrlGenerico(event.target.value)} value={arquivoUrlGenerico} /></label>

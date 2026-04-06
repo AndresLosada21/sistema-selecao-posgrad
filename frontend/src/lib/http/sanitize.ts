@@ -25,3 +25,7 @@ function sanitizeValue(value: unknown): unknown {
 export function sanitizePayload<T>(value: T): T {
   return sanitizeValue(value) as T;
 }
+
+export function stripEmptyStrings<T>(value: T): T {
+  return sanitizePayload(value);
+}
