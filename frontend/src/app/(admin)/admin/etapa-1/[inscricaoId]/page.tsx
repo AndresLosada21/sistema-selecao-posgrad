@@ -6,6 +6,7 @@ import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
+import { StructuredPreview } from "@/components/shared/structured-preview";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
@@ -190,7 +191,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
       <SectionCard title="Espelho administrativo" description="Leitura do espelho retornado pelo backend no contexto admin.">
         <div className="content-item-links"><ActionButton disabled={busy} onClick={loadEspelho} type="button" variant="secondary">Carregar espelho</ActionButton></div>
-        {espelho ? <pre className="preformatted-block">{JSON.stringify(espelho, null, 2)}</pre> : <EmptyState title="Espelho nao carregado" description="Use a acao acima para consultar o espelho administrativo." />}
+        {espelho ? <StructuredPreview data={espelho} /> : <EmptyState title="Espelho nao carregado" description="Use a acao acima para consultar o espelho administrativo." />}
       </SectionCard>
     </div>
   );

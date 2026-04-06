@@ -11,6 +11,9 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { listAdminEditais } from "@/modules/admin-edital/api";
+import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { faseRecursoOptions } from "@/modules/admin-operacao/constants";
 import { listRecursosAdmin } from "@/modules/admin-recursos/api";
@@ -21,6 +24,7 @@ export default function AdminRecursosPage() {
   const token = session.token;
   const signOut = session.signOut;
   const [data, setData] = useState<AdminRecursosResponse | null>(null);
+  const [editais, setEditais] = useState<AdminEditaisResponse | null>(null);
   const [draftEditalId, setDraftEditalId] = useState("");
   const [draftFase, setDraftFase] = useState("");
   const [editalId, setEditalId] = useState("");
@@ -29,14 +33,17 @@ export default function AdminRecursosPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) return;
-    listRecursosAdmin(token, { editalId: editalId || undefined, fase: fase || undefined, page, pageSize: 20 })
-      .then((response) => { setData(response); setStatus("ready"); })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage(getErrorMessage(error)); setStatus("error");
-      });
+    try {
+      const [response, editaisResponse] = await Promise.all([listRecursosAdmin(token, { editalId: editalId || undefined, fase: fase || undefined, page, pageSize: 20 }), listAdminEditais(token)]);
+      if (signal.aborted) return;
+      setData(response); setEditais(editaisResponse); setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage(getErrorMessage(error)); setStatus("error");
+    }
   }, [editalId, fase, page, signOut, token]);
 
   if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando a fila administrativa de recursos." />;
@@ -52,7 +59,7 @@ export default function AdminRecursosPage() {
 
       <SectionCard title="Filtros de recursos" description="Filtra a fila administrativa por edital e fase.">
         <div className="form-grid">
-          <label className="field-block"><span>ID do edital</span><input onChange={(e) => setDraftEditalId(e.target.value)} value={draftEditalId} /></label>
+          <label className="field-block"><span>Edital</span><select className="select-field" onChange={(e) => setDraftEditalId(e.target.value)} value={draftEditalId}><option value="">Todos os editais</option>{editais?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}</select></label>
           <label className="field-block"><span>Fase</span><select className="select-field" onChange={(e) => setDraftFase(e.target.value)} value={draftFase}><option value="">todas</option>{faseRecursoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
         </div>
         <div className="content-item-links">

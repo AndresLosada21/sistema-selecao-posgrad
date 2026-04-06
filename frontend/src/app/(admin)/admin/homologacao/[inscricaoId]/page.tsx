@@ -33,6 +33,12 @@ type AdminHomologacaoDetailProps = {
 
 const confirmacaoReservaOptions = ["PENDENTE", "CONFIRMADA", "NAO_CONFIRMADA", "NAO_SE_APLICA"] as const;
 
+type FeedbackMessage = {
+  type: "success" | "error";
+  title: string;
+  description: string;
+};
+
 export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoDetailProps) {
   const session = useSession();
   const token = session.token;
@@ -40,7 +46,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<AdminInscricaoHomologacao | null>(null);
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamento[]>([]);
-  const [message, setMessage] = useState<{ title: string; description: string } | null>(null);
+  const [message, setMessage] = useState<FeedbackMessage | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [preliminarParecer, setPreliminarParecer] = useState("");
   const [finalParecer, setFinalParecer] = useState("");
@@ -83,7 +89,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
           return;
         }
 
-        setMessage({ title: "Falha ao carregar inscricao", description: getErrorMessage(error) });
+        setMessage({ type: "error", title: "Falha ao carregar inscricao", description: getErrorMessage(error) });
         setStatus("error");
       });
   }, [inscricaoId, loadItem, signOut, token]);
@@ -148,7 +154,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         return;
       }
 
-      setMessage({ title: "Falha ao baixar Anexo IV", description: getErrorMessage(error) });
+      setMessage({ type: "error", title: "Falha ao baixar Anexo IV", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -166,6 +172,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       const pacote = await getPacoteDocumentalAdmin(item.id, token);
       setPacoteResumo(pacote.pacoteDocumental);
       setMessage({
+        type: "success",
         title: "Pacote documental carregado",
         description: `Arquivo: ${pacote.pacoteDocumental.nomeArquivo ?? "sem nome"} · Gerado em: ${formatIsoDate(pacote.pacoteDocumental.geradoEm)}`,
       });
@@ -174,7 +181,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         return;
       }
 
-      setMessage({ title: "Falha ao carregar pacote documental", description: getErrorMessage(error) });
+      setMessage({ type: "error", title: "Falha ao carregar pacote documental", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -199,13 +206,13 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       }, token);
 
       setPacoteResumo(response);
-      setMessage({ title: "Pacote documental registrado", description: "O pacote documental consolidado foi registrado para esta inscricao." });
+      setMessage({ type: "success", title: "Pacote documental registrado", description: "O pacote documental consolidado foi registrado para esta inscricao." });
     } catch (error) {
       if (handleUnauthorized(error)) {
         return;
       }
 
-      setMessage({ title: "Falha ao registrar pacote documental", description: getErrorMessage(error) });
+      setMessage({ type: "error", title: "Falha ao registrar pacote documental", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -229,13 +236,13 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       }, token);
 
       await loadItem();
-      setMessage({ title: "Homologacao preliminar registrada", description: "O parecer preliminar foi aceito pelo backend." });
+      setMessage({ type: "success", title: "Homologacao preliminar registrada", description: "O parecer preliminar foi aceito pelo backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
         return;
       }
 
-      setMessage({ title: "Falha na homologacao preliminar", description: getErrorMessage(error) });
+      setMessage({ type: "error", title: "Falha na homologacao preliminar", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -259,13 +266,13 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       }, token);
 
       await loadItem();
-      setMessage({ title: "Homologacao final registrada", description: "O parecer final foi aceito pelo backend." });
+      setMessage({ type: "success", title: "Homologacao final registrada", description: "O parecer final foi aceito pelo backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
         return;
       }
 
-      setMessage({ title: "Falha na homologacao final", description: getErrorMessage(error) });
+      setMessage({ type: "error", title: "Falha na homologacao final", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -288,13 +295,13 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       }, token);
 
       await loadItem();
-      setMessage({ title: "Confirmacao de reserva atualizada", description: "A confirmacao operacional foi enviada ao backend." });
+      setMessage({ type: "success", title: "Confirmacao de reserva atualizada", description: "A confirmacao operacional foi enviada ao backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
         return;
       }
 
-      setMessage({ title: "Falha na confirmacao de reserva", description: getErrorMessage(error) });
+      setMessage({ type: "error", title: "Falha na confirmacao de reserva", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -314,7 +321,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
 
   return (
     <div className="stack-layout">
-      {message ? <PageFeedback description={message.description} title={message.title} type={message.title.startsWith("Falha") ? "error" : "success"} /> : null}
+      {message ? <PageFeedback description={message.description} title={message.title} type={message.type} /> : null}
 
       <SectionCard title={`Homologacao de ${item.candidato.nomeCompleto}`} description={`Edital ${item.edital.numero} · ${item.edital.titulo}`}>
         <div className="content-list">

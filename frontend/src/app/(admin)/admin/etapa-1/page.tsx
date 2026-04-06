@@ -11,6 +11,9 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { listAdminEditais } from "@/modules/admin-edital/api";
+import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { listEtapa1 } from "@/modules/admin-etapas/api";
 import type { Etapa1ListResponse } from "@/modules/admin-etapas/types";
@@ -20,28 +23,31 @@ export default function AdminEtapa1Page() {
   const token = session.token;
   const signOut = session.signOut;
   const [data, setData] = useState<Etapa1ListResponse | null>(null);
+  const [editais, setEditais] = useState<AdminEditaisResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) return;
 
-    listEtapa1(token, { editalId: filter || undefined, page, pageSize: 20 })
-      .then((response) => {
-        setData(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
+    try {
+      const [response, editaisResponse] = await Promise.all([listEtapa1(token, { editalId: filter || undefined, page, pageSize: 20 }), listAdminEditais(token)]);
+      if (signal.aborted) return;
+      setData(response);
+      setEditais(editaisResponse);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
   }, [filter, page, signOut, token]);
 
   if (status === "loading") return <LoadingState title="Carregando etapa 1" description="Consultando a fila administrativa da etapa 1." />;
@@ -58,8 +64,11 @@ export default function AdminEtapa1Page() {
       <SectionCard title="Filtro da etapa 1" description="Filtra a fila pelo edital quando necessario.">
         <div className="content-list">
           <label className="field-block">
-            <span>ID do edital</span>
-            <input onChange={(event) => setDraftFilter(event.target.value)} value={draftFilter} />
+            <span>Edital</span>
+            <select className="select-field" onChange={(event) => setDraftFilter(event.target.value)} value={draftFilter}>
+              <option value="">Todos os editais</option>
+              {editais?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}
+            </select>
           </label>
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>

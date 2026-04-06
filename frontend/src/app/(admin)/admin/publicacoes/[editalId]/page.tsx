@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-s
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { StructuredPreview } from "@/components/shared/structured-preview";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
@@ -154,7 +155,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <ActionButton disabled={busy} onClick={() => publish("politicas")} type="button">Publicar politicas</ActionButton>
         </div>
         {previewLabel ? <small>Preview carregado: {previewLabel}</small> : null}
-        {preview ? <pre className="preformatted-block">{JSON.stringify(preview, null, 2)}</pre> : null}
+        {preview ? <StructuredPreview data={preview} /> : null}
       </SectionCard>
 
       <SectionCard title="Publicacao generica" description="Cria publicacoes administrativas fora dos fluxos especializados, como comunicados, retificacoes e avisos gerais.">

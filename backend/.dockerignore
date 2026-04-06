@@ -4,3 +4,5 @@ dist
 .env
 *.md
 dogfood-output/
+e2e/
+test-results/
