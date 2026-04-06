@@ -110,7 +110,7 @@ function withAuthHeaders(request?: Record<string, unknown>) {
   return {
     ...request,
     headers: AuthorizationHeaderSchema,
-  } as any;
+  };
 }
 
 function withAuthDescription(description: string) {

@@ -13,6 +13,7 @@ build/
 .env
 .env.local
 .env.*.local
+AGENTS.md
 
 # IDE
 .vscode/
@@ -47,6 +48,8 @@ backend/prisma/migrations/*.sql.bak
 # Uploads (local dev)
 uploads/
 temp/
+backend/storage/
+dogfood-output/
 
 # Misc
 *.tgz

@@ -17,6 +17,8 @@ import type { PoliticasListResponse } from "@/modules/admin-politicas/types";
 
 export default function AdminPoliticasPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -25,22 +27,22 @@ export default function AdminPoliticasPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session.token || !filter) return;
+    if (!token || !filter) return;
     setStatus("loading");
-    listPoliticas(filter, session.token, { page, pageSize: 20 })
+    listPoliticas(filter, token, { page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, page, session]);
+  }, [filter, page, signOut, token]);
 
   return (
     <div className="stack-layout">

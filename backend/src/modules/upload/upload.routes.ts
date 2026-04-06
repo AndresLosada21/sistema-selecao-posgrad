@@ -8,6 +8,7 @@ import { forbidden, notFound, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
   assertUploadFile,
+  assertSafePrivateUploadParams,
   buildPrivateUploadUrl,
   buildStoredUploadName,
   canReadPrivateUpload,
@@ -55,6 +56,13 @@ uploadRouter.get("/v1/uploads/private/:ownerId/:filename", requireAuth, async (r
 
   const ownerId = Array.isArray(request.params.ownerId) ? request.params.ownerId[0] : request.params.ownerId;
   const filename = Array.isArray(request.params.filename) ? request.params.filename[0] : request.params.filename;
+
+  try {
+    assertSafePrivateUploadParams(ownerId, filename);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Parametros de arquivo invalidos.";
+    return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+  }
 
   if (!canReadPrivateUpload(request.auth.userId, ownerId, request.auth.perfis)) {
     return response.status(403).json(forbidden("Perfil sem permissao para acessar este arquivo."));

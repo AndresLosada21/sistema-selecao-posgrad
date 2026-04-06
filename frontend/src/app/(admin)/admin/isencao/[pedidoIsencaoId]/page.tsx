@@ -20,6 +20,8 @@ type Props = { params: Promise<{ pedidoIsencaoId: string }> };
 
 export default function AdminIsencaoDetailPage({ params }: Props) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [pedidoId, setPedidoId] = useState<string | null>(null);
   const [item, setItem] = useState<AdminIsencaoItem | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -32,47 +34,47 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
   useEffect(() => { params.then((resolved) => setPedidoId(resolved.pedidoIsencaoId)); }, [params]);
 
   const load = useCallback(async () => {
-    if (!session.token || !pedidoId) return;
-    const response = await getAdminIsencaoById(pedidoId, session.token);
+    if (!token || !pedidoId) return;
+    const response = await getAdminIsencaoById(pedidoId, token);
     setItem(response);
     setPreliminar((current) => ({ ...current, parecer: response.parecerPreliminar ?? current.parecer }));
     setFinalDecision((current) => ({ ...current, parecer: response.parecerFinal ?? current.parecer }));
-  }, [pedidoId, session.token]);
+  }, [pedidoId, token]);
 
   useEffect(() => {
-    if (!session.token || !pedidoId) return;
+    if (!token || !pedidoId) return;
     load().then(() => setStatus("ready")).catch((error) => {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
       setStatus("error");
     });
-  }, [load, pedidoId, session]);
+  }, [load, pedidoId, signOut, token]);
 
   async function handlePreliminar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session.token || !pedidoId) return;
+    if (!token || !pedidoId) return;
     setBusy(true); setMessage(null);
-    try { await decidirIsencaoPreliminarAdmin(pedidoId, preliminar, session.token); await load(); setMessage({ type: "success", text: "Decisao preliminar registrada." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    try { await decidirIsencaoPreliminarAdmin(pedidoId, preliminar, token); await load(); setMessage({ type: "success", text: "Decisao preliminar registrada." }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function handleFinal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session.token || !pedidoId) return;
+    if (!token || !pedidoId) return;
     setBusy(true); setMessage(null);
-    try { await decidirIsencaoFinalAdmin(pedidoId, finalDecision, session.token); await load(); setMessage({ type: "success", text: "Decisao final registrada." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    try { await decidirIsencaoFinalAdmin(pedidoId, finalDecision, token); await load(); setMessage({ type: "success", text: "Decisao final registrada." }); }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function handleDownloadComprovante() {
-    if (!session.token || !item?.comprovanteUrl) return;
+    if (!token || !item?.comprovanteUrl) return;
     setDownloadingComprovante(true);
     try {
-      await downloadAuthenticatedFile(item.comprovanteUrl, session.token, item.comprovanteNomeArquivo ?? "comprovante.pdf");
+      await downloadAuthenticatedFile(item.comprovanteUrl, token, item.comprovanteNomeArquivo ?? "comprovante.pdf");
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setDownloadingComprovante(false); }
   }

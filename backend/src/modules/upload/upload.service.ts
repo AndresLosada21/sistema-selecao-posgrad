@@ -10,6 +10,21 @@ import { env } from "../../config/env.js";
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const allowedMimeTypes = new Set(["application/pdf", "image/png", "image/jpeg"]);
 
+function assertSafePathSegment(value: string, field: string) {
+  if (!value || value.includes("..") || value.includes("/") || value.includes("\\")) {
+    throw new Error(`${field} invalido.`);
+  }
+
+  return value;
+}
+
+export function assertSafePrivateUploadParams(ownerId: string, filename: string) {
+  return {
+    ownerId: assertSafePathSegment(ownerId, "ownerId"),
+    filename: assertSafePathSegment(filename, "filename"),
+  };
+}
+
 function sanitizeFilenamePart(value: string) {
   return value
     .normalize("NFD")
@@ -52,10 +67,12 @@ export function buildStoredUploadName(originalName: string) {
 }
 
 export function buildPrivateUploadUrl(ownerId: string, filename: string) {
+  assertSafePrivateUploadParams(ownerId, filename);
   return `/v1/uploads/private/${ownerId}/${filename}`;
 }
 
 export function resolvePrivateUploadPath(ownerId: string, filename: string) {
+  assertSafePrivateUploadParams(ownerId, filename);
   return path.join(getUploadsRootDir(), "private", ownerId, filename);
 }
 

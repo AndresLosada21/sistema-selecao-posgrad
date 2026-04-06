@@ -18,6 +18,8 @@ import type { AdminRecursosResponse } from "@/modules/admin-recursos/types";
 
 export default function AdminRecursosPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<AdminRecursosResponse | null>(null);
   const [draftEditalId, setDraftEditalId] = useState("");
   const [draftFase, setDraftFase] = useState("");
@@ -28,14 +30,14 @@ export default function AdminRecursosPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session.token) return;
-    listRecursosAdmin(session.token, { editalId: editalId || undefined, fase: fase || undefined, page, pageSize: 20 })
+    if (!token) return;
+    listRecursosAdmin(token, { editalId: editalId || undefined, fase: fase || undefined, page, pageSize: 20 })
       .then((response) => { setData(response); setStatus("ready"); })
       .catch((error) => {
-        if (isUnauthorizedError(error)) { session.signOut(); return; }
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage(getErrorMessage(error)); setStatus("error");
       });
-  }, [editalId, fase, page, session]);
+  }, [editalId, fase, page, signOut, token]);
 
   if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando a fila administrativa de recursos." />;
   if (status === "error") return <ErrorState title="Falha ao carregar recursos" description={message ?? undefined} />;

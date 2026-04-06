@@ -23,6 +23,8 @@ const emptyGlosa = (): GlosaDraft => ({ item: "", descricao: "", pontosGlosados:
 
 export default function AdminEtapa2DetailPage({ params }: Props) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<Etapa2AdminItem | null>(null);
   const [espelho, setEspelho] = useState<Etapa2Espelho | null>(null);
@@ -40,9 +42,9 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   useEffect(() => { params.then((resolved) => setInscricaoId(resolved.inscricaoId)); }, [params]);
 
   const loadItem = useCallback(async () => {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
 
-    const found = await getEtapa2Item(inscricaoId, session.token);
+    const found = await getEtapa2Item(inscricaoId, token);
     setItem(found);
     setPontuacaoItensDraft(
       Object.entries(found?.avaliacao?.pontuacaoItens ?? { titulo: 0 }).map(([chave, valor]) => ({ chave, valor: String(valor) })),
@@ -57,36 +59,36 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         pontosGlosados: String(glosa.pontosGlosados ?? 0),
       })),
     );
-  }, [inscricaoId, session]);
+  }, [inscricaoId, token]);
 
   useEffect(() => {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     loadItem()
       .then(() => setStatus("ready"))
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [loadItem, inscricaoId, session]);
+  }, [loadItem, inscricaoId, signOut, token]);
 
   async function loadEspelho() {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     try {
-      const response = await getEspelhoEtapa2(inscricaoId, session.token);
+      const response = await getEspelhoEtapa2(inscricaoId, token);
       setEspelho(response);
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     setBusy(true); setMessage(null);
     try {
       const pontuacaoItens = Object.fromEntries(
@@ -126,25 +128,25 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         espelhoCorrecao,
         liberarEspelho,
         publicacao,
-      }, session.token);
+      }, token);
       await loadItem();
       setMessage({ type: "success", text: "Resultado da etapa 2 enviado ao backend e estado recarregado." });
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
   async function onLiberarEspelho() {
-    if (!session.token || !inscricaoId) return;
+    if (!token || !inscricaoId) return;
     setBusy(true); setMessage(null);
     try {
-      await liberarEspelhoEtapa2(inscricaoId, session.token);
+      await liberarEspelhoEtapa2(inscricaoId, token);
       await loadItem();
       setMessage({ type: "success", text: "Espelho da etapa 2 liberado e estado recarregado." });
       await loadEspelho();
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }

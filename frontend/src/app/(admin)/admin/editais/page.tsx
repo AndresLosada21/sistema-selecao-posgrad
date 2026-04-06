@@ -19,6 +19,7 @@ import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 export default function AdminEditaisPage() {
   const session = useSession();
   const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<AdminEditaisResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -51,15 +52,15 @@ export default function AdminEditaisPage() {
     load()
       .then(() => setStatus("ready"))
       .catch((error) => {
-        if (isUnauthorizedError(error)) { session.signOut(); return; }
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [load, session, token]);
+  }, [load, signOut, token]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session.token) return;
+    if (!token) return;
     setBusy(true); setMessage(null);
     try {
       await createAdminEdital({
@@ -71,12 +72,12 @@ export default function AdminEditaisPage() {
         cursoNivel: form.cursoNivel,
         status: form.status,
         publicadoEm: form.publicadoEm || undefined,
-      }, session.token);
+      }, token);
       await load();
       setForm({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO", publicadoEm: "" });
       setMessage({ type: "success", text: "Edital criado e lista atualizada." });
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }

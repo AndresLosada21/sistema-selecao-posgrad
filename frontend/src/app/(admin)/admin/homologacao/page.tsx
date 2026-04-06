@@ -18,6 +18,8 @@ import type { AdminInscricoesHomologacaoResponse, HomologacaoFundamentosResponse
 
 export default function AdminHomologacaoPage() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<AdminInscricoesHomologacaoResponse | null>(null);
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamentosResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
@@ -27,13 +29,13 @@ export default function AdminHomologacaoPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session.token) {
+    if (!token) {
       return;
     }
 
     Promise.all([
-      listInscricoesParaHomologacao(session.token, { editalId: filter || undefined, page, pageSize: 20 }),
-      listFundamentosHomologacao(session.token),
+      listInscricoesParaHomologacao(token, { editalId: filter || undefined, page, pageSize: 20 }),
+      listFundamentosHomologacao(token),
     ])
       .then(([items, fundamentosResponse]) => {
         setData(items);
@@ -42,14 +44,14 @@ export default function AdminHomologacaoPage() {
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, page, session]);
+  }, [filter, page, signOut, token]);
 
   const resumo = useMemo(() => ({
     total: data?.total ?? 0,

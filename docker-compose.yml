@@ -27,7 +27,7 @@ services:
       PORT: 4000
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/selecao_posgrad?schema=public}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-real-environments}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       UPLOADS_DIR: /app/storage/uploads
     ports:
       - "${BACKEND_PORT:-4000}:4000"

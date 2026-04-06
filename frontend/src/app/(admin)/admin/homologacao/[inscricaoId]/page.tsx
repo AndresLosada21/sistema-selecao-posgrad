@@ -35,6 +35,8 @@ const confirmacaoReservaOptions = ["PENDENTE", "CONFIRMADA", "NAO_CONFIRMADA", "
 
 export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoDetailProps) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<AdminInscricaoHomologacao | null>(null);
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamento[]>([]);
@@ -58,18 +60,18 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   }, [params]);
 
   const loadItem = useCallback(async () => {
-    if (!session.token || !inscricaoId) {
+    if (!token || !inscricaoId) {
       return;
     }
 
-    const [found, fundamentosResponse] = await Promise.all([getInscricaoHomologacaoAdmin(inscricaoId, session.token), listFundamentosHomologacao(session.token)]);
+    const [found, fundamentosResponse] = await Promise.all([getInscricaoHomologacaoAdmin(inscricaoId, token), listFundamentosHomologacao(token)]);
     setItem(found);
     setFundamentos(fundamentosResponse.items);
     setSelectedMotivoCodigo(fundamentosResponse.items[0]?.codigo ?? "");
-  }, [inscricaoId, session]);
+  }, [inscricaoId, token]);
 
   useEffect(() => {
-    if (!session.token || !inscricaoId) {
+    if (!token || !inscricaoId) {
       return;
     }
 
@@ -77,14 +79,14 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       .then(() => setStatus("ready"))
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
 
         setMessage({ title: "Falha ao carregar inscricao", description: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [inscricaoId, loadItem, session]);
+  }, [inscricaoId, loadItem, signOut, token]);
 
   useEffect(() => {
     if (!item) {
@@ -106,7 +108,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
 
   function handleUnauthorized(error: unknown) {
     if (isUnauthorizedError(error)) {
-      session.signOut();
+      signOut();
       return true;
     }
 
@@ -127,7 +129,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   }
 
   async function handleDownload(kind: "formulario" | "flatten") {
-    if (!session.token || !item) {
+    if (!token || !item) {
       return;
     }
 
@@ -137,8 +139,8 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
     try {
       const result =
         kind === "formulario"
-          ? await baixarAnexoIvAdmin(item.id, session.token)
-          : await baixarAnexoIvFlattenAdmin(item.id, session.token);
+          ? await baixarAnexoIvAdmin(item.id, token)
+          : await baixarAnexoIvFlattenAdmin(item.id, token);
 
       triggerBrowserDownload(result.blob, getFilenameFromDispositionHeader(result.disposition, kind === "formulario" ? "anexo-iv.pdf" : "anexo-iv-flatten.pdf"));
     } catch (error) {
@@ -153,7 +155,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   }
 
   async function handlePacote() {
-    if (!session.token || !item) {
+    if (!token || !item) {
       return;
     }
 
@@ -161,7 +163,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
     setMessage(null);
 
     try {
-      const pacote = await getPacoteDocumentalAdmin(item.id, session.token);
+      const pacote = await getPacoteDocumentalAdmin(item.id, token);
       setPacoteResumo(pacote.pacoteDocumental);
       setMessage({
         title: "Pacote documental carregado",
@@ -181,7 +183,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   async function handleRegistrarPacote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!session.token || !item) {
+    if (!token || !item) {
       return;
     }
 
@@ -194,7 +196,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         nomeArquivo: pacoteForm.nomeArquivo,
         mimeType: pacoteForm.mimeType || undefined,
         tamanhoBytes: pacoteForm.tamanhoBytes ? Number(pacoteForm.tamanhoBytes) : undefined,
-      }, session.token);
+      }, token);
 
       setPacoteResumo(response);
       setMessage({ title: "Pacote documental registrado", description: "O pacote documental consolidado foi registrado para esta inscricao." });
@@ -212,7 +214,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   async function handlePreliminar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!session.token || !item) {
+    if (!token || !item) {
       return;
     }
 
@@ -224,7 +226,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         homologada: preliminarHomologada,
         parecer: preliminarParecer,
         motivos: motivosPreliminar,
-      }, session.token);
+      }, token);
 
       await loadItem();
       setMessage({ title: "Homologacao preliminar registrada", description: "O parecer preliminar foi aceito pelo backend." });
@@ -242,7 +244,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   async function handleFinal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!session.token || !item) {
+    if (!token || !item) {
       return;
     }
 
@@ -254,7 +256,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         homologada: finalHomologada,
         parecer: finalParecer,
         motivos: motivosFinal,
-      }, session.token);
+      }, token);
 
       await loadItem();
       setMessage({ title: "Homologacao final registrada", description: "O parecer final foi aceito pelo backend." });
@@ -272,7 +274,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   async function handleConfirmacaoReserva(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!session.token || !item) {
+    if (!token || !item) {
       return;
     }
 
@@ -283,7 +285,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       await atualizarConfirmacaoReserva(item.id, {
         confirmacaoAcoesAfirmativas,
         confirmacaoPcd,
-      }, session.token);
+      }, token);
 
       await loadItem();
       setMessage({ title: "Confirmacao de reserva atualizada", description: "A confirmacao operacional foi enviada ao backend." });
@@ -398,7 +400,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         {pacoteResumo ? (
           <div className="content-item">
             <small>Arquivo: {pacoteResumo.nomeArquivo ?? "sem nome"}</small>
-            <small>URL: {pacoteResumo.urlArquivo}</small>
+            <small>Arquivo privado consolidado no sistema.</small>
             <small>Versao da submissao: {pacoteResumo.versaoSubmissao ?? "nao informada"}</small>
             <small>Gerado em: {formatIsoDate(pacoteResumo.geradoEm)}</small>
           </div>
@@ -420,7 +422,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
             <select className="select-field" onChange={(event) => setConfirmacaoAcoesAfirmativas(event.target.value as StatusConfirmacaoReserva)} value={confirmacaoAcoesAfirmativas}>
               {confirmacaoReservaOptions.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                    {getStatusLabel(value)}
                 </option>
               ))}
             </select>
@@ -430,7 +432,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
             <select className="select-field" onChange={(event) => setConfirmacaoPcd(event.target.value as StatusConfirmacaoReserva)} value={confirmacaoPcd}>
               {confirmacaoReservaOptions.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                    {getStatusLabel(value)}
                 </option>
               ))}
             </select>

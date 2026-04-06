@@ -17,6 +17,8 @@ import type { Etapa1ListResponse } from "@/modules/admin-etapas/types";
 
 export default function AdminEtapa1Page() {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [data, setData] = useState<Etapa1ListResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
@@ -25,22 +27,22 @@ export default function AdminEtapa1Page() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session.token) return;
+    if (!token) return;
 
-    listEtapa1(session.token, { editalId: filter || undefined, page, pageSize: 20 })
+    listEtapa1(token, { editalId: filter || undefined, page, pageSize: 20 })
       .then((response) => {
         setData(response);
         setStatus("ready");
       })
       .catch((error) => {
         if (isUnauthorizedError(error)) {
-          session.signOut();
+          signOut();
           return;
         }
         setMessage(getErrorMessage(error));
         setStatus("error");
       });
-  }, [filter, page, session]);
+  }, [filter, page, signOut, token]);
 
   if (status === "loading") return <LoadingState title="Carregando etapa 1" description="Consultando a fila administrativa da etapa 1." />;
   if (status === "error") return <ErrorState title="Falha ao carregar etapa 1" description={message ?? undefined} />;

@@ -22,6 +22,8 @@ type Props = { params: Promise<{ editalId: string }> };
 
 export default function AdminPublicacoesDetailPage({ params }: Props) {
   const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
   const [editalId, setEditalId] = useState<string | null>(null);
   const [history, setHistory] = useState<PublicacoesResponse | null>(null);
   const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
@@ -58,58 +60,59 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   useEffect(() => { params.then((resolved) => setEditalId(resolved.editalId)); }, [params]);
 
   useEffect(() => {
-    if (!editalId || !session.token) return;
-    listAdminPublicacoesByEdital(editalId, session.token)
+    if (!editalId || !token) return;
+    listAdminPublicacoesByEdital(editalId, token)
       .then((response) => {
         setHistory(response);
         setStatus("ready");
       })
       .catch((error) => {
+        if (isUnauthorizedError(error)) { signOut(); return; }
         setMessage({ type: "error", text: getErrorMessage(error) });
         setStatus("error");
       });
-  }, [editalId, session.token]);
+  }, [editalId, signOut, token]);
 
   async function loadPreview(type: "homologacao" | "classificacao" | "politicas") {
-    if (!session.token || !editalId) return;
+    if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try {
       const response = type === "homologacao"
-        ? await previewHomologacaoPublicacao(editalId, faseHomologacao, session.token)
+        ? await previewHomologacaoPublicacao(editalId, faseHomologacao, token)
         : type === "classificacao"
-          ? await previewClassificacaoPublicacao(editalId, faseClassificacao, session.token)
-          : await previewPublicacaoPoliticas(editalId, fasePoliticas, session.token);
+          ? await previewClassificacaoPublicacao(editalId, faseClassificacao, token)
+          : await previewPublicacaoPoliticas(editalId, fasePoliticas, token);
       setPreview(response);
       setPreviewLabel(`${type} · ${type === "homologacao" ? faseHomologacao : type === "classificacao" ? faseClassificacao : fasePoliticas}`);
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
   async function publish(type: "homologacao" | "classificacao" | "politicas") {
-    if (!session.token || !editalId) return;
+    if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try {
       if (type === "homologacao") {
-        await publicarHomologacao(editalId, { fase: faseHomologacao, descricao: `Publicacao ${faseHomologacao.toLowerCase()} de homologacao.` }, session.token);
+        await publicarHomologacao(editalId, { fase: faseHomologacao, descricao: `Publicacao ${faseHomologacao.toLowerCase()} de homologacao.` }, token);
       } else if (type === "classificacao") {
-        await publicarClassificacao(editalId, { fase: faseClassificacao, descricao: `Publicacao ${faseClassificacao.toLowerCase()} de classificacao.` }, session.token);
+        await publicarClassificacao(editalId, { fase: faseClassificacao, descricao: `Publicacao ${faseClassificacao.toLowerCase()} de classificacao.` }, token);
       } else {
-        await publicarPoliticas(editalId, { fase: fasePoliticas, descricao: `Publicacao ${fasePoliticas.toLowerCase()} de politicas afirmativas.` }, session.token);
+        await publicarPoliticas(editalId, { fase: fasePoliticas, descricao: `Publicacao ${fasePoliticas.toLowerCase()} de politicas afirmativas.` }, token);
       }
       setMessage({ type: "success", text: `Publicacao de ${type} criada com sucesso.` });
-      const response = await listAdminPublicacoesByEdital(editalId, session.token);
+      const response = await listAdminPublicacoesByEdital(editalId, token);
       setHistory(response);
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
   async function handlePublicacaoGenerica(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!session.token || !editalId) return;
+    if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try {
       let dadosConsolidados: Record<string, unknown> | undefined;
@@ -130,16 +133,16 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         versaoFinal: versaoFinalGenerica,
         arquivoUrl: arquivoUrlGenerico || undefined,
         dadosConsolidados,
-      }, session.token);
+      }, token);
       setMessage({ type: "success", text: "Publicacao generica criada com sucesso." });
       setTituloGenerico("");
       setDescricaoGenerica("");
       setArquivoUrlGenerico("");
       setVersaoFinalGenerica(false);
       setDadosConsolidadosGenerico("{}");
-      setHistory(await listAdminPublicacoesByEdital(editalId, session.token));
+      setHistory(await listAdminPublicacoesByEdital(editalId, token));
     } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }

@@ -503,7 +503,7 @@ export async function getPacoteDocumentalDaInscricao(inscricaoId: string, usuari
 
   return {
     pacoteDocumental,
-    snapshot: (inscricao as any).pacoteDocumentalSnapshot,
+    snapshot: inscricao.pacoteDocumentalSnapshot,
   };
 }
 
@@ -522,7 +522,7 @@ export async function getPacoteDocumentalDaInscricaoAdmin(inscricaoId: string) {
 
   return {
     pacoteDocumental,
-    snapshot: (inscricao as any).pacoteDocumentalSnapshot,
+    snapshot: inscricao.pacoteDocumentalSnapshot,
   };
 }
 
