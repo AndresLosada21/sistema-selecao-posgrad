@@ -8,6 +8,21 @@ type RequestOptions = RequestInit & {
 
 type JsonValue = Record<string, unknown> | Array<unknown> | null;
 type ParsedBody = JsonValue | string;
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function withTimeout(signal?: AbortSignal) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  if (signal) {
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeout),
+  };
+}
 
 function toErrorPayload(payload: ParsedBody) {
   if (payload && typeof payload === "object" && !Array.isArray(payload)) {
@@ -33,6 +48,7 @@ async function parseResponseBody(response: Response): Promise<ParsedBody> {
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
   const headers = new Headers(options.headers);
+  const timeout = withTimeout(options.signal ?? undefined);
 
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -42,18 +58,29 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...options,
+      headers,
+      signal: timeout.signal,
+    });
 
-  const payload = await parseResponseBody(response);
+    const payload = await parseResponseBody(response);
 
-  if (!response.ok) {
-    throw new ApiError(response.status, toErrorPayload(payload));
+    if (!response.ok) {
+      throw new ApiError(response.status, toErrorPayload(payload));
+    }
+
+    return payload as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError(408, { code: "REQUEST_TIMEOUT", message: "A requisicao demorou mais do que o esperado." });
+    }
+
+    throw error;
+  } finally {
+    timeout.clear();
   }
-
-  return payload as T;
 }
 
 export function apiGet<T>(path: string, token?: string | null) {
@@ -85,26 +112,38 @@ export function apiDelete<T>(path: string, token?: string | null) {
 
 export async function apiDownload(path: string, token?: string | null) {
   const headers = new Headers();
+  const timeout = withTimeout();
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "GET",
-    headers,
-  });
+  try {
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+      method: "GET",
+      headers,
+      signal: timeout.signal,
+    });
 
-  if (!response.ok) {
-    const payload = await parseResponseBody(response);
-    throw new ApiError(response.status, toErrorPayload(payload));
+    if (!response.ok) {
+      const payload = await parseResponseBody(response);
+      throw new ApiError(response.status, toErrorPayload(payload));
+    }
+
+    return {
+      blob: await response.blob(),
+      contentType: response.headers.get("content-type"),
+      disposition: response.headers.get("content-disposition"),
+    };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError(408, { code: "REQUEST_TIMEOUT", message: "O download demorou mais do que o esperado." });
+    }
+
+    throw error;
+  } finally {
+    timeout.clear();
   }
-
-  return {
-    blob: await response.blob(),
-    contentType: response.headers.get("content-type"),
-    disposition: response.headers.get("content-disposition"),
-  };
 }
 
 export async function apiUpload(
@@ -113,6 +152,7 @@ export async function apiUpload(
   token?: string | null,
 ) {
   const headers = new Headers();
+  const timeout = withTimeout();
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -125,17 +165,28 @@ export async function apiUpload(
     formData.append(key, value);
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
+  try {
+    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+      method: "POST",
+      headers,
+      body: formData,
+      signal: timeout.signal,
+    });
 
-  const payload = await parseResponseBody(response);
+    const payload = await parseResponseBody(response);
 
-  if (!response.ok) {
-    throw new ApiError(response.status, toErrorPayload(payload));
+    if (!response.ok) {
+      throw new ApiError(response.status, toErrorPayload(payload));
+    }
+
+    return payload as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError(408, { code: "REQUEST_TIMEOUT", message: "O upload demorou mais do que o esperado." });
+    }
+
+    throw error;
+  } finally {
+    timeout.clear();
   }
-
-  return payload as Record<string, unknown>;
 }

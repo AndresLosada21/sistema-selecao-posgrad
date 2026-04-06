@@ -21,6 +21,56 @@ type EspelhosPageProps = {
   params: Promise<{ editalId: string }>;
 };
 
+function renderPrimitive(value: unknown) {
+  if (value === null || value === undefined) {
+    return "nao informado";
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function renderKeyValueObject(title: string, value: Record<string, unknown> | null | undefined) {
+  if (!value || !Object.keys(value).length) {
+    return null;
+  }
+
+  return (
+    <div className="content-item">
+      <strong>{title}</strong>
+      <div className="content-list">
+        {Object.entries(value).map(([key, entryValue]) => (
+          <small key={key}>{`${key}: ${renderPrimitive(entryValue)}`}</small>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function renderRecordArray(title: string, items: Array<Record<string, unknown>> | null | undefined) {
+  if (!items?.length) {
+    return null;
+  }
+
+  return (
+    <div className="content-item">
+      <strong>{title}</strong>
+      <div className="content-list">
+        {items.map((item) => (
+          <div className="content-item" key={`${title}-${JSON.stringify(item)}`}>
+            {Object.entries(item).map(([key, value]) => (
+              <small key={key}>{`${key}: ${renderPrimitive(value)}`}</small>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function renderEspelhoEtapa1(espelho: CandidateEtapa1Espelho) {
   return (
     <div className="content-list">
@@ -37,7 +87,7 @@ function renderEspelhoEtapa1(espelho: CandidateEtapa1Espelho) {
         <strong>Espelho de correcao</strong>
         <pre className="preformatted-block">{espelho.espelhoCorrecao ?? "Nao informado."}</pre>
       </div>
-      {espelho.rubricaDetalhada ? <pre className="preformatted-block">{JSON.stringify(espelho.rubricaDetalhada, null, 2)}</pre> : null}
+      {renderKeyValueObject("Rubrica detalhada", espelho.rubricaDetalhada ?? undefined)}
     </div>
   );
 }
@@ -51,18 +101,9 @@ function renderEspelhoEtapa2(espelho: CandidateEtapa2Espelho) {
       <small>Liberado em: {formatIsoDate(espelho.espelhoLiberadoEm ?? null)}</small>
       <small>Resultado preliminar em: {formatIsoDate(espelho.resultadoPreliminarEm ?? null)}</small>
       <small>Resultado final em: {formatIsoDate(espelho.resultadoFinalEm ?? null)}</small>
-      <div className="content-item">
-        <strong>Pontuacao por item</strong>
-        <pre className="preformatted-block">{JSON.stringify(espelho.pontuacaoItens, null, 2)}</pre>
-      </div>
-      <div className="content-item">
-        <strong>Glosas</strong>
-        <pre className="preformatted-block">{JSON.stringify(espelho.glosas, null, 2)}</pre>
-      </div>
-      <div className="content-item">
-        <strong>Memoria de calculo</strong>
-        <pre className="preformatted-block">{JSON.stringify(espelho.memoriaCalculo, null, 2)}</pre>
-      </div>
+      {renderKeyValueObject("Pontuacao por item", espelho.pontuacaoItens)}
+      {renderRecordArray("Glosas", espelho.glosas)}
+      {renderKeyValueObject("Memoria de calculo", espelho.memoriaCalculo ?? undefined)}
       <div className="content-item">
         <strong>Espelho de correcao</strong>
         <pre className="preformatted-block">{espelho.espelhoCorrecao ?? "Nao informado."}</pre>
@@ -127,52 +168,52 @@ export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
     if (!session.token || !inscricaoId) return;
     setBusy("etapa1-request");
     setMessage(null);
-    try {
-      await solicitarEspelhoEtapa1(inscricaoId, session.token);
-      await loadDashboard();
-      setMessage({ type: "success", text: "Solicitacao do espelho da etapa 1 registrada." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(null); }
+      try {
+        await solicitarEspelhoEtapa1(inscricaoId, session.token);
+        await loadDashboard();
+        setMessage({ type: "success", text: "Solicitacao do espelho da etapa 1 registrada." });
+      } catch (error) {
+        if (isUnauthorizedError(error)) { signOut(); return; }
+        setMessage({ type: "error", text: getErrorMessage(error) });
+      } finally { setBusy(null); }
   }
 
   async function handleSolicitarEtapa2() {
     if (!session.token || !inscricaoId) return;
     setBusy("etapa2-request");
     setMessage(null);
-    try {
-      await solicitarEspelhoEtapa2(inscricaoId, session.token);
-      await loadDashboard();
-      setMessage({ type: "success", text: "Solicitacao do espelho da etapa 2 registrada." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(null); }
+      try {
+        await solicitarEspelhoEtapa2(inscricaoId, session.token);
+        await loadDashboard();
+        setMessage({ type: "success", text: "Solicitacao do espelho da etapa 2 registrada." });
+      } catch (error) {
+        if (isUnauthorizedError(error)) { signOut(); return; }
+        setMessage({ type: "error", text: getErrorMessage(error) });
+      } finally { setBusy(null); }
   }
 
   async function handleCarregarEtapa1() {
     if (!session.token || !inscricaoId) return;
     setBusy("etapa1-load");
     setMessage(null);
-    try {
-      setEspelhoEtapa1(await getEspelhoEtapa1Candidate(inscricaoId, session.token));
-    } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(null); }
+      try {
+        setEspelhoEtapa1(await getEspelhoEtapa1Candidate(inscricaoId, session.token));
+      } catch (error) {
+        if (isUnauthorizedError(error)) { signOut(); return; }
+        setMessage({ type: "error", text: getErrorMessage(error) });
+      } finally { setBusy(null); }
   }
 
   async function handleCarregarEtapa2() {
     if (!session.token || !inscricaoId) return;
     setBusy("etapa2-load");
     setMessage(null);
-    try {
-      setEspelhoEtapa2(await getEspelhoEtapa2Candidate(inscricaoId, session.token));
-    } catch (error) {
-      if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(null); }
+      try {
+        setEspelhoEtapa2(await getEspelhoEtapa2Candidate(inscricaoId, session.token));
+      } catch (error) {
+        if (isUnauthorizedError(error)) { signOut(); return; }
+        setMessage({ type: "error", text: getErrorMessage(error) });
+      } finally { setBusy(null); }
   }
 
   if (status === "loading") return <LoadingState title="Carregando espelhos" description="Consultando o contexto do edital e das etapas avaliativas." />;

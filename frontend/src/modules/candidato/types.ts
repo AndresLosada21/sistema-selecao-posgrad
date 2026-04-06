@@ -106,6 +106,7 @@ export type CandidateDashboardResponse = {
         resultadoFinalEm?: string | null;
       } | null;
       politicasAfirmativas: {
+        id?: string;
         statusOperacao: string;
         tipo?: string;
         convocadoEm?: string | null;

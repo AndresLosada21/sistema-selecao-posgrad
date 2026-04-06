@@ -445,7 +445,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           {pacoteResumo ? (
             <div className="content-item">
               <small>Arquivo: {pacoteResumo.nomeArquivo ?? "sem nome"}</small>
-              <small>URL: {pacoteResumo.urlArquivo}</small>
+              <small>Arquivo privado consolidado no sistema.</small>
               <small>Versao de submissao: {pacoteResumo.versaoSubmissao ?? "nao informada"}</small>
               <small>Gerado em: {pacoteResumo.geradoEm ?? "nao informado"}</small>
             </div>

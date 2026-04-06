@@ -1,5 +1,4 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/http/client";
-import { getEditalById, listEditais } from "@/modules/edital/api";
 
 import type {
   AdminCronogramaPayload,

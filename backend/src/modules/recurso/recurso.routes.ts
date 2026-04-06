@@ -92,18 +92,18 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
   const payload = parsedBody.data;
   const result = await decidirRecurso(parsedParams.data.recursoId, {
     decididoPorId: request.auth!.userId,
-    deferido: payload.deferido as boolean,
-    decisao: payload.decisao as string,
-    impactoResultado: payload.impactoResultado as boolean,
-    novoStatusIsencao: payload.novoStatusIsencao as any,
-    novoStatusInscricao: payload.novoStatusInscricao as any,
-    novaNotaEtapa1: payload.novaNotaEtapa1 as number | undefined,
-    novoEspelhoEtapa1: payload.novoEspelhoEtapa1 as string | undefined,
-    novaPontuacaoBrutaEtapa2: payload.novaPontuacaoBrutaEtapa2 as number | undefined,
-    novaNotaNormalizadaEtapa2: payload.novaNotaNormalizadaEtapa2 as number | undefined,
-    novoEspelhoEtapa2: payload.novoEspelhoEtapa2 as string | undefined,
-    novoResultadoFinalPoliticasAfirmativas: payload.novoResultadoFinalPoliticasAfirmativas as any,
-    novoParecerFinalPoliticasAfirmativas: payload.novoParecerFinalPoliticasAfirmativas as string | undefined,
+    deferido: payload.deferido,
+    decisao: payload.decisao,
+    impactoResultado: payload.impactoResultado,
+    novoStatusIsencao: payload.novoStatusIsencao,
+    novoStatusInscricao: payload.novoStatusInscricao,
+    novaNotaEtapa1: payload.novaNotaEtapa1,
+    novoEspelhoEtapa1: payload.novoEspelhoEtapa1,
+    novaPontuacaoBrutaEtapa2: payload.novaPontuacaoBrutaEtapa2,
+    novaNotaNormalizadaEtapa2: payload.novaNotaNormalizadaEtapa2,
+    novoEspelhoEtapa2: payload.novoEspelhoEtapa2,
+    novoResultadoFinalPoliticasAfirmativas: payload.novoResultadoFinalPoliticasAfirmativas,
+    novoParecerFinalPoliticasAfirmativas: payload.novoParecerFinalPoliticasAfirmativas,
   });
 
   if ("error" in result) {

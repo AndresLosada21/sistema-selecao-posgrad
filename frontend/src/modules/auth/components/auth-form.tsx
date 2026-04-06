@@ -94,11 +94,11 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           <>
             <label className="field-block">
               <span>Telefone</span>
-              <input autoComplete="tel" onChange={(event) => { setTelefone(event.target.value); setMessage(null); setStatus("idle"); }} required value={telefone} />
+              <input autoComplete="tel" onChange={(event) => { setTelefone(event.target.value); setMessage(null); setStatus("idle"); }} value={telefone} />
             </label>
             <label className="field-block">
               <span>CPF</span>
-              <input autoComplete="off" inputMode="numeric" onChange={(event) => { setCpf(event.target.value); setMessage(null); setStatus("idle"); }} required value={cpf} />
+              <input autoComplete="off" inputMode="numeric" onChange={(event) => { setCpf(event.target.value); setMessage(null); setStatus("idle"); }} value={cpf} />
             </label>
           </>
         ) : null}

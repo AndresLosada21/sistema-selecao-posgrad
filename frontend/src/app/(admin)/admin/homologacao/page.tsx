@@ -53,6 +53,7 @@ export default function AdminHomologacaoPage() {
 
   const resumo = useMemo(() => ({
     total: data?.total ?? 0,
+    totalPaginaAtual: data?.items.length ?? 0,
     comParecerPreliminar: data?.items.filter((item) => item.homologacao?.statusPreliminar).length ?? 0,
     comParecerFinal: data?.items.filter((item) => item.homologacao?.statusFinal).length ?? 0,
   }), [data]);
@@ -80,11 +81,11 @@ export default function AdminHomologacaoPage() {
             <strong>{resumo.total}</strong>
           </article>
           <article className="summary-card">
-            <span>Com preliminar nesta pagina</span>
+            <span>{`Com preliminar na pagina (${resumo.totalPaginaAtual} itens)`}</span>
             <strong>{resumo.comParecerPreliminar}</strong>
           </article>
           <article className="summary-card">
-            <span>Com final nesta pagina</span>
+            <span>{`Com final na pagina (${resumo.totalPaginaAtual} itens)`}</span>
             <strong>{resumo.comParecerFinal}</strong>
           </article>
         </div>

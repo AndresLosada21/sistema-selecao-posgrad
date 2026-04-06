@@ -11,6 +11,8 @@ function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
     avaliacaoEtapa2: true;
   };
 }>) {
+  const avaliacao = inscricao.avaliacaoEtapa2;
+
   return {
     id: inscricao.id,
     status: inscricao.status,
@@ -30,17 +32,17 @@ function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
           nome: inscricao.linhaPesquisa.nome,
         }
       : null,
-    avaliacao: inscricao.avaliacaoEtapa2
+    avaliacao: avaliacao
       ? {
-          pontuacaoItens: inscricao.avaliacaoEtapa2.pontuacaoItens,
-          pontuacaoBruta: inscricao.avaliacaoEtapa2.pontuacaoBruta?.toNumber() ?? null,
-          notaNormalizada: inscricao.avaliacaoEtapa2.notaNormalizada?.toNumber() ?? null,
-          memoriaCalculo: (inscricao.avaliacaoEtapa2 as any).memoriaCalculo,
-          glosas: (inscricao.avaliacaoEtapa2 as any).glosas,
-          espelhoCorrecao: inscricao.avaliacaoEtapa2.espelhoCorrecao,
-          espelhoSolicitadoEm: (inscricao.avaliacaoEtapa2 as any).espelhoSolicitadoEm?.toISOString() ?? null,
-          espelhoLiberadoEm: (inscricao.avaliacaoEtapa2 as any).espelhoLiberadoEm?.toISOString() ?? null,
-          status: inscricao.avaliacaoEtapa2.status,
+          pontuacaoItens: avaliacao.pontuacaoItens,
+          pontuacaoBruta: avaliacao.pontuacaoBruta?.toNumber() ?? null,
+          notaNormalizada: avaliacao.notaNormalizada?.toNumber() ?? null,
+          memoriaCalculo: avaliacao.memoriaCalculo,
+          glosas: avaliacao.glosas,
+          espelhoCorrecao: avaliacao.espelhoCorrecao,
+          espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm?.toISOString() ?? null,
+          espelhoLiberadoEm: avaliacao.espelhoLiberadoEm?.toISOString() ?? null,
+          status: avaliacao.status,
         }
       : null,
   };
@@ -103,7 +105,7 @@ export async function getInscricaoEtapa2ById(inscricaoId: string) {
   });
 
   if (!inscricao) return null;
-  return mapEtapa2Inscricao(inscricao as any);
+  return mapEtapa2Inscricao(inscricao);
 }
 
 export async function registrarResultadoEtapa2(
@@ -166,7 +168,7 @@ export async function registrarResultadoEtapa2(
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
       resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
-    } as any,
+    },
     create: {
       inscricaoId,
       pontuacaoItens: input.pontuacaoItens,
@@ -179,7 +181,7 @@ export async function registrarResultadoEtapa2(
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
       resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
-    } as any,
+    },
   });
 
   if (input.publicacao === "FINAL") {
@@ -207,7 +209,7 @@ export async function solicitarEspelhoEtapa2(inscricaoId: string, usuarioId: str
     },
   });
 
-  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+  const avaliacao = inscricao?.avaliacaoEtapa2;
 
   if (!inscricao) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
@@ -221,7 +223,7 @@ export async function solicitarEspelhoEtapa2(inscricaoId: string, usuarioId: str
     where: { inscricaoId },
     data: {
       espelhoSolicitadoEm: new Date(),
-    } as any,
+    },
   });
 
   return { avaliacao: atualizada };
@@ -235,7 +237,7 @@ export async function liberarEspelhoEtapa2(inscricaoId: string) {
     },
   });
 
-  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+  const avaliacao = inscricao?.avaliacaoEtapa2;
 
   if (!inscricao) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
@@ -249,7 +251,7 @@ export async function liberarEspelhoEtapa2(inscricaoId: string) {
     where: { inscricaoId },
     data: {
       espelhoLiberadoEm: new Date(),
-    } as any,
+    },
   });
 
   return { avaliacao: atualizada };
@@ -268,7 +270,7 @@ export async function getEspelhoEtapa2ForCandidate(inscricaoId: string, usuarioI
     },
   });
 
-  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+  const avaliacao = inscricao?.avaliacaoEtapa2;
 
   if (!inscricao) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
@@ -306,7 +308,7 @@ export async function getEspelhoEtapa2ForAdmin(inscricaoId: string) {
     },
   });
 
-  const avaliacao = inscricao?.avaliacaoEtapa2 as any;
+  const avaliacao = inscricao?.avaliacaoEtapa2;
 
   if (!inscricao) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };

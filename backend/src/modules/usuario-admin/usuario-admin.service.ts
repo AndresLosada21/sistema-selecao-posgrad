@@ -1,22 +1,20 @@
-import { Role, StatusConta } from "@prisma/client";
+import { Prisma, Role, StatusConta } from "@prisma/client";
 
 import { conflict, notFound } from "../../lib/http-errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
 
-type UsuarioAdminWithPerfis = {
-  id: string;
-  nomeCompleto: string;
-  email: string;
-  cpf: string | null;
-  telefone: string | null;
-  emailVerificadoEm: Date | null;
-  statusConta: StatusConta;
-  criadoEm: Date;
-  atualizadoEm: Date;
-  perfis: Array<{ role: Role }>;
-  escoposAvaliacao: Array<{ editalId: string; linhaPesquisaId: string | null }>;
-};
+type UsuarioAdminWithPerfis = Prisma.UsuarioGetPayload<{
+  include: {
+    perfis: true;
+    escoposAvaliacao: true;
+  };
+}>;
+
+const usuarioAdminInclude = {
+  perfis: true,
+  escoposAvaliacao: true,
+} satisfies Prisma.UsuarioInclude;
 
 function mapUsuario(usuario: UsuarioAdminWithPerfis) {
   return {
@@ -43,7 +41,7 @@ export async function listUsuariosAdmin(pagination?: { page: number; pageSize: n
 
   const [usuarios, total] = await prisma.$transaction([
     prisma.usuario.findMany({
-      include: { perfis: true, escoposAvaliacao: true } as any,
+      include: usuarioAdminInclude,
       orderBy: { criadoEm: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -52,7 +50,7 @@ export async function listUsuariosAdmin(pagination?: { page: number; pageSize: n
   ]);
 
   return {
-    items: (usuarios as unknown as UsuarioAdminWithPerfis[]).map((usuario) => mapUsuario(usuario)),
+    items: usuarios.map((usuario) => mapUsuario(usuario)),
     total,
     page,
     pageSize,
@@ -60,15 +58,15 @@ export async function listUsuariosAdmin(pagination?: { page: number; pageSize: n
 }
 
 export async function updateUsuarioStatus(usuarioId: string, statusConta: StatusConta) {
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: { perfis: true, escoposAvaliacao: true } as any }) as unknown as UsuarioAdminWithPerfis | null;
+  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: usuarioAdminInclude });
   if (!usuario) throw notFound("Usuario nao encontrado.", "USUARIO_NAO_ENCONTRADO");
-  const updated = await prisma.usuario.update({ where: { id: usuarioId }, data: { statusConta }, include: { perfis: true, escoposAvaliacao: true } as any }) as unknown as UsuarioAdminWithPerfis;
+  const updated = await prisma.usuario.update({ where: { id: usuarioId }, data: { statusConta }, include: usuarioAdminInclude });
   await recordAuditEvent({ entidade: "USUARIO", entidadeId: usuarioId, acao: "USUARIO_STATUS_ATUALIZADO", descricao: `Status alterado para ${statusConta}.` });
   return mapUsuario(updated);
 }
 
 export async function updateUsuarioPerfis(usuarioId: string, perfis: Role[], actorUserId: string) {
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: { perfis: true, escoposAvaliacao: true } as any }) as unknown as UsuarioAdminWithPerfis | null;
+  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: usuarioAdminInclude });
   if (!usuario) throw notFound("Usuario nao encontrado.", "USUARIO_NAO_ENCONTRADO");
 
   if (!perfis.includes(Role.ADMIN) && usuario.perfis.some((perfil) => perfil.role === Role.ADMIN)) {
@@ -85,26 +83,26 @@ export async function updateUsuarioPerfis(usuarioId: string, perfis: Role[], act
   await prisma.usuarioPerfil.deleteMany({ where: { usuarioId } });
   await prisma.usuarioPerfil.createMany({ data: perfis.map((role) => ({ usuarioId, role })) });
   if (!perfis.includes(Role.AVALIADOR)) {
-    await (prisma as any).avaliadorEscopo.deleteMany({ where: { usuarioId } });
+    await prisma.avaliadorEscopo.deleteMany({ where: { usuarioId } });
   }
-  const updated = await prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, include: { perfis: true, escoposAvaliacao: true } as any }) as unknown as UsuarioAdminWithPerfis;
+  const updated = await prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, include: usuarioAdminInclude });
   await recordAuditEvent({ entidade: "USUARIO", entidadeId: usuarioId, acao: "USUARIO_PERFIS_ATUALIZADOS", descricao: "Perfis operacionais atualizados.", payload: { perfis } });
   return mapUsuario(updated);
 }
 
 export async function updateUsuarioEscoposAvaliacao(usuarioId: string, escopos: Array<{ editalId: string; linhaPesquisaId?: string | null }>) {
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: { perfis: true, escoposAvaliacao: true } as any }) as unknown as UsuarioAdminWithPerfis | null;
+  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: usuarioAdminInclude });
   if (!usuario) throw notFound("Usuario nao encontrado.", "USUARIO_NAO_ENCONTRADO");
   if (!usuario.perfis.some((perfil) => perfil.role === Role.AVALIADOR)) {
     throw conflict("O usuario precisa possuir perfil AVALIADOR para receber escopos de avaliacao.", "USER_NOT_EVALUATOR");
   }
 
-  await (prisma as any).avaliadorEscopo.deleteMany({ where: { usuarioId } });
+  await prisma.avaliadorEscopo.deleteMany({ where: { usuarioId } });
   if (escopos.length) {
-    await (prisma as any).avaliadorEscopo.createMany({ data: escopos.map((escopo) => ({ usuarioId, editalId: escopo.editalId, linhaPesquisaId: escopo.linhaPesquisaId ?? null })) });
+    await prisma.avaliadorEscopo.createMany({ data: escopos.map((escopo) => ({ usuarioId, editalId: escopo.editalId, linhaPesquisaId: escopo.linhaPesquisaId ?? null })) });
   }
 
-  const updated = await prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, include: { perfis: true, escoposAvaliacao: true } as any }) as unknown as UsuarioAdminWithPerfis;
+  const updated = await prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, include: usuarioAdminInclude });
   await recordAuditEvent({ entidade: "USUARIO", entidadeId: usuarioId, acao: "ESCOPOS_AVALIADOR_ATUALIZADOS", descricao: "Escopos de avaliacao atualizados.", payload: { escopos } });
   return mapUsuario(updated);
 }
