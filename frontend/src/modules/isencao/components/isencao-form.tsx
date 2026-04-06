@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ActionButton } from "@/components/shared/action-button";
@@ -23,6 +23,7 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
   const router = useRouter();
   const session = useSession();
   const signOut = session.signOut;
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [inscritoCadUnico, setInscritoCadUnico] = useState(false);
   const [nis, setNis] = useState("");
@@ -86,7 +87,7 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
 
       setStatus("idle");
       setMessage({ type: "success", text: "Pedido registrado com sucesso. Redirecionando para o acompanhamento do edital." });
-      setTimeout(() => router.replace(`/candidato/editais/${editalId}`), 900);
+      redirectTimeoutRef.current = setTimeout(() => router.replace(`/candidato/editais/${editalId}`), 900);
     } catch (error) {
       if (isUnauthorizedError(error)) {
         signOut();
@@ -97,6 +98,12 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
       setMessage({ type: "error", text: getErrorMessage(error) });
     }
   }
+
+  useEffect(() => () => {
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
+  }, []);
 
   return (
     <SectionCard title="Novo pedido de isencao" description="Formulario alinhado ao contrato backend do pedido de isencao por edital.">

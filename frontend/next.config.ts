@@ -6,6 +6,7 @@ const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   async headers() {
     return [
       {

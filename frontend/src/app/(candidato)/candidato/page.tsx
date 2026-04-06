@@ -136,6 +136,11 @@ export default function CandidateDashboardPage() {
       });
   }, [signOut, token]);
 
+  function retryDashboard() {
+    setStatus("loading");
+    setMessage(null);
+  }
+
   useEffect(() => {
     if (!data?.items.length) {
       setSelectedParticipacaoId(null);
@@ -157,7 +162,16 @@ export default function CandidateDashboardPage() {
   }, [data, selectedParticipacaoId]);
 
   if (status === "loading") return <LoadingState title="Carregando painel" description="Consultando area consolidada do candidato..." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar painel" description={message ?? undefined} />;
+  if (status === "error") {
+    return (
+      <div className="stack-layout">
+        <ErrorState title="Falha ao carregar painel" description={message ?? undefined} />
+        <div className="content-item-links">
+          <ActionButton onClick={retryDashboard} type="button" variant="secondary">Tentar novamente</ActionButton>
+        </div>
+      </div>
+    );
+  }
   if (!data?.items.length) return <EmptyState title="Nenhuma participacao encontrada" description="Ainda nao ha participacoes vinculadas a esta conta." />;
 
   const inscricao = active?.inscricao ?? null;
