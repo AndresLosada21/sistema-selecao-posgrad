@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildUniqueCandidate } from "./helpers/candidate";
+import { waitForAuthenticatedSession } from "./helpers/system";
 
 test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   const candidate = buildUniqueCandidate();
@@ -11,6 +12,7 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   await page.getByLabel("Telefone").fill(candidate.telefone);
   await page.getByLabel("CPF").fill(candidate.cpf);
   await page.getByRole("button", { name: "Criar conta" }).click();
+  await waitForAuthenticatedSession(page);
 
   await expect.poll(async () => {
     await page.goto("/candidato");
@@ -24,6 +26,7 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   await page.getByLabel("E-mail").fill(candidate.email);
   await page.getByLabel("Senha").fill(candidate.senha);
   await page.getByRole("button", { name: "Entrar" }).click();
+  await waitForAuthenticatedSession(page);
 
   await expect.poll(async () => {
     await page.goto("/candidato");
@@ -43,6 +46,7 @@ test("candidato autenticado consegue aderir a um edital pela UI publica", async 
   await page.getByLabel("Telefone").fill(candidate.telefone);
   await page.getByLabel("CPF").fill(candidate.cpf);
   await page.getByRole("button", { name: "Criar conta" }).click();
+  await waitForAuthenticatedSession(page);
 
   await expect.poll(async () => {
     await page.goto("/candidato");

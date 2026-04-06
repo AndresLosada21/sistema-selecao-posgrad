@@ -9,6 +9,7 @@ import {
   registrarEtapa1Api,
   registrarEtapa2Api,
   setupCandidateSubmissionFixture,
+  waitForAuthenticatedSession,
 } from "./helpers/system";
 
 test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", async ({ page, request }) => {
@@ -25,6 +26,7 @@ test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", a
   await page.getByLabel("E-mail").fill(fixture.email);
   await page.getByLabel("Senha").fill(fixture.senha);
   await page.getByRole("button", { name: "Entrar" }).click();
+  await waitForAuthenticatedSession(page);
 
   await page.goto(`/candidato/editais/${fixture.editalId}/espelhos`);
   await page.getByRole("button", { name: "Solicitar espelho da etapa 1" }).click();

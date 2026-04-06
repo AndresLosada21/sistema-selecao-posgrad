@@ -5,6 +5,7 @@ import {
   homologarPreliminarApi,
   loginAsAdmin,
   setupCandidateSubmissionFixture,
+  waitForAuthenticatedSession,
 } from "./helpers/system";
 
 test("candidato registra recurso real pela UI apos resultado preliminar", async ({ page, request }) => {
@@ -22,6 +23,7 @@ test("candidato registra recurso real pela UI apos resultado preliminar", async 
   await page.getByLabel("E-mail").fill(fixture.email);
   await page.getByLabel("Senha").fill(fixture.senha);
   await page.getByRole("button", { name: "Entrar" }).click();
+  await waitForAuthenticatedSession(page);
 
   await expect.poll(async () => {
     await page.goto("/candidato");

@@ -3,6 +3,7 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { buildUniqueCandidate } from "./candidate";
 
 const backendBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:4000";
+const tokenStorageKey = "selecao-posgrad-token";
 
 export const documentoTiposObrigatorios = [
   "ANEXO_IV",
@@ -51,15 +52,23 @@ export async function loginAsAdmin(request: APIRequestContext) {
   return body.token as string;
 }
 
-export async function loginAsAdminViaUi(page: Page) {
-  await page.goto("/entrar");
-  await page.getByLabel("E-mail").fill("admin@ppgee.ufam.edu.br");
-  await page.getByLabel("Senha").fill("Admin1234");
-  await page.getByRole("button", { name: "Entrar" }).click();
+export async function loginAsAdminViaUi(page: Page, request: APIRequestContext) {
+  const token = await loginAsAdmin(request);
+  await page.goto("/");
+  await page.evaluate(([storageKey, value]) => {
+    window.localStorage.setItem(storageKey, value);
+  }, [tokenStorageKey, token]);
+  await waitForAuthenticatedSession(page);
   await expect.poll(async () => {
     await page.goto("/admin");
     return page.url();
   }, { timeout: 20_000 }).toMatch(/\/admin(\/|$)/);
+}
+
+export async function waitForAuthenticatedSession(page: Page) {
+  await expect.poll(async () => {
+    return page.evaluate((storageKey) => window.localStorage.getItem(storageKey), tokenStorageKey);
+  }, { timeout: 20_000 }).not.toBeNull();
 }
 
 export async function createOperationalEdital(request: APIRequestContext, options?: {
