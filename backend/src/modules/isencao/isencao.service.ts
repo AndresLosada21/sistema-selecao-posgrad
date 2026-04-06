@@ -59,6 +59,30 @@ export async function createOrUpdatePedidoIsencao(input: CreatePedidoIsencaoInpu
     },
   });
 
+  if (!input.inscritoCadUnico) {
+    if (!input.justificativa?.trim()) {
+      return { error: "JUSTIFICATIVA_OBRIGATORIA" as const };
+    }
+
+    if (!input.comprovanteUrl || !input.comprovanteNomeArquivo) {
+      return { error: "COMPROVANTE_OBRIGATORIO" as const };
+    }
+  }
+
+  const payload = input.inscritoCadUnico
+    ? {
+        nis: input.nis,
+        justificativa: null,
+        comprovanteUrl: null,
+        comprovanteNomeArquivo: null,
+      }
+    : {
+        nis: input.nis,
+        justificativa: input.justificativa,
+        comprovanteUrl: input.comprovanteUrl,
+        comprovanteNomeArquivo: input.comprovanteNomeArquivo,
+      };
+
   const pedido = await prisma.pedidoIsencao.upsert({
     where: {
       participacaoEditalId: participacao.id,
@@ -66,20 +90,14 @@ export async function createOrUpdatePedidoIsencao(input: CreatePedidoIsencaoInpu
     update: {
       cursoNivel: input.cursoNivel,
       inscritoCadUnico: input.inscritoCadUnico,
-      nis: input.nis,
-      justificativa: input.justificativa,
-      comprovanteUrl: input.comprovanteUrl,
-      comprovanteNomeArquivo: input.comprovanteNomeArquivo,
+      ...payload,
       status: StatusIsencao.SOLICITADA,
     },
     create: {
       participacaoEditalId: participacao.id,
       cursoNivel: input.cursoNivel,
       inscritoCadUnico: input.inscritoCadUnico,
-      nis: input.nis,
-      justificativa: input.justificativa,
-      comprovanteUrl: input.comprovanteUrl,
-      comprovanteNomeArquivo: input.comprovanteNomeArquivo,
+      ...payload,
       status: StatusIsencao.SOLICITADA,
     },
     include: {

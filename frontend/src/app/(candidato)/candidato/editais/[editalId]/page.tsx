@@ -179,7 +179,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
               </div>
             </article>
           ))}
-          {publicacoes.length ? null : <EmptyState title="Sem publicacoes" description="Ainda nao ha publicacoes oficiais vinculadas a este edital." />}
+          {publicacoesDestaque.length ? null : <EmptyState title="Sem publicacoes" description="Ainda nao ha publicacoes oficiais em destaque vinculadas a este edital." />}
         </div>
       </SectionCard>
 
@@ -213,7 +213,6 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
                   <StatusBadge variant={getStatusVariant(recurso.status)}>{getStatusLabel(recurso.status)}</StatusBadge>
                 </div>
                 <p>{recurso.fundamentacao ?? "Sem fundamentacao resumida disponivel."}</p>
-                <small>Identificador: {recurso.id}</small>
                 <small>Respondido em: {formatIsoDate(recurso.respondidoEm ?? null)}</small>
                 <small>Decisao: {recurso.decisao ?? "ainda nao registrada"}</small>
               </article>

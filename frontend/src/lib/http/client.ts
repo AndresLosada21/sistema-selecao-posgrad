@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/lib/config/api";
 
 import { ApiError } from "./api-error";
+import { stripEmptyStrings } from "./sanitize";
 
 type RequestOptions = RequestInit & {
   token?: string | null;
@@ -90,7 +91,7 @@ export function apiGet<T>(path: string, token?: string | null) {
 export function apiPost<T>(path: string, body?: unknown, token?: string | null) {
   return apiRequest<T>(path, {
     method: "POST",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(stripEmptyStrings(body)),
     token,
   });
 }
@@ -98,7 +99,7 @@ export function apiPost<T>(path: string, body?: unknown, token?: string | null) 
 export function apiPut<T>(path: string, body?: unknown, token?: string | null) {
   return apiRequest<T>(path, {
     method: "PUT",
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : JSON.stringify(stripEmptyStrings(body)),
     token,
   });
 }

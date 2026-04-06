@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import { ActionButton } from "@/components/shared/action-button";
@@ -15,6 +15,7 @@ type ResetPasswordFormProps = {
 
 export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
   const router = useRouter();
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [token, setToken] = useState(initialToken);
   const [senha, setSenha] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,11 +27,17 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
     try {
       await confirmPasswordReset({ token, senha });
       setMessage({ type: "success", text: "Senha redefinida com sucesso. Voce ja pode entrar com a nova credencial." });
-      setTimeout(() => router.replace("/entrar"), 1200);
+      redirectTimeoutRef.current = setTimeout(() => router.replace("/entrar"), 1200);
     } catch (error) {
       setMessage({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
+
+  useEffect(() => () => {
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
+  }, []);
 
   return (
     <div className="stack-layout">
