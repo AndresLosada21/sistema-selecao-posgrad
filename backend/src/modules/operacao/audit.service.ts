@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "../../lib/prisma.js";
 
 export async function recordAuditEvent(input: {
@@ -8,13 +10,13 @@ export async function recordAuditEvent(input: {
   payload?: Record<string, unknown> | null;
   criadoPorId?: string | null;
 }) {
-  await (prisma as any).auditoriaEvento.create({
+  await prisma.auditoriaEvento.create({
     data: {
       entidade: input.entidade,
       entidadeId: input.entidadeId,
       acao: input.acao,
       descricao: input.descricao,
-      payload: input.payload ?? undefined,
+      payload: input.payload ? (input.payload as Prisma.InputJsonValue) : undefined,
       criadoPorId: input.criadoPorId ?? undefined,
     },
   });

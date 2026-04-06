@@ -133,22 +133,17 @@ export async function getCandidateDashboard(usuarioId: string) {
       : null,
     inscricao: participacao.inscricao
       ? {
-          ...(function () {
-            const inscricaoAny = participacao.inscricao as any;
-            return {
-              pacoteDocumental: inscricaoAny.pacoteDocumentalUrl
-                ? {
-                    urlArquivo: inscricaoAny.pacoteDocumentalUrl,
-                    nomeArquivo: inscricaoAny.pacoteDocumentalNomeArquivo,
-                    mimeType: inscricaoAny.pacoteDocumentalMimeType,
-                    tamanhoBytes: inscricaoAny.pacoteDocumentalTamanhoBytes,
-                    versaoSubmissao: inscricaoAny.pacoteDocumentalVersaoSubmissao,
-                    geradoEm: toIsoOrNull(inscricaoAny.pacoteDocumentalGeradoEm),
-                    geradoPorId: inscricaoAny.pacoteDocumentalGeradoPorId,
-                  }
-                : null,
-            };
-          })(),
+          pacoteDocumental: participacao.inscricao.pacoteDocumentalUrl
+            ? {
+                urlArquivo: participacao.inscricao.pacoteDocumentalUrl,
+                nomeArquivo: participacao.inscricao.pacoteDocumentalNomeArquivo,
+                mimeType: participacao.inscricao.pacoteDocumentalMimeType,
+                tamanhoBytes: participacao.inscricao.pacoteDocumentalTamanhoBytes,
+                versaoSubmissao: participacao.inscricao.pacoteDocumentalVersaoSubmissao,
+                geradoEm: toIsoOrNull(participacao.inscricao.pacoteDocumentalGeradoEm),
+                geradoPorId: participacao.inscricao.pacoteDocumentalGeradoPorId,
+              }
+            : null,
           id: participacao.inscricao.id,
           status: participacao.inscricao.status,
           statusPagamento: participacao.inscricao.statusPagamento,
@@ -214,14 +209,14 @@ export async function getCandidateDashboard(usuarioId: string) {
                 pontuacaoItens: participacao.inscricao.avaliacaoEtapa2.pontuacaoItens,
                 pontuacaoBruta: participacao.inscricao.avaliacaoEtapa2.pontuacaoBruta?.toNumber() ?? null,
                 notaNormalizada: participacao.inscricao.avaliacaoEtapa2.notaNormalizada?.toNumber() ?? null,
-                memoriaCalculo: (participacao.inscricao.avaliacaoEtapa2 as any).memoriaCalculo,
-                glosas: (participacao.inscricao.avaliacaoEtapa2 as any).glosas,
-                espelhoDisponivel: Boolean((participacao.inscricao.avaliacaoEtapa2 as any).espelhoLiberadoEm),
-                espelhoCorrecao: (participacao.inscricao.avaliacaoEtapa2 as any).espelhoLiberadoEm
+                memoriaCalculo: participacao.inscricao.avaliacaoEtapa2.memoriaCalculo,
+                glosas: participacao.inscricao.avaliacaoEtapa2.glosas,
+                espelhoDisponivel: Boolean(participacao.inscricao.avaliacaoEtapa2.espelhoLiberadoEm),
+                espelhoCorrecao: participacao.inscricao.avaliacaoEtapa2.espelhoLiberadoEm
                   ? participacao.inscricao.avaliacaoEtapa2.espelhoCorrecao
                   : null,
-                espelhoSolicitadoEm: toIsoOrNull((participacao.inscricao.avaliacaoEtapa2 as any).espelhoSolicitadoEm),
-                espelhoLiberadoEm: toIsoOrNull((participacao.inscricao.avaliacaoEtapa2 as any).espelhoLiberadoEm),
+                espelhoSolicitadoEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa2.espelhoSolicitadoEm),
+                espelhoLiberadoEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa2.espelhoLiberadoEm),
                 status: participacao.inscricao.avaliacaoEtapa2.status,
                 resultadoPreliminarEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa2.resultadoPreliminarEm),
                 resultadoFinalEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa2.resultadoFinalEm),

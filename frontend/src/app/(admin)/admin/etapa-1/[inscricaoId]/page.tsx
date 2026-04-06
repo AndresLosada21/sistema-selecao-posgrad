@@ -14,6 +14,19 @@ import type { Etapa1AdminItem, Etapa1Espelho } from "@/modules/admin-etapas/type
 
 type Props = { params: Promise<{ inscricaoId: string }> };
 
+function normalizeRubricaObservacoes(observacoes: {
+  adequacaoDominioTema: string;
+  estrutura: string;
+  organizacaoCoerencia: string;
+  objetividadeSintese: string;
+  grafiaGramatica: string;
+  geral: string;
+}) {
+  return Object.fromEntries(
+    Object.entries(observacoes).filter(([, value]) => value.trim().length >= 3),
+  );
+}
+
 export default function AdminEtapa1DetailPage({ params }: Props) {
   const session = useSession();
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
@@ -85,7 +98,18 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         return;
       }
 
-      await registrarEtapa1(inscricaoId, { tema: tema || undefined, rubrica, usoIaComprovado, fundamentoUsoIa: usoIaComprovado ? fundamentoUsoIa : undefined, espelhoCorrecao, liberarEspelho, publicacao }, session.token);
+      await registrarEtapa1(inscricaoId, {
+        tema: tema || undefined,
+        rubrica: {
+          ...rubrica,
+          observacoes: normalizeRubricaObservacoes(rubrica.observacoes),
+        },
+        usoIaComprovado,
+        fundamentoUsoIa: usoIaComprovado ? fundamentoUsoIa : undefined,
+        espelhoCorrecao,
+        liberarEspelho,
+        publicacao,
+      }, session.token);
       await loadItem();
       setMessage({ type: "success", text: "Resultado da etapa 1 enviado ao backend e estado recarregado." });
     } catch (error) {

@@ -15,7 +15,6 @@ import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { publicationPhaseOptions } from "@/modules/admin-operacao/constants";
 import { listAdminPublicacoesByEdital, previewClassificacaoPublicacao, previewHomologacaoPublicacao, publicarClassificacao, publicarGenerica, publicarHomologacao } from "@/modules/admin-publicacao/api";
 import { previewPublicacaoPoliticas, publicarPoliticas } from "@/modules/admin-politicas/api";
-import { listPublicacoesByEdital } from "@/modules/publicacao/api";
 import type { PublicacoesResponse } from "@/modules/publicacao/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 

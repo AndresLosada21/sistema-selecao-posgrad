@@ -3,7 +3,10 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 export async function listAvaliadorEscopos(usuarioId: string) {
-  return await (prisma as any).avaliadorEscopo.findMany({ where: { usuarioId } }) as Array<{ editalId: string; linhaPesquisaId: string | null }>;
+  return await prisma.avaliadorEscopo.findMany({
+    where: { usuarioId },
+    select: { editalId: true, linhaPesquisaId: true },
+  });
 }
 
 export async function buildInscricaoWhereForAvaliador(baseWhere: Prisma.InscricaoWhereInput, usuarioId: string): Promise<Prisma.InscricaoWhereInput> {
