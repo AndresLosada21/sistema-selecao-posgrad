@@ -10,7 +10,7 @@ import { getErrorMessage } from "@/lib/http/api-error";
 import { requestPasswordReset } from "@/modules/auth/api";
 
 export default function ForgotPasswordPage() {
-  const canShowTokenPreview = process.env.NODE_ENV !== "production";
+  const canShowTokenPreview = process.env.NEXT_PUBLIC_SHOW_DEV_TOOLS === "true";
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);

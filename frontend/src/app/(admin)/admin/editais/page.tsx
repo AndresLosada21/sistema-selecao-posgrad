@@ -99,7 +99,7 @@ export default function AdminEditaisPage() {
           <label className="field-block"><span>Semestre</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, semestre: e.target.value }))} value={form.semestre}><option value="1">1</option><option value="2">2</option></select></label>
           <label className="field-block"><span>Curso</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))} value={form.cursoNivel}>{cursoNivelOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
           <label className="field-block"><span>Status</span><select className="select-field" onChange={(e) => setForm((c) => ({ ...c, status: e.target.value as StatusEdital }))} value={form.status}>{statusEditalOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
-          <label className="field-block"><span>Publicado em (opcional)</span><input onChange={(e) => setForm((c) => ({ ...c, publicadoEm: e.target.value }))} placeholder="2026-04-05T12:00:00.000Z" value={form.publicadoEm} /></label>
+          <label className="field-block"><span>Publicado em (opcional)</span><input onChange={(e) => setForm((c) => ({ ...c, publicadoEm: e.target.value }))} type="datetime-local" value={form.publicadoEm} /></label>
           <ActionButton disabled={busy} loading={busy} type="submit">Criar edital</ActionButton>
         </form>
       </SectionCard>

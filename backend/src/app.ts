@@ -73,6 +73,7 @@ app.use(express.json({ limit: jsonBodyLimit }));
 app.use("/v1/auth/login", authRateLimiter);
 app.use("/v1/auth/register", authRateLimiter);
 app.use("/v1/auth/password-reset/request", authRateLimiter);
+app.use("/v1/auth/email-verification/request", expensiveRouteRateLimiter);
 app.use("/v1/uploads", expensiveRouteRateLimiter);
 app.use(/\/v1\/publicacoes\/.*\/arquivo\.pdf$/, expensiveRouteRateLimiter);
 app.use(/\/v1\/inscricoes\/.*\/anexo-iv/, expensiveRouteRateLimiter);

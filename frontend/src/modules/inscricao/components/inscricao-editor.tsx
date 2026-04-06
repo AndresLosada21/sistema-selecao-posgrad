@@ -8,10 +8,12 @@ import { ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/files/download";
 import { ApiError, getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
+import { getStatusLabel } from "@/components/shared/status-variant-map";
 import type { ModalidadeConcorrencia, TipoDocumentoInscricao } from "@/lib/enums";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import type { EditalDetalhe } from "@/modules/edital/types";
@@ -109,7 +111,7 @@ function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashbo
     temaRedacao: inscricao?.temaRedacao ?? "",
     resumoCurriculo: inscricao?.resumoCurriculo ?? "",
     redacaoTexto: inscricao?.redacaoTexto ?? "",
-    assinaturaImagemUrl: (inscricao as { assinaturaImagemUrl?: string } | null)?.assinaturaImagemUrl ?? "",
+    assinaturaImagemUrl: String((inscricao as Record<string, unknown> | null)?.assinaturaImagemUrl ?? ""),
     fichaInscricao: {
       nomeCompleto: (ficha.nomeCompleto as string) ?? "",
       rg: (ficha.rg as string) ?? "",
@@ -175,7 +177,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [pacoteResumo, setPacoteResumo] = useState(dashboardItem?.inscricao?.pacoteDocumental ?? null);
 
   const documentosOrdenados = useMemo(() => [...documentos].sort((a, b) => a.tipo.localeCompare(b.tipo)), [documentos]);
-  const redacaoLength = formState.redacaoTexto.trim().length;
+  const redacaoLength = formState.redacaoTexto.length;
   const redacaoDentroDaFaixa = redacaoLength === 0 || (redacaoLength >= 500 && redacaoLength <= 1500);
 
   function resetMessage() {
@@ -217,17 +219,14 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         session.token,
       );
 
-      const saved = response as {
-        id: string;
-        status: string;
-        documentos?: typeof documentos;
-        pacoteDocumental?: typeof pacoteResumo;
-      };
+      const saved = response as Record<string, unknown>;
+      const savedId = typeof saved.id === "string" ? saved.id : inscricaoId;
+      const savedStatus = typeof saved.status === "string" ? saved.status : inscricaoStatus;
 
-      setInscricaoId(saved.id);
-      setInscricaoStatus(saved.status);
-      setDocumentos(saved.documentos ?? documentos);
-      setPacoteResumo(saved.pacoteDocumental ?? pacoteResumo);
+      setInscricaoId(savedId);
+      setInscricaoStatus(savedStatus);
+      setDocumentos(Array.isArray(saved.documentos) ? saved.documentos : documentos);
+      setPacoteResumo((saved.pacoteDocumental as typeof pacoteResumo) ?? pacoteResumo);
       setMessage({ title: "Rascunho salvo", description: "Os dados principais da inscricao foram enviados ao backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
@@ -340,7 +339,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
     try {
       const response = await submitInscricao(inscricaoId, session.token);
-      setInscricaoStatus(String((response as { status?: string }).status ?? "SUBMETIDA"));
+      const submitResult = response as Record<string, unknown>;
+      setInscricaoStatus(typeof submitResult.status === "string" ? submitResult.status : "SUBMETIDA");
       setMessage({ title: "Inscricao submetida", description: "A submissao foi aceita pelo backend." });
     } catch (error) {
       if (handleUnauthorized(error)) {
@@ -368,7 +368,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
     try {
       const response = await cancelInscricao(inscricaoId, session.token);
-      setInscricaoStatus(String((response as { status?: string }).status ?? "RASCUNHO"));
+      const cancelResult = response as Record<string, unknown>;
+      setInscricaoStatus(typeof cancelResult.status === "string" ? cancelResult.status : "RASCUNHO");
       setMessage({ title: "Submissao cancelada", description: "A inscricao voltou para rascunho para permitir edicao." });
     } catch (error) {
       if (handleUnauthorized(error)) {
@@ -471,7 +472,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             <select className="select-field" onChange={(event) => setFormState((current) => ({ ...current, modalidadeConcorrencia: event.target.value }))} value={formState.modalidadeConcorrencia}>
               {modalidadeConcorrenciaOptions.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {getStatusLabel(value)}
                 </option>
               ))}
             </select>
@@ -593,7 +594,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             <select className="select-field" onChange={(event) => setDocumentoState((current) => ({ ...current, tipo: event.target.value }))} value={documentoState.tipo}>
               {documentoTipoOptions.map((value) => (
                 <option key={value} value={value}>
-                  {value}
+                  {getStatusLabel(value)}
                 </option>
               ))}
             </select>
@@ -617,8 +618,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           {documentosOrdenados.map((documento) => (
             <article className="content-item" key={documento.id}>
               <div className="content-item-row">
-                <strong>{documento.tipo}</strong>
-                <StatusBadge>{documento.statusValidacao ?? "SEM_VALIDACAO"}</StatusBadge>
+                <strong>{getStatusLabel(documento.tipo)}</strong>
+                <StatusBadge variant={getStatusVariant(documento.statusValidacao ?? "SEM_VALIDACAO")}>{getStatusLabel(documento.statusValidacao ?? "SEM_VALIDACAO")}</StatusBadge>
               </div>
               <small>Nome: {documento.nome}</small>
               <small>Arquivo: {documento.nomeArquivo ?? "nao informado"}</small>
@@ -649,7 +650,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           </div>
         ) : null}
         {message ? message.title.toLowerCase().startsWith("falha") ? <ErrorState description={message.description} title={message.title} /> : <PageFeedback type="success" title={message.title} description={message.description} /> : null}
-        {!inscricaoId ? <LoadingState title="Rascunho ainda nao criado" description="Salve o rascunho para habilitar documentos, Anexo IV e submissao." /> : null}
+        {!inscricaoId ? <PageFeedback type="info" title="Rascunho ainda nao criado" description="Salve o rascunho para habilitar documentos, Anexo IV e submissao." /> : null}
       </SectionCard>
     </div>
   );

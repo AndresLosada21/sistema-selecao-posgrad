@@ -41,7 +41,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { params.then((resolved) => setInscricaoId(resolved.inscricaoId)); }, [params]);
+  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); }); return () => { cancelled = true; }; }, [params]);
 
   const loadItem = useCallback(async () => {
     if (!token || !inscricaoId) return;

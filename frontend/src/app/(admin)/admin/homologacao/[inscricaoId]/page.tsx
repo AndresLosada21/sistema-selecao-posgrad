@@ -62,7 +62,9 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   const [pacoteForm, setPacoteForm] = useState({ urlArquivo: "", nomeArquivo: "", mimeType: "application/pdf", tamanhoBytes: "" });
 
   useEffect(() => {
-    params.then((resolved) => setInscricaoId(resolved.inscricaoId));
+    let cancelled = false;
+    params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); });
+    return () => { cancelled = true; };
   }, [params]);
 
   const loadItem = useCallback(async () => {

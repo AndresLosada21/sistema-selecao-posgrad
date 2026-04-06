@@ -60,7 +60,7 @@ function renderRecordArray(title: string, items: Array<Record<string, unknown>> 
       <strong>{title}</strong>
       <div className="content-list">
         {items.map((item) => (
-          <div className="content-item" key={`${title}-${JSON.stringify(item)}`}>
+          <div className="content-item" key={`${title}-${Object.values(item).map(String).join("-")}`}>
             {Object.entries(item).map(([key, value]) => (
               <small key={key}>{`${key}: ${renderPrimitive(value)}`}</small>
             ))}
@@ -125,7 +125,9 @@ export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
   const [espelhoEtapa2, setEspelhoEtapa2] = useState<CandidateEtapa2Espelho | null>(null);
 
   useEffect(() => {
-    params.then((resolved) => setEditalId(resolved.editalId));
+    let cancelled = false;
+    params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); });
+    return () => { cancelled = true; };
   }, [params]);
 
   const loadDashboard = useCallback(async () => {

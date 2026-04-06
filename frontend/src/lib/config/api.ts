@@ -10,7 +10,8 @@ export function getPublicApiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 }
 
-export function resolveApiUrl(pathOrUrl: string) {
+export function resolveApiUrl(pathOrUrl: string | null | undefined) {
+  if (!pathOrUrl) return "#";
   if (/^https?:\/\//i.test(pathOrUrl)) {
     const publicBaseUrl = getPublicApiBaseUrl();
 

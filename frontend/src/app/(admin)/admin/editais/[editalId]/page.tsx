@@ -56,7 +56,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
     fimEm: string;
   }>({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" });
 
-  useEffect(() => { params.then((resolved) => setEditalId(resolved.editalId)); }, [params]);
+  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
 
   const load = useCallback(async () => {
     if (!editalId || !token) return;
@@ -258,14 +258,14 @@ export default function AdminEditalDetailPage({ params }: Props) {
       {message ? <PageFeedback type={message.type} title="Retorno operacional" description={message.text} /> : null}
       <SectionCard title={`Editar edital ${data.numero}`} description={data.titulo}>
         <form className="form-grid" onSubmit={submitEdital}>
-          <label className="field-block"><span>Numero</span><input onChange={(e) => setEditalForm((c) => ({ ...c, numero: e.target.value }))} value={editalForm.numero} /></label>
-          <label className="field-block"><span>Titulo</span><input onChange={(e) => setEditalForm((c) => ({ ...c, titulo: e.target.value }))} value={editalForm.titulo} /></label>
+          <label className="field-block"><span>Numero</span><input onChange={(e) => setEditalForm((c) => ({ ...c, numero: e.target.value }))} required value={editalForm.numero} /></label>
+          <label className="field-block"><span>Titulo</span><input onChange={(e) => setEditalForm((c) => ({ ...c, titulo: e.target.value }))} required value={editalForm.titulo} /></label>
           <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setEditalForm((c) => ({ ...c, descricao: e.target.value }))} value={editalForm.descricao} /></label>
           <label className="field-block"><span>Ano</span><input onChange={(e) => setEditalForm((c) => ({ ...c, ano: e.target.value }))} type="number" value={editalForm.ano} /></label>
           <label className="field-block"><span>Semestre</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, semestre: e.target.value }))} value={editalForm.semestre}><option value="1">1</option><option value="2">2</option></select></label>
           <label className="field-block"><span>Curso</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))} value={editalForm.cursoNivel}>{cursoNivelOptions.map((option) => <option key={option} value={option}>{option === "MESTRADO" ? "Mestrado" : "Doutorado"}</option>)}</select></label>
           <label className="field-block"><span>Status</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, status: e.target.value as StatusEdital }))} value={editalForm.status}>{statusEditalOptions.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ").toLowerCase().replace(/^\w/, (char) => char.toUpperCase())}</option>)}</select></label>
-          <label className="field-block"><span>Publicado em (opcional)</span><input onChange={(e) => setEditalForm((c) => ({ ...c, publicadoEm: e.target.value }))} placeholder="2026-04-05T12:00:00.000Z" value={editalForm.publicadoEm} /></label>
+          <label className="field-block"><span>Publicado em (opcional)</span><input onChange={(e) => setEditalForm((c) => ({ ...c, publicadoEm: e.target.value }))} type="datetime-local" value={editalForm.publicadoEm} /></label>
           <ActionButton disabled={busy} loading={busy} type="submit">Salvar edital</ActionButton>
           <ActionButton disabled={busy} onClick={handleDeleteEdital} type="button" variant="ghost">Excluir edital</ActionButton>
         </form>
@@ -273,7 +273,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
       <SectionCard title="Linhas de pesquisa" description="Cadastro e leitura das linhas vinculadas ao edital.">
         <form className="form-grid" onSubmit={submitLinha}>
-          <label className="field-block"><span>Nome</span><input onChange={(e) => setLinhaForm((c) => ({ ...c, nome: e.target.value }))} value={linhaForm.nome} /></label>
+          <label className="field-block"><span>Nome</span><input onChange={(e) => setLinhaForm((c) => ({ ...c, nome: e.target.value }))} required value={linhaForm.nome} /></label>
           <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setLinhaForm((c) => ({ ...c, descricao: e.target.value }))} value={linhaForm.descricao} /></label>
           <label className="field-block"><span>Ampla concorrencia</span><input min="0" onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAmplaConcorrencia: e.target.value }))} type="number" value={linhaForm.vagasAmplaConcorrencia} /></label>
           <label className="field-block"><span>Acoes afirmativas</span><input min="0" onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAcoesAfirmativas: e.target.value }))} type="number" value={linhaForm.vagasAcoesAfirmativas} /></label>
@@ -289,7 +289,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       <SectionCard title="Cronograma" description="Cadastro e leitura das fases operacionais do edital.">
         <form className="form-grid" onSubmit={submitCronograma}>
           <label className="field-block"><span>Tipo</span><select className="select-field" onChange={(e) => setCronogramaForm((c) => ({ ...c, tipo: e.target.value as TipoCronogramaEdital }))} value={cronogramaForm.tipo}>{tipoCronogramaEditalOptions.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ").toLowerCase().replace(/^\w/, (char) => char.toUpperCase())}</option>)}</select></label>
-          <label className="field-block"><span>Titulo</span><input onChange={(e) => setCronogramaForm((c) => ({ ...c, titulo: e.target.value }))} value={cronogramaForm.titulo} /></label>
+          <label className="field-block"><span>Titulo</span><input onChange={(e) => setCronogramaForm((c) => ({ ...c, titulo: e.target.value }))} required value={cronogramaForm.titulo} /></label>
           <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setCronogramaForm((c) => ({ ...c, descricao: e.target.value }))} value={cronogramaForm.descricao} /></label>
           <label className="field-block"><span>Inicio</span><input onChange={(e) => setCronogramaForm((c) => ({ ...c, inicioEm: e.target.value }))} type="datetime-local" value={cronogramaForm.inicioEm} /></label>
           <label className="field-block"><span>Fim</span><input onChange={(e) => setCronogramaForm((c) => ({ ...c, fimEm: e.target.value }))} type="datetime-local" value={cronogramaForm.fimEm} /></label>
