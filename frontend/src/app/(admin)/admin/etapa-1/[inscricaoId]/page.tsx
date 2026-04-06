@@ -47,7 +47,9 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    params.then((resolved) => setInscricaoId(resolved.inscricaoId));
+    let cancelled = false;
+    params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); });
+    return () => { cancelled = true; };
   }, [params]);
 
   const loadItem = useCallback(async () => {
@@ -167,11 +169,11 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
       <SectionCard title="Registro do resultado" description="Formulario operacional da etapa 1 baseado no payload do backend.">
         <form className="form-grid" onSubmit={onSubmit}>
           <label className="field-block"><span>Tema</span><input onChange={(e) => setTema(e.target.value)} value={tema} /></label>
-          <label className="field-block"><span>Adequacao ao tema</span><input onChange={(e) => setRubrica((c) => ({ ...c, adequacaoDominioTema: Number(e.target.value) || 0 }))} type="number" value={rubrica.adequacaoDominioTema} /></label>
-          <label className="field-block"><span>Estrutura</span><input onChange={(e) => setRubrica((c) => ({ ...c, estrutura: Number(e.target.value) || 0 }))} type="number" value={rubrica.estrutura} /></label>
-          <label className="field-block"><span>Organizacao e coerencia</span><input onChange={(e) => setRubrica((c) => ({ ...c, organizacaoCoerencia: Number(e.target.value) || 0 }))} type="number" value={rubrica.organizacaoCoerencia} /></label>
-          <label className="field-block"><span>Objetividade e sintese</span><input onChange={(e) => setRubrica((c) => ({ ...c, objetividadeSintese: Number(e.target.value) || 0 }))} type="number" value={rubrica.objetividadeSintese} /></label>
-          <label className="field-block"><span>Grafia e gramatica</span><input onChange={(e) => setRubrica((c) => ({ ...c, grafiaGramatica: Number(e.target.value) || 0 }))} type="number" value={rubrica.grafiaGramatica} /></label>
+          <label className="field-block"><span>Adequacao ao tema</span><input max={10} min={0} onChange={(e) => setRubrica((c) => ({ ...c, adequacaoDominioTema: Number(e.target.value) || 0 }))} step={0.1} type="number" value={rubrica.adequacaoDominioTema} /></label>
+          <label className="field-block"><span>Estrutura</span><input max={10} min={0} onChange={(e) => setRubrica((c) => ({ ...c, estrutura: Number(e.target.value) || 0 }))} step={0.1} type="number" value={rubrica.estrutura} /></label>
+          <label className="field-block"><span>Organizacao e coerencia</span><input max={10} min={0} onChange={(e) => setRubrica((c) => ({ ...c, organizacaoCoerencia: Number(e.target.value) || 0 }))} step={0.1} type="number" value={rubrica.organizacaoCoerencia} /></label>
+          <label className="field-block"><span>Objetividade e sintese</span><input max={10} min={0} onChange={(e) => setRubrica((c) => ({ ...c, objetividadeSintese: Number(e.target.value) || 0 }))} step={0.1} type="number" value={rubrica.objetividadeSintese} /></label>
+          <label className="field-block"><span>Grafia e gramatica</span><input max={10} min={0} onChange={(e) => setRubrica((c) => ({ ...c, grafiaGramatica: Number(e.target.value) || 0 }))} step={0.1} type="number" value={rubrica.grafiaGramatica} /></label>
           <label className="field-block"><span>Observacao - adequacao ao tema</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, adequacaoDominioTema: e.target.value } }))} value={rubrica.observacoes.adequacaoDominioTema} /></label>
           <label className="field-block"><span>Observacao - estrutura</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, estrutura: e.target.value } }))} value={rubrica.observacoes.estrutura} /></label>
           <label className="field-block"><span>Observacao - organizacao e coerencia</span><textarea className="text-area" onChange={(e) => setRubrica((c) => ({ ...c, observacoes: { ...c.observacoes, organizacaoCoerencia: e.target.value } }))} value={rubrica.observacoes.organizacaoCoerencia} /></label>

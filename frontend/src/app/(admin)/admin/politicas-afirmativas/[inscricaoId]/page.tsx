@@ -33,7 +33,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   const [finalResult, setFinalResult] = useState<{ resultado: (typeof resultadoPoliticasOptions)[number]; parecer: string; arquivoRetornoUrl: string }>({ resultado: resultadoPoliticasOptions[0], parecer: "", arquivoRetornoUrl: "" });
   const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
 
-  useEffect(() => { params.then((resolved) => setInscricaoId(resolved.inscricaoId)); }, [params]);
+  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); }); return () => { cancelled = true; }; }, [params]);
 
   useEffect(() => {
     const editalIdFromQuery = searchParams?.get("editalId");
@@ -42,20 +42,13 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    if (!token || !inscricaoId) return;
-    setStatus("loading");
-  }, [inscricaoId, token]);
-
   const loadByEdital = useCallback(async () => {
     if (!token || !inscricaoId) return;
     setBusy(true); setMessage(null);
     try {
       const found = await getPoliticasByInscricao(inscricaoId, token);
       setItem(found);
-      if (!editalId) {
-        setEditalId(found.edital.id);
-      }
+      setEditalId((current) => current || found.edital.id);
       if (found) {
         setEncaminhamento({
           convocadoEm: found.convocadoEm ?? "",
@@ -82,7 +75,8 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
       setMessage({ type: "error", text: getErrorMessage(error) });
       setStatus("error");
     } finally { setBusy(false); }
-  }, [editalId, inscricaoId, signOut, token]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- editalId inferred from response, not a trigger
+  }, [inscricaoId, signOut, token]);
 
   useEffect(() => {
     if (!inscricaoId || !token) {
@@ -166,8 +160,8 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
 
           <SectionCard title="Encaminhamento" description="Registro administrativo do encaminhamento documental.">
             <form className="form-grid" onSubmit={submitEncaminhamento}>
-              <label className="field-block"><span>Convocado em (ISO)</span><input onChange={(e) => setEncaminhamento((c) => ({ ...c, convocadoEm: e.target.value }))} value={encaminhamento.convocadoEm} /></label>
-              <label className="field-block"><span>Documentos encaminhados em (ISO)</span><input onChange={(e) => setEncaminhamento((c) => ({ ...c, documentosEncaminhadosEm: e.target.value }))} value={encaminhamento.documentosEncaminhadosEm} /></label>
+              <label className="field-block"><span>Convocado em</span><input onChange={(e) => setEncaminhamento((c) => ({ ...c, convocadoEm: e.target.value }))} type="datetime-local" value={encaminhamento.convocadoEm} /></label>
+              <label className="field-block"><span>Documentos encaminhados em</span><input onChange={(e) => setEncaminhamento((c) => ({ ...c, documentosEncaminhadosEm: e.target.value }))} type="datetime-local" value={encaminhamento.documentosEncaminhadosEm} /></label>
               <label className="field-block"><span>Protocolo</span><input onChange={(e) => setEncaminhamento((c) => ({ ...c, protocoloEncaminhamento: e.target.value }))} value={encaminhamento.protocoloEncaminhamento} /></label>
               <label className="field-block"><span>Observacao</span><textarea className="text-area" onChange={(e) => setEncaminhamento((c) => ({ ...c, observacaoEncaminhamento: e.target.value }))} value={encaminhamento.observacaoEncaminhamento} /></label>
                <ActionButton disabled={busy} loading={busy} type="submit">Registrar encaminhamento</ActionButton>

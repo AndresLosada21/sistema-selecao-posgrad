@@ -51,7 +51,7 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
                   <small>Versao: {publicacao.versao}</small>
                   <small>Versao final: {publicacao.versaoFinal ? "sim" : "nao"}</small>
                   <small>Publicado em: {formatIsoDate(publicacao.publicadoEm)}</small>
-                  <small>Historico: {publicacao.republicacaoDeId ? "republicacao vinculada a versao anterior" : "publicacao inicial"}</small>
+                  {publicacao.versao > 1 ? <small>Historico: republicacao vinculada a versao anterior</small> : null}
                   <div className="content-item-links">
                     <Link className="nav-link" href={resolveApiUrl(publicacao.arquivoUrl)} rel="noreferrer" target="_blank">
                       Abrir PDF oficial
@@ -61,7 +61,7 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
             ))}
           </div>
           <div className="content-item-links">
-            <PublicAccessCta authenticatedHref="/candidato/participacoes" candidateLabel="Abrir area do candidato" nextPath="/candidato/participacoes" />
+            <PublicAccessCta authenticatedHref="/candidato/participacoes" candidateLabel="Abrir area do candidato" />
           </div>
         </SectionCard>
       </div>

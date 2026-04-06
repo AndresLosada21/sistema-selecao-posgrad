@@ -43,7 +43,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [versaoFinalGenerica, setVersaoFinalGenerica] = useState(false);
   const [dadosConsolidadosGenerico, setDadosConsolidadosGenerico] = useState("{}");
 
-  useEffect(() => { params.then((resolved) => setEditalId(resolved.editalId)); }, [params]);
+  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
 
   useEffect(() => {
     if (!editalId || !token) return;
@@ -179,7 +179,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                 <small>Versao: {item.versao}</small>
                 <small>Versao final: {item.versaoFinal ? "sim" : "nao"}</small>
                 <small>Publicado em: {formatIsoDate(item.publicadoEm)}</small>
-                <small>Historico: {item.republicacaoDeId ? `republicacao vinculada ao registro ${item.republicacaoDeId}` : "publicacao inicial"}</small>
+                <small>Historico: {item.versao > 1 ? "republicacao" : "publicacao inicial"}</small>
                 <div className="content-item-links"><Link className="nav-link" href={resolveApiUrl(item.arquivoUrl)} rel="noreferrer" target="_blank">Abrir PDF oficial</Link></div>
               </article>
             ))}

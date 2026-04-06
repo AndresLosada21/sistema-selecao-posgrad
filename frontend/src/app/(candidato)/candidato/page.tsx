@@ -195,7 +195,8 @@ export default function CandidateDashboardPage() {
   const currentPhaseColor = activeStep ? "var(--color-warning)" : "var(--color-text-muted)";
 
   const pubs = active?.publicacoesDestaque ?? [];
-  const hasOpenRecurso = (active?.recursos ?? []).some((r) => r.status === "ABERTO");
+  const RECURSO_OPEN_STATUSES = new Set(["ABERTO", "EM_ANALISE"]);
+  const hasOpenRecurso = (active?.recursos ?? []).some((r) => RECURSO_OPEN_STATUSES.has(r.status));
   const pacoteDocumentalUrl = inscricao?.pacoteDocumental?.urlArquivo ?? null;
 
   const etapa1 = inscricao?.etapa1 ?? null;

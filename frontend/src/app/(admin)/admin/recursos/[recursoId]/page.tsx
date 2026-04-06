@@ -39,7 +39,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [novoResultadoPoliticas, setNovoResultadoPoliticas] = useState<(typeof resultadoPoliticasOptions)[number]>(resultadoPoliticasOptions[0]);
   const [novoParecerPoliticas, setNovoParecerPoliticas] = useState("");
 
-  useEffect(() => { params.then((resolved) => setRecursoId(resolved.recursoId)); }, [params]);
+  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setRecursoId(resolved.recursoId); }); return () => { cancelled = true; }; }, [params]);
 
   const loadItem = useCallback(async () => {
     if (!token || !recursoId) return;

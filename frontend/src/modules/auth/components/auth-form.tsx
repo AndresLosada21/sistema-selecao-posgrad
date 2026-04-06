@@ -60,10 +60,14 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           : await login({ email, senha });
 
       session.setSessionFromAuthResponse(response);
+      // status permanece "loading" intencionalmente: o redirect/re-render do session effect cuida do estado final.
       router.replace(resolveAuthRedirectPath(nextPath));
     } catch (error) {
       setStatus("error");
       setMessage(getErrorMessage(error));
+    } finally {
+      // Garante que o status volte a idle se o redirect não ocorrer (ex: bloqueio de navegação)
+      setTimeout(() => setStatus((current) => current === "loading" ? "idle" : current), 3000);
     }
   }
 
