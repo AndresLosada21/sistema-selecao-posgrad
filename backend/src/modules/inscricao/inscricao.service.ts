@@ -7,10 +7,18 @@ import {
   TipoCronogramaEdital,
   type TipoDocumentoInscricao,
 } from "@prisma/client";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { readFile, writeFile } from "node:fs/promises";
 import { parse } from "node:path";
 
 import { prisma } from "../../lib/prisma.js";
 import { toInputJsonOrDbNull } from "../../lib/serialization.js";
+import {
+  buildPrivateUploadUrl,
+  buildStoredUploadName,
+  ensureUploadDirForUser,
+  resolvePrivateUploadPath,
+} from "../upload/upload.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import { syncEtapaPoliticasAfirmativasForInscricao } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { buildCandidateAnexoIvUrl } from "./inscricao-anexo-iv.service.js";
@@ -30,7 +38,6 @@ type SaveDraftInput = {
   resumoCurriculo?: string;
   redacaoTexto?: string;
   fichaInscricao?: FichaInscricao;
-  assinaturaImagemUrl?: string;
 };
 
 type AddDocumentoInput = {
@@ -53,6 +60,8 @@ type RegistrarPacoteDocumentalInput = {
   mimeType?: string;
   tamanhoBytes?: number;
 };
+
+type InscricaoWithRelations = NonNullable<Awaited<ReturnType<typeof getInscricaoById>>>;
 
 function isPdfFile(input: { mimeType?: string; nomeArquivo: string; urlArquivo: string }) {
   const mimeType = input.mimeType?.trim().toLowerCase() ?? "";
@@ -147,6 +156,7 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
         include: {
           edital: true,
           pedidoIsencao: true,
+          usuario: true,
         },
       },
       documentos: true,
@@ -165,6 +175,7 @@ async function getInscricaoById(inscricaoId: string) {
         include: {
           usuario: true,
           edital: true,
+          pedidoIsencao: true,
         },
       },
       documentos: true,
@@ -195,6 +206,338 @@ function buildPacoteDocumentalResumo(inscricao: {
     versaoSubmissao: inscricao.pacoteDocumentalVersaoSubmissao,
     geradoEm: inscricao.pacoteDocumentalGeradoEm?.toISOString() ?? null,
     geradoPorId: inscricao.pacoteDocumentalGeradoPorId,
+  };
+}
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function asNumber(value: unknown) {
+  return typeof value === "number" ? value : null;
+}
+
+function getChecklistFromSnapshot(snapshot: Prisma.JsonValue | null | undefined) {
+  const record = asRecord(snapshot);
+  const checklist = record?.checklist;
+
+  if (!Array.isArray(checklist)) {
+    return [] as Array<{ tipo: string; label: string; presente: boolean; pendencia: string | null }>;
+  }
+
+  return checklist.map((item) => {
+    const entry = asRecord(item);
+    return {
+      tipo: asString(entry?.tipo) ?? "DESCONHECIDO",
+      label: asString(entry?.label) ?? "Item",
+      presente: entry?.presente === true,
+      pendencia: asString(entry?.pendencia),
+    };
+  });
+}
+
+function getDocumentosFromSnapshot(snapshot: Prisma.JsonValue | null | undefined, inscricao: InscricaoWithRelations) {
+  const record = asRecord(snapshot);
+  const documentos = record?.documentos;
+
+  if (!Array.isArray(documentos)) {
+    return inscricao.documentos.map((documento) => ({
+      tipo: documento.tipo,
+      nome: documento.nome,
+      nomeArquivo: documento.nomeArquivo,
+      urlArquivo: documento.urlArquivo,
+    }));
+  }
+
+  return documentos.map((item) => {
+    const entry = asRecord(item);
+    return {
+      tipo: asString(entry?.tipo) ?? "DESCONHECIDO",
+      nome: asString(entry?.nome) ?? asString(entry?.nomeArquivo) ?? "Documento",
+      nomeArquivo: asString(entry?.nomeArquivo) ?? "documento.pdf",
+      urlArquivo: asString(entry?.urlArquivo) ?? "",
+    };
+  });
+}
+
+function getRedacaoFromSnapshot(snapshot: Prisma.JsonValue | null | undefined, inscricao: InscricaoWithRelations) {
+  const record = asRecord(snapshot);
+  const redacao = asRecord(record?.redacao);
+
+  return {
+    tema: asString(redacao?.tema) ?? inscricao.temaRedacao ?? "Tema nao informado",
+    caracteres: asNumber(redacao?.caracteres) ?? (inscricao.redacaoTexto?.length ?? 0),
+  };
+}
+
+function wrapPdfText(value: string, maxLength = 88) {
+  if (value.length <= maxLength) {
+    return [value];
+  }
+
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const word of value.split(/\s+/)) {
+    const candidate = current ? `${current} ${word}` : word;
+
+    if (candidate.length <= maxLength) {
+      current = candidate;
+      continue;
+    }
+
+    if (current) {
+      chunks.push(current);
+    }
+
+    if (word.length <= maxLength) {
+      current = word;
+      continue;
+    }
+
+    for (let index = 0; index < word.length; index += maxLength) {
+      chunks.push(word.slice(index, index + maxLength));
+    }
+
+    current = "";
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
+}
+
+async function buildAutomaticPacoteDocumentalPdf(input: {
+  edital: { numero: string; titulo: string; cursoNivel: string };
+  candidato: { nomeCompleto: string; email: string };
+  inscricao: { id: string; modalidadeConcorrencia: string; linhaPesquisaNome: string | null; versaoSubmissao: number; pagamentoDispensado: boolean };
+  checklist: Array<{ tipo: string; label: string; presente: boolean; pendencia: string | null }>;
+  documentos: Array<{ tipo: string; nome: string; nomeArquivo: string; urlArquivo: string }>;
+  redacao: { tema: string; caracteres: number };
+}) {
+  async function createTextPage(lines: string[], title?: string) {
+    let index = 0;
+
+    while (index < lines.length) {
+      const page = pdfDoc.addPage([595.28, 841.89]);
+      let y = 800;
+
+      if (title && index === 0) {
+        page.drawText(title, {
+          x: 40,
+          y,
+          size: 14,
+          font: bold,
+          color: rgb(0, 0, 0),
+        });
+        y -= 26;
+      }
+
+      while (index < lines.length && y >= 45) {
+        page.drawText(lines[index], {
+          x: 40,
+          y,
+          size: 9,
+          font: regular,
+          color: rgb(0, 0, 0),
+          maxWidth: 515,
+          lineHeight: 11,
+        });
+
+        y -= 12;
+        index += 1;
+      }
+    }
+  }
+
+  async function readDocumentoBytes(urlArquivo: string) {
+    if (urlArquivo.startsWith("/v1/uploads/private/")) {
+      const match = urlArquivo.match(/^\/v1\/uploads\/private\/([^/]+)\/(.+)$/);
+      if (!match) return null;
+      const [, ownerId, filename] = match;
+      return await readFile(resolvePrivateUploadPath(ownerId, filename));
+    }
+
+    if (!urlArquivo.startsWith("https://")) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(urlArquivo);
+      if (!response.ok) return null;
+      return Buffer.from(await response.arrayBuffer());
+    } catch {
+      return null;
+    }
+  }
+
+  async function appendDocumento(documento: { tipo: string; nome: string; nomeArquivo: string; urlArquivo: string }) {
+    const bytes = await readDocumentoBytes(documento.urlArquivo);
+
+    if (!bytes) {
+      await createTextPage([
+        ...wrapPdfText(`Documento ${documento.tipo} nao pode ser incorporado automaticamente.`),
+        ...wrapPdfText(`Nome: ${documento.nome}`),
+        ...wrapPdfText(`Arquivo: ${documento.nomeArquivo}`),
+        ...wrapPdfText(`URL: ${documento.urlArquivo}`),
+      ], `ANEXO - ${documento.tipo}`);
+      return;
+    }
+
+    try {
+      const sourcePdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      const copiedPages = await pdfDoc.copyPages(sourcePdf, sourcePdf.getPageIndices());
+      for (const copiedPage of copiedPages) {
+        pdfDoc.addPage(copiedPage);
+      }
+    } catch {
+      await createTextPage([
+        ...wrapPdfText(`Documento ${documento.tipo} foi encontrado, mas nao pode ser lido como PDF valido.`),
+        ...wrapPdfText(`Nome: ${documento.nome}`),
+        ...wrapPdfText(`Arquivo: ${documento.nomeArquivo}`),
+      ], `ANEXO - ${documento.tipo}`);
+    }
+  }
+
+  const pdfDoc = await PDFDocument.create();
+  const regular = await pdfDoc.embedFont(StandardFonts.Courier);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+  const coverLines = [
+    "PACOTE DOCUMENTAL CONSOLIDADO",
+    "",
+    `Edital: ${input.edital.numero} - ${input.edital.titulo}`,
+    `Curso: ${input.edital.cursoNivel}`,
+    `Candidato: ${input.candidato.nomeCompleto}`,
+    `E-mail: ${input.candidato.email}`,
+    `Inscricao: ${input.inscricao.id}`,
+    `Versao da submissao: ${input.inscricao.versaoSubmissao}`,
+    `Linha de pesquisa: ${input.inscricao.linhaPesquisaNome ?? "-"}`,
+    `Modalidade: ${input.inscricao.modalidadeConcorrencia}`,
+    `Pagamento dispensado: ${input.inscricao.pagamentoDispensado ? "sim" : "nao"}`,
+    `Tema da redacao: ${input.redacao.tema}`,
+    `Caracteres da redacao: ${input.redacao.caracteres}`,
+    "",
+    "CHECKLIST DE SUBMISSAO",
+    ...input.checklist.flatMap((item) => wrapPdfText(`- ${item.tipo}: ${item.presente ? "ok" : "pendente"}${item.pendencia ? ` (${item.pendencia})` : ""}`)),
+    "",
+    "DOCUMENTOS REGISTRADOS",
+    ...input.documentos.flatMap((documento) => wrapPdfText(`- ${documento.tipo}: ${documento.nomeArquivo} (${documento.nome})`)),
+  ];
+
+  await createTextPage(coverLines.slice(1), coverLines[0]);
+
+  for (const documento of input.documentos) {
+    await appendDocumento(documento);
+  }
+
+  return Buffer.from(await pdfDoc.save({ useObjectStreams: false }));
+}
+
+async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelations, input: {
+  ownerUserId: string;
+  geradoPorId: string;
+  status: string;
+  statusPagamento: string;
+  versaoSubmissao: number;
+  submetidaEm: Date;
+  checklist: Array<{ tipo: string; label: string; presente: boolean; pendencia: string | null }>;
+  documentos: Array<{ tipo: string; nome: string; nomeArquivo: string; urlArquivo: string }>;
+  redacao: { tema: string; caracteres: number };
+  submissaoSnapshot: Prisma.JsonValue;
+  pagamentoDispensado: boolean;
+}) {
+  const pacoteDocumentalNomeArquivo = `inscricao-${inscricao.id}-v${input.versaoSubmissao}.pdf`;
+  const pacoteDocumentalBuffer = await buildAutomaticPacoteDocumentalPdf({
+    edital: {
+      numero: inscricao.participacaoEdital.edital.numero,
+      titulo: inscricao.participacaoEdital.edital.titulo,
+      cursoNivel: inscricao.participacaoEdital.edital.cursoNivel,
+    },
+    candidato: {
+      nomeCompleto: inscricao.participacaoEdital.usuario.nomeCompleto,
+      email: inscricao.participacaoEdital.usuario.email,
+    },
+    inscricao: {
+      id: inscricao.id,
+      modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+      linhaPesquisaNome: inscricao.linhaPesquisa?.nome ?? null,
+      versaoSubmissao: input.versaoSubmissao,
+      pagamentoDispensado: input.pagamentoDispensado,
+    },
+    checklist: input.checklist,
+    documentos: input.documentos.filter((documento) => Boolean(documento.urlArquivo)),
+    redacao: input.redacao,
+  });
+
+  await ensureUploadDirForUser(input.ownerUserId);
+  const storedPacoteName = buildStoredUploadName(pacoteDocumentalNomeArquivo);
+  await writeFile(resolvePrivateUploadPath(input.ownerUserId, storedPacoteName), pacoteDocumentalBuffer);
+  const pacoteDocumentalUrl = buildPrivateUploadUrl(input.ownerUserId, storedPacoteName);
+
+  const pacoteDocumentalSnapshot = {
+    inscricao: {
+      id: inscricao.id,
+      status: input.status,
+      statusPagamento: input.statusPagamento,
+      modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+      versaoSubmissao: input.versaoSubmissao,
+      submetidaEm: input.submetidaEm.toISOString(),
+      linhaPesquisa: inscricao.linhaPesquisa
+        ? {
+            id: inscricao.linhaPesquisa.id,
+            nome: inscricao.linhaPesquisa.nome,
+          }
+        : null,
+    },
+    candidato: {
+      id: inscricao.participacaoEdital.usuario.id,
+      nomeCompleto: inscricao.participacaoEdital.usuario.nomeCompleto,
+      email: inscricao.participacaoEdital.usuario.email,
+    },
+    edital: {
+      id: inscricao.participacaoEdital.edital.id,
+      numero: inscricao.participacaoEdital.edital.numero,
+      titulo: inscricao.participacaoEdital.edital.titulo,
+      cursoNivel: inscricao.participacaoEdital.edital.cursoNivel,
+    },
+    documentos: inscricao.documentos.map((documento) => ({
+      id: documento.id,
+      tipo: documento.tipo,
+      nome: documento.nome,
+      nomeArquivo: documento.nomeArquivo,
+      urlArquivo: documento.urlArquivo,
+      mimeType: documento.mimeType,
+      tamanhoBytes: documento.tamanhoBytes,
+      statusValidacao: documento.statusValidacao,
+      observacaoValidacao: documento.observacaoValidacao,
+    })),
+    submissaoSnapshot: input.submissaoSnapshot,
+    pacoteDocumental: {
+      urlArquivo: pacoteDocumentalUrl,
+      nomeArquivo: pacoteDocumentalNomeArquivo,
+      mimeType: "application/pdf",
+      tamanhoBytes: pacoteDocumentalBuffer.length,
+      geradoEm: new Date().toISOString(),
+      geradoPorId: input.geradoPorId,
+    },
+  };
+
+  return {
+    pacoteDocumentalUrl,
+    pacoteDocumentalNomeArquivo,
+    pacoteDocumentalMimeType: "application/pdf",
+    pacoteDocumentalTamanhoBytes: pacoteDocumentalBuffer.length,
+    pacoteDocumentalSnapshot: pacoteDocumentalSnapshot as Prisma.InputJsonValue,
+    pacoteDocumentalVersaoSubmissao: input.versaoSubmissao,
+    pacoteDocumentalGeradoEm: new Date(),
+    pacoteDocumentalGeradoPorId: input.geradoPorId,
   };
 }
 
@@ -260,7 +603,6 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
       dadosFormulario: toInputJsonOrDbNull(fichaInscricao),
-      assinaturaImagemUrl: input.assinaturaImagemUrl,
       status: StatusInscricao.RASCUNHO,
     },
     create: {
@@ -271,7 +613,6 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
       dadosFormulario: toInputJsonOrDbNull(fichaInscricao),
-      assinaturaImagemUrl: input.assinaturaImagemUrl,
       status: StatusInscricao.RASCUNHO,
     },
   });
@@ -400,14 +741,38 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
     versaoSubmissao,
   });
 
+  const submittedAt = new Date();
+  const pacoteDocumentalData = await persistAutomaticPacoteDocumental(inscricao, {
+    ownerUserId: usuarioId,
+    geradoPorId: usuarioId,
+    status: StatusInscricao.SUBMETIDA,
+    statusPagamento,
+    versaoSubmissao,
+    submetidaEm: submittedAt,
+    checklist: validation.checklist,
+    documentos: inscricao.documentos.map((documento) => ({
+      tipo: documento.tipo,
+      nome: documento.nome,
+      nomeArquivo: documento.nomeArquivo,
+      urlArquivo: documento.urlArquivo,
+    })),
+    redacao: {
+      tema: inscricao.temaRedacao,
+      caracteres: submissaoSnapshot.redacao.caracteres,
+    },
+    submissaoSnapshot: submissaoSnapshot as Prisma.JsonValue,
+    pagamentoDispensado,
+  });
+
   const updated = await prisma.inscricao.update({
     where: { id: inscricao.id },
     data: {
       status: StatusInscricao.SUBMETIDA,
-      submetidaEm: new Date(),
+      submetidaEm: submittedAt,
       statusPagamento,
       submissaoSnapshot: submissaoSnapshot as Prisma.InputJsonValue,
       versaoSubmissao,
+      ...pacoteDocumentalData,
     },
   });
 
@@ -560,6 +925,44 @@ export async function getPacoteDocumentalDaInscricaoAdmin(inscricaoId: string) {
     pacoteDocumental,
     snapshot: inscricao.pacoteDocumentalSnapshot,
   };
+}
+
+export async function regenerarPacoteDocumentalConsolidado(inscricaoId: string, geradoPorId: string) {
+  const inscricao = await getInscricaoById(inscricaoId);
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (!inscricao.submetidaEm || inscricao.versaoSubmissao <= 0 || !inscricao.submissaoSnapshot) {
+    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
+
+  const checklist = getChecklistFromSnapshot(inscricao.submissaoSnapshot);
+  const documentos = getDocumentosFromSnapshot(inscricao.submissaoSnapshot, inscricao);
+  const redacao = getRedacaoFromSnapshot(inscricao.submissaoSnapshot, inscricao);
+  const pagamentoDispensado = inscricao.statusPagamento === StatusPagamentoInscricao.DISPENSADO || inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL";
+
+  const pacoteDocumentalData = await persistAutomaticPacoteDocumental(inscricao, {
+    ownerUserId: inscricao.participacaoEdital.usuario.id,
+    geradoPorId,
+    status: inscricao.status,
+    statusPagamento: inscricao.statusPagamento,
+    versaoSubmissao: inscricao.versaoSubmissao,
+    submetidaEm: inscricao.submetidaEm,
+    checklist,
+    documentos,
+    redacao,
+    submissaoSnapshot: inscricao.submissaoSnapshot,
+    pagamentoDispensado,
+  });
+
+  const updated = await prisma.inscricao.update({
+    where: { id: inscricao.id },
+    data: pacoteDocumentalData,
+  });
+
+  return { pacoteDocumental: buildPacoteDocumentalResumo(updated) };
 }
 
 export async function listInscricoesDoUsuario(usuarioId: string) {

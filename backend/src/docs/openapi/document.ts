@@ -471,6 +471,27 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "post",
+  path: "/v1/admin/inscricoes/{inscricaoId}/pacote-documental/regenerar",
+  tags: ["Inscricao"],
+  operationId: "regenerarPacoteDocumentalConsolidado",
+  summary: "Regenera o pacote documental consolidado da inscricao",
+  description: withAuthDescription("Reconstrói o pacote documental PDF a partir da submissao registrada, preservando a versaoSubmissao e os metadados auditaveis."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+  }),
+  responses: {
+    200: { description: "Pacote documental regenerado com sucesso.", content: jsonContent(PacoteDocumentalResumoSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao ainda nao submetida.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
   method: "get",
   path: "/v1/admin/homologacao/fundamentos",
   tags: ["Homologacao"],

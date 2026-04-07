@@ -122,7 +122,7 @@ export default function CandidateInscricoesPage() {
                 </Link>
                 {inscricao.anexoIvGeradoUrl ? (
                   <ActionButton disabled={downloadingId === inscricao.id} onClick={() => handleDownloadAnexoIv(inscricao.id)} size="sm" type="button" variant="secondary">
-                    {downloadingId === inscricao.id ? "Baixando..." : "Baixar Anexo IV"}
+                    {downloadingId === inscricao.id ? "Baixando..." : "Baixar Anexo IV preenchido"}
                   </ActionButton>
                 ) : null}
               </div>

@@ -23,10 +23,6 @@ function createPdfBuffer(text: string) {
   return Buffer.from(`%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n4 0 obj<</Length 58>>stream\nBT /F1 12 Tf 20 100 Td (${text}) Tj ET\nendstream\nendobj\n5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\nxref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000063 00000 n \n0000000122 00000 n \n0000000248 00000 n \n0000000356 00000 n \ntrailer<</Root 1 0 R/Size 6>>\nstartxref\n426\n%%EOF`, "utf-8");
 }
 
-function createPngBuffer() {
-  return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0fcAAAAASUVORK5CYII=", "base64");
-}
-
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -148,11 +144,6 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   await page.getByLabel("Tema da redacao").fill("Controle e automacao aplicada a sistemas energeticos");
   await page.getByLabel("Resumo do curriculo").fill("Experiencia em pesquisa, extensao e desenvolvimento de sistemas embarcados.");
   await page.getByRole("textbox", { name: /^Redacao/ }).fill("A".repeat(600));
-  await uploadSingleFile(page, 0, {
-    name: "assinatura-candidato.png",
-    mimeType: "image/png",
-    buffer: createPngBuffer(),
-  });
 
   const textFields = new Map<string, string>([
     ["Nome completo", "Candidato UI Fluxo"],
@@ -190,7 +181,18 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   await page.getByRole("button", { name: "Salvar rascunho" }).click();
   await expect(page.getByText("Rascunho salvo", { exact: true })).toBeVisible({ timeout: 20_000 });
 
+  await page.getByRole("button", { name: "Baixar Anexo IV preenchido" }).click();
+  await uploadSingleFile(page, 0, {
+    name: "anexo-iv-assinado.pdf",
+    mimeType: "application/pdf",
+    buffer: createPdfBuffer("Anexo IV assinado"),
+  });
+  await expect(page.getByText("Anexo IV assinado reenviado", { exact: true })).toBeVisible({ timeout: 20_000 });
+
   for (const tipo of documentoTiposObrigatorios) {
+    if (tipo === "ANEXO_IV") {
+      continue;
+    }
     await page.getByLabel("Tipo de documento").selectOption(tipo);
     await page.getByLabel("Nome").last().fill(`Documento ${tipo}`);
     await uploadSingleFile(page, 1, {

@@ -172,7 +172,6 @@ export async function getCandidateDashboard(usuarioId: string) {
           redacaoTexto: participacao.inscricao.redacaoTexto,
           dadosFormulario: participacao.inscricao.dadosFormulario,
           anexoIvGeradoUrl: participacao.inscricao.anexoIvGeradoUrl ?? buildCandidateAnexoIvUrl(participacao.inscricao.id),
-          assinaturaImagemUrl: participacao.inscricao.assinaturaImagemUrl,
           submissaoSnapshot: participacao.inscricao.submissaoSnapshot,
           versaoSubmissao: participacao.inscricao.versaoSubmissao,
           submetidaEm: toIsoOrNull(participacao.inscricao.submetidaEm),

@@ -17,6 +17,7 @@ import {
   cancelInscricaoSubmission,
   getPacoteDocumentalDaInscricao,
   getPacoteDocumentalDaInscricaoAdmin,
+  regenerarPacoteDocumentalConsolidado,
   listInscricoesDoUsuario,
   registrarPacoteDocumentalConsolidado,
   saveInscricaoDraft,
@@ -49,7 +50,6 @@ inscricaoRouter.put("/v1/editais/:editalId/inscricao/rascunho", requireAuth, asy
     resumoCurriculo: parsedBody.data.resumoCurriculo as string | undefined,
     redacaoTexto: parsedBody.data.redacaoTexto as string | undefined,
     fichaInscricao: parsedBody.data.fichaInscricao as Record<string, unknown> | undefined,
-    assinaturaImagemUrl: parsedBody.data.assinaturaImagemUrl as string | undefined,
   });
 
   if ("error" in result) {
@@ -279,4 +279,22 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requi
   }
 
   return response.status(200).json(result);
+});
+
+inscricaoRouter.post("/v1/admin/inscricoes/:inscricaoId/pacote-documental/regenerar", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
+  }
+
+  const result = await regenerarPacoteDocumentalConsolidado(parsedParams.data.inscricaoId, request.auth!.userId);
+
+  if ("error" in result) {
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    const errorCode = result.error as string;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+  }
+
+  return response.status(200).json(result.pacoteDocumental);
 });

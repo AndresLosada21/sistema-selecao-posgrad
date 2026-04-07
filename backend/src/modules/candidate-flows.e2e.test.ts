@@ -12,6 +12,7 @@ import {
   TipoDocumentoInscricao,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { PDFDocument } from "pdf-lib";
 import request from "supertest";
 
 process.env.NODE_ENV = process.env.NODE_ENV ?? "test";
@@ -221,6 +222,21 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
       .set("Authorization", `Bearer ${token}`);
     assert.equal(submitResponse.status, 200);
     assert.equal(submitResponse.body.status, StatusInscricao.SUBMETIDA);
+
+    const candidatePacoteResponse = await request(app)
+      .get(`/v1/inscricoes/${inscricaoId}/pacote-documental`)
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(candidatePacoteResponse.status, 200);
+    assert.equal(candidatePacoteResponse.body.pacoteDocumental.versaoSubmissao, 1);
+    assert.match(candidatePacoteResponse.body.pacoteDocumental.nomeArquivo, new RegExp(`^inscricao-${inscricaoId}-v1\\.pdf$`));
+    assert.match(candidatePacoteResponse.body.pacoteDocumental.urlArquivo, new RegExp(`^/v1/uploads/private/${candidateId}/`));
+
+    const pacotePdfDownload = await request(app)
+      .get(candidatePacoteResponse.body.pacoteDocumental.urlArquivo)
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(pacotePdfDownload.status, 200);
+    const pacotePdf = await PDFDocument.load(pacotePdfDownload.body);
+    assert.ok(pacotePdf.getPageCount() > 1);
 
     const inscricoesList = await request(app)
       .get("/v1/candidato/inscricoes")

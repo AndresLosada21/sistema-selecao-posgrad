@@ -43,10 +43,6 @@ type DocumentoFormState = {
   mimeType: string;
 };
 
-type SignatureUploadState = {
-  nomeArquivo: string;
-};
-
 type FormMessage = {
   title: string;
   description: string;
@@ -81,7 +77,7 @@ const fichaTextFields: Array<{ key: keyof NonNullable<InscricaoEditorState["fich
   { key: "cidadeBairroTrabalho", label: "Cidade / bairro de trabalho" },
 ];
 
-const assinaturaMimeTypes = new Set(["image/png", "image/jpeg"]);
+const documentoTipoOptionsSemAnexoIv = documentoTipoOptions.filter((tipo) => tipo !== "ANEXO_IV");
 
 type InscricaoEditorState = {
   linhaPesquisaId: string;
@@ -89,7 +85,6 @@ type InscricaoEditorState = {
   temaRedacao: string;
   resumoCurriculo: string;
   redacaoTexto: string;
-  assinaturaImagemUrl: string;
   fichaInscricao: {
     [key: string]: string | boolean | undefined;
     genero?: string;
@@ -112,7 +107,6 @@ function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashbo
     temaRedacao: inscricao?.temaRedacao ?? "",
     resumoCurriculo: inscricao?.resumoCurriculo ?? "",
     redacaoTexto: inscricao?.redacaoTexto ?? "",
-    assinaturaImagemUrl: String((inscricao as Record<string, unknown> | null)?.assinaturaImagemUrl ?? ""),
     fichaInscricao: {
       nomeCompleto: (ficha.nomeCompleto as string) ?? "",
       rg: (ficha.rg as string) ?? "",
@@ -152,7 +146,7 @@ function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashbo
 
 function buildEmptyDocumentoState(): DocumentoFormState {
   return {
-    tipo: documentoTipoOptions[0],
+    tipo: documentoTipoOptionsSemAnexoIv[0],
     nome: "",
     urlArquivo: "",
     nomeArquivo: "",
@@ -168,14 +162,14 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [submitting, setSubmitting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [uploadingDocumento, setUploadingDocumento] = useState(false);
-  const [uploadingAssinatura, setUploadingAssinatura] = useState(false);
-  const [signatureUpload, setSignatureUpload] = useState<SignatureUploadState>({ nomeArquivo: "" });
+  const [uploadingAnexoIv, setUploadingAnexoIv] = useState(false);
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [checklist, setChecklist] = useState<string[]>([]);
   const [documentos, setDocumentos] = useState(dashboardItem?.inscricao?.documentos ?? []);
   const [inscricaoId, setInscricaoId] = useState(dashboardItem?.inscricao?.id ?? null);
   const [inscricaoStatus, setInscricaoStatus] = useState(dashboardItem?.inscricao?.status ?? "SEM_INSCRICAO");
   const [pacoteResumo, setPacoteResumo] = useState(dashboardItem?.inscricao?.pacoteDocumental ?? null);
+  const anexoIvDocumento = useMemo(() => documentos.find((documento) => documento.tipo === "ANEXO_IV") ?? null, [documentos]);
 
   const documentosOrdenados = useMemo(() => [...documentos].sort((a, b) => a.tipo.localeCompare(b.tipo)), [documentos]);
   const redacaoLength = formState.redacaoTexto.length;
@@ -214,7 +208,6 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           temaRedacao: formState.temaRedacao || undefined,
           resumoCurriculo: formState.resumoCurriculo || undefined,
           redacaoTexto: formState.redacaoTexto || undefined,
-          assinaturaImagemUrl: formState.assinaturaImagemUrl || undefined,
           fichaInscricao: formState.fichaInscricao as FichaInscricaoPayload,
         }),
         session.token,
@@ -300,32 +293,48 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     }
   }
 
-  async function handleAssinaturaFileSelect(file: File) {
+  async function handleAnexoIvAssinadoFileSelect(file: File) {
     if (!session.token) {
       return;
     }
 
-    if (!assinaturaMimeTypes.has(file.type)) {
-      setMessage({ title: "Arquivo invalido", description: "A assinatura do candidato deve ser enviada em PNG ou JPEG.", type: "error" });
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setMessage({ title: "Arquivo invalido", description: "O Anexo IV assinado deve ser reenviado em PDF.", type: "error" });
       return;
     }
 
-    setUploadingAssinatura(true);
+    if (!inscricaoId) {
+      setMessage({ title: "Rascunho inexistente", description: "Salve o rascunho antes de reenviar o Anexo IV assinado.", type: "warning" });
+      return;
+    }
+
+    setUploadingAnexoIv(true);
     resetMessage();
 
     try {
       const uploaded = await uploadPrivateFile(file, session.token);
-      setFormState((current) => ({ ...current, assinaturaImagemUrl: uploaded.urlArquivo }));
-      setSignatureUpload({ nomeArquivo: uploaded.nomeArquivo });
-      setMessage({ title: "Assinatura enviada", description: "A imagem da assinatura foi enviada e sera salva com o rascunho." });
+
+      const documento = await addDocumento(inscricaoId, {
+        tipo: "ANEXO_IV" as TipoDocumentoInscricao,
+        nome: "Anexo IV assinado",
+        urlArquivo: uploaded.urlArquivo,
+        nomeArquivo: uploaded.nomeArquivo,
+        mimeType: uploaded.mimeType,
+      }, session.token);
+
+      setDocumentos((current) => {
+        const filtered = current.filter((item) => item.tipo !== documento.tipo);
+        return [...filtered, documento];
+      });
+      setMessage({ title: "Anexo IV assinado reenviado", description: "O PDF assinado foi registrado como documento obrigatório da inscrição." });
     } catch (error) {
       if (handleUnauthorized(error)) {
         return;
       }
 
-      setMessage({ title: "Falha no upload da assinatura", description: getErrorMessage(error), type: "error" });
+      setMessage({ title: "Falha no reenvio do Anexo IV assinado", description: getErrorMessage(error), type: "error" });
     } finally {
-      setUploadingAssinatura(false);
+      setUploadingAnexoIv(false);
     }
   }
 
@@ -436,14 +445,21 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           <small>Linhas de pesquisa disponiveis: {edital.linhasPesquisa.length}</small>
           <small>Documentos sincronizados: {documentos.length}</small>
           <small>Pacote documental: {pacoteResumo ? "disponivel" : "nao gerado"}</small>
+          <small>Anexo IV assinado: {anexoIvDocumento ? anexoIvDocumento.nomeArquivo ?? "enviado" : "pendente de reenvio"}</small>
           <div className="content-item-links">
             <ActionButton disabled={downloading || !inscricaoId} onClick={handleDownloadAnexoIv} type="button">
-              {downloading ? "Processando..." : "Baixar Anexo IV"}
+              {downloading ? "Processando..." : "Baixar Anexo IV preenchido"}
             </ActionButton>
             <ActionButton disabled={downloading || !inscricaoId} onClick={handleRefreshPacote} type="button" variant="secondary">
               Atualizar pacote documental
             </ActionButton>
           </div>
+          <FileField
+            disabled={uploadingAnexoIv || !inscricaoId}
+            hint={anexoIvDocumento ? `Arquivo atual: ${anexoIvDocumento.nomeArquivo ?? "Anexo IV assinado"}` : "Baixe o Anexo IV preenchido, assine fora do sistema e reenvie aqui o PDF assinado."}
+            label="Reenviar Anexo IV assinado"
+            onFileSelect={handleAnexoIvAssinadoFileSelect}
+          />
           {pacoteResumo ? (
             <div className="content-item">
               <small>Arquivo: {pacoteResumo.nomeArquivo ?? "sem nome"}</small>
@@ -494,14 +510,6 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             <textarea className="text-area" onChange={(event) => setFormState((current) => ({ ...current, redacaoTexto: event.target.value }))} value={formState.redacaoTexto} />
             <small>{`Caracteres: ${redacaoLength}${redacaoDentroDaFaixa ? "" : " (fora da faixa 500-1500)"}`}</small>
           </label>
-
-          <FileField
-            accept="image/png,image/jpeg"
-            disabled={uploadingAssinatura}
-            hint={signatureUpload.nomeArquivo ? `Imagem enviada: ${signatureUpload.nomeArquivo}` : "Envie uma imagem da assinatura do candidato (PNG ou JPEG)."}
-            label="Assinatura do candidato"
-            onFileSelect={handleAssinaturaFileSelect}
-          />
 
           {fichaTextFields.map((field) => (
             <label className="field-block" key={field.key}>
@@ -588,12 +596,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         </form>
       </SectionCard>
 
-      <SectionCard title="Documentos da inscricao" description="Registro de documentos por tipo, com sincronizacao direta no backend.">
+      <SectionCard title="Documentos da inscricao" description="Registro de documentos por tipo, com sincronizacao direta no backend. O Anexo IV assinado deve ser reenviado pelo bloco dedicado acima.">
         <form className="form-grid" onSubmit={handleAddDocumento}>
           <label className="field-block">
             <span>Tipo de documento</span>
             <select className="select-field" onChange={(event) => setDocumentoState((current) => ({ ...current, tipo: event.target.value }))} value={documentoState.tipo}>
-              {documentoTipoOptions.map((value) => (
+              {documentoTipoOptionsSemAnexoIv.map((value) => (
                 <option key={value} value={value}>
                   {getStatusLabel(value)}
                 </option>
@@ -624,8 +632,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
               </div>
               <small>Nome: {documento.nome}</small>
               <small>Arquivo: {documento.nomeArquivo ?? "nao informado"}</small>
-              <small>Arquivo privado registrado no sistema.</small>
-              <small>Observacao: {documento.observacaoValidacao ?? "sem observacao"}</small>
+               <small>Arquivo privado registrado no sistema.</small>
+               <small>Observacao: {documento.observacaoValidacao ?? "sem observacao"}</small>
             </article>
           ))}
         </div>
@@ -651,7 +659,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           </div>
         ) : null}
         {message ? <PageFeedback type={message.type ?? "success"} title={message.title} description={message.description} /> : null}
-        {!inscricaoId ? <PageFeedback type="info" title="Rascunho ainda nao criado" description="Salve o rascunho para habilitar documentos, Anexo IV e submissao." /> : null}
+         {!inscricaoId ? <PageFeedback type="info" title="Rascunho ainda nao criado" description="Salve o rascunho para habilitar documentos, gerar o Anexo IV preenchido e concluir a submissao." /> : null}
       </SectionCard>
     </div>
   );

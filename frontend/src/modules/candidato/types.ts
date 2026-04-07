@@ -41,11 +41,10 @@ export type CandidateDashboardResponse = {
       linhaPesquisa: { id: string; nome: string } | null;
       temaRedacao: string | null;
       resumoCurriculo: string | null;
-      redacaoTexto: string | null;
-      dadosFormulario: Record<string, unknown> | null;
-      anexoIvGeradoUrl?: string;
-      assinaturaImagemUrl?: string | null;
-      submissaoSnapshot?: Record<string, unknown> | null;
+        redacaoTexto: string | null;
+        dadosFormulario: Record<string, unknown> | null;
+        anexoIvGeradoUrl?: string;
+        submissaoSnapshot?: Record<string, unknown> | null;
       versaoSubmissao?: number;
       submetidaEm?: string | null;
       canceladaSubmissaoEm?: string | null;

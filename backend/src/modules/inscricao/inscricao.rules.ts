@@ -116,7 +116,7 @@ function getRequiredDocumentRules(input: {
   pagamentoDispensado: boolean;
 }) {
   const rules: RequiredDocumentRule[] = [
-    { tipo: TipoDocumentoInscricao.ANEXO_IV, label: "Ficha de inscricao" },
+    { tipo: TipoDocumentoInscricao.ANEXO_IV, label: "Anexo IV assinado" },
     { tipo: TipoDocumentoInscricao.ANEXO_V, label: "Declaracao de titulos" },
     { tipo: TipoDocumentoInscricao.DIPLOMA, label: "Diploma de graduacao ou declaracao de conclusao/finalista" },
     { tipo: TipoDocumentoInscricao.HISTORICO, label: "Historico escolar de graduacao" },
