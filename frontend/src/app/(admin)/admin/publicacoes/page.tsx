@@ -10,7 +10,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { listAdminEditais } from "@/modules/admin-edital/api";
+import { listAllAdminEditais } from "@/modules/admin-edital/api";
 import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 
 export default function AdminPublicacoesIndexPage() {
@@ -28,7 +28,7 @@ export default function AdminPublicacoesIndexPage() {
     }
 
     try {
-      const response = await listAdminEditais(token);
+      const response = await listAllAdminEditais(token);
       if (signal.aborted) return;
       setData(response);
       setStatus("ready");
