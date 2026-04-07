@@ -467,7 +467,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
 
         <form className="form-grid" onSubmit={handleRegistrarPacote}>
           <label className="field-block"><span>Upload do pacote</span><input accept="application/pdf" onChange={(event) => void handleUploadPacote(event.target.files?.[0] ?? null)} type="file" /></label>
-          <label className="field-block"><span>URL do pacote</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, urlArquivo: event.target.value }))} required value={pacoteForm.urlArquivo} /></label>
+          <label className="field-block"><span>URL do pacote</span><input readOnly required value={pacoteForm.urlArquivo} /></label>
           <label className="field-block"><span>Nome do arquivo</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, nomeArquivo: event.target.value }))} required value={pacoteForm.nomeArquivo} /></label>
           <label className="field-block"><span>MIME type</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, mimeType: event.target.value }))} value={pacoteForm.mimeType} /></label>
           <label className="field-block"><span>Tamanho em bytes</span><input min="1" onChange={(event) => setPacoteForm((current) => ({ ...current, tamanhoBytes: event.target.value }))} type="number" value={pacoteForm.tamanhoBytes} /></label>
