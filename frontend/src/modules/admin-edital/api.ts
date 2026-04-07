@@ -8,8 +8,12 @@ import type {
   AdminLinhaPesquisaPayload,
 } from "./types";
 
-export function listAdminEditais(token: string, pagination?: { page: number; pageSize: number }) {
-  const query = pagination ? `?page=${pagination.page}&pageSize=${pagination.pageSize}` : "";
+export function listAdminEditais(token: string, filters?: { page?: number; pageSize?: number; q?: string }) {
+  const params = new URLSearchParams();
+  if (filters?.page) params.set("page", String(filters.page));
+  if (filters?.pageSize) params.set("pageSize", String(filters.pageSize));
+  if (filters?.q) params.set("q", filters.q);
+  const query = params.size ? `?${params.toString()}` : "";
   return apiGet<AdminEditaisResponse>(`/v1/admin/editais${query}`, token);
 }
 

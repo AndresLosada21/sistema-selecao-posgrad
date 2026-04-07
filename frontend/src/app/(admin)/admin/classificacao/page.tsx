@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -56,18 +57,12 @@ export default function AdminClassificacaoIndexPage() {
       <PageFeedback
         type="info"
         title="Entrada operacional da classificacao"
-        description="Selecione um edital publicado abaixo ou informe o ID manualmente para abrir o modulo de classificacao correspondente."
+        description="Selecione um edital publicado abaixo para abrir o modulo de classificacao correspondente."
       />
 
       <SectionCard title="Abrir classificacao por edital" description="Selecione o edital desejado ou use a lista resumida abaixo.">
         <div className="content-list">
-          <label className="field-block">
-            <span>Edital</span>
-            <select className="select-field" onChange={(event) => setDraftEditalId(event.target.value)} value={draftEditalId}>
-              <option value="">Selecione um edital</option>
-              {data?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}
-            </select>
-          </label>
+          <AdminEditalCombobox allowEmpty={false} emptyLabel="Selecione um edital" label="Edital" onChange={setDraftEditalId} token={token ?? ""} value={draftEditalId} />
           <div className="content-item-links">
             <Link className="nav-link" href={draftEditalId.trim() ? `/admin/classificacao/${draftEditalId.trim()}` : "/admin/classificacao"}>
               Abrir classificacao

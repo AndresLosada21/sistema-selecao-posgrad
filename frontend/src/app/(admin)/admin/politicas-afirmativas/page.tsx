@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
+import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -12,8 +13,6 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { listAdminEditais } from "@/modules/admin-edital/api";
-import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { listPoliticas } from "@/modules/admin-politicas/api";
 import type { PoliticasListResponse } from "@/modules/admin-politicas/types";
@@ -26,20 +25,8 @@ export default function AdminPoliticasPage() {
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<PoliticasListResponse | null>(null);
-  const [editais, setEditais] = useState<AdminEditaisResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
-
-  useAbortableEffect(async (signal) => {
-    if (!token) return;
-    try {
-      const response = await listAdminEditais(token);
-      if (signal.aborted) return;
-      setEditais(response);
-    } catch {
-      if (signal.aborted) return;
-    }
-  }, [token]);
 
   useAbortableEffect(async (signal) => {
     if (!token || !filter) return;
@@ -70,7 +57,7 @@ export default function AdminPoliticasPage() {
 
       <SectionCard title="Filtro de politicas afirmativas" description="Informe o ID do edital para consultar as etapas vinculadas.">
         <div className="content-list">
-          <label className="field-block"><span>Edital</span><select className="select-field" onChange={(e) => setDraftFilter(e.target.value)} value={draftFilter}><option value="">Selecione um edital</option>{editais?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}</select></label>
+          <AdminEditalCombobox allowEmpty={false} emptyLabel="Selecione um edital" label="Edital" onChange={setDraftFilter} placeholder="Digite numero ou titulo do edital" token={token ?? ""} value={draftFilter} />
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Consultar fila</ActionButton>
             <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setData(null); setStatus("idle"); setPage(1); }} type="button" variant="ghost">Limpar</ActionButton>

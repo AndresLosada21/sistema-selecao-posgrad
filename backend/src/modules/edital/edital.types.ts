@@ -12,6 +12,7 @@ export type EditalListFilters = {
   ativosSomente?: boolean;
   page?: number;
   pageSize?: number;
+  q?: string;
 };
 
 export type EditalWithRelations = Prisma.EditalGetPayload<{

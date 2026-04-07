@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
+import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -12,8 +13,6 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { listAdminEditais } from "@/modules/admin-edital/api";
-import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 
 import { listFundamentosHomologacao, listInscricoesParaHomologacao } from "@/modules/admin-homologacao/api";
@@ -25,7 +24,6 @@ export default function AdminHomologacaoPage() {
   const signOut = session.signOut;
   const [data, setData] = useState<AdminInscricoesHomologacaoResponse | null>(null);
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamentosResponse | null>(null);
-  const [editais, setEditais] = useState<AdminEditaisResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -38,16 +36,14 @@ export default function AdminHomologacaoPage() {
     }
 
     try {
-      const [items, fundamentosResponse, editaisResponse] = await Promise.all([
+      const [items, fundamentosResponse] = await Promise.all([
         listInscricoesParaHomologacao(token, { editalId: filter || undefined, page, pageSize: 20 }),
         listFundamentosHomologacao(token),
-        listAdminEditais(token),
       ]);
 
       if (signal.aborted) return;
       setData(items);
       setFundamentos(fundamentosResponse);
-      setEditais(editaisResponse);
       setStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
@@ -103,13 +99,7 @@ export default function AdminHomologacaoPage() {
 
       <SectionCard title="Filtro operacional" description="Filtra a fila por edital quando necessario.">
         <div className="content-list">
-          <label className="field-block">
-            <span>Edital</span>
-            <select className="select-field" onChange={(event) => setDraftFilter(event.target.value)} value={draftFilter}>
-              <option value="">Todos os editais</option>
-              {editais?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}
-            </select>
-          </label>
+          <AdminEditalCombobox allowEmpty emptyLabel="Todos os editais" label="Edital" onChange={setDraftFilter} token={token ?? ""} value={draftFilter} />
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
             <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }} type="button" variant="ghost">Limpar filtro</ActionButton>
