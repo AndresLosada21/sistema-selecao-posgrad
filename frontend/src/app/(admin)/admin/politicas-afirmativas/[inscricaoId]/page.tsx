@@ -216,7 +216,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
             <form className="form-grid" onSubmit={submitPreliminar}>
               <label className="field-block"><span>Resultado</span><select className="select-field" onChange={(e) => setPreliminar((c) => ({ ...c, resultado: e.target.value as (typeof resultadoPoliticasOptions)[number] }))} value={preliminar.resultado}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
               <label className="field-block"><span>Parecer</span><textarea className="text-area" onChange={(e) => setPreliminar((c) => ({ ...c, parecer: e.target.value }))} value={preliminar.parecer} /></label>
-              <label className="field-block"><span>Arquivo de retorno</span><input onChange={(e) => setPreliminar((c) => ({ ...c, arquivoRetornoUrl: e.target.value }))} value={preliminar.arquivoRetornoUrl} /></label>
+              <label className="field-block"><span>Arquivo de retorno</span><input readOnly value={preliminar.arquivoRetornoUrl} /></label>
               <label className="field-block"><span>Upload de retorno</span><input accept="application/pdf" onChange={(e) => void handleUploadRetorno("preliminar", e.target.files?.[0] ?? null)} type="file" /></label>
               {preliminar.arquivoRetornoUrl ? <div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleDownloadDocumento("retorno-preliminar", preliminar.arquivoRetornoUrl, "retorno-preliminar.pdf")} size="sm" type="button" variant="secondary">Baixar retorno atual</ActionButton></div> : null}
                 <ActionButton disabled={busy} loading={busy} type="submit">Registrar preliminar</ActionButton>
@@ -227,7 +227,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
             <form className="form-grid" onSubmit={submitFinal}>
               <label className="field-block"><span>Resultado</span><select className="select-field" onChange={(e) => setFinalResult((c) => ({ ...c, resultado: e.target.value as (typeof resultadoPoliticasOptions)[number] }))} value={finalResult.resultado}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
               <label className="field-block"><span>Parecer</span><textarea className="text-area" onChange={(e) => setFinalResult((c) => ({ ...c, parecer: e.target.value }))} value={finalResult.parecer} /></label>
-              <label className="field-block"><span>Arquivo de retorno</span><input onChange={(e) => setFinalResult((c) => ({ ...c, arquivoRetornoUrl: e.target.value }))} value={finalResult.arquivoRetornoUrl} /></label>
+              <label className="field-block"><span>Arquivo de retorno</span><input readOnly value={finalResult.arquivoRetornoUrl} /></label>
               <label className="field-block"><span>Upload de retorno</span><input accept="application/pdf" onChange={(e) => void handleUploadRetorno("final", e.target.files?.[0] ?? null)} type="file" /></label>
               {finalResult.arquivoRetornoUrl ? <div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleDownloadDocumento("retorno-final", finalResult.arquivoRetornoUrl, "retorno-final.pdf")} size="sm" type="button" variant="secondary">Baixar retorno atual</ActionButton></div> : null}
                 <ActionButton disabled={busy} loading={busy} type="submit">Registrar final</ActionButton>
