@@ -17,6 +17,28 @@ export function listAdminEditais(token: string, filters?: { page?: number; pageS
   return apiGet<AdminEditaisResponse>(`/v1/admin/editais${query}`, token);
 }
 
+export async function listAllAdminEditais(token: string) {
+  const pageSize = 100;
+  let page = 1;
+  let items = [] as AdminEditaisResponse["items"];
+
+  while (true) {
+    const response = await listAdminEditais(token, { page, pageSize });
+    items = [...items, ...response.items];
+
+    if (!response.items.length || response.items.length < pageSize || items.length >= response.total) {
+      return {
+        items,
+        total: response.total,
+        page: 1,
+        pageSize: items.length || pageSize,
+      } satisfies AdminEditaisResponse;
+    }
+
+    page += 1;
+  }
+}
+
 export function getAdminEditalById(editalId: string, token: string) {
   return apiGet<AdminEditalDetalhe>(`/v1/admin/editais/${editalId}`, token);
 }

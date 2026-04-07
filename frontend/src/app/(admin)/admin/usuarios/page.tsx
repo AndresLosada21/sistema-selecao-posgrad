@@ -14,7 +14,7 @@ import { statusContaOptions, type StatusConta } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
-import { listAdminEditais } from "@/modules/admin-edital/api";
+import { listAllAdminEditais } from "@/modules/admin-edital/api";
 import { listAdminUsuarios, updateAdminUsuarioEscopos, updateAdminUsuarioPerfis, updateAdminUsuarioStatus } from "@/modules/admin-usuarios/api";
 import type { AdminUsuariosResponse } from "@/modules/admin-usuarios/types";
 import type { EditalListItem } from "@/modules/edital/types";
@@ -43,7 +43,7 @@ export default function AdminUsuariosPage() {
     if (!token) return;
     const [response, editaisResponse] = await Promise.all([
       listAdminUsuarios(token, { page, pageSize: 20 }),
-      listAdminEditais(token, { page: 1, pageSize: 1000 }),
+      listAllAdminEditais(token),
     ]);
     setData(response);
     setEditais(editaisResponse.items);
