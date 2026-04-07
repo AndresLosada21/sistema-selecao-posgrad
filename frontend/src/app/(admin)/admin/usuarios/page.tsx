@@ -34,6 +34,8 @@ export default function AdminUsuariosPage() {
   const [page, setPage] = useState(1);
   const [editais, setEditais] = useState<EditalListItem[]>([]);
   const [scopeDrafts, setScopeDrafts] = useState<Record<string, ScopeDraft>>({});
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, StatusConta>>({});
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, Set<string>>>({});
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -141,19 +143,21 @@ export default function AdminUsuariosPage() {
                   <small>Escopos de avaliacao: {item.escoposAvaliacao.length ? item.escoposAvaliacao.map((escopo) => escopo.linhaPesquisaId ? `${escopo.editalId}:${escopo.linhaPesquisaId}` : escopo.editalId).join(", ") : "nenhum"}</small>
                   <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
 
-                  <label className="field-block"><span>Status da conta</span><select className="select-field" disabled={busyUserId === item.id} onChange={(event) => handleStatus(item.id, event.target.value as StatusConta)} value={item.statusConta}>{statusContaOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+                  <label className="field-block"><span>Status da conta</span><select className="select-field" disabled={busyUserId === item.id} onChange={(event) => setStatusDrafts((d) => ({ ...d, [item.id]: event.target.value as StatusConta }))} value={statusDrafts[item.id] ?? item.statusConta}>{statusContaOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+                  {(statusDrafts[item.id] && statusDrafts[item.id] !== item.statusConta) ? <ActionButton disabled={busyUserId === item.id} onClick={() => { handleStatus(item.id, statusDrafts[item.id]!); setStatusDrafts((d) => { const n = { ...d }; delete n[item.id]; return n; }); }} size="sm" type="button">Confirmar status</ActionButton> : null}
 
                   <div className="content-list">
                     {availableRoles.map((role) => {
-                      const checked = currentRoles.has(role);
-                      const nextRoles = checked ? item.perfis.filter((itemRole) => itemRole !== role) : [...item.perfis, role];
+                      const draftRoles = roleDrafts[item.id] ?? currentRoles;
+                      const checked = draftRoles.has(role);
                       return (
                         <label className="field-inline" key={role}>
-                          <input checked={checked} disabled={busyUserId === item.id} onChange={() => handleRoleToggle(item.id, nextRoles)} type="checkbox" />
+                          <input checked={checked} disabled={busyUserId === item.id} onChange={() => { setRoleDrafts((d) => { const next = new Set(d[item.id] ?? currentRoles); if (next.has(role)) next.delete(role); else next.add(role); return { ...d, [item.id]: next }; }); }} type="checkbox" />
                           <span>{getStatusLabel(role)}</span>
                         </label>
                       );
                     })}
+                    {roleDrafts[item.id] && [...roleDrafts[item.id]].sort().join(",") !== [...currentRoles].sort().join(",") ? <ActionButton disabled={busyUserId === item.id} onClick={() => { handleRoleToggle(item.id, [...roleDrafts[item.id]!]); setRoleDrafts((d) => { const n = { ...d }; delete n[item.id]; return n; }); }} size="sm" type="button">Confirmar perfis</ActionButton> : null}
                   </div>
                   {currentRoles.has("AVALIADOR") ? (
                     <div className="field-block">

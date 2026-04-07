@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
@@ -22,27 +22,26 @@ export default function CandidateIsencoesPage() {
   const [data, setData] = useState<PedidosIsencaoResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
+  const [fetchKey, setFetchKey] = useState(0);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setStatus("loading");
+    try {
+      const response = await listIsencoes(token);
+      setData(response);
+      setStatus("ready");
+    } catch (error) {
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
+  }, [signOut, token]);
 
   useEffect(() => {
-    if (!token) {
-      return;
-    }
-
-    listIsencoes(token)
-      .then((response) => {
-        setData(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
-
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
-  }, [signOut, token]);
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchKey drives manual retry
+  }, [load, fetchKey]);
 
   if (status === "loading") {
     return <LoadingState title="Carregando pedidos de isencao" description="Consultando os pedidos do candidato." />;
@@ -53,7 +52,7 @@ export default function CandidateIsencoesPage() {
       <div className="stack-layout">
         <ErrorState title="Falha ao carregar isencoes" description={message ?? undefined} />
         <div className="content-item-links">
-          <ActionButton onClick={() => { setStatus("loading"); setMessage(null); }} type="button" variant="secondary">Tentar novamente</ActionButton>
+          <ActionButton onClick={() => { setMessage(null); setFetchKey((k) => k + 1); }} type="button" variant="secondary">Tentar novamente</ActionButton>
         </div>
       </div>
     );

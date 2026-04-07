@@ -50,6 +50,7 @@ type SignatureUploadState = {
 type FormMessage = {
   title: string;
   description: string;
+  type?: "success" | "error" | "warning" | "info";
 };
 
 const fichaTextFields: Array<{ key: keyof NonNullable<InscricaoEditorState["fichaInscricao"]>; label: string }> = [
@@ -233,7 +234,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         return;
       }
 
-      setMessage({ title: "Falha ao salvar rascunho", description: getErrorMessage(error) });
+      setMessage({ title: "Falha ao salvar rascunho", description: getErrorMessage(error), type: "error" });
     } finally {
       setSavingDraft(false);
     }
@@ -243,7 +244,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     event.preventDefault();
 
     if (!session.token || !inscricaoId) {
-      setMessage({ title: "Rascunho inexistente", description: "Salve o rascunho antes de registrar documentos." });
+      setMessage({ title: "Rascunho inexistente", description: "Salve o rascunho antes de registrar documentos.", type: "warning" });
       return;
     }
 
@@ -267,7 +268,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         return;
       }
 
-      setMessage({ title: "Falha ao registrar documento", description: getErrorMessage(error) });
+      setMessage({ title: "Falha ao registrar documento", description: getErrorMessage(error), type: "error" });
     }
   }
 
@@ -293,7 +294,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         return;
       }
 
-      setMessage({ title: "Falha no upload do documento", description: getErrorMessage(error) });
+      setMessage({ title: "Falha no upload do documento", description: getErrorMessage(error), type: "error" });
     } finally {
       setUploadingDocumento(false);
     }
@@ -305,7 +306,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     }
 
     if (!assinaturaMimeTypes.has(file.type)) {
-      setMessage({ title: "Arquivo invalido", description: "A assinatura do candidato deve ser enviada em PNG ou JPEG." });
+      setMessage({ title: "Arquivo invalido", description: "A assinatura do candidato deve ser enviada em PNG ou JPEG.", type: "error" });
       return;
     }
 
@@ -322,7 +323,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         return;
       }
 
-      setMessage({ title: "Falha no upload da assinatura", description: getErrorMessage(error) });
+      setMessage({ title: "Falha no upload da assinatura", description: getErrorMessage(error), type: "error" });
     } finally {
       setUploadingAssinatura(false);
     }
@@ -330,7 +331,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleSubmitInscricao() {
     if (!session.token || !inscricaoId) {
-      setMessage({ title: "Rascunho inexistente", description: "Salve o rascunho antes de submeter a inscricao." });
+      setMessage({ title: "Rascunho inexistente", description: "Salve o rascunho antes de submeter a inscricao.", type: "warning" });
       return;
     }
 
@@ -352,7 +353,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         setChecklist(rawChecklist.map((item) => String(item)));
       }
 
-      setMessage({ title: "Falha ao submeter inscricao", description: getErrorMessage(error) });
+      setMessage({ title: "Falha ao submeter inscricao", description: getErrorMessage(error), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -376,7 +377,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         return;
       }
 
-      setMessage({ title: "Falha ao cancelar submissao", description: getErrorMessage(error) });
+      setMessage({ title: "Falha ao cancelar submissao", description: getErrorMessage(error), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -398,7 +399,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         return;
       }
 
-      setMessage({ title: "Falha ao baixar Anexo IV", description: getErrorMessage(error) });
+      setMessage({ title: "Falha ao baixar Anexo IV", description: getErrorMessage(error), type: "error" });
     } finally {
       setDownloading(false);
     }
@@ -421,7 +422,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         return;
       }
 
-      setMessage({ title: "Pacote documental indisponivel", description: getErrorMessage(error) });
+      setMessage({ title: "Pacote documental indisponivel", description: getErrorMessage(error), type: "warning" });
     } finally {
       setDownloading(false);
     }
@@ -649,7 +650,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             </ul>
           </div>
         ) : null}
-        {message ? message.title.toLowerCase().startsWith("falha") ? <ErrorState description={message.description} title={message.title} /> : <PageFeedback type="success" title={message.title} description={message.description} /> : null}
+        {message ? <PageFeedback type={message.type ?? "success"} title={message.title} description={message.description} /> : null}
         {!inscricaoId ? <PageFeedback type="info" title="Rascunho ainda nao criado" description="Salve o rascunho para habilitar documentos, Anexo IV e submissao." /> : null}
       </SectionCard>
     </div>

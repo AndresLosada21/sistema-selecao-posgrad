@@ -27,7 +27,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { params.then((resolved) => setEditalId(resolved.editalId)); }, [params]);
+  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
 
   useEffect(() => {
     if (!token || !editalId) return;
@@ -61,6 +61,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   if (status === "error") return <ErrorState title="Falha ao carregar classificacao" description={message?.text} />;
 
   const total = data?.total ?? 0;
+  const pageItemCount = data?.items.length ?? 0;
   const classificados = data?.items.filter((item) => item.posicaoGeral !== null).length ?? 0;
 
   return (
@@ -69,8 +70,8 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
 
       <SectionCard title={`Classificacao do edital ${editalId ?? ""}`} description="Lista consolidada e operacoes de recalculo no contexto admin.">
         <div className="summary-grid">
-          <article className="summary-card"><span>Total retornado</span><strong>{total}</strong></article>
-          <article className="summary-card"><span>Com posicao</span><strong>{classificados}</strong></article>
+          <article className="summary-card"><span>Total no edital</span><strong>{total}</strong></article>
+          <article className="summary-card"><span>{`Com posicao na pagina (${pageItemCount} itens)`}</span><strong>{classificados}</strong></article>
         </div>
         <div className="content-item-links">
           <ActionButton disabled={busy} onClick={() => recalculate("PRELIMINAR")} type="button" variant="secondary">Recalcular preliminar</ActionButton>
