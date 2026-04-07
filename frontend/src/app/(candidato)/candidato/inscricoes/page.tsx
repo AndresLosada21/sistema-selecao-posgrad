@@ -12,6 +12,7 @@ import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { downloadAnexoIv, listInscricoes } from "@/modules/inscricao/api";
 import type { CandidateInscricoesResponse } from "@/modules/inscricao/types";
@@ -48,25 +49,26 @@ export default function CandidateInscricoesPage() {
     }
   }
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) {
       return;
     }
 
-    listInscricoes(token)
-      .then((response) => {
-        setData(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
+    try {
+      const response = await listInscricoes(token);
+      if (signal.aborted) return;
+      setData(response);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
 
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
   }, [signOut, token]);
 
   if (status === "loading") {

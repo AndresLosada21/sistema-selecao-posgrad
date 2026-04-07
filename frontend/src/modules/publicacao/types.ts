@@ -13,5 +13,7 @@ export type PublicacaoResumo = {
 
 export type PublicacoesResponse = {
   total: number;
+  page?: number;
+  pageSize?: number;
   items: PublicacaoResumo[];
 };

@@ -9,6 +9,7 @@ import { getEditalById } from "@/modules/edital/api";
 import type { EditalDetalhe } from "@/modules/edital/types";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import { InscricaoEditor } from "@/modules/inscricao/components/inscricao-editor";
@@ -28,29 +29,32 @@ export default function CandidateInscricaoPage({ params }: CandidateInscricaoPag
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    params.then((resolved) => setEditalId(resolved.editalId));
+    let cancelled = false;
+    params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); });
+    return () => { cancelled = true; };
   }, [params]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!editalId || !token) {
       return;
     }
 
-    Promise.all([getEditalById(editalId), getCandidateDashboard(token)])
-      .then(([editalResponse, dashboardResponse]) => {
-        setEdital(editalResponse);
-        setDashboard(dashboardResponse);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
+    try {
+      const [editalResponse, dashboardResponse] = await Promise.all([getEditalById(editalId), getCandidateDashboard(token)]);
+      if (signal.aborted) return;
+      setEdital(editalResponse);
+      setDashboard(dashboardResponse);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
 
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
   }, [editalId, signOut, token]);
 
   const dashboardItem = useMemo(() => dashboard?.items.find((item) => item.edital.id === editalId) ?? null, [dashboard, editalId]);

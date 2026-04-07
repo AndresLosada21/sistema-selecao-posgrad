@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { decidirIsencaoFinalAdmin, decidirIsencaoPreliminarAdmin, getAdminIsencaoById } from "@/modules/admin-isencao/api";
 import type { AdminIsencaoItem } from "@/modules/admin-isencao/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -31,7 +32,11 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
   const [preliminar, setPreliminar] = useState({ deferida: true, parecer: "" });
   const [finalDecision, setFinalDecision] = useState({ deferida: true, parecer: "" });
 
-  useEffect(() => { params.then((resolved) => setPedidoId(resolved.pedidoIsencaoId)); }, [params]);
+  useEffect(() => {
+    let cancelled = false;
+    params.then((resolved) => { if (!cancelled) setPedidoId(resolved.pedidoIsencaoId); });
+    return () => { cancelled = true; };
+  }, [params]);
 
   const load = useCallback(async () => {
     if (!token || !pedidoId) return;
@@ -41,13 +46,18 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
     setFinalDecision((current) => ({ ...current, parecer: response.parecerFinal ?? current.parecer }));
   }, [pedidoId, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !pedidoId) return;
-    load().then(() => setStatus("ready")).catch((error) => {
+    try {
+      await load();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
       setStatus("error");
-    });
+    }
   }, [load, pedidoId, signOut, token]);
 
   async function handlePreliminar(event: FormEvent<HTMLFormElement>) {

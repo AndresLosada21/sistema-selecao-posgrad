@@ -8,8 +8,9 @@ import type {
   AdminLinhaPesquisaPayload,
 } from "./types";
 
-export function listAdminEditais(token: string) {
-  return apiGet<AdminEditaisResponse>("/v1/admin/editais", token);
+export function listAdminEditais(token: string, pagination?: { page: number; pageSize: number }) {
+  const query = pagination ? `?page=${pagination.page}&pageSize=${pagination.pageSize}` : "";
+  return apiGet<AdminEditaisResponse>(`/v1/admin/editais${query}`, token);
 }
 
 export function getAdminEditalById(editalId: string, token: string) {

@@ -13,6 +13,7 @@ import { getStatusVariant, getStatusLabel } from "@/components/shared/status-var
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -127,16 +128,20 @@ export default function CandidateDashboardPage() {
 
   const [fetchKey, setFetchKey] = useState(0);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) return;
     setStatus("loading");
-    getCandidateDashboard(token)
-      .then((response) => { setData(response); setStatus("ready"); })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
+    try {
+      const response = await getCandidateDashboard(token);
+      if (signal.aborted) return;
+      setData(response);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchKey drives manual retry
   }, [signOut, token, fetchKey]);
 

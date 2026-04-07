@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { cursoNivelOptions, statusEditalOptions, tipoCronogramaEditalOptions, type CursoNivel, type StatusEdital, type TipoCronogramaEdital } from "@/lib/enums";
 import {
   createCronogramaAdmin,
@@ -75,15 +76,18 @@ export default function AdminEditalDetailPage({ params }: Props) {
     });
   }, [editalId, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!editalId || !token) return;
-    load()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
+    try {
+      await load();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [editalId, load, signOut, token]);
 
   async function submitEdital(event: FormEvent<HTMLFormElement>) {
@@ -245,7 +249,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
   async function handleDeleteEdital() {
     if (!token || !editalId) return;
     setBusy(true); setMessage(null);
-    try { await deleteAdminEdital(editalId, token); setMessage({ type: "success", text: "Edital removido. Redirecionando para a listagem administrativa." }); setTimeout(() => router.replace("/admin/editais"), 800); }
+    try { await deleteAdminEdital(editalId, token); router.replace("/admin/editais"); }
     catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }

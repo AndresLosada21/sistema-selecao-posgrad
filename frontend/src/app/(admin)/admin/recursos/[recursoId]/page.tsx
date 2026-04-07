@@ -8,6 +8,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { statusInscricaoOptions, statusIsencaoOptions, type StatusInscricao, type StatusIsencao } from "@/lib/enums";
 import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
 import type { AdminRecursoItem } from "@/modules/admin-recursos/types";
@@ -46,14 +47,17 @@ export default function AdminRecursoDetailPage({ params }: Props) {
     setItem(await getAdminRecursoById(recursoId, token));
   }, [recursoId, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !recursoId) return;
-    loadItem()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) }); setStatus("error");
-      });
+    try {
+      await loadItem();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) }); setStatus("error");
+    }
   }, [loadItem, recursoId, signOut, token]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -61,11 +65,6 @@ export default function AdminRecursoDetailPage({ params }: Props) {
     if (!token || !recursoId) return;
     setBusy(true); setMessage(null);
     try {
-      if (decisao.trim().length < 5) {
-        setMessage({ type: "warning", text: "A decisao administrativa do recurso precisa ter pelo menos 5 caracteres." });
-        return;
-      }
-
       await decidirRecursoAdmin(recursoId, {
         deferido,
         decisao,

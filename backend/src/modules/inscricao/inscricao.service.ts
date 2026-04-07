@@ -10,6 +10,7 @@ import {
 import { parse } from "node:path";
 
 import { prisma } from "../../lib/prisma.js";
+import { toInputJsonOrDbNull } from "../../lib/serialization.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import { syncEtapaPoliticasAfirmativasForInscricao } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { buildCandidateAnexoIvUrl } from "./inscricao-anexo-iv.service.js";
@@ -91,11 +92,46 @@ function parseFichaInscricao(value: Prisma.JsonValue | null | undefined) {
     return null;
   }
 
-  return value as unknown as FichaInscricao;
-}
+  const source = value as Record<string, unknown>;
+  const stringFields = [
+    "nomeCompleto", "rg", "rgDataExpedicao", "cpf", "passaporte", "nacionalidade", "naturalidade", "email", "telefoneWhatsapp",
+    "dataNascimento", "estadoCivil", "tipoSanguineo", "fatorRh", "nomePai", "nomeMae", "enderecoResidencial", "cepResidencial",
+    "bairroResidencial", "ufResidencial", "cidadeResidencial", "instituicaoTrabalho", "unidadeDepartamentoTrabalho", "enderecoTrabalho",
+    "cepTrabalho", "cidadeBairroTrabalho",
+  ] as const;
+  const ficha: FichaInscricao = {};
 
-function toNullableJson(value: object | null) {
-  return value ? (value as Prisma.InputJsonValue) : Prisma.DbNull;
+  for (const key of stringFields) {
+    const fieldValue = source[key];
+    if (typeof fieldValue === "string") {
+      ficha[key] = fieldValue;
+    }
+  }
+
+  if (source.genero === "MASCULINO" || source.genero === "FEMININO") {
+    ficha.genero = source.genero;
+  }
+
+  if (["BRANCA", "PRETA", "PARDA", "AMARELA", "INDIGENA", "QUILOMBOLA", "NAO_DECLARADA"].includes(String(source.racaCor))) {
+    ficha.racaCor = source.racaCor as FichaInscricao["racaCor"];
+  }
+
+  if (["EMPREGADO", "NAO_EMPREGADO", "APOSENTADO"].includes(String(source.empregadoSituacao))) {
+    ficha.empregadoSituacao = source.empregadoSituacao as FichaInscricao["empregadoSituacao"];
+  }
+
+  if (["PARCIAL", "INTEGRAL", "DEDICACAO_EXCLUSIVA"].includes(String(source.regimeTrabalho))) {
+    ficha.regimeTrabalho = source.regimeTrabalho as FichaInscricao["regimeTrabalho"];
+  }
+
+  for (const booleanKey of ["pessoaComDeficiencia", "concorreAcoesAfirmativas", "vaiSolicitarBolsa"] as const) {
+    const fieldValue = source[booleanKey];
+    if (typeof fieldValue === "boolean") {
+      ficha[booleanKey] = fieldValue;
+    }
+  }
+
+  return ficha;
 }
 
 async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
@@ -223,7 +259,7 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
       temaRedacao: input.temaRedacao,
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
-      dadosFormulario: toNullableJson(fichaInscricao),
+      dadosFormulario: toInputJsonOrDbNull(fichaInscricao),
       assinaturaImagemUrl: input.assinaturaImagemUrl,
       status: StatusInscricao.RASCUNHO,
     },
@@ -234,7 +270,7 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
       temaRedacao: input.temaRedacao,
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
-      dadosFormulario: toNullableJson(fichaInscricao),
+      dadosFormulario: toInputJsonOrDbNull(fichaInscricao),
       assinaturaImagemUrl: input.assinaturaImagemUrl,
       status: StatusInscricao.RASCUNHO,
     },
@@ -480,7 +516,7 @@ export async function registrarPacoteDocumentalConsolidado(input: RegistrarPacot
       pacoteDocumentalVersaoSubmissao: inscricao.versaoSubmissao,
       pacoteDocumentalGeradoEm: new Date(),
       pacoteDocumentalGeradoPorId: input.geradoPorId,
-    } as unknown as Prisma.InscricaoUncheckedUpdateInput,
+    },
   });
 
   return {

@@ -11,6 +11,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { statusContaOptions, type StatusConta } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { listAdminEditais } from "@/modules/admin-edital/api";
 import { listAdminUsuarios, updateAdminUsuarioEscopos, updateAdminUsuarioPerfis, updateAdminUsuarioStatus } from "@/modules/admin-usuarios/api";
@@ -47,12 +48,17 @@ export default function AdminUsuariosPage() {
     setEditais(editaisResponse.items);
   }, [page, token]);
 
-  useEffect(() => {
-    load().then(() => setStatus("ready")).catch((error) => {
+  useAbortableEffect(async (signal) => {
+    try {
+      await load();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
       setStatus("error");
-    });
+    }
   }, [load, signOut]);
 
   async function handleStatus(usuarioId: string, statusConta: StatusConta) {
@@ -144,7 +150,7 @@ export default function AdminUsuariosPage() {
                   <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
 
                   <label className="field-block"><span>Status da conta</span><select className="select-field" disabled={busyUserId === item.id} onChange={(event) => setStatusDrafts((d) => ({ ...d, [item.id]: event.target.value as StatusConta }))} value={statusDrafts[item.id] ?? item.statusConta}>{statusContaOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
-                  {(statusDrafts[item.id] && statusDrafts[item.id] !== item.statusConta) ? <ActionButton disabled={busyUserId === item.id} onClick={() => { handleStatus(item.id, statusDrafts[item.id]!); setStatusDrafts((d) => { const n = { ...d }; delete n[item.id]; return n; }); }} size="sm" type="button">Confirmar status</ActionButton> : null}
+                  {(statusDrafts[item.id] && statusDrafts[item.id] !== item.statusConta) ? <ActionButton disabled={busyUserId === item.id} onClick={() => { const nextStatus = statusDrafts[item.id]; if (!nextStatus) return; handleStatus(item.id, nextStatus); setStatusDrafts((d) => { const n = { ...d }; delete n[item.id]; return n; }); }} size="sm" type="button">Confirmar status</ActionButton> : null}
 
                   <div className="content-list">
                     {availableRoles.map((role) => {
@@ -157,7 +163,7 @@ export default function AdminUsuariosPage() {
                         </label>
                       );
                     })}
-                    {roleDrafts[item.id] && [...roleDrafts[item.id]].sort().join(",") !== [...currentRoles].sort().join(",") ? <ActionButton disabled={busyUserId === item.id} onClick={() => { handleRoleToggle(item.id, [...roleDrafts[item.id]!]); setRoleDrafts((d) => { const n = { ...d }; delete n[item.id]; return n; }); }} size="sm" type="button">Confirmar perfis</ActionButton> : null}
+                    {roleDrafts[item.id] && [...roleDrafts[item.id]].sort().join(",") !== [...currentRoles].sort().join(",") ? <ActionButton disabled={busyUserId === item.id} onClick={() => { const nextRoles = roleDrafts[item.id]; if (!nextRoles) return; handleRoleToggle(item.id, [...nextRoles]); setRoleDrafts((d) => { const n = { ...d }; delete n[item.id]; return n; }); }} size="sm" type="button">Confirmar perfis</ActionButton> : null}
                   </div>
                   {currentRoles.has("AVALIADOR") ? (
                     <div className="field-block">

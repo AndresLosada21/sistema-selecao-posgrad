@@ -13,10 +13,7 @@ import {
   resolveStatusOperacaoFromEncaminhamento,
   resolveTipoEtapaPoliticasAfirmativas,
 } from "./politicas-afirmativas.rules.js";
-
-function toIsoOrNull(value: Date | null | undefined) {
-  return value ? value.toISOString() : null;
-}
+import { toIsoOrNull } from "../../lib/serialization.js";
 
 function getRequiredTiposDocumento(tipo: TipoEtapaPoliticasAfirmativas) {
   if (tipo === TipoEtapaPoliticasAfirmativas.PCD) {

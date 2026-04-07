@@ -10,6 +10,7 @@ import {
   createHomologacaoPublicacaoSchema,
   createPublicacaoSchema,
   editalIdParamSchema,
+  listPublicacoesAdminQuerySchema,
   publicacaoIdParamSchema,
   previewClassificacaoPublicacaoQuerySchema,
   previewHomologacaoPublicacaoQuerySchema,
@@ -104,9 +105,13 @@ publicacaoRouter.get("/v1/editais/:editalId/publicacoes", async (request, respon
 
 publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
   const parsedParams = editalIdParamSchema.safeParse(request.params);
+  const parsedQuery = listPublicacoesAdminQuerySchema.safeParse(request.query);
 
-  if (!parsedParams.success) {
-    return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
+  if (!parsedParams.success || !parsedQuery.success) {
+    return response.status(400).json(requestValidationError("Edital invalido.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
+    }));
   }
 
   const edital = await getPublicEditalById(parsedParams.data.editalId);
@@ -115,11 +120,13 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes", requireAuth, req
     return response.status(404).json(notFound("EDITAL_NAO_ENCONTRADO", "EDITAL_NAO_ENCONTRADO"));
   }
 
-  const items = await listPublicacoesAdminByEdital(parsedParams.data.editalId);
+  const result = await listPublicacoesAdminByEdital(parsedParams.data.editalId, parsedQuery.data);
 
   return response.status(200).json({
-    items,
-    total: items.length,
+    items: result.items,
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
   });
 });
 

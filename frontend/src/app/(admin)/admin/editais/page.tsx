@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { cursoNivelOptions, statusEditalOptions, type CursoNivel, type StatusEdital } from "@/lib/enums";
 import { createAdminEdital, listAdminEditais } from "@/modules/admin-edital/api";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -24,6 +25,7 @@ export default function AdminEditaisPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState<{
     numero: string;
     titulo: string;
@@ -40,22 +42,25 @@ export default function AdminEditaisPage() {
       return;
     }
 
-    const response = await listAdminEditais(token);
+    const response = await listAdminEditais(token, { page, pageSize: 20 });
     setData(response);
-  }, [token]);
+  }, [page, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) {
       return;
     }
 
-    load()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
+    try {
+      await load();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [load, signOut, token]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -120,6 +125,11 @@ export default function AdminEditaisPage() {
             ))}
           </div>
         ) : <EmptyState title="Sem editais" description="Nenhum edital foi cadastrado ainda nesta base." />}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${data?.page ?? page}`}</small>
+          <ActionButton disabled={(data?.page ?? page) * (data?.pageSize ?? 20) >= (data?.total ?? 0)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

@@ -73,8 +73,9 @@ editalRouter.get("/v1/admin/editais", requireAuth, requireRole(Role.ADMIN), asyn
     return response.status(400).json(validationError("Parametros de consulta invalidos.", parsedQuery.error.flatten()));
   }
 
+  const allEditais = await listAdminEditais({ ...parsedQuery.data, page: 1, pageSize: 10_000 });
   const editais = await listAdminEditais(parsedQuery.data);
-  return response.status(200).json({ items: editais, total: editais.length });
+  return response.status(200).json({ items: editais, total: allEditais.length, page: parsedQuery.data.page, pageSize: parsedQuery.data.pageSize });
 });
 
 editalRouter.get("/v1/admin/editais/:editalId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {

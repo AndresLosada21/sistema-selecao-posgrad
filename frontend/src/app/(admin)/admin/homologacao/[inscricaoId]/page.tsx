@@ -10,7 +10,9 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/files/download";
+import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import type { StatusConfirmacaoReserva } from "@/lib/enums";
 import { formatIsoDate } from "@/modules/edital/formatters";
 
@@ -26,6 +28,7 @@ import {
   registrarHomologacaoPreliminar,
 } from "@/modules/admin-homologacao/api";
 import type { AdminInscricaoHomologacao, HomologacaoFundamento } from "@/modules/admin-homologacao/types";
+import { uploadPrivateFile } from "@/modules/upload/api";
 
 type AdminHomologacaoDetailProps = {
   params: Promise<{ inscricaoId: string }>;
@@ -58,6 +61,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
   const [confirmacaoAcoesAfirmativas, setConfirmacaoAcoesAfirmativas] = useState<StatusConfirmacaoReserva>(confirmacaoReservaOptions[0]);
   const [confirmacaoPcd, setConfirmacaoPcd] = useState<StatusConfirmacaoReserva>(confirmacaoReservaOptions[0]);
   const [busy, setBusy] = useState(false);
+  const [busyDocumentoId, setBusyDocumentoId] = useState<string | null>(null);
   const [pacoteResumo, setPacoteResumo] = useState<{ urlArquivo: string; nomeArquivo: string | null; mimeType: string | null; tamanhoBytes: number | null; versaoSubmissao: number | null; geradoEm: string | null; geradoPorId: string | null } | null>(null);
   const [pacoteForm, setPacoteForm] = useState({ urlArquivo: "", nomeArquivo: "", mimeType: "application/pdf", tamanhoBytes: "" });
 
@@ -78,22 +82,25 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
     setSelectedMotivoCodigo(fundamentosResponse.items[0]?.codigo ?? "");
   }, [inscricaoId, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !inscricaoId) {
       return;
     }
 
-    loadItem()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
+    try {
+      await loadItem();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
 
-        setMessage({ type: "error", title: "Falha ao carregar inscricao", description: getErrorMessage(error) });
-        setStatus("error");
-      });
+      setMessage({ type: "error", title: "Falha ao carregar inscricao", description: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [inscricaoId, loadItem, signOut, token]);
 
   useEffect(() => {
@@ -217,6 +224,41 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
       setMessage({ type: "error", title: "Falha ao registrar pacote documental", description: getErrorMessage(error) });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleUploadPacote(file: File | null) {
+    if (!token || !file) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const uploaded = await uploadPrivateFile(file, token);
+      setPacoteForm({
+        urlArquivo: uploaded.urlArquivo,
+        nomeArquivo: uploaded.nomeArquivo,
+        mimeType: uploaded.mimeType || "application/pdf",
+        tamanhoBytes: String(uploaded.tamanhoBytes ?? ""),
+      });
+      setMessage({ type: "success", title: "Pacote enviado", description: "O arquivo do pacote documental foi enviado e preenchido no formulario." });
+    } catch (error) {
+      if (handleUnauthorized(error)) return;
+      setMessage({ type: "error", title: "Falha no upload do pacote", description: getErrorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDownloadDocumento(documentoId: string, urlArquivo: string, nomeArquivo: string | null) {
+    if (!token) return;
+    setBusyDocumentoId(documentoId);
+    setMessage(null);
+    try {
+      await downloadAuthenticatedFile(urlArquivo, token, nomeArquivo ?? "documento-inscricao.pdf");
+    } catch (error) {
+      if (handleUnauthorized(error)) return;
+      setMessage({ type: "error", title: "Falha ao baixar documento", description: getErrorMessage(error) });
+    } finally {
+      setBusyDocumentoId(null);
     }
   }
 
@@ -353,6 +395,11 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
               <small>Arquivo: {documento.nomeArquivo ?? "nao informado"}</small>
               <small>Obrigatorio: {documento.obrigatorio ? "sim" : "nao"}</small>
               <small>Observacao: {documento.observacaoValidacao ?? "sem observacao"}</small>
+              <div className="content-item-links">
+                <ActionButton disabled={busyDocumentoId === documento.id} onClick={() => handleDownloadDocumento(documento.id, documento.urlArquivo, documento.nomeArquivo)} size="sm" type="button" variant="secondary">
+                  {busyDocumentoId === documento.id ? "Baixando..." : "Baixar documento"}
+                </ActionButton>
+              </div>
             </article>
           ))}
         </div>
@@ -412,10 +459,14 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
             <small>Arquivo privado consolidado no sistema.</small>
             <small>Versao da submissao: {pacoteResumo.versaoSubmissao ?? "nao informada"}</small>
             <small>Gerado em: {formatIsoDate(pacoteResumo.geradoEm)}</small>
+            <div className="content-item-links">
+              <ActionButton disabled={busy} onClick={() => handleDownloadDocumento("pacote-documental", pacoteResumo.urlArquivo, pacoteResumo.nomeArquivo)} size="sm" type="button" variant="secondary">Baixar pacote atual</ActionButton>
+            </div>
           </div>
         ) : null}
 
         <form className="form-grid" onSubmit={handleRegistrarPacote}>
+          <label className="field-block"><span>Upload do pacote</span><input accept="application/pdf" onChange={(event) => void handleUploadPacote(event.target.files?.[0] ?? null)} type="file" /></label>
           <label className="field-block"><span>URL do pacote</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, urlArquivo: event.target.value }))} required value={pacoteForm.urlArquivo} /></label>
           <label className="field-block"><span>Nome do arquivo</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, nomeArquivo: event.target.value }))} required value={pacoteForm.nomeArquivo} /></label>
           <label className="field-block"><span>MIME type</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, mimeType: event.target.value }))} value={pacoteForm.mimeType} /></label>

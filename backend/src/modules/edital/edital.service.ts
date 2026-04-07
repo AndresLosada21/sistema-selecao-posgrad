@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { toIsoOrNull } from "../../lib/serialization.js";
 
 import type {
   EditalDetalhe,
@@ -14,10 +15,6 @@ import type {
   UpsertLinhaPesquisaInput,
 } from "./edital.types.js";
 import { conflict, notFound } from "../../lib/http-errors.js";
-
-function toIsoOrNull(value: Date | null) {
-  return value ? value.toISOString() : null;
-}
 
 function mapLinhaPesquisa(linha: EditalWithRelations["linhasPesquisa"][number]): LinhaPesquisaResumo {
   return {
@@ -102,7 +99,12 @@ export async function listEditais(filters: EditalListFilters): Promise<EditalRes
     orderBy: [{ ano: "desc" }, { publicadoEm: "desc" }, { criadoEm: "desc" }],
   });
 
-  return editais.map((edital) => mapEditalResumo(edital, now));
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? editais.length;
+
+  return editais
+    .map((edital) => mapEditalResumo(edital, now))
+    .slice((page - 1) * pageSize, page * pageSize);
 }
 
 export async function listAdminEditais(filters?: EditalListFilters): Promise<EditalResumo[]> {

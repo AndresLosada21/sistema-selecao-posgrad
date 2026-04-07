@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { getErrorMessage } from "@/lib/http/api-error";
 import { useSession } from "@/lib/auth/session-provider";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { listEditais } from "@/modules/edital/api";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import type { EditaisResponse } from "@/modules/edital/types";
@@ -35,23 +36,23 @@ export default function EditaisPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [showTechnical, setShowTechnical] = useState(false);
 
-  const loadEditais = useCallback(() => {
+  const loadEditais = useCallback(async () => {
     setStatus("loading");
     setMessage(null);
 
-    listEditais()
-      .then((response) => {
-        setData(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
+    const response = await listEditais();
+    setData(response);
+    setStatus("ready");
   }, []);
 
-  useEffect(() => {
-    loadEditais();
+  useAbortableEffect(async (signal) => {
+    try {
+      await loadEditais();
+    } catch (error) {
+      if (signal.aborted) return;
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
   }, [loadEditais]);
 
   if (status === "loading") {

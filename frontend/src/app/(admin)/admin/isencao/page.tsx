@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { listAdminIsencoes } from "@/modules/admin-isencao/api";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import type { AdminIsencoesResponse } from "@/modules/admin-isencao/types";
@@ -23,20 +24,40 @@ export default function AdminIsencaoPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [fetchKey, setFetchKey] = useState(0);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) return;
-    listAdminIsencoes(token, { page, pageSize: 20 })
-      .then((response) => { setData(response); setStatus("ready"); })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
-  }, [page, signOut, token]);
+    try {
+      const response = await listAdminIsencoes(token, { page, pageSize: 20 });
+      if (signal.aborted) return;
+      setData(response);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
+  }, [fetchKey, page, signOut, token]);
+
+  function retryLoad() {
+    setMessage(null);
+    setStatus("loading");
+    setFetchKey((current) => current + 1);
+  }
 
   if (status === "loading") return <LoadingState title="Carregando isencoes" description="Consultando a fila administrativa de isencao." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar isencoes" description={message ?? undefined} />;
+  if (status === "error") {
+    return (
+      <div className="stack-layout">
+        <ErrorState title="Falha ao carregar isencoes" description={message ?? undefined} />
+        <div className="content-item-links">
+          <ActionButton onClick={retryLoad} type="button" variant="secondary">Tentar novamente</ActionButton>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="stack-layout">
