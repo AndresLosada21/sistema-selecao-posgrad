@@ -90,6 +90,14 @@ export async function listEditais(filters: EditalListFilters): Promise<EditalRes
     };
   }
 
+  if (filters.q) {
+    where.OR = [
+      { numero: { contains: filters.q, mode: "insensitive" } },
+      { titulo: { contains: filters.q, mode: "insensitive" } },
+      { descricao: { contains: filters.q, mode: "insensitive" } },
+    ];
+  }
+
   const editais = await prisma.edital.findMany({
     where,
     include: {

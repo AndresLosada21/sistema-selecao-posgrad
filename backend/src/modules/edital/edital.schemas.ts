@@ -27,6 +27,7 @@ export const listEditaisQuerySchema = z.object({
   ativosSomente: booleanFromQuery.optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().min(1).max(120).optional(),
 });
 
 export const editalParamsSchema = z.object({

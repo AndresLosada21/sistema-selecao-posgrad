@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
+import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -12,8 +13,6 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { listAdminEditais } from "@/modules/admin-edital/api";
-import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { listEtapa2 } from "@/modules/admin-etapas/api";
 import type { Etapa2ListResponse } from "@/modules/admin-etapas/types";
@@ -23,7 +22,6 @@ export default function AdminEtapa2Page() {
   const token = session.token;
   const signOut = session.signOut;
   const [data, setData] = useState<Etapa2ListResponse | null>(null);
-  const [editais, setEditais] = useState<AdminEditaisResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -33,10 +31,9 @@ export default function AdminEtapa2Page() {
   useAbortableEffect(async (signal) => {
     if (!token) return;
     try {
-      const [response, editaisResponse] = await Promise.all([listEtapa2(token, { editalId: filter || undefined, page, pageSize: 20 }), listAdminEditais(token)]);
+      const response = await listEtapa2(token, { editalId: filter || undefined, page, pageSize: 20 });
       if (signal.aborted) return;
       setData(response);
-      setEditais(editaisResponse);
       setStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
@@ -62,7 +59,7 @@ export default function AdminEtapa2Page() {
 
       <SectionCard title="Filtro da etapa 2" description="Filtra a fila pelo edital quando necessario.">
         <div className="content-list">
-          <label className="field-block"><span>Edital</span><select className="select-field" onChange={(e) => setDraftFilter(e.target.value)} value={draftFilter}><option value="">Todos os editais</option>{editais?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}</select></label>
+          <AdminEditalCombobox allowEmpty emptyLabel="Todos os editais" label="Edital" onChange={setDraftFilter} token={token ?? ""} value={draftFilter} />
           <div className="content-item-links">
             <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
             <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }} type="button" variant="ghost">Limpar filtro</ActionButton>

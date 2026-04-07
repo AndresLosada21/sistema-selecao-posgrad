@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
+import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -12,8 +13,6 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { listAdminEditais } from "@/modules/admin-edital/api";
-import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { faseRecursoOptions } from "@/modules/admin-operacao/constants";
 import { listRecursosAdmin } from "@/modules/admin-recursos/api";
@@ -24,7 +23,6 @@ export default function AdminRecursosPage() {
   const token = session.token;
   const signOut = session.signOut;
   const [data, setData] = useState<AdminRecursosResponse | null>(null);
-  const [editais, setEditais] = useState<AdminEditaisResponse | null>(null);
   const [draftEditalId, setDraftEditalId] = useState("");
   const [draftFase, setDraftFase] = useState("");
   const [editalId, setEditalId] = useState("");
@@ -36,9 +34,9 @@ export default function AdminRecursosPage() {
   useAbortableEffect(async (signal) => {
     if (!token) return;
     try {
-      const [response, editaisResponse] = await Promise.all([listRecursosAdmin(token, { editalId: editalId || undefined, fase: fase || undefined, page, pageSize: 20 }), listAdminEditais(token)]);
+      const response = await listRecursosAdmin(token, { editalId: editalId || undefined, fase: fase || undefined, page, pageSize: 20 });
       if (signal.aborted) return;
-      setData(response); setEditais(editaisResponse); setStatus("ready");
+      setData(response); setStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
@@ -59,7 +57,7 @@ export default function AdminRecursosPage() {
 
       <SectionCard title="Filtros de recursos" description="Filtra a fila administrativa por edital e fase.">
         <div className="form-grid">
-          <label className="field-block"><span>Edital</span><select className="select-field" onChange={(e) => setDraftEditalId(e.target.value)} value={draftEditalId}><option value="">Todos os editais</option>{editais?.items.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}</select></label>
+          <AdminEditalCombobox allowEmpty emptyLabel="Todos os editais" label="Edital" onChange={setDraftEditalId} token={token ?? ""} value={draftEditalId} />
           <label className="field-block"><span>Fase</span><select className="select-field" onChange={(e) => setDraftFase(e.target.value)} value={draftFase}><option value="">todas</option>{faseRecursoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
         </div>
         <div className="content-item-links">

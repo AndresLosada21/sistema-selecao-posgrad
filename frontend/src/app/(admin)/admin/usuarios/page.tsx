@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
+import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
@@ -42,7 +43,7 @@ export default function AdminUsuariosPage() {
     if (!token) return;
     const [response, editaisResponse] = await Promise.all([
       listAdminUsuarios(token, { page, pageSize: 20 }),
-      listAdminEditais(token),
+      listAdminEditais(token, { page: 1, pageSize: 1000 }),
     ]);
     setData(response);
     setEditais(editaisResponse.items);
@@ -180,10 +181,18 @@ export default function AdminUsuariosPage() {
                           );
                         }) : <small>Nenhum escopo configurado.</small>}
                         <div className="content-item-row">
-                          <select className="select-field" disabled={busyUserId === item.id} onChange={(event) => updateScopeDraft(item.id, { editalId: event.target.value, linhaPesquisaId: "" })} value={scopeDrafts[item.id]?.editalId ?? ""}>
-                            <option value="">Selecione o edital</option>
-                            {editais.map((edital) => <option key={edital.id} value={edital.id}>{`${edital.numero} · ${edital.titulo}`}</option>)}
-                          </select>
+                          <div style={{ flex: 1 }}>
+                            <AdminEditalCombobox
+                              allowEmpty={false}
+                              disabled={busyUserId === item.id}
+                              emptyLabel="Selecione o edital"
+                              label="Edital"
+                              onChange={(value) => updateScopeDraft(item.id, { editalId: value, linhaPesquisaId: "" })}
+                              onSelectOption={(edital) => setEditais((current) => current.some((itemEdital) => itemEdital.id === edital.id) ? current : [...current, edital])}
+                              token={token ?? ""}
+                              value={scopeDrafts[item.id]?.editalId ?? ""}
+                            />
+                          </div>
                           <select className="select-field" disabled={busyUserId === item.id || !(scopeDrafts[item.id]?.editalId ?? "")} onChange={(event) => updateScopeDraft(item.id, { linhaPesquisaId: event.target.value })} value={scopeDrafts[item.id]?.linhaPesquisaId ?? ""}>
                             <option value="">Todas as linhas</option>
                             {getAvailableLinhas(scopeDrafts[item.id]?.editalId ?? "").map((linha) => <option key={linha.id} value={linha.id}>{linha.nome}</option>)}
