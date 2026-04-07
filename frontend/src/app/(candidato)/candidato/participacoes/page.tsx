@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { listParticipacoes } from "@/modules/participacao/api";
 import type { ParticipacoesResponse } from "@/modules/participacao/types";
 
@@ -37,8 +38,9 @@ export default function CandidateParticipacoesPage() {
     }
   }, [signOut, token]);
 
-  useEffect(() => {
-    load();
+  useAbortableEffect(async (signal) => {
+    await load();
+    if (signal.aborted) return;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchKey drives manual retry
   }, [load, fetchKey]);
 

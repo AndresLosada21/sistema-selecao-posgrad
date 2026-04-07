@@ -21,6 +21,7 @@ import {
   type FaseHomologacaoPublicacao,
   type FasePoliticasAfirmativasPublicacao,
 } from "./publicacao.rules.js";
+import { toInputJsonOrUndefined, toIsoOrNull } from "../../lib/serialization.js";
 
 function buildPublicacaoArquivoUrl(publicacao: { id: string; arquivoUrl: string | null }) {
   return publicacao.arquivoUrl ?? `/v1/publicacoes/${publicacao.id}/arquivo.pdf`;
@@ -142,7 +143,7 @@ export async function createPublicacao(input: {
       versao: versionamento.versao,
       versaoFinal: input.versaoFinal,
       arquivoUrl: input.arquivoUrl,
-      dadosConsolidados: toNullableJson(input.dadosConsolidados as Prisma.JsonValue | undefined),
+      dadosConsolidados: toInputJsonOrUndefined(input.dadosConsolidados),
       publicadoEm: new Date(),
     },
   });
@@ -247,7 +248,7 @@ export async function buildHomologacaoPublicacaoPreview(editalId: string, fase: 
       parecer,
       versaoSubmissao,
       snapshotSubmissao: submissaoSnapshot,
-      publicadoEm: publicadoEm?.toISOString() ?? null,
+      publicadoEm: toIsoOrNull(publicadoEm),
     };
   });
 
@@ -623,8 +624,17 @@ export async function listPublicacoesByEdital(editalId: string) {
   return publicacoes.map(buildPublicacaoResumo);
 }
 
-export async function listPublicacoesAdminByEdital(editalId: string) {
-  return await listPublicacoesByEdital(editalId);
+export async function listPublicacoesAdminByEdital(editalId: string, pagination?: { page: number; pageSize: number }) {
+  const page = pagination?.page ?? 1;
+  const pageSize = pagination?.pageSize ?? 20;
+  const items = await listPublicacoesByEdital(editalId);
+
+  return {
+    items: items.slice((page - 1) * pageSize, page * pageSize),
+    total: items.length,
+    page,
+    pageSize,
+  };
 }
 
 export async function getPublicacaoById(publicacaoId: string) {

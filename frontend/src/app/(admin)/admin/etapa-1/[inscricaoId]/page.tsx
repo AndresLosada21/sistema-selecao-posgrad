@@ -10,6 +10,7 @@ import { StructuredPreview } from "@/components/shared/structured-preview";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getEspelhoEtapa1, getEtapa1Item, liberarEspelhoEtapa1, registrarEtapa1 } from "@/modules/admin-etapas/api";
 import type { Etapa1AdminItem, Etapa1Espelho } from "@/modules/admin-etapas/types";
 
@@ -61,19 +62,22 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
   }, [inscricaoId, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !inscricaoId) return;
 
-    loadItem()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
+    try {
+      await loadItem();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [inscricaoId, loadItem, signOut, token]);
 
   const notaPreview = useMemo(() => rubrica.adequacaoDominioTema * 0.5 + rubrica.estrutura * 0.1 + rubrica.organizacaoCoerencia * 0.15 + rubrica.objetividadeSintese * 0.15 + rubrica.grafiaGramatica * 0.1, [rubrica]);

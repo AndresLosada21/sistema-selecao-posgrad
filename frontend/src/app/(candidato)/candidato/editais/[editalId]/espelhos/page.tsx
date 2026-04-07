@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -27,7 +28,7 @@ function renderPrimitive(value: unknown) {
   }
 
   if (typeof value === "object") {
-    return JSON.stringify(value);
+    return "objeto estruturado";
   }
 
   return String(value);
@@ -139,22 +140,25 @@ export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
     setData(response);
   }, [token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !editalId) {
       return;
     }
 
-    loadDashboard()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
+    try {
+      await loadDashboard();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
 
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [editalId, loadDashboard, signOut, token]);
 
   const item = useMemo(() => data?.items.find((entry) => entry.edital.id === editalId) ?? null, [data, editalId]);

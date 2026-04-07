@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-s
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import { IsencaoForm } from "@/modules/isencao/components/isencao-form";
@@ -25,28 +26,31 @@ export default function NewIsencaoPage({ params }: NewIsencaoPageProps) {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    params.then((resolved) => setEditalId(resolved.editalId));
+    let cancelled = false;
+    params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); });
+    return () => { cancelled = true; };
   }, [params]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !editalId) {
       return;
     }
 
-    getCandidateDashboard(token)
-      .then((response) => {
-        setData(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
+    try {
+      const response = await getCandidateDashboard(token);
+      if (signal.aborted) return;
+      setData(response);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
 
-        setMessage(getErrorMessage(error));
-        setStatus("error");
-      });
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
   }, [editalId, signOut, token]);
 
   const item = useMemo(() => data?.items.find((entry) => entry.edital.id === editalId) ?? null, [data, editalId]);

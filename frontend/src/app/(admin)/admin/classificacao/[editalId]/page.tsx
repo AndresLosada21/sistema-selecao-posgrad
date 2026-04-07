@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { listClassificacaoAdmin, recalcularClassificacaoAdmin } from "@/modules/admin-classificacao/api";
 import type { ClassificacaoAdminResponse } from "@/modules/admin-classificacao/types";
 
@@ -29,18 +30,19 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
 
   useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !editalId) return;
-    listClassificacaoAdmin(editalId, token, { page, pageSize: 20 })
-      .then((response) => {
-        setData(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
+    try {
+      const response = await listClassificacaoAdmin(editalId, token, { page, pageSize: 20 });
+      if (signal.aborted) return;
+      setData(response);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [editalId, page, signOut, token]);
 
   async function recalculate(publicacao: "PRELIMINAR" | "FINAL") {

@@ -1,11 +1,8 @@
 import { prisma } from "../../lib/prisma.js";
+import { toIsoOrNull } from "../../lib/serialization.js";
 import { buildCandidateAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
 import { parseHomologacaoMotivos } from "../homologacao/homologacao.rules.js";
 import { buildPoliticasAfirmativasResumo } from "../politicas-afirmativas/politicas-afirmativas.service.js";
-
-function toIsoOrNull(value: Date | null | undefined) {
-  return value ? value.toISOString() : null;
-}
 
 function resolvePublicacaoArquivoUrl(publicacao: {
   id: string;
@@ -26,6 +23,21 @@ type PublicacaoDashboardRecord = {
   arquivoUrl: string | null;
   publicadoEm: Date | null;
 };
+
+function getPublicacoesDashboard(records: Array<{
+  id: string;
+  editalId: string;
+  republicacaoDeId: string | null;
+  tipo: string;
+  titulo: string;
+  descricao: string | null;
+  versao: number;
+  versaoFinal: boolean;
+  arquivoUrl: string | null;
+  publicadoEm: Date | null;
+}>) {
+  return records.map((item) => ({ ...item } satisfies PublicacaoDashboardRecord));
+}
 
 function buildPublicacaoResumo(publicacao: PublicacaoDashboardRecord) {
   return {
@@ -81,7 +93,7 @@ export async function getCandidateDashboard(usuarioId: string) {
 
   return participacoes.map((participacao) => ({
     ...(function () {
-      const publicacoesOficiais = participacao.edital.publicacoesOficiais as unknown as PublicacaoDashboardRecord[];
+      const publicacoesOficiais = getPublicacoesDashboard(participacao.edital.publicacoesOficiais);
       const latestPublicacoesByTipo = new Map<string, PublicacaoDashboardRecord>();
 
       for (const publicacao of publicacoesOficiais) {
@@ -254,7 +266,7 @@ export async function getCandidateDashboard(usuarioId: string) {
       criadoEm: recurso.criadoEm.toISOString(),
       respondidoEm: toIsoOrNull(recurso.respondidoEm),
     })),
-    publicacoes: [...(participacao.edital.publicacoesOficiais as unknown as PublicacaoDashboardRecord[])]
+    publicacoes: [...getPublicacoesDashboard(participacao.edital.publicacoesOficiais)]
       .sort((a, b) => {
         if (a.tipo !== b.tipo) {
           return a.tipo.localeCompare(b.tipo);

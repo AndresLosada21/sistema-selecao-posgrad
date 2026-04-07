@@ -1,6 +1,7 @@
 import { Prisma, StatusConfirmacaoReserva, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { toInputJsonOrDbNull } from "../../lib/serialization.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
 import {
   buildMotivoPublicacaoHomologacao,
@@ -13,10 +14,6 @@ import {
   validateHomologacaoDecision,
   type HomologacaoMotivo,
 } from "./homologacao.rules.js";
-
-function toNullableJson(value: Prisma.JsonValue | null | undefined) {
-  return value ? (value as Prisma.InputJsonValue) : Prisma.DbNull;
-}
 
 function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
   include: {
@@ -235,18 +232,18 @@ export async function registrarHomologacaoPreliminar(
       where: { inscricaoId },
       update: {
         statusPreliminar: nextStatus,
-        motivosPreliminar: toNullableJson(decision.motivos),
+        motivosPreliminar: toInputJsonOrDbNull(decision.motivos),
         parecerPreliminar: parecer,
-        submissaoSnapshotPreliminar: toNullableJson(inscricao.submissaoSnapshot),
+        submissaoSnapshotPreliminar: toInputJsonOrDbNull(inscricao.submissaoSnapshot),
         versaoSubmissaoPreliminar: inscricao.versaoSubmissao,
         publicadoPreliminarEm: new Date(),
       },
       create: {
         inscricaoId,
         statusPreliminar: nextStatus,
-        motivosPreliminar: toNullableJson(decision.motivos),
+        motivosPreliminar: toInputJsonOrDbNull(decision.motivos),
         parecerPreliminar: parecer,
-        submissaoSnapshotPreliminar: toNullableJson(inscricao.submissaoSnapshot),
+        submissaoSnapshotPreliminar: toInputJsonOrDbNull(inscricao.submissaoSnapshot),
         versaoSubmissaoPreliminar: inscricao.versaoSubmissao,
         publicadoPreliminarEm: new Date(),
       },
@@ -302,9 +299,9 @@ export async function registrarHomologacaoFinal(
       where: { inscricaoId },
       data: {
         statusFinal: nextStatus,
-        motivosFinal: toNullableJson(decision.motivos),
+        motivosFinal: toInputJsonOrDbNull(decision.motivos),
         parecerFinal: parecer,
-        submissaoSnapshotFinal: toNullableJson(inscricao.submissaoSnapshot),
+        submissaoSnapshotFinal: toInputJsonOrDbNull(inscricao.submissaoSnapshot),
         versaoSubmissaoFinal: inscricao.versaoSubmissao,
         publicadoFinalEm: new Date(),
       },

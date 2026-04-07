@@ -14,6 +14,7 @@ import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { publicationPhaseOptions } from "@/modules/admin-operacao/constants";
 import { listAdminPublicacoesByEdital, previewClassificacaoPublicacao, previewHomologacaoPublicacao, publicarClassificacao, publicarGenerica, publicarHomologacao } from "@/modules/admin-publicacao/api";
 import { previewPublicacaoPoliticas, publicarPoliticas } from "@/modules/admin-politicas/api";
@@ -39,25 +40,28 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [tipoGenerico, setTipoGenerico] = useState<TipoPublicacaoOficial>("COMUNICADO");
   const [tituloGenerico, setTituloGenerico] = useState("");
   const [descricaoGenerica, setDescricaoGenerica] = useState("");
-  const [arquivoUrlGenerico, setArquivoUrlGenerico] = useState("");
   const [versaoFinalGenerica, setVersaoFinalGenerica] = useState(false);
-  const [dadosConsolidadosGenerico, setDadosConsolidadosGenerico] = useState("{}");
+  const [resumoGenerico, setResumoGenerico] = useState("");
+  const [observacoesGenericas, setObservacoesGenericas] = useState("");
+  const [referenciaGenerica, setReferenciaGenerica] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!editalId || !token) return;
-    listAdminPublicacoesByEdital(editalId, token)
-      .then((response) => {
-        setHistory(response);
-        setStatus("ready");
-      })
-      .catch((error) => {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
-  }, [editalId, signOut, token]);
+    try {
+      const response = await listAdminPublicacoesByEdital(editalId, token, { page, pageSize: 20 });
+      if (signal.aborted) return;
+      setHistory(response);
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
+  }, [editalId, page, signOut, token]);
 
   async function loadPreview(type: "homologacao" | "classificacao" | "politicas") {
     if (!token || !editalId) return;
@@ -88,7 +92,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         await publicarPoliticas(editalId, { fase: fasePoliticas, descricao: `Publicacao ${fasePoliticas.toLowerCase()} de politicas afirmativas.` }, token);
       }
       setMessage({ type: "success", text: `Publicacao de ${type} criada com sucesso.` });
-      const response = await listAdminPublicacoesByEdital(editalId, token);
+      const response = await listAdminPublicacoesByEdital(editalId, token, { page, pageSize: 20 });
       setHistory(response);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
@@ -101,32 +105,27 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     if (!token || !editalId) return;
     setBusy(true); setMessage(null);
     try {
-      let dadosConsolidados: Record<string, unknown> | undefined;
-
-      if (dadosConsolidadosGenerico.trim()) {
-        try {
-          dadosConsolidados = JSON.parse(dadosConsolidadosGenerico) as Record<string, unknown>;
-        } catch {
-          setMessage({ type: "error", text: "Os dados consolidados precisam ser um JSON valido antes da publicacao." });
-          return;
-        }
-      }
+      const dadosConsolidados = {
+        resumoPublico: resumoGenerico || undefined,
+        observacoesInternas: observacoesGenericas || undefined,
+        referenciaExterna: referenciaGenerica || undefined,
+      };
 
       await publicarGenerica(editalId, {
         tipo: tipoGenerico,
         titulo: tituloGenerico,
         descricao: descricaoGenerica || undefined,
         versaoFinal: versaoFinalGenerica,
-        arquivoUrl: arquivoUrlGenerico || undefined,
-        dadosConsolidados,
+        dadosConsolidados: Object.values(dadosConsolidados).some(Boolean) ? dadosConsolidados : undefined,
       }, token);
       setMessage({ type: "success", text: "Publicacao generica criada com sucesso." });
       setTituloGenerico("");
       setDescricaoGenerica("");
-      setArquivoUrlGenerico("");
       setVersaoFinalGenerica(false);
-      setDadosConsolidadosGenerico("{}");
-      setHistory(await listAdminPublicacoesByEdital(editalId, token));
+      setResumoGenerico("");
+      setObservacoesGenericas("");
+      setReferenciaGenerica("");
+      setHistory(await listAdminPublicacoesByEdital(editalId, token, { page, pageSize: 20 }));
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage({ type: "error", text: getErrorMessage(error) });
@@ -163,8 +162,9 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <label className="field-block"><span>Tipo</span><select className="select-field" onChange={(event) => setTipoGenerico(event.target.value as TipoPublicacaoOficial)} value={tipoGenerico}>{tipoPublicacaoOficialOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
           <label className="field-block"><span>Titulo</span><input onChange={(event) => setTituloGenerico(event.target.value)} required value={tituloGenerico} /></label>
           <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(event) => setDescricaoGenerica(event.target.value)} value={descricaoGenerica} /></label>
-          <label className="field-block"><span>Arquivo URL (opcional)</span><input onChange={(event) => setArquivoUrlGenerico(event.target.value)} value={arquivoUrlGenerico} /></label>
-          <label className="field-block"><span>Dados consolidados (JSON opcional)</span><textarea className="text-area" onChange={(event) => setDadosConsolidadosGenerico(event.target.value)} value={dadosConsolidadosGenerico} /></label>
+          <label className="field-block"><span>Resumo publico</span><textarea className="text-area" onChange={(event) => setResumoGenerico(event.target.value)} value={resumoGenerico} /></label>
+          <label className="field-block"><span>Observacoes internas</span><textarea className="text-area" onChange={(event) => setObservacoesGenericas(event.target.value)} value={observacoesGenericas} /></label>
+          <label className="field-block"><span>Referencia externa</span><input onChange={(event) => setReferenciaGenerica(event.target.value)} value={referenciaGenerica} /></label>
           <label className="field-inline"><input checked={versaoFinalGenerica} onChange={(event) => setVersaoFinalGenerica(event.target.checked)} type="checkbox" /><span>Marcar como versao final</span></label>
           <ActionButton disabled={busy} loading={busy} type="submit">Criar publicacao generica</ActionButton>
         </form>
@@ -185,6 +185,11 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             ))}
           </div>
         ) : <EmptyState title="Sem publicacoes" description="Ainda nao ha publicacoes oficiais registradas para este edital." />}
+        <div className="content-item-links">
+          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
+          <small>{`Pagina ${history?.page ?? page}`}</small>
+          <ActionButton disabled={(history?.page ?? page) * (history?.pageSize ?? 20) >= (history?.total ?? 0)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+        </div>
       </SectionCard>
     </div>
   );

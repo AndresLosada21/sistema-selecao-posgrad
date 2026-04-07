@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -28,6 +28,13 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
   const [cpf, setCpf] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const resetStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (resetStatusTimeoutRef.current) {
+      clearTimeout(resetStatusTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!session.isAuthenticated) {
@@ -66,8 +73,12 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
       setStatus("error");
       setMessage(getErrorMessage(error));
     } finally {
-      // Garante que o status volte a idle se o redirect não ocorrer (ex: bloqueio de navegação)
-      setTimeout(() => setStatus((current) => current === "loading" ? "idle" : current), 3000);
+      if (resetStatusTimeoutRef.current) {
+        clearTimeout(resetStatusTimeoutRef.current);
+      }
+      resetStatusTimeoutRef.current = setTimeout(() => {
+        setStatus((current) => current === "loading" ? "idle" : current);
+      }, 3000);
     }
   }
 

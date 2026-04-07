@@ -13,6 +13,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { sanitizePayload } from "@/lib/http/sanitize";
 import type { FaseRecurso } from "@/lib/enums";
 import { faseRecursoOptions } from "@/modules/admin-operacao/constants";
@@ -54,22 +55,25 @@ export default function CandidateRecursosPage() {
     setRecursos(recursosResponse);
   }, [token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token) {
       return;
     }
 
-    loadData()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
+    try {
+      await loadData();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
 
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [loadData, signOut, token]);
 
   useEffect(() => {
@@ -238,7 +242,7 @@ export default function CandidateRecursosPage() {
                 <small>Decisao: {item.decisao ?? "ainda nao registrada"}</small>
                 {item.anexoUrl ? (
                   <div className="content-item-links">
-                    <ActionButton disabled={downloadingAnexoId === item.id} onClick={() => handleDownloadAnexo(item.id, item.anexoUrl!)} size="sm" type="button" variant="secondary">
+                    <ActionButton disabled={downloadingAnexoId === item.id || !item.anexoUrl} onClick={() => item.anexoUrl ? handleDownloadAnexo(item.id, item.anexoUrl) : undefined} size="sm" type="button" variant="secondary">
                       {downloadingAnexoId === item.id ? "Baixando..." : "Baixar anexo"}
                     </ActionButton>
                   </div>

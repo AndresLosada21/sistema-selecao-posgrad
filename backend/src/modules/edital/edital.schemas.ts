@@ -25,6 +25,8 @@ export const listEditaisQuerySchema = z.object({
   cursoNivel: z.nativeEnum(CursoNivel).optional(),
   status: statusListFromQuery,
   ativosSomente: booleanFromQuery.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export const editalParamsSchema = z.object({

@@ -24,6 +24,8 @@ export type EditalListItem = {
 
 export type EditaisResponse = {
   total: number;
+  page?: number;
+  pageSize?: number;
   items: EditalListItem[];
 };
 

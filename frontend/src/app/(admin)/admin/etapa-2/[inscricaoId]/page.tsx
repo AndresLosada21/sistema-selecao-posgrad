@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getEspelhoEtapa2, getEtapa2Item, liberarEspelhoEtapa2, registrarEtapa2 } from "@/modules/admin-etapas/api";
 import type { Etapa2AdminItem, Etapa2Espelho } from "@/modules/admin-etapas/types";
 
@@ -64,18 +65,21 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     );
   }, [inscricaoId, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!token || !inscricaoId) return;
-    loadItem()
-      .then(() => setStatus("ready"))
-      .catch((error) => {
-        if (isUnauthorizedError(error)) {
-          signOut();
-          return;
-        }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-        setStatus("error");
-      });
+    try {
+      await loadItem();
+      if (signal.aborted) return;
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error");
+    }
   }, [loadItem, inscricaoId, signOut, token]);
 
   async function loadEspelho() {

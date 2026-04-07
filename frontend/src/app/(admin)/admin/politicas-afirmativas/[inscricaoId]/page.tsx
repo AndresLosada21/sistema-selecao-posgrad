@@ -9,8 +9,11 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { StructuredPreview } from "@/components/shared/structured-preview";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
+import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { uploadPrivateFile } from "@/modules/upload/api";
 import { getPoliticasByInscricao, previewPublicacaoPoliticas, publicarPoliticas, registrarEncaminhamentoPoliticas, registrarResultadoFinalPoliticas, registrarResultadoPreliminarPoliticas } from "@/modules/admin-politicas/api";
 import type { PoliticasEtapaItem } from "@/modules/admin-politicas/types";
 import { resultadoPoliticasOptions } from "@/modules/admin-operacao/constants";
@@ -32,6 +35,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   const [preliminar, setPreliminar] = useState<{ resultado: (typeof resultadoPoliticasOptions)[number]; parecer: string; arquivoRetornoUrl: string }>({ resultado: resultadoPoliticasOptions[0], parecer: "", arquivoRetornoUrl: "" });
   const [finalResult, setFinalResult] = useState<{ resultado: (typeof resultadoPoliticasOptions)[number]; parecer: string; arquivoRetornoUrl: string }>({ resultado: resultadoPoliticasOptions[0], parecer: "", arquivoRetornoUrl: "" });
   const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
+  const [busyDownloadId, setBusyDownloadId] = useState<string | null>(null);
 
   useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); }); return () => { cancelled = true; }; }, [params]);
 
@@ -78,12 +82,13 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- editalId inferred from response, not a trigger
   }, [inscricaoId, signOut, token]);
 
-  useEffect(() => {
+  useAbortableEffect(async (signal) => {
     if (!inscricaoId || !token) {
       return;
     }
 
-    loadByEdital();
+    await loadByEdital();
+    if (signal.aborted) return;
   }, [inscricaoId, loadByEdital, token]);
 
   async function submitEncaminhamento(event: FormEvent<HTMLFormElement>) {
@@ -123,6 +128,40 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
     finally { setBusy(false); }
   }
 
+  async function handleUploadRetorno(target: "preliminar" | "final", file: File | null) {
+    if (!token || !file) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const uploaded = await uploadPrivateFile(file, token);
+      if (target === "preliminar") {
+        setPreliminar((current) => ({ ...current, arquivoRetornoUrl: uploaded.urlArquivo }));
+      } else {
+        setFinalResult((current) => ({ ...current, arquivoRetornoUrl: uploaded.urlArquivo }));
+      }
+      setMessage({ type: "success", text: "Arquivo de retorno enviado e vinculado ao formulario." });
+    } catch (error) {
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDownloadDocumento(documentoId: string, urlArquivo: string, nomeArquivo: string | null) {
+    if (!token) return;
+    setBusyDownloadId(documentoId);
+    setMessage(null);
+    try {
+      await downloadAuthenticatedFile(urlArquivo, token, nomeArquivo ?? "documento-reserva.pdf");
+    } catch (error) {
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+    } finally {
+      setBusyDownloadId(null);
+    }
+  }
+
   if (status === "loading") return <LoadingState title="Carregando politicas afirmativas" description="Preparando o detalhe operacional por inscricao." />;
 
   return (
@@ -149,10 +188,15 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
             <div className="content-list">
               {item.documentosReserva.map((documento) => (
                 <article className="content-item" key={documento.id}>
-                  <strong>{documento.tipo}</strong>
+                  <strong>{getStatusLabel(documento.tipo)}</strong>
                   <small>Arquivo: {documento.nomeArquivo ?? "sem nome"}</small>
                   <small>Arquivo privado registrado no sistema.</small>
                   <small>Status: {getStatusLabel(documento.statusValidacao ?? "SEM_VALIDACAO")}</small>
+                  <div className="content-item-links">
+                    <ActionButton disabled={busyDownloadId === documento.id} onClick={() => handleDownloadDocumento(documento.id, documento.urlArquivo, documento.nomeArquivo)} size="sm" type="button" variant="secondary">
+                      {busyDownloadId === documento.id ? "Baixando..." : "Baixar documento"}
+                    </ActionButton>
+                  </div>
                 </article>
               ))}
             </div>
@@ -173,18 +217,22 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
               <label className="field-block"><span>Resultado</span><select className="select-field" onChange={(e) => setPreliminar((c) => ({ ...c, resultado: e.target.value as (typeof resultadoPoliticasOptions)[number] }))} value={preliminar.resultado}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
               <label className="field-block"><span>Parecer</span><textarea className="text-area" onChange={(e) => setPreliminar((c) => ({ ...c, parecer: e.target.value }))} value={preliminar.parecer} /></label>
               <label className="field-block"><span>Arquivo de retorno</span><input onChange={(e) => setPreliminar((c) => ({ ...c, arquivoRetornoUrl: e.target.value }))} value={preliminar.arquivoRetornoUrl} /></label>
-               <ActionButton disabled={busy} loading={busy} type="submit">Registrar preliminar</ActionButton>
-             </form>
-           </SectionCard>
+              <label className="field-block"><span>Upload de retorno</span><input accept="application/pdf" onChange={(e) => void handleUploadRetorno("preliminar", e.target.files?.[0] ?? null)} type="file" /></label>
+              {preliminar.arquivoRetornoUrl ? <div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleDownloadDocumento("retorno-preliminar", preliminar.arquivoRetornoUrl, "retorno-preliminar.pdf")} size="sm" type="button" variant="secondary">Baixar retorno atual</ActionButton></div> : null}
+                <ActionButton disabled={busy} loading={busy} type="submit">Registrar preliminar</ActionButton>
+              </form>
+            </SectionCard>
 
           <SectionCard title="Resultado final" description="Registro final da etapa de politicas afirmativas.">
             <form className="form-grid" onSubmit={submitFinal}>
               <label className="field-block"><span>Resultado</span><select className="select-field" onChange={(e) => setFinalResult((c) => ({ ...c, resultado: e.target.value as (typeof resultadoPoliticasOptions)[number] }))} value={finalResult.resultado}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
               <label className="field-block"><span>Parecer</span><textarea className="text-area" onChange={(e) => setFinalResult((c) => ({ ...c, parecer: e.target.value }))} value={finalResult.parecer} /></label>
               <label className="field-block"><span>Arquivo de retorno</span><input onChange={(e) => setFinalResult((c) => ({ ...c, arquivoRetornoUrl: e.target.value }))} value={finalResult.arquivoRetornoUrl} /></label>
-               <ActionButton disabled={busy} loading={busy} type="submit">Registrar final</ActionButton>
-             </form>
-           </SectionCard>
+              <label className="field-block"><span>Upload de retorno</span><input accept="application/pdf" onChange={(e) => void handleUploadRetorno("final", e.target.files?.[0] ?? null)} type="file" /></label>
+              {finalResult.arquivoRetornoUrl ? <div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleDownloadDocumento("retorno-final", finalResult.arquivoRetornoUrl, "retorno-final.pdf")} size="sm" type="button" variant="secondary">Baixar retorno atual</ActionButton></div> : null}
+                <ActionButton disabled={busy} loading={busy} type="submit">Registrar final</ActionButton>
+              </form>
+            </SectionCard>
 
           <SectionCard title="Publicacao da etapa" description="Preview e criacao da publicacao oficial de politicas afirmativas.">
             <div className="content-item-links">

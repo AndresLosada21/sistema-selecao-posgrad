@@ -10,6 +10,11 @@ export const publicacaoIdParamSchema = z.object({
   publicacaoId: z.string().min(1),
 });
 
+export const listPublicacoesAdminQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
 export const createPublicacaoSchema = z.object({
   tipo: z.nativeEnum(TipoPublicacaoOficial),
   titulo: z.string().trim().min(5),

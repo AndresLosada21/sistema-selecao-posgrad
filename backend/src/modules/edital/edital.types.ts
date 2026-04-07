@@ -10,6 +10,8 @@ export type EditalListFilters = {
   cursoNivel?: CursoNivel;
   status?: StatusEdital[];
   ativosSomente?: boolean;
+  page?: number;
+  pageSize?: number;
 };
 
 export type EditalWithRelations = Prisma.EditalGetPayload<{

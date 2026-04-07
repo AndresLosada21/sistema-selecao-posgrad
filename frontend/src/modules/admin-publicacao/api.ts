@@ -6,8 +6,9 @@ export function previewHomologacaoPublicacao(editalId: string, fase: "PRELIMINAR
   return apiGet<Record<string, unknown>>(`/v1/admin/editais/${editalId}/publicacoes/homologacao/preview?fase=${fase}`, token);
 }
 
-export function listAdminPublicacoesByEdital(editalId: string, token: string) {
-  return apiGet<PublicacoesResponse>(`/v1/admin/editais/${editalId}/publicacoes`, token);
+export function listAdminPublicacoesByEdital(editalId: string, token: string, pagination?: { page: number; pageSize: number }) {
+  const query = pagination ? `?page=${pagination.page}&pageSize=${pagination.pageSize}` : "";
+  return apiGet<PublicacoesResponse>(`/v1/admin/editais/${editalId}/publicacoes${query}`, token);
 }
 
 export function publicarGenerica(
