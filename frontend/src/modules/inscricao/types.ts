@@ -49,7 +49,6 @@ export type SaveInscricaoDraftPayload = {
   resumoCurriculo?: string;
   redacaoTexto?: string;
   fichaInscricao?: FichaInscricaoPayload;
-  assinaturaImagemUrl?: string;
 };
 
 export type DocumentoInscricaoPayload = {

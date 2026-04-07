@@ -1,22 +1,8 @@
 import { TipoDocumentoInscricao } from "@prisma/client";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { readFile } from "node:fs/promises";
 
 import { prisma } from "../../lib/prisma.js";
-import { resolvePrivateUploadPath } from "../upload/upload.service.js";
 import { type FichaInscricao } from "./inscricao.rules.js";
-
-function detectImageFormat(bytes: Uint8Array) {
-  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
-    return "png" as const;
-  }
-
-  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xd8) {
-    return "jpeg" as const;
-  }
-
-  return null;
-}
 
 function parseFicha(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -63,7 +49,6 @@ function wrapText(value: string, maxLength = 88) {
 
 function buildFichaLines(input: {
   ficha: FichaInscricao;
-  assinaturaImagemUrl?: string | null;
   documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
   pagamentoDispensado: boolean;
   linhaNome: string;
@@ -72,7 +57,7 @@ function buildFichaLines(input: {
   editalTitulo: string;
 }) {
   const documentosObrigatorios = [
-    { label: "Formulario de inscricao", present: hasDocument(input.documentos, TipoDocumentoInscricao.ANEXO_IV) },
+    { label: "Anexo IV assinado", present: hasDocument(input.documentos, TipoDocumentoInscricao.ANEXO_IV) },
     { label: "Documento de identificacao", present: hasDocument(input.documentos, TipoDocumentoInscricao.DOCUMENTO_IDENTIFICACAO) },
     { label: "RNE ou passaporte", present: hasDocument(input.documentos, TipoDocumentoInscricao.RNE_PASSAPORTE) },
     { label: "Comprovante de pagamento", present: input.pagamentoDispensado || hasDocument(input.documentos, TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO) },
@@ -98,7 +83,6 @@ function buildFichaLines(input: {
     `naturalidade: ${input.ficha.naturalidade ?? "-"}`,
     `email: ${input.ficha.email ?? "-"}`,
     `telefoneWhatsapp: ${input.ficha.telefoneWhatsapp ?? "-"}`,
-    `assinaturaImagem: ${input.assinaturaImagemUrl ? "ENVIADA" : "NAO INFORMADA"}`,
     `dataNascimento: ${input.ficha.dataNascimento ?? "-"}`,
     `estadoCivil: ${input.ficha.estadoCivil ?? "-"}`,
     `genero: ${input.ficha.genero ?? "-"}`,
@@ -137,7 +121,6 @@ function buildFichaLines(input: {
 
 async function buildGenericPdfBytes(input: {
   ficha: FichaInscricao;
-  assinaturaImagemUrl?: string | null;
   documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
   pagamentoDispensado: boolean;
   linhaNome: string;
@@ -152,37 +135,6 @@ async function buildGenericPdfBytes(input: {
 
   let page = pdfDoc.addPage([595.28, 841.89]);
   let y = 800;
-
-  if (input.assinaturaImagemUrl?.startsWith("/v1/uploads/private/")) {
-    const match = input.assinaturaImagemUrl.match(/^\/v1\/uploads\/private\/([^/]+)\/(.+)$/);
-    if (match) {
-      try {
-        const [, ownerId, filename] = match;
-        const imageBytes = await readFile(resolvePrivateUploadPath(ownerId, filename));
-        const format = detectImageFormat(imageBytes);
-
-        if (format) {
-          const image = format === "png" ? await pdfDoc.embedPng(imageBytes) : await pdfDoc.embedJpg(imageBytes);
-          const scaled = image.scale(0.35);
-          page.drawImage(image, {
-            x: 430,
-            y: 735,
-            width: scaled.width,
-            height: scaled.height,
-          });
-          page.drawText("Assinatura do candidato", {
-            x: 430,
-            y: 725,
-            size: 8,
-            font: regular,
-            color: rgb(0, 0, 0),
-          });
-        }
-      } catch {
-        // Do not fail PDF generation if the uploaded signature file is unreadable or malformed.
-      }
-    }
-  }
 
   page.drawText("ANEXO IV - FICHA DE INSCRICAO", {
     x: 40,
@@ -251,7 +203,6 @@ async function buildInscricaoAnexoIvResponse(inscricao: InscricaoForDocument, fl
       nomeCompleto: ficha.nomeCompleto ?? inscricao.participacaoEdital.usuario.nomeCompleto,
       email: ficha.email ?? inscricao.participacaoEdital.usuario.email,
     },
-    assinaturaImagemUrl: inscricao.assinaturaImagemUrl,
     documentos: inscricao.documentos.map((documento) => ({ tipo: documento.tipo, nomeArquivo: documento.nomeArquivo })),
     pagamentoDispensado,
     linhaNome: inscricao.linhaPesquisa?.nome ?? "",
