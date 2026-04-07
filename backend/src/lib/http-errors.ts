@@ -62,5 +62,3 @@ export function tooManyRequests(message: string) {
 export function internalError(message: string, code = "INTERNAL_ERROR") {
   return buildErrorResponse(code, message);
 }
-
-export type StandardErrorResponse = ErrorResponseBase;
