@@ -1512,7 +1512,7 @@ textarea {
 }
 
 .candidate-main-inner {
-  max-width: 960px;
+  max-width: 100%;
   display: grid;
   gap: var(--space-9);
 }
