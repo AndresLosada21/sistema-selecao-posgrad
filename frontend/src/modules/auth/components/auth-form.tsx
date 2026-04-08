@@ -27,6 +27,18 @@ const iconUserPlus = (
   </svg>
 );
 
+const iconEyeOff = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" />
+  </svg>
+);
+
+const iconEye = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
 export function AuthForm({ mode, nextPath }: AuthFormProps) {
   const router = useRouter();
   const session = useSession();
@@ -36,6 +48,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
   const [senha, setSenha] = useState("");
   const [telefone, setTelefone] = useState("");
   const [cpf, setCpf] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const resetStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,9 +102,11 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
   }
 
   const isLogin = mode === "login";
+  const cardClass = isLogin ? "auth-card" : "auth-card auth-card--compact";
+  const formClass = isLogin ? "auth-form" : "auth-form auth-form--compact";
 
   return (
-    <div className="auth-card">
+    <div className={cardClass}>
       <div className="auth-card-header">
         <span className="auth-card-icon">{isLogin ? iconLogin : iconUserPlus}</span>
         <strong className="auth-card-title">{isLogin ? "Entrar" : "Criar conta"}</strong>
@@ -102,7 +117,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         </p>
       </div>
 
-      <form className="auth-form" onSubmit={handleSubmit}>
+      <form className={formClass} onSubmit={handleSubmit}>
         {!isLogin ? (
           <label className="auth-field">
             <span className="auth-field-label">Nome completo *</span>
@@ -112,12 +127,17 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
 
         <label className="auth-field">
           <span className="auth-field-label">E-mail {!isLogin ? "*" : ""}</span>
-          <input className="auth-input" autoComplete="email" onChange={(e) => { setEmail(e.target.value); setMessage(null); setStatus("idle"); }} required type="email" value={email} placeholder={isLogin ? "candidato@email.com" : ""} />
+          <input className="auth-input" autoComplete="email" onChange={(e) => { setEmail(e.target.value); setMessage(null); setStatus("idle"); }} required type="email" value={email} placeholder={isLogin ? "candidato@email.com" : "maria.pereira@email.com"} />
         </label>
 
         <label className="auth-field">
           <span className="auth-field-label">Senha {!isLogin ? "*" : ""}</span>
-          <input className="auth-input" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); }} required type="password" value={senha} />
+          <div className="auth-input-wrapper">
+            <input className="auth-input auth-input--with-toggle" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); }} required type={showPassword ? "text" : "password"} value={senha} placeholder="••••••••" />
+            <button className="auth-toggle-password" type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>
+              {showPassword ? iconEye : iconEyeOff}
+            </button>
+          </div>
         </label>
 
         {!isLogin ? (
@@ -132,11 +152,15 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
             </label>
           </div>
         ) : null}
-
-        <button className="auth-submit" disabled={status === "loading"} type="submit">
-          {status === "loading" ? "Processando..." : isLogin ? "Entrar" : "Criar conta"}
-        </button>
       </form>
+
+      <button className="auth-submit" disabled={status === "loading"} type="submit" form="auth-form-id" onClick={(e) => {
+        e.preventDefault();
+        const form = (e.target as HTMLElement).closest(".auth-card")?.querySelector("form");
+        if (form) form.requestSubmit();
+      }}>
+        {status === "loading" ? "Processando..." : isLogin ? "Entrar" : "Criar conta"}
+      </button>
 
       {message ? (
         <ErrorState description={message} title={isLogin ? "Falha ao entrar" : "Falha ao criar conta"} />
@@ -154,7 +178,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         </div>
 
         <span className="auth-switch-row">
-          {isLogin ? "Nao tem conta? " : "Ja tem conta? "}
+          {isLogin ? "Não tem conta? " : "Já tem conta? "}
           <Link className="auth-link-strong" href={isLogin ? "/criar-conta" : "/entrar"}>
             {isLogin ? "Criar conta" : "Entrar"}
           </Link>

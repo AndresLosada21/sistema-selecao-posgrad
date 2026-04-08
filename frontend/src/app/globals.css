@@ -533,8 +533,8 @@ textarea {
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 16px 20px;
-  border-radius: 8px;
+  padding: 14px 16px;
+  border-radius: 6px;
   border: 1px solid;
 }
 
@@ -565,7 +565,6 @@ textarea {
   margin: 0;
   font-size: 13px;
   color: inherit;
-  opacity: 0.85;
 }
 
 .page-feedback-action {
@@ -1245,6 +1244,11 @@ textarea {
   box-shadow: var(--shadow-elevated);
 }
 
+.auth-card--compact {
+  gap: 24px;
+  padding: 36px;
+}
+
 .auth-card-header {
   display: flex;
   flex-direction: column;
@@ -1288,6 +1292,10 @@ textarea {
   gap: 16px;
 }
 
+.auth-form--compact {
+  gap: 14px;
+}
+
 .auth-field {
   display: flex;
   flex-direction: column;
@@ -1319,6 +1327,35 @@ textarea {
 
 .auth-input::placeholder {
   color: var(--color-neutral-400);
+}
+
+.auth-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-input--with-toggle {
+  padding-right: 40px;
+}
+
+.auth-toggle-password {
+  position: absolute;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-neutral-400);
+}
+
+.auth-toggle-password:hover {
+  background: var(--color-neutral-100);
 }
 
 .auth-textarea {

@@ -58,14 +58,14 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
         </div>
       ) : null}
 
-      <div className="auth-card">
+      <div className="auth-card auth-card--compact">
         <div className="auth-card-header">
           <span className="auth-card-icon-raw">{iconLock}</span>
           <strong className="auth-card-title">Redefinir senha</strong>
           <p className="auth-card-desc">Informe o token recebido e a nova senha da conta.</p>
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form auth-form--compact" onSubmit={handleSubmit}>
           <label className="auth-field">
             <span className="auth-field-label">Token</span>
             <textarea className="auth-textarea" onChange={(e) => setToken(e.target.value)} required value={token} />
