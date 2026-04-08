@@ -158,7 +158,19 @@ export default function CandidateRecursosPage() {
               <span>Enviado: {formatIsoDate(rec.criadoEm)}</span>
               {rec.respondidoEm ? <span>Respondido: {formatIsoDate(rec.respondidoEm)}</span> : null}
             </div>
-{/* decisao refletida apenas pelo badge de status */}
+            {rec.decisao ? (
+              <div style={{ marginTop: 8, padding: "10px 14px", background: "#F8FAFC", borderRadius: 6, fontSize: 13, color: "#334155" }}>
+                <strong>Decisao:</strong> {rec.decisao}
+              </div>
+            ) : null}
+            {rec.anexoUrl ? (
+              <div style={{ marginTop: 6 }}>
+                <button type="button" className="part-card-link" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit", fontSize: 12 }}
+                  onClick={() => { if (session.token) { import("@/lib/files/download").then(({ downloadAuthenticatedFile }) => downloadAuthenticatedFile(rec.anexoUrl!, session.token!, `recurso-anexo-${rec.id}.pdf`)); } }}>
+                  Baixar anexo enviado
+                </button>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
