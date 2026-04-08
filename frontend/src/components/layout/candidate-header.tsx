@@ -20,28 +20,24 @@ export function CandidateHeader() {
     <header className="candidate-topbar">
       <div className="candidate-topbar-inner">
         <Link href="/candidato" className="candidate-topbar-logo" aria-label="Painel do candidato">
-          <span className="candidate-topbar-logo-text">PPGEE/UFAM</span>
-          <span className="candidate-topbar-logo-subtitle">Area do candidato</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/ppgee-colorida.png" alt="PPGEE/UFAM" className="candidate-topbar-logo-img" height={36} />
         </Link>
 
         <div className="public-topbar-spacer" />
 
         <div className="candidate-topbar-right">
-          <span className="candidate-topbar-name">{displayName}</span>
-          <span className="avatar avatar--sm avatar--muted" aria-hidden="true">
-            {initials}
-          </span>
-          <button
-            aria-label="Sair"
-            className="candidate-topbar-signout"
-            onClick={session.signOut}
-            type="button"
-            title="Encerrar sessao"
-          >
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" x2="9" y1="12" y2="12" />
+          <button className="candidate-topbar-notif" type="button" aria-label="Notificacoes">
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg>
+          </button>
+          <button className="candidate-topbar-avatar-pill" onClick={session.signOut} type="button" title="Encerrar sessao">
+            <span className="candidate-topbar-avatar-dot" aria-hidden="true">{initials}</span>
+            <span className="candidate-topbar-avatar-name">{displayName}</span>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m6 9 6 6 6-6" />
             </svg>
           </button>
         </div>
