@@ -39,6 +39,20 @@ const VARIANT_MAP: Record<string, StatusVariant> = {
   CLASSIFICACAO_FINAL: "info",
   LISTA_DE_ESPERA: "info",
   ENVIADO: "info",
+  EM_ANDAMENTO: "info",
+
+  PUBLICADO: "success",
+
+  RETIFICACAO: "warning",
+  ISENCAO_PRELIMINAR: "info",
+  ISENCAO_FINAL: "info",
+  RESULTADO_ETAPA_1: "info",
+  RESULTADO_ETAPA_2: "info",
+  POLITICAS_AFIRMATIVAS_PRELIMINAR: "info",
+  POLITICAS_AFIRMATIVAS_FINAL: "info",
+  COMUNICADO: "neutral",
+  ENCERRADO: "neutral",
+  CANCELADO: "error",
 };
 
 export function getStatusVariant(status: string): StatusVariant {

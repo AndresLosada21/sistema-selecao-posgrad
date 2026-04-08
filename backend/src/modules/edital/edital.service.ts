@@ -7,6 +7,7 @@ import type {
   EditalDetalhe,
   EditalFaseResumo,
   EditalListFilters,
+  EditalListResult,
   EditalResumo,
   EditalWithRelations,
   LinhaPesquisaResumo,
@@ -15,6 +16,32 @@ import type {
   UpsertLinhaPesquisaInput,
 } from "./edital.types.js";
 import { conflict, notFound } from "../../lib/http-errors.js";
+
+function buildEditalWhere(filters: EditalListFilters): Prisma.EditalWhereInput {
+  const where: Prisma.EditalWhereInput = {
+    cursoNivel: filters.cursoNivel,
+  };
+
+  if (filters.ativosSomente) {
+    where.status = {
+      in: ["PUBLICADO", "EM_ANDAMENTO"],
+    };
+  } else if (filters.status?.length) {
+    where.status = {
+      in: filters.status,
+    };
+  }
+
+  if (filters.q) {
+    where.OR = [
+      { numero: { contains: filters.q, mode: "insensitive" } },
+      { titulo: { contains: filters.q, mode: "insensitive" } },
+      { descricao: { contains: filters.q, mode: "insensitive" } },
+    ];
+  }
+
+  return where;
+}
 
 function mapLinhaPesquisa(linha: EditalWithRelations["linhasPesquisa"][number]): LinhaPesquisaResumo {
   return {
@@ -73,49 +100,36 @@ function mapEditalResumo(edital: EditalWithRelations, now: Date): EditalResumo {
   };
 }
 
-export async function listEditais(filters: EditalListFilters): Promise<EditalResumo[]> {
-  const where: Prisma.EditalWhereInput = {
-    cursoNivel: filters.cursoNivel,
-  };
-
+export async function listEditais(filters: EditalListFilters): Promise<EditalListResult> {
+  const where = buildEditalWhere(filters);
   const now = new Date();
-
-  if (filters.ativosSomente) {
-    where.status = {
-      in: ["PUBLICADO", "EM_ANDAMENTO"],
-    };
-  } else if (filters.status?.length) {
-    where.status = {
-      in: filters.status,
-    };
-  }
-
-  if (filters.q) {
-    where.OR = [
-      { numero: { contains: filters.q, mode: "insensitive" } },
-      { titulo: { contains: filters.q, mode: "insensitive" } },
-      { descricao: { contains: filters.q, mode: "insensitive" } },
-    ];
-  }
-
-  const editais = await prisma.edital.findMany({
-    where,
-    include: {
-      cronogramas: true,
-      linhasPesquisa: true,
-    },
-    orderBy: [{ ano: "desc" }, { publicadoEm: "desc" }, { criadoEm: "desc" }],
-  });
-
   const page = filters.page ?? 1;
-  const pageSize = filters.pageSize ?? editais.length;
+  const pageSize = filters.pageSize ?? 20;
+  const skip = (page - 1) * pageSize;
 
-  return editais
-    .map((edital) => mapEditalResumo(edital, now))
-    .slice((page - 1) * pageSize, page * pageSize);
+  const [total, editais] = await Promise.all([
+    prisma.edital.count({ where }),
+    prisma.edital.findMany({
+      where,
+      include: {
+        cronogramas: true,
+        linhasPesquisa: true,
+      },
+      orderBy: [{ ano: "desc" }, { publicadoEm: "desc" }, { criadoEm: "desc" }],
+      skip,
+      take: pageSize,
+    }),
+  ]);
+
+  return {
+    items: editais.map((edital) => mapEditalResumo(edital, now)),
+    total,
+    page,
+    pageSize,
+  };
 }
 
-export async function listAdminEditais(filters?: EditalListFilters): Promise<EditalResumo[]> {
+export async function listAdminEditais(filters?: EditalListFilters): Promise<EditalListResult> {
   return await listEditais({ ...filters, ativosSomente: false });
 }
 

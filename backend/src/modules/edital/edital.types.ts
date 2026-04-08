@@ -15,6 +15,13 @@ export type EditalListFilters = {
   q?: string;
 };
 
+export type EditalListResult = {
+  items: EditalResumo[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export type EditalWithRelations = Prisma.EditalGetPayload<{
   include: {
     cronogramas: true;
