@@ -38,7 +38,6 @@ export type DecisaoRecursoPayload = {
   novaNotaEtapa1?: number;
   novoEspelhoEtapa1?: string;
   novaPontuacaoBrutaEtapa2?: number;
-  novaNotaNormalizadaEtapa2?: number;
   novoEspelhoEtapa2?: string;
   novoResultadoFinalPoliticasAfirmativas?: ResultadoPoliticasAfirmativas;
   novoParecerFinalPoliticasAfirmativas?: string;
