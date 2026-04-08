@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/page-states";
 import { PublicAccessCta } from "@/components/shared/public-access-cta";
 import { SectionCard } from "@/components/shared/section-card";
@@ -14,50 +16,23 @@ type CronogramaPageProps = {
 };
 
 function resolveCronogramaStatus(item: { ativaAgora: boolean; futura: boolean; encerrada: boolean }) {
-  if (item.ativaAgora) {
-    return "EM_ANDAMENTO";
-  }
-
-  if (item.futura) {
-    return "FUTURA";
-  }
-
-  if (item.encerrada) {
-    return "ENCERRADA";
-  }
-
+  if (item.ativaAgora) return "EM_ANDAMENTO";
+  if (item.futura) return "FUTURA";
+  if (item.encerrada) return "ENCERRADA";
   return "SEM_STATUS";
 }
 
 function getCronogramaStatusVariant(status: string): StatusVariant {
-  if (status === "EM_ANDAMENTO") {
-    return "warning";
-  }
-
-  if (status === "FUTURA") {
-    return "info";
-  }
-
-  if (status === "ENCERRADA") {
-    return "success";
-  }
-
+  if (status === "EM_ANDAMENTO") return "warning";
+  if (status === "FUTURA") return "info";
+  if (status === "ENCERRADA") return "success";
   return "neutral";
 }
 
 function getCronogramaStatusLabel(status: string) {
-  if (status === "EM_ANDAMENTO") {
-    return "Em andamento";
-  }
-
-  if (status === "FUTURA") {
-    return "Futura";
-  }
-
-  if (status === "ENCERRADA") {
-    return "Encerrada";
-  }
-
+  if (status === "EM_ANDAMENTO") return "Em andamento";
+  if (status === "FUTURA") return "Futura";
+  if (status === "ENCERRADA") return "Encerrada";
   return "Sem status";
 }
 
@@ -73,35 +48,59 @@ export default async function CronogramaPage({ params }: CronogramaPageProps) {
 
     return (
       <div className="stack-layout">
-        <SectionCard title={`Cronograma de ${edital.numero}`} description="Leitura ordenada das fases publicas retornadas pelo backend.">
-          <div className="content-list">
-            {edital.cronogramas.map((cronograma) => {
-              const status = resolveCronogramaStatus(cronograma);
+        <PageHeader
+          breadcrumb={[
+            { label: "Editais", href: "/editais" },
+            { label: edital.numero, href: `/editais/${edital.id}` },
+            { label: "Cronograma" },
+          ]}
+          title={`Cronograma — ${edital.numero}`}
+          description="Leitura ordenada das fases publicas do processo seletivo."
+        />
 
-              return (
-                <article className="content-item" key={cronograma.id}>
-                  <div className="content-item-row">
-                    <strong>{cronograma.titulo}</strong>
-                    <StatusBadge variant={getCronogramaStatusVariant(status)}>{getCronogramaStatusLabel(status)}</StatusBadge>
-                  </div>
-                  <small>Tipo: {cronograma.tipo}</small>
-                  <small>Inicio: {formatIsoDate(cronograma.inicioEm)}</small>
-                  <small>Fim: {formatIsoDate(cronograma.fimEm)}</small>
-                </article>
-              );
-            })}
-          </div>
-          <div className="content-item-links">
-            <PublicAccessCta authenticatedHref="/candidato/participacoes" candidateLabel="Abrir area do candidato" nextPath="/candidato/participacoes" />
-          </div>
+        <SectionCard title={`Cronograma de ${edital.numero}`}>
+          <table className="crono-table">
+            <thead>
+              <tr>
+                <th>Fase</th>
+                <th>Tipo</th>
+                <th>Inicio</th>
+                <th>Fim</th>
+                <th className="text-center" style={{ width: 120 }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {edital.cronogramas.map((cronograma) => {
+                const status = resolveCronogramaStatus(cronograma);
+                return (
+                  <tr key={cronograma.id}>
+                    <td>{cronograma.titulo}</td>
+                    <td>{cronograma.tipo}</td>
+                    <td>{formatIsoDate(cronograma.inicioEm)}</td>
+                    <td>{formatIsoDate(cronograma.fimEm)}</td>
+                    <td className="text-center">
+                      <StatusBadge variant={getCronogramaStatusVariant(status)}>{getCronogramaStatusLabel(status)}</StatusBadge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </SectionCard>
+
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <Link className="edital-card-link" href={`/editais/${edital.id}`}>
+            ← Voltar ao edital
+          </Link>
+          <div style={{ flex: 1 }} />
+          <PublicAccessCta authenticatedHref="/candidato/participacoes" candidateLabel="Abrir area do candidato" nextPath="/candidato/participacoes" />
+        </div>
       </div>
     );
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       notFound();
     }
-
     throw error;
   }
 }
