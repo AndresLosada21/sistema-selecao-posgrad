@@ -188,7 +188,9 @@ export default function CandidateEspelhosPage({ params }: Props) {
                   {espelho1.textoSubmetido ? (
                     <details style={{ fontSize: 13, color: "#64748B" }}>
                       <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver texto submetido</summary>
-                      <pre style={{ whiteSpace: "pre-wrap", marginTop: 8, padding: 12, background: "#F8FAFC", borderRadius: 6, fontSize: 12, lineHeight: 1.6 }}>{espelho1.textoSubmetido}</pre>
+                      <div style={{ marginTop: 8, padding: 16, background: "#F8FAFC", borderRadius: 6, border: "1px solid #E2E8F0", fontSize: 13, lineHeight: 1.7, color: "#334155", whiteSpace: "pre-wrap" }}>
+                        {espelho1.textoSubmetido}
+                      </div>
                     </details>
                   ) : null}
 
@@ -278,12 +280,47 @@ export default function CandidateEspelhosPage({ params }: Props) {
               ) : null}
               {/* Memoria de calculo */}
               {espelho2.memoriaCalculo ? (
-                <details style={{ fontSize: 13, color: "#64748B" }}>
-                  <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver memoria de calculo</summary>
-                  <pre style={{ whiteSpace: "pre-wrap", marginTop: 8, padding: 12, background: "#F8FAFC", borderRadius: 6, fontSize: 12, lineHeight: 1.6 }}>
-                    {JSON.stringify(espelho2.memoriaCalculo, null, 2)}
-                  </pre>
-                </details>
+                (() => {
+                  const mc = espelho2.memoriaCalculo as Record<string, unknown>;
+                  const formula = typeof mc.formula === "string" ? mc.formula : null;
+                  const pBruta = mc.pontuacaoBruta;
+                  const nNorm = mc.notaNormalizada;
+                  const maiorPB = mc.maiorPontuacaoBruta;
+                  const itens = mc.itensPontuados as Record<string, number> | null | undefined;
+                  return (
+                    <details style={{ fontSize: 13, color: "#64748B" }}>
+                      <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver memoria de calculo</summary>
+                      <div style={{ marginTop: 8, background: "#F8FAFC", borderRadius: 6, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                        {/* Formula */}
+                        {formula ? (
+                          <div style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: 6, border: "1px solid #DBEAFE", fontSize: 12, color: "#1E40AF", fontFamily: "monospace" }}>
+                            {formula}
+                          </div>
+                        ) : null}
+                        {/* Key values */}
+                        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                          {pBruta != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Pontuacao bruta</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(pBruta)}</strong></div> : null}
+                          {maiorPB != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Maior pontuacao bruta</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(maiorPB)}</strong></div> : null}
+                          {nNorm != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Nota normalizada</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(nNorm)}</strong></div> : null}
+                        </div>
+                        {/* Itens pontuados */}
+                        {itens && Object.keys(itens).length > 0 ? (
+                          <div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Itens pontuados:</span>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                              {Object.entries(itens).map(([k, v]) => (
+                                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", background: "#fff", borderRadius: 4, border: "1px solid #F1F5F9" }}>
+                                  <span style={{ color: "#334155" }}>{k}</span>
+                                  <strong style={{ color: "#1E293B" }}>{v}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </details>
+                  );
+                })()
               ) : null}
               <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#94A3B8" }}>
                 <span>Solicitado: {formatIsoDate(etapa2?.espelhoSolicitadoEm ?? null)}</span>
