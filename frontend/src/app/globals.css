@@ -1016,7 +1016,6 @@ textarea {
    ============================================ */
 
 .candidate-topbar {
-  height: var(--topbar-height);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-neutral-200);
 }
@@ -1042,6 +1041,11 @@ textarea {
   font-size: 14px;
   font-weight: 700;
   color: var(--color-primary-800);
+}
+
+.candidate-topbar-logo-subtitle {
+  font-size: 12px;
+  color: var(--color-neutral-500);
 }
 
 .candidate-topbar-right {
@@ -1073,6 +1077,32 @@ textarea {
 .candidate-topbar-signout:hover {
   background: var(--color-neutral-200);
   color: var(--color-error);
+}
+
+.candidate-mobile-nav {
+  display: none;
+}
+
+.candidate-mobile-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-600);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.candidate-mobile-nav-item--active {
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: 600;
+}
+
+.candidate-mobile-nav-icon {
+  display: flex;
+  align-items: center;
 }
 
 .candidate-body {
@@ -1244,6 +1274,8 @@ textarea {
 
   .public-topbar-nav {
     gap: var(--space-3);
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .public-main {
@@ -1255,11 +1287,25 @@ textarea {
     display: none;
   }
 
+  .candidate-mobile-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    overflow-x: auto;
+    padding: var(--space-4) var(--space-7);
+    border-top: 1px solid var(--color-neutral-200);
+    background: var(--color-surface);
+  }
+
   .candidate-main {
     padding: var(--space-9) var(--space-7);
   }
 
   .candidate-topbar-name {
+    display: none;
+  }
+
+  .candidate-topbar-logo-subtitle {
     display: none;
   }
 

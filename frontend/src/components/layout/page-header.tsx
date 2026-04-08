@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 type BreadcrumbSegment = {
@@ -25,7 +26,7 @@ export function PageHeader({ breadcrumb, title, description, actions }: PageHead
                 </svg>
               ) : null}
               {seg.href ? (
-                <a href={seg.href} className="breadcrumb-link">{seg.label}</a>
+                <Link href={seg.href} className="breadcrumb-link">{seg.label}</Link>
               ) : (
                 <span className="breadcrumb-current">{seg.label}</span>
               )}

@@ -25,15 +25,14 @@ export function PublicHeader() {
 
           {session.isAuthenticated ? (
             <>
+              <Link href="/candidato" className="public-topbar-link">
+                Area do candidato
+              </Link>
               {session.hasRole("ADMIN") ? (
                 <Link href="/admin" className="public-topbar-link">
                   Area administrativa
                 </Link>
-              ) : (
-                <Link href="/candidato" className="public-topbar-link">
-                  Area do candidato
-                </Link>
-              )}
+              ) : null}
               <button
                 className="public-topbar-btn public-topbar-btn--ghost"
                 onClick={session.signOut}
@@ -43,9 +42,14 @@ export function PublicHeader() {
               </button>
             </>
           ) : (
-            <Link href="/entrar" className="public-topbar-btn public-topbar-btn--solid">
-              Entrar
-            </Link>
+            <>
+              <Link href="/criar-conta" className="public-topbar-link">
+                Criar conta
+              </Link>
+              <Link href="/entrar" className="public-topbar-btn public-topbar-btn--solid">
+                Entrar
+              </Link>
+            </>
           )}
         </nav>
       </div>
