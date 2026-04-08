@@ -96,10 +96,40 @@ export default function AdminHomePage() {
       <PageHeader title="Painel Administrativo" description="Acesse os módulos operacionais do sistema de seleção." />
 
       <div className="admin-stats-grid">
-        <article className="admin-stat-card"><span className="admin-stat-label">Trilhas/Inscrições</span><strong className="admin-stat-value">{stats.totalInscricoes}</strong></article>
-        <article className="admin-stat-card"><span className="admin-stat-label">Editais Ativos</span><strong className="admin-stat-value">{stats.editaisAtivos}</strong></article>
-        <article className="admin-stat-card"><span className="admin-stat-label">Pedidos Pendentes</span><strong className="admin-stat-value">{stats.pedidosPendentes}</strong></article>
-        <article className="admin-stat-card"><span className="admin-stat-label">Homologações Pendentes</span><strong className="admin-stat-value">{stats.homologacoesPendentes}</strong></article>
+        <article className="admin-stat-card">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="admin-stat-icon" style={{ background: "#EFF6FF", color: "#2563EB" }}>{iconFileText}</span>
+            <span className="admin-stat-label">Total Inscricoes</span>
+          </div>
+          <strong className="admin-stat-value">{stats.totalInscricoes}</strong>
+        </article>
+        <article className="admin-stat-card">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="admin-stat-icon" style={{ background: "#DBEAFE", color: "#3B82F6" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+            </span>
+            <span className="admin-stat-label">Editais Ativos</span>
+          </div>
+          <strong className="admin-stat-value">{stats.editaisAtivos}</strong>
+        </article>
+        <article className="admin-stat-card">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="admin-stat-icon" style={{ background: "#FEF3C7", color: "#F59E0B" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            </span>
+            <span className="admin-stat-label">Pedidos Pendentes</span>
+          </div>
+          <strong className="admin-stat-value">{stats.pedidosPendentes}</strong>
+        </article>
+        <article className="admin-stat-card">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="admin-stat-icon" style={{ background: "#D1FAE5", color: "#10B981" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>
+            </span>
+            <span className="admin-stat-label">Homologacoes Pendentes</span>
+          </div>
+          <strong className="admin-stat-value">{stats.homologacoesPendentes}</strong>
+        </article>
       </div>
 
       {launcherRows.map((row, ri) => (
