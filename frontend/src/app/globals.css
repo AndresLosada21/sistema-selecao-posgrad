@@ -867,7 +867,15 @@ textarea {
 
 /* -- Inscription Wizard (Pencil DS) -- */
 
-.wiz-shell { display: flex; flex-direction: column; min-height: calc(100vh - 64px); margin: -32px -48px; }
+/* Wizard needs to break out of candidate-main-inner max-width and candidate-main padding */
+.candidate-main-inner:has(.wiz-shell) { max-width: none; }
+.candidate-main:has(.wiz-shell) { padding: 0; overflow: hidden; }
+
+.wiz-shell {
+  display: flex; flex-direction: column;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
 
 .wiz-step-bar {
   display: flex; align-items: center; justify-content: center;
@@ -1158,6 +1166,7 @@ textarea {
 .wiz-auto-save { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #94A3B8; }
 
 @media (max-width: 800px) {
+  .wiz-shell { height: auto; min-height: calc(100vh - 64px); }
   .wiz-card { width: 100%; padding: 24px; }
   .wiz-body { padding: 24px 16px 80px; }
   .wiz-footer { padding: 0 16px; }
