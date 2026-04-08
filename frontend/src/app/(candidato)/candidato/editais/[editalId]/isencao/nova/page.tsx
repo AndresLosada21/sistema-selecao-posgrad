@@ -95,6 +95,6 @@ export default function NewIsencaoPage({ params }: NewIsencaoPageProps) {
   }
 
   return (
-    <IsencaoForm cursoNivel={item.edital.cursoNivel as "MESTRADO" | "DOUTORADO"} editalId={item.edital.id} />
+    <IsencaoForm cursoNivel={item.edital.cursoNivel as "MESTRADO" | "DOUTORADO"} editalId={item.edital.id} editalNumero={item.edital.numero} />
   );
 }

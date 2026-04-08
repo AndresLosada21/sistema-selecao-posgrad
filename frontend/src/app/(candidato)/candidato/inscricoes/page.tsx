@@ -66,7 +66,7 @@ export default function CandidateInscricoesPage() {
       {data.items.map((insc, i) => {
         const curso = insc.edital.cursoNivel === "MESTRADO" ? "Mestrado em Eng. Eletrica" : "Doutorado em Eng. Eletrica";
         return (
-          <div key={insc.id} className={`part-card${i > 0 ? " part-card--no-shadow" : ""}`}>
+          <div key={insc.id} className="part-card">
             <div className="part-card-hdr">
               <span className="part-card-title">{insc.edital.numero}</span>
               <StatusBadge variant={getStatusVariant(insc.status)}>{getStatusLabel(insc.status)}</StatusBadge>
@@ -84,7 +84,7 @@ export default function CandidateInscricoesPage() {
                     {iconDownload} {downloadingId === insc.id ? "Baixando..." : "Anexo IV"}
                   </button>
                 ) : null}
-                <Link href={`/candidato/editais/${insc.edital.id}/inscricao`} className="part-card-link">Editar {iconArrowRight}</Link>
+                <Link href={`/candidato/editais/${insc.edital.id}/inscricao`} className="part-card-link" style={{ fontWeight: 600 }}>Editar {iconArrowRight}</Link>
               </div>
             </div>
           </div>

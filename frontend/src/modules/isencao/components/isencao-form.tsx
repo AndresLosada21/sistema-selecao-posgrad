@@ -14,12 +14,13 @@ import { uploadPrivateFile } from "@/modules/upload/api";
 
 type IsencaoFormProps = {
   editalId: string;
+  editalNumero?: string;
   cursoNivel: "MESTRADO" | "DOUTORADO";
 };
 
 const iconArrowLeft = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg>;
 
-export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
+export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormProps) {
   const router = useRouter();
   const session = useSession();
   const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,7 +88,7 @@ export function IsencaoForm({ editalId, cursoNivel }: IsencaoFormProps) {
       <div style={{ width: 560, maxWidth: "100%", background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", boxShadow: "0 4px 16px rgba(0,0,0,0.06)", padding: 36, display: "flex", flexDirection: "column", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Solicitar isencao de taxa</h2>
-          <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>Edital — {cursoLabel}</p>
+          <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>Edital {editalNumero ?? ""} — {cursoLabel}</p>
         </div>
 
         <div style={{ height: 1, background: "#F1F5F9" }} />
