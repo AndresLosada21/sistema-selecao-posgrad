@@ -416,7 +416,14 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha }: {
         </div>
         <div className="wiz-field" style={{ maxWidth: "50%" }}>
           <label className="wiz-field-label">Estado Civil</label>
-          <input placeholder="Solteiro, Casado, etc." value={v("estadoCivil")} onChange={(e) => updateFicha("estadoCivil", e.target.value)} />
+          <select value={v("estadoCivil")} onChange={(e) => updateFicha("estadoCivil", e.target.value)}>
+            <option value="">Selecione...</option>
+            <option value="SOLTEIRO">Solteiro</option>
+            <option value="CASADO">Casado</option>
+            <option value="DIVORCIADO">Divorciado</option>
+            <option value="VIUVO">Viuvo</option>
+            <option value="UNIAO_ESTAVEL">Uniao estavel</option>
+          </select>
         </div>
         <div className="wiz-field">
           <label className="wiz-field-label">E-mail</label>
@@ -435,9 +442,15 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha }: {
           <label className="wiz-field-label">CEP</label>
           <input placeholder="00000-000" value={v("cepResidencial")} onChange={(e) => updateFicha("cepResidencial", e.target.value)} />
         </div>
-        <div className="wiz-field">
-          <label className="wiz-field-label">Endereco (Logradouro, Numero)</label>
-          <input placeholder="Ex: Av. Djalma Batista, 1234" value={v("enderecoResidencial")} onChange={(e) => updateFicha("enderecoResidencial", e.target.value)} />
+        <div className="wiz-field-row">
+          <div className="wiz-field">
+            <label className="wiz-field-label">Logradouro</label>
+            <input placeholder="Ex: Av. Djalma Batista" value={v("enderecoResidencial")} onChange={(e) => updateFicha("enderecoResidencial", e.target.value)} />
+          </div>
+          <div className="wiz-field" style={{ maxWidth: 120 }}>
+            <label className="wiz-field-label">Numero</label>
+            <input placeholder="No" />
+          </div>
         </div>
         <div className="wiz-field-row">
           <div className="wiz-field">
