@@ -78,9 +78,7 @@ export function AdminHeader() {
           );
         })}
 
-        <button aria-label="Sair" className="admin-mobile-nav-logout" onClick={session.signOut} type="button">
-          Sair
-        </button>
+{/* Sair disponivel no dropdown do avatar */}
       </nav>
     </header>
   );
