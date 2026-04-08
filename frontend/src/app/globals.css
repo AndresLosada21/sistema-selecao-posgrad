@@ -1222,6 +1222,66 @@ textarea {
 }
 
 /* ============================================
+   Pagination (Pencil DS)
+   ============================================ */
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: var(--color-neutral-500);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--color-neutral-600);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-300);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-page--active {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  color: #fff;
+}
+
+.pagination-page--active:hover:not(:disabled) {
+  background: var(--color-primary-600);
+}
+
+/* ============================================
    EditalFilterBar (Pencil DS — Chips)
    ============================================ */
 
