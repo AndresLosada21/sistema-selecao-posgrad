@@ -40,13 +40,13 @@ type CandidateEditalPageProps = {
 
 const PENDING_STATUSES = new Set([
   "SEM_RESULTADO", "SEM_PEDIDO", "SEM_INSCRICAO", "SEM_CLASSIFICACAO",
-  "PENDENTE", "NAO_SOLICITADA", "",
+  "PENDENTE", "",
 ]);
 
 function resolveHubValue(status: string | null | undefined): { text: string; active: boolean } {
   const s = status ?? "";
-  if (!s || PENDING_STATUSES.has(s)) return { text: "Pendente", active: false };
   if (s === "NAO_SOLICITADA") return { text: "Nao solicitada", active: false };
+  if (!s || PENDING_STATUSES.has(s)) return { text: "Pendente", active: false };
   return { text: getStatusLabel(s), active: false };
 }
 
@@ -182,22 +182,18 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
       {/* Quick links */}
       <div className="hub-links">
-        {!item.isencao ? (
-          <Link href={`/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
-            {iconShieldCheck} Solicitar isencao
-          </Link>
-        ) : null}
+        <Link href={item.isencao ? "/candidato/isencoes" : `/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
+          {iconShieldCheck} {item.isencao ? "Ver isencao" : "Solicitar isencao"}
+        </Link>
         <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
           {iconEye} Ver espelhos
         </Link>
         <Link href={`/candidato/recursos?editalId=${item.edital.id}`} className="hub-link">
           {iconMessageSquare} Interpor recurso
         </Link>
-        {pacoteDocumentalUrl ? (
-          <button type="button" onClick={handleDownloadPacote} disabled={downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
-            {iconDownload} {downloadingPacote ? "Baixando..." : "Baixar pacote documental"}
-          </button>
-        ) : null}
+        <button type="button" onClick={pacoteDocumentalUrl ? handleDownloadPacote : undefined} disabled={!pacoteDocumentalUrl || downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: pacoteDocumentalUrl ? "pointer" : "default", padding: 0, font: "inherit", opacity: pacoteDocumentalUrl ? 1 : 0.5 }}>
+          {iconDownload} {downloadingPacote ? "Baixando..." : "Baixar pacote documental"}
+        </button>
       </div>
 
       {message ? (

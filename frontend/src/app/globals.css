@@ -1161,7 +1161,7 @@ textarea {
 .candidate-main {
   flex: 1;
   background: var(--color-neutral-50);
-  padding: var(--space-11) var(--space-11);
+  padding: 32px 48px;
   min-width: 0;
 }
 

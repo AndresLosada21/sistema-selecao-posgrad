@@ -106,12 +106,10 @@ export default function CandidateParticipacoesPage() {
                 {iconFileText}
                 <span className="part-card-meta-text">{inscLabel}</span>
               </div>
-              {p.pedidoIsencao ? (
-                <div className="part-card-meta">
-                  {iconShieldCheck}
-                  <span className="part-card-meta-text">{isenLabel}</span>
-                </div>
-              ) : null}
+              <div className="part-card-meta">
+                {iconShieldCheck}
+                <span className="part-card-meta-text">{isenLabel}</span>
+              </div>
               <span className="part-card-spacer" />
               <Link href={`/candidato/editais/${p.edital.id}`} className="part-card-link">
                 Acompanhar
