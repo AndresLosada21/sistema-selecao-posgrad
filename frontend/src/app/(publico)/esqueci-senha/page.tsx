@@ -3,11 +3,21 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { getErrorMessage } from "@/lib/http/api-error";
 import { requestPasswordReset } from "@/modules/auth/api";
+
+const iconKey = (
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
+  </svg>
+);
+
+const iconArrowLeft = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m12 19-7-7 7-7" /><path d="M19 12H5" />
+  </svg>
+);
 
 export default function ForgotPasswordPage() {
   const canShowTokenPreview = process.env.NEXT_PUBLIC_SHOW_DEV_TOOLS === "true";
@@ -29,15 +39,45 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback type={message.type} title="Recuperacao de senha" description={message.text} /> : null}
-      <SectionCard title="Esqueci minha senha" description="Solicite um token temporario para redefinir a senha da sua conta.">
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label className="field-block"><span>E-mail</span><input onChange={(e) => setEmail(e.target.value)} required type="email" value={email} /></label>
-          <ActionButton disabled={busy} loading={busy} type="submit">Solicitar recuperacao</ActionButton>
+    <div className="auth-center">
+      {message ? (
+        <div style={{ width: 440, maxWidth: "100%" }}>
+          <PageFeedback type={message.type} title="Recuperacao de senha" description={message.text} />
+        </div>
+      ) : null}
+
+      <div className="auth-card">
+        <div className="auth-card-header">
+          <span className="auth-card-icon-raw">{iconKey}</span>
+          <strong className="auth-card-title">Esqueci minha senha</strong>
+          <p className="auth-card-desc">Solicite um token temporario para redefinir a senha da sua conta.</p>
+        </div>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label className="auth-field">
+            <span className="auth-field-label">E-mail</span>
+            <input className="auth-input" onChange={(e) => setEmail(e.target.value)} required type="email" value={email} placeholder="seu@email.com" />
+          </label>
+
+          <button className="auth-submit" disabled={busy} type="submit">
+            {busy ? "Processando..." : "Solicitar recuperacao"}
+          </button>
         </form>
-        {tokenPreview && canShowTokenPreview ? <div className="content-item"><small>Preview de desenvolvimento:</small><code>{tokenPreview}</code><div className="content-item-links"><Link className="nav-link" href={`/redefinir-senha?token=${encodeURIComponent(tokenPreview)}`}>Abrir redefinicao com este token</Link></div></div> : null}
-      </SectionCard>
+
+        {tokenPreview && canShowTokenPreview ? (
+          <div className="auth-token-preview">
+            <small>Preview de desenvolvimento:</small>
+            <code>{tokenPreview}</code>
+            <Link className="auth-link" href={`/redefinir-senha?token=${encodeURIComponent(tokenPreview)}`}>
+              Abrir redefinicao com este token
+            </Link>
+          </div>
+        ) : null}
+
+        <Link className="auth-back-link" href="/entrar">
+          {iconArrowLeft} Voltar ao login
+        </Link>
+      </div>
     </div>
   );
 }
