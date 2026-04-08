@@ -4,23 +4,53 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
-import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { ActionButton } from "@/components/shared/action-button";
-import { resolveApiUrl } from "@/lib/config/api";
+import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
-import { formatIsoDate } from "@/modules/edital/formatters";
+
+/* ---- icons (Pencil-aligned) ---- */
+
+const iconPencil = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z" /></svg>
+);
+const iconShieldCheck = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
+);
+const iconEye = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+);
+const iconMessageSquare = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+);
+const iconDownload = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>
+);
 
 type CandidateEditalPageProps = {
   params: Promise<{ editalId: string }>;
 };
+
+/* ---- helpers ---- */
+
+const PENDING_STATUSES = new Set([
+  "SEM_RESULTADO", "SEM_PEDIDO", "SEM_INSCRICAO", "SEM_CLASSIFICACAO",
+  "PENDENTE", "NAO_SOLICITADA", "",
+]);
+
+function resolveHubValue(status: string | null | undefined): { text: string; active: boolean } {
+  const s = status ?? "";
+  if (!s || PENDING_STATUSES.has(s)) return { text: "Pendente", active: false };
+  if (s === "NAO_SOLICITADA") return { text: "Nao solicitada", active: false };
+  return { text: getStatusLabel(s), active: false };
+}
+
+/* ---- page ---- */
 
 export default function CandidateEditalPage({ params }: CandidateEditalPageProps) {
   const session = useSession();
@@ -39,10 +69,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
   }, [params]);
 
   useAbortableEffect(async (signal) => {
-    if (!token || !editalId) {
-      return;
-    }
-
+    if (!token || !editalId) return;
     try {
       const response = await getCandidateDashboard(token);
       if (signal.aborted) return;
@@ -50,186 +77,134 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
       setStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage(getErrorMessage(error));
       setStatus("error");
     }
   }, [editalId, signOut, token]);
 
   const item = useMemo(() => data?.items.find((entry) => entry.edital.id === editalId) ?? null, [data, editalId]);
-  const publicacoesDestaque = item?.publicacoesDestaque ?? [];
-  const publicacoes = item?.publicacoes ?? [];
-  const recursos = item?.recursos ?? [];
   const pacoteDocumentalUrl = item?.inscricao?.pacoteDocumental?.urlArquivo ?? null;
 
-  if (status === "loading") {
-    return <LoadingState title="Carregando edital do candidato" description="Consultando o acompanhamento consolidado do edital." />;
-  }
+  if (status === "loading") return <LoadingState title="Carregando edital do candidato" description="Consultando o acompanhamento consolidado do edital." />;
 
-  if (status === "error") {
-    return <ErrorState title="Falha ao carregar acompanhamento" description={message ?? undefined} />;
-  }
+  if (status === "error") return <ErrorState title="Falha ao carregar acompanhamento" description={message ?? undefined} />;
 
   if (!item) {
     return (
-      <div className="stack-layout">
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <EmptyState title="Edital nao vinculado" description="Nao foi encontrada participacao deste candidato para o edital informado." />
-        <div className="content-item-links">
-          <Link className="nav-link" href="/candidato/participacoes">
-            Ver participacoes da conta
-          </Link>
-        </div>
+        <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#2563EB" }}>Ver participacoes da conta</Link>
       </div>
     );
   }
 
-  const pacoteNomeArquivo = item?.inscricao?.pacoteDocumental?.nomeArquivo ?? "pacote-documental.pdf";
+  const inscricao = item.inscricao;
+  const hasInscricao = !!inscricao;
+  const pacoteNomeArquivo = inscricao?.pacoteDocumental?.nomeArquivo ?? "pacote-documental.pdf";
 
   async function handleDownloadPacote() {
-    if (!session.token || !pacoteDocumentalUrl) {
-      return;
-    }
-
+    if (!session.token || !pacoteDocumentalUrl) return;
     setDownloadingPacote(true);
     setMessage(null);
-
     try {
       await downloadAuthenticatedFile(pacoteDocumentalUrl, session.token, pacoteNomeArquivo);
     } catch (error) {
-      if (isUnauthorizedError(error)) {
-        session.signOut();
-        return;
-      }
-
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
       setMessage(getErrorMessage(error));
-    } finally {
-      setDownloadingPacote(false);
-    }
+    } finally { setDownloadingPacote(false); }
   }
 
+  const cursoLabel = item.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado";
+
+  /* Status cards data */
+  const cards = [
+    { label: "Isencao", ...resolveHubValue(item.isencao?.status ?? "NAO_SOLICITADA") },
+    {
+      label: "Inscricao",
+      text: inscricao ? getStatusLabel(inscricao.status) : "Sem inscricao",
+      active: false,
+      badge: inscricao?.status === "RASCUNHO" ? { text: "Rascunho", variant: "warning" as const } : null,
+    },
+    { label: "Homologacao", ...resolveHubValue(inscricao?.homologacao?.statusFinal ?? null) },
+    { label: "Etapa 1", ...resolveHubValue(inscricao?.etapa1?.status ?? null) },
+    { label: "Etapa 2", ...resolveHubValue(inscricao?.etapa2?.status ?? null) },
+    { label: "Classificacao", ...resolveHubValue(item.classificacao?.status ?? null) },
+    { label: "Recursos", text: (item.recursos?.length ?? 0) === 0 ? "Nenhum" : `${item.recursos.length} interposto(s)`, active: (item.recursos?.length ?? 0) > 0 },
+    { label: "Publicacoes", text: `${(item.publicacoes?.length ?? 0)} disponiveis`, active: (item.publicacoes?.length ?? 0) > 0 },
+  ];
+
   return (
-    <div className="stack-layout">
-      <PageFeedback
-        type="info"
-        title="Acompanhamento consolidado do edital"
-        description="Esta pagina concentra os estados do candidato neste edital, os artefatos disponiveis e o historico oficial publicado."
-      />
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-      <SectionCard title={`${item.edital.numero} · ${item.edital.cursoNivel}`} description={item.edital.titulo}>
-        <div className="content-list">
-          <div className="content-item-row">
-            <small>Status do edital: {getStatusLabel(item.edital.status)}</small>
-            <StatusBadge variant={getStatusVariant(item.statusParticipacao)}>{getStatusLabel(item.statusParticipacao)}</StatusBadge>
-          </div>
-          <small>Curso: {getStatusLabel(item.edital.cursoNivel)}</small>
-          <small>Isencao: {getStatusLabel(item.isencao?.status ?? "SEM_PEDIDO")}</small>
-          <small>Inscricao: {getStatusLabel(item.inscricao?.status ?? "SEM_INSCRICAO")}</small>
-          <small>Homologacao final: {getStatusLabel(item.inscricao?.homologacao?.statusFinal ?? "SEM_RESULTADO")}</small>
-          <small>Etapa 1: {getStatusLabel(item.inscricao?.etapa1?.status ?? "SEM_RESULTADO")}</small>
-          <small>Etapa 2: {getStatusLabel(item.inscricao?.etapa2?.status ?? "SEM_RESULTADO")}</small>
-          <small>Politicas afirmativas: {getStatusLabel(item.inscricao?.politicasAfirmativas?.statusOperacao ?? "SEM_RESULTADO")}</small>
-          <small>Classificacao: {getStatusLabel(item.classificacao?.status ?? "SEM_CLASSIFICACAO")}</small>
-          <small>Recursos interpostos: {recursos.length}</small>
-          <div className="content-item-links">
-            {!item.isencao ? (
-              <Link className="nav-link" href={`/candidato/editais/${item.edital.id}/isencao/nova`}>
-                Registrar pedido de isencao
-              </Link>
-            ) : null}
-            <Link className="nav-link" href={`/candidato/editais/${item.edital.id}/inscricao`}>
-              Abrir inscricao
-            </Link>
-            <Link className="nav-link" href={`/candidato/editais/${item.edital.id}/espelhos`}>
-              Gerenciar espelhos
-            </Link>
-            <Link className="nav-link" href={`/candidato/recursos?editalId=${item.edital.id}`}>
-              Abrir recursos
-            </Link>
-            {item.isencao ? (
-              <Link className="nav-link" href="/candidato/isencoes">
-                Ver historico de isencao
-              </Link>
-            ) : null}
-              <Link className="nav-link" href={`/editais/${item.edital.id}/publicacoes`}>
-                Ver publicacoes publicas
-              </Link>
-            {pacoteDocumentalUrl ? (
-              <ActionButton disabled={downloadingPacote} onClick={handleDownloadPacote} size="sm" type="button" variant="secondary">
-                {downloadingPacote ? "Baixando pacote..." : "Baixar pacote documental"}
-              </ActionButton>
-            ) : null}
-          </div>
+      {/* Page header */}
+      <div className="hub-header">
+        <div className="hub-header-left">
+          <h1>{item.edital.numero}</h1>
+          <p>{cursoLabel} em Engenharia Eletrica · Acompanhamento do candidato</p>
         </div>
-      </SectionCard>
+        {hasInscricao ? (
+          <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
+            {iconPencil}
+            <span>Editar inscricao</span>
+          </Link>
+        ) : (
+          <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
+            {iconPencil}
+            <span>Nova inscricao</span>
+          </Link>
+        )}
+      </div>
 
-      <SectionCard title="Artefatos e publicacoes" description="Leitura das publicacoes destacadas e do historico versionado retornado pelo backend.">
-        <div className="content-list">
-          {publicacoesDestaque.map((publicacao) => (
-            <article className="content-item" key={`destaque-${publicacao.id}`}>
-              <div className="content-item-row">
-                <strong>{publicacao.titulo}</strong>
-                <StatusBadge variant={getStatusVariant(publicacao.tipo)}>{getStatusLabel(publicacao.tipo)}</StatusBadge>
-              </div>
-              <p>{publicacao.descricao ?? "Sem descricao cadastrada."}</p>
-              <small>Versao: {publicacao.versao}</small>
-              <div className="content-item-links">
-                <Link className="nav-link" href={resolveApiUrl(publicacao.arquivoUrl)} rel="noreferrer" target="_blank">
-                  Abrir PDF oficial
-                </Link>
-              </div>
-            </article>
-          ))}
-          {publicacoesDestaque.length ? null : <EmptyState title="Sem publicacoes" description="Ainda nao ha publicacoes oficiais em destaque vinculadas a este edital." />}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Historico de publicacoes" description="Historico ordenado pelo payload consolidado da area do candidato.">
-        <div className="content-list">
-          {publicacoes.map((publicacao) => (
-            <article className="content-item" key={publicacao.id}>
-              <div className="content-item-row">
-                <strong>{publicacao.titulo}</strong>
-                <StatusBadge variant={getStatusVariant(publicacao.tipo)}>{getStatusLabel(publicacao.tipo)}</StatusBadge>
-              </div>
-              <small>Versao: {publicacao.versao}</small>
-              <small>Publicado em: {formatIsoDate(publicacao.publicadoEm)}</small>
-              <div className="content-item-links">
-                <Link className="nav-link" href={resolveApiUrl(publicacao.arquivoUrl)} rel="noreferrer" target="_blank">
-                  Abrir PDF oficial
-                </Link>
-              </div>
-            </article>
-          ))}
-        </div>
-      </SectionCard>
-
-      {recursos.length ? (
-        <SectionCard title="Recursos vinculados" description="Resumo dos recursos ja interpostos neste edital.">
-          <div className="content-list">
-            {recursos.map((recurso) => (
-              <article className="content-item" key={recurso.id}>
-                <div className="content-item-row">
-                  <strong>{getStatusLabel(recurso.fase)}</strong>
-                  <StatusBadge variant={getStatusVariant(recurso.status)}>{getStatusLabel(recurso.status)}</StatusBadge>
-                </div>
-                <p>{recurso.fundamentacao ?? "Sem fundamentacao resumida disponivel."}</p>
-                <small>Respondido em: {formatIsoDate(recurso.respondidoEm ?? null)}</small>
-                <small>Decisao: {recurso.decisao ?? "ainda nao registrada"}</small>
-              </article>
-            ))}
+      {/* Status grid row 1 */}
+      <div className="hub-grid">
+        {cards.slice(0, 4).map((card) => (
+          <div key={card.label} className="hub-status-card">
+            <span className="hub-status-label">{card.label}</span>
+            {"badge" in card && card.badge ? (
+              <StatusBadge variant={getStatusVariant(card.badge.text === "Rascunho" ? "RASCUNHO" : "")}>{card.badge.text}</StatusBadge>
+            ) : (
+              <span className={`hub-status-value${card.active ? " hub-status-value--active" : ""}`}>{card.text}</span>
+            )}
           </div>
-        </SectionCard>
+        ))}
+      </div>
+
+      {/* Status grid row 2 */}
+      <div className="hub-grid">
+        {cards.slice(4).map((card) => (
+          <div key={card.label} className="hub-status-card">
+            <span className="hub-status-label">{card.label}</span>
+            <span className={`hub-status-value${card.active ? " hub-status-value--active" : ""}`}>{card.text}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick links */}
+      <div className="hub-links">
+        {!item.isencao ? (
+          <Link href={`/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
+            {iconShieldCheck} Solicitar isencao
+          </Link>
+        ) : null}
+        <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
+          {iconEye} Ver espelhos
+        </Link>
+        <Link href={`/candidato/recursos?editalId=${item.edital.id}`} className="hub-link">
+          {iconMessageSquare} Interpor recurso
+        </Link>
+        {pacoteDocumentalUrl ? (
+          <button type="button" onClick={handleDownloadPacote} disabled={downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
+            {iconDownload} {downloadingPacote ? "Baixando..." : "Baixar pacote documental"}
+          </button>
+        ) : null}
+      </div>
+
+      {message ? (
+        <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>
+          {message}
+        </div>
       ) : null}
-
-      <PageFeedback
-        type="info"
-        title="Fluxo operacional deste edital"
-        description="Use esta pagina para acompanhar estados, baixar artefatos e abrir os fluxos de inscricao e isencao. Recursos e espelhos ainda dependem das janelas e exposicoes retornadas pelo backend."
-      />
     </div>
   );
 }
