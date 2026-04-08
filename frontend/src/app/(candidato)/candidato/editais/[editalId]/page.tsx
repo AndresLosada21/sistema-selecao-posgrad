@@ -43,11 +43,33 @@ const PENDING_STATUSES = new Set([
   "PENDENTE", "",
 ]);
 
-function resolveHubValue(status: string | null | undefined): { text: string; active: boolean } {
+const SUCCESS_STATUSES = new Set([
+  "DEFERIDA", "DEFERIDA_PRELIMINAR", "DEFERIDA_FINAL", "APROVADA", "APROVADO",
+  "HOMOLOGADA", "HOMOLOGADA_PRELIMINAR", "HOMOLOGADA_FINAL",
+  "SUBMETIDA", "CONFIRMADA", "CLASSIFICADO",
+  "FINAL_PUBLICADA", "PRELIMINAR_PUBLICADA",
+]);
+
+const WARNING_STATUSES = new Set([
+  "RASCUNHO", "SOLICITADA", "EM_ANALISE", "EM_AVALIACAO", "EM_ANDAMENTO",
+]);
+
+const ERROR_STATUSES = new Set([
+  "INDEFERIDA", "INDEFERIDA_PRELIMINAR", "INDEFERIDA_FINAL",
+  "NAO_HOMOLOGADA_PRELIMINAR", "NAO_HOMOLOGADA_FINAL",
+  "ELIMINADA", "ELIMINADO", "NAO_CONFIRMADA",
+]);
+
+type HubColor = "success" | "warning" | "error" | "active" | "neutral";
+
+function resolveHubValue(status: string | null | undefined): { text: string; color: HubColor } {
   const s = status ?? "";
-  if (s === "NAO_SOLICITADA") return { text: "Nao solicitada", active: false };
-  if (!s || PENDING_STATUSES.has(s)) return { text: "Pendente", active: false };
-  return { text: getStatusLabel(s), active: false };
+  if (s === "NAO_SOLICITADA") return { text: "Nao solicitada", color: "neutral" };
+  if (!s || PENDING_STATUSES.has(s)) return { text: "Pendente", color: "neutral" };
+  if (SUCCESS_STATUSES.has(s)) return { text: getStatusLabel(s), color: "success" };
+  if (WARNING_STATUSES.has(s)) return { text: getStatusLabel(s), color: "warning" };
+  if (ERROR_STATUSES.has(s)) return { text: getStatusLabel(s), color: "error" };
+  return { text: getStatusLabel(s), color: "neutral" };
 }
 
 /* ---- page ---- */
@@ -118,20 +140,16 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
   const cursoLabel = item.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado";
 
   /* Status cards data */
-  const cards = [
+  const inscricaoHub = inscricao ? resolveHubValue(inscricao.status) : { text: "Sem inscricao", color: "neutral" as HubColor };
+  const cards: Array<{ label: string; text: string; color: HubColor; badge?: { text: string } | null }> = [
     { label: "Isencao", ...resolveHubValue(item.isencao?.status ?? "NAO_SOLICITADA") },
-    {
-      label: "Inscricao",
-      text: inscricao ? getStatusLabel(inscricao.status) : "Sem inscricao",
-      active: false,
-      badge: inscricao?.status === "RASCUNHO" ? { text: "Rascunho", variant: "warning" as const } : null,
-    },
+    { label: "Inscricao", ...inscricaoHub, badge: inscricao?.status === "RASCUNHO" ? { text: "Rascunho" } : null },
     { label: "Homologacao", ...resolveHubValue(inscricao?.homologacao?.statusFinal ?? null) },
     { label: "Etapa 1", ...resolveHubValue(inscricao?.etapa1?.status ?? null) },
     { label: "Etapa 2", ...resolveHubValue(inscricao?.etapa2?.status ?? null) },
     { label: "Classificacao", ...resolveHubValue(item.classificacao?.status ?? null) },
-    { label: "Recursos", text: (item.recursos?.length ?? 0) === 0 ? "Nenhum" : `${item.recursos.length} interposto(s)`, active: (item.recursos?.length ?? 0) > 0 },
-    { label: "Publicacoes", text: `${(item.publicacoes?.length ?? 0)} disponiveis`, active: (item.publicacoes?.length ?? 0) > 0 },
+    { label: "Recursos", text: (item.recursos?.length ?? 0) === 0 ? "Nenhum" : `${item.recursos.length} interposto(s)`, color: (item.recursos?.length ?? 0) > 0 ? "active" : "neutral" },
+    { label: "Publicacoes", text: `${(item.publicacoes?.length ?? 0)} disponiveis`, color: (item.publicacoes?.length ?? 0) > 0 ? "active" : "neutral" },
   ];
 
   return (
@@ -158,26 +176,34 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
       {/* Status grid row 1 */}
       <div className="hub-grid">
-        {cards.slice(0, 4).map((card) => (
-          <div key={card.label} className="hub-status-card">
-            <span className="hub-status-label">{card.label}</span>
-            {"badge" in card && card.badge ? (
-              <StatusBadge variant={getStatusVariant(card.badge.text === "Rascunho" ? "RASCUNHO" : "")}>{card.badge.text}</StatusBadge>
-            ) : (
-              <span className={`hub-status-value${card.active ? " hub-status-value--active" : ""}`}>{card.text}</span>
-            )}
-          </div>
-        ))}
+        {cards.slice(0, 4).map((card) => {
+          const cardClass = card.color !== "neutral" && card.color !== "active" ? ` hub-status-card--${card.color}` : "";
+          const valueClass = card.color !== "neutral" ? ` hub-status-value--${card.color}` : "";
+          return (
+            <div key={card.label} className={`hub-status-card${cardClass}`}>
+              <span className="hub-status-label">{card.label}</span>
+              {card.badge ? (
+                <StatusBadge variant={getStatusVariant("RASCUNHO")}>{card.badge.text}</StatusBadge>
+              ) : (
+                <span className={`hub-status-value${valueClass}`}>{card.text}</span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Status grid row 2 */}
       <div className="hub-grid">
-        {cards.slice(4).map((card) => (
-          <div key={card.label} className="hub-status-card">
-            <span className="hub-status-label">{card.label}</span>
-            <span className={`hub-status-value${card.active ? " hub-status-value--active" : ""}`}>{card.text}</span>
-          </div>
-        ))}
+        {cards.slice(4).map((card) => {
+          const cardClass = card.color !== "neutral" && card.color !== "active" ? ` hub-status-card--${card.color}` : "";
+          const valueClass = card.color !== "neutral" ? ` hub-status-value--${card.color}` : "";
+          return (
+            <div key={card.label} className={`hub-status-card${cardClass}`}>
+              <span className="hub-status-label">{card.label}</span>
+              <span className={`hub-status-value${valueClass}`}>{card.text}</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Quick links */}

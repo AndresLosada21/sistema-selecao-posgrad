@@ -849,6 +849,13 @@ textarea {
 .hub-status-label { font-size: 12px; font-weight: 600; color: #64748B; }
 .hub-status-value { font-size: 14px; font-weight: 500; color: #94A3B8; }
 .hub-status-value--active { color: #2563EB; }
+.hub-status-value--success { color: #065F46; }
+.hub-status-value--warning { color: #92400E; }
+.hub-status-value--error { color: #991B1B; }
+
+.hub-status-card--success { border-color: #D1FAE5; background: #F0FDF4; }
+.hub-status-card--warning { border-color: #FEF3C7; background: #FFFBEB; }
+.hub-status-card--error { border-color: #FECACA; background: #FEF2F2; }
 
 .hub-links { display: flex; gap: 16px; flex-wrap: wrap; }
 .hub-link {
