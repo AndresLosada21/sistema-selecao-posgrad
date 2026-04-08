@@ -100,7 +100,6 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
     novaNotaEtapa1: payload.novaNotaEtapa1,
     novoEspelhoEtapa1: payload.novoEspelhoEtapa1,
     novaPontuacaoBrutaEtapa2: payload.novaPontuacaoBrutaEtapa2,
-    novaNotaNormalizadaEtapa2: payload.novaNotaNormalizadaEtapa2,
     novoEspelhoEtapa2: payload.novoEspelhoEtapa2,
     novoResultadoFinalPoliticasAfirmativas: payload.novoResultadoFinalPoliticasAfirmativas,
     novoParecerFinalPoliticasAfirmativas: payload.novoParecerFinalPoliticasAfirmativas,

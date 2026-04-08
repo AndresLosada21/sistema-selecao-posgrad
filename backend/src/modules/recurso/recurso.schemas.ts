@@ -29,7 +29,6 @@ export const decidirRecursoSchema = z.object({
   novaNotaEtapa1: z.number().min(0).max(10).optional(),
   novoEspelhoEtapa1: z.string().trim().min(5).optional(),
   novaPontuacaoBrutaEtapa2: z.number().min(0).optional(),
-  novaNotaNormalizadaEtapa2: z.number().min(0).max(10).optional(),
   novoEspelhoEtapa2: z.string().trim().min(5).optional(),
   novoResultadoFinalPoliticasAfirmativas: z.nativeEnum(ResultadoPoliticasAfirmativas).optional(),
   novoParecerFinalPoliticasAfirmativas: z.string().trim().min(5).optional(),

@@ -239,6 +239,9 @@ export default function CandidateEspelhosPage({ params }: Props) {
                 <span>Pontuacao bruta: <strong>{espelho2.pontuacaoBruta ?? "—"}</strong></span>
                 <span>Nota normalizada: <strong>{espelho2.notaNormalizada ?? "—"}</strong></span>
               </div>
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                A nota normalizada da etapa 2 e calculada automaticamente por regra de tres simples a partir da pontuacao bruta e da maior pontuacao bruta da etapa.
+              </div>
               {espelho2.pontuacaoItens ? (
                 <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
                   <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>

@@ -16,7 +16,12 @@ import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import { getInscricaoStatusAfterFinalHomologacao, normalizeFinalHomologacaoStatus } from "../homologacao/homologacao.rules.js";
 import { registrarResultadoFinalPoliticasAfirmativas } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { createClassificacaoPublicacao, createHomologacaoPublicacao, createPoliticasAfirmativasPublicacao } from "../publicacao/publicacao.service.js";
-import { resolveClassificacaoPublicacaoAtual, shouldReprocessClassificacaoAfterRecurso } from "./recurso.rules.js";
+import {
+  rebuildEtapa1AuditSnapshotAfterRecurso,
+  rebuildEtapa2AuditTrailAfterRecurso,
+  resolveClassificacaoPublicacaoAtual,
+  shouldReprocessClassificacaoAfterRecurso,
+} from "./recurso.rules.js";
 
 function getRecursoWindowType(fase: FaseRecurso) {
   switch (fase) {
@@ -286,7 +291,6 @@ export async function decidirRecurso(
     novaNotaEtapa1?: number;
     novoEspelhoEtapa1?: string;
     novaPontuacaoBrutaEtapa2?: number;
-    novaNotaNormalizadaEtapa2?: number;
     novoEspelhoEtapa2?: string;
     novoResultadoFinalPoliticasAfirmativas?: ResultadoPoliticasAfirmativas;
     novoParecerFinalPoliticasAfirmativas?: string;
@@ -463,10 +467,19 @@ export async function decidirRecurso(
           break;
         case FaseRecurso.ETAPA_1:
           if (recurso.participacaoEdital.inscricao?.avaliacaoEtapa1 && input.novaNotaEtapa1 !== undefined) {
+            const avaliacaoAtual = recurso.participacaoEdital.inscricao.avaliacaoEtapa1;
+            const rubricaDetalhada = rebuildEtapa1AuditSnapshotAfterRecurso({
+              existingSnapshot: avaliacaoAtual.rubricaDetalhada,
+              notaFinal: input.novaNotaEtapa1,
+              usoIaComprovado: avaliacaoAtual.usoIaComprovado,
+              fundamentoUsoIa: avaliacaoAtual.fundamentoUsoIa,
+            });
+
             await tx.avaliacaoEtapa1.update({
               where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
               data: {
                 nota: input.novaNotaEtapa1,
+                rubricaDetalhada: rubricaDetalhada as Prisma.InputJsonValue,
                 espelhoCorrecao: input.novoEspelhoEtapa1 ?? input.decisao,
                 status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
                 resultadoFinalEm: new Date(),
@@ -483,14 +496,24 @@ export async function decidirRecurso(
         case FaseRecurso.ETAPA_2:
           if (
             recurso.participacaoEdital.inscricao?.avaliacaoEtapa2 &&
-            input.novaPontuacaoBrutaEtapa2 !== undefined &&
-            input.novaNotaNormalizadaEtapa2 !== undefined
+            input.novaPontuacaoBrutaEtapa2 !== undefined
           ) {
+            const avaliacaoAtual = recurso.participacaoEdital.inscricao.avaliacaoEtapa2;
+            const etapa2AuditTrail = rebuildEtapa2AuditTrailAfterRecurso({
+              pontuacaoItensAtual: avaliacaoAtual.pontuacaoItens,
+              pontuacaoBrutaAtual: Number(avaliacaoAtual.pontuacaoBruta ?? 0),
+              novaPontuacaoBruta: input.novaPontuacaoBrutaEtapa2,
+              memoriaCalculoAtual: avaliacaoAtual.memoriaCalculo,
+              glosasAtuais: avaliacaoAtual.glosas,
+            });
+
             await tx.avaliacaoEtapa2.update({
               where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
               data: {
-                pontuacaoBruta: input.novaPontuacaoBrutaEtapa2,
-                notaNormalizada: input.novaNotaNormalizadaEtapa2,
+                pontuacaoBruta: etapa2AuditTrail.pontuacaoBruta,
+                notaNormalizada: etapa2AuditTrail.notaNormalizada,
+                memoriaCalculo: etapa2AuditTrail.memoriaCalculo as Prisma.InputJsonValue,
+                glosas: etapa2AuditTrail.glosas as unknown as Prisma.InputJsonValue,
                 espelhoCorrecao: input.novoEspelhoEtapa2 ?? input.decisao,
                 status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
                 resultadoFinalEm: new Date(),

@@ -35,7 +35,6 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [novaNotaEtapa1, setNovaNotaEtapa1] = useState("");
   const [novoEspelhoEtapa1, setNovoEspelhoEtapa1] = useState("");
   const [novaPontuacaoBrutaEtapa2, setNovaPontuacaoBrutaEtapa2] = useState("");
-  const [novaNotaNormalizadaEtapa2, setNovaNotaNormalizadaEtapa2] = useState("");
   const [novoEspelhoEtapa2, setNovoEspelhoEtapa2] = useState("");
   const [novoResultadoPoliticas, setNovoResultadoPoliticas] = useState<(typeof resultadoPoliticasOptions)[number]>(resultadoPoliticasOptions[0]);
   const [novoParecerPoliticas, setNovoParecerPoliticas] = useState("");
@@ -74,7 +73,6 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         novaNotaEtapa1: novaNotaEtapa1 ? Number(novaNotaEtapa1) : undefined,
         novoEspelhoEtapa1: novoEspelhoEtapa1 || undefined,
         novaPontuacaoBrutaEtapa2: novaPontuacaoBrutaEtapa2 ? Number(novaPontuacaoBrutaEtapa2) : undefined,
-        novaNotaNormalizadaEtapa2: novaNotaNormalizadaEtapa2 ? Number(novaNotaNormalizadaEtapa2) : undefined,
         novoEspelhoEtapa2: novoEspelhoEtapa2 || undefined,
         novoResultadoFinalPoliticasAfirmativas: novoResultadoPoliticas || undefined,
         novoParecerFinalPoliticasAfirmativas: novoParecerPoliticas || undefined,
@@ -91,6 +89,9 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   if (status === "error") return <ErrorState title="Falha ao carregar recurso" description={message?.text} />;
   if (!item) return <EmptyState title="Recurso nao encontrado" description="O recurso nao foi encontrado na fila administrativa atual." />;
 
+  const isEtapa1 = item.fase === "ETAPA_1";
+  const isEtapa2 = item.fase === "ETAPA_2";
+
   return (
     <div className="stack-layout">
       {message ? <PageFeedback description={message.text} title="Retorno operacional" type={message.type} /> : null}
@@ -106,19 +107,20 @@ export default function AdminRecursoDetailPage({ params }: Props) {
           <small>Anexo: {item.anexoUrl ?? "nao informado"}</small>
         </div>
       </SectionCard>
-      <SectionCard title="Decisao do recurso" description="Formulario administrativo generico cobrindo os campos opcionais de impacto retornados pelo backend.">
+      <SectionCard title="Decisao do recurso" description="Formulario administrativo para registrar a decisao e, quando houver impacto, atualizar o estado derivado no backend.">
         <form className="form-grid" onSubmit={onSubmit}>
           <label className="field-inline"><input checked={deferido} onChange={(e) => setDeferido(e.target.checked)} type="checkbox" /><span>Deferido</span></label>
           <label className="field-inline"><input checked={impactoResultado} onChange={(e) => setImpactoResultado(e.target.checked)} type="checkbox" /><span>Impacta o resultado</span></label>
           <label className="field-block"><span>Decisao</span><textarea className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} required value={decisao} /></label>
           {impactoResultado ? (
             <>
+              {isEtapa1 ? <PageFeedback type="info" title="Etapa 1" description="Ao informar a nova nota, o backend recompõe automaticamente o snapshot auditavel da avaliacao final da etapa 1." /> : null}
+              {isEtapa2 ? <PageFeedback type="info" title="Etapa 2" description="Informe apenas a nova pontuacao bruta. O backend recalcula automaticamente a nota normalizada e recompõe a memoria de calculo auditavel conforme a formula oficial do edital." /> : null}
               <label className="field-block"><span>Novo status da isencao</span><select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}><option value="">Nao alterar</option>{statusIsencaoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
               <label className="field-block"><span>Novo status da inscricao</span><select className="select-field" onChange={(e) => setNovoStatusInscricao((e.target.value || "") as StatusInscricao | "")} value={novoStatusInscricao}><option value="">Nao alterar</option>{statusInscricaoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
               <label className="field-block"><span>Nova nota etapa 1</span><input min="0" max="10" onChange={(e) => setNovaNotaEtapa1(e.target.value)} step="0.1" type="number" value={novaNotaEtapa1} /></label>
               <label className="field-block"><span>Novo espelho etapa 1</span><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} value={novoEspelhoEtapa1} /></label>
               <label className="field-block"><span>Nova pontuacao bruta etapa 2</span><input min="0" onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step="0.1" type="number" value={novaPontuacaoBrutaEtapa2} /></label>
-              <label className="field-block"><span>Nova nota normalizada etapa 2</span><input min="0" max="10" onChange={(e) => setNovaNotaNormalizadaEtapa2(e.target.value)} step="0.1" type="number" value={novaNotaNormalizadaEtapa2} /></label>
               <label className="field-block"><span>Novo espelho etapa 2</span><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} value={novoEspelhoEtapa2} /></label>
               <label className="field-block"><span>Novo resultado final de politicas afirmativas</span><select className="select-field" onChange={(e) => setNovoResultadoPoliticas(e.target.value as (typeof resultadoPoliticasOptions)[number])} value={novoResultadoPoliticas}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
               <label className="field-block"><span>Novo parecer final de politicas afirmativas</span><textarea className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} value={novoParecerPoliticas} /></label>
