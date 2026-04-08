@@ -193,6 +193,10 @@ textarea {
   text-align: center;
 }
 
+.state-block-icon {
+  margin-bottom: var(--space-3);
+}
+
 .state-block strong {
   margin: 0;
   display: block;
@@ -877,6 +881,342 @@ textarea {
    Responsive
    ============================================ */
 
+/* ============================================
+   Public Layout (Pencil DS)
+   ============================================ */
+
+.public-topbar {
+  height: var(--topbar-height);
+  background: var(--color-primary-800);
+  color: #fff;
+}
+
+.public-topbar-inner {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-11);
+  gap: var(--space-7);
+}
+
+.public-topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  color: #fff;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.public-topbar-logo-text {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.public-topbar-logo-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-primary-600);
+}
+
+.public-topbar-logo-subtitle {
+  font-size: 13px;
+  color: var(--color-primary-300);
+}
+
+.public-topbar-spacer {
+  flex: 1;
+}
+
+.public-topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.public-topbar-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-primary-200);
+  text-decoration: none;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.public-topbar-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.public-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.public-topbar-btn--solid {
+  background: #fff;
+  color: var(--color-primary-800);
+}
+
+.public-topbar-btn--solid:hover {
+  background: var(--color-primary-100);
+}
+
+.public-topbar-btn--ghost {
+  background: transparent;
+  color: var(--color-primary-200);
+  border: 1px solid var(--color-primary-600);
+}
+
+.public-topbar-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.public-footer {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 var(--space-11);
+  background: var(--color-neutral-100);
+  border-top: 1px solid var(--color-neutral-200);
+}
+
+.public-footer-copy {
+  font-size: var(--font-size-xs);
+  color: var(--color-neutral-400);
+}
+
+.public-main {
+  flex: 1;
+  background: var(--color-neutral-50);
+  padding: var(--space-11) var(--space-11);
+}
+
+.public-main-inner {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-9);
+}
+
+/* ============================================
+   Candidate Layout (Pencil DS)
+   ============================================ */
+
+.candidate-topbar {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.candidate-topbar-inner {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 var(--space-11);
+  gap: var(--space-7);
+}
+
+.candidate-topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  color: var(--color-primary-800);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.candidate-topbar-logo-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-primary-800);
+}
+
+.candidate-topbar-logo-subtitle {
+  font-size: 12px;
+  color: var(--color-neutral-500);
+}
+
+.candidate-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.candidate-topbar-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-neutral-800);
+}
+
+.candidate-topbar-signout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-500);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.candidate-topbar-signout:hover {
+  background: var(--color-neutral-200);
+  color: var(--color-error);
+}
+
+.candidate-mobile-nav {
+  display: none;
+}
+
+.candidate-mobile-nav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--color-neutral-600);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.candidate-mobile-nav-item--active {
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: 600;
+}
+
+.candidate-mobile-nav-icon {
+  display: flex;
+  align-items: center;
+}
+
+.candidate-body {
+  display: flex;
+  min-height: calc(100vh - var(--topbar-height));
+}
+
+.candidate-sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-neutral-200);
+  padding: var(--space-7) var(--space-5);
+}
+
+.candidate-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.candidate-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-neutral-600);
+  text-decoration: none;
+  transition: background 0.12s;
+}
+
+.candidate-sidebar-item:hover {
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-800);
+}
+
+.candidate-sidebar-item--active {
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: 600;
+}
+
+.candidate-sidebar-item--active .candidate-sidebar-icon {
+  color: var(--color-primary-500);
+}
+
+.candidate-sidebar-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--color-neutral-400);
+}
+
+.candidate-main {
+  flex: 1;
+  background: var(--color-neutral-50);
+  padding: var(--space-11) var(--space-11);
+  min-width: 0;
+}
+
+.candidate-main-inner {
+  max-width: 960px;
+  display: grid;
+  gap: var(--space-9);
+}
+
+/* ============================================
+   PageHeader (Pencil DS)
+   ============================================ */
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-7);
+}
+
+.page-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-header-title {
+  margin: 0;
+  font-size: var(--font-size-h2);
+  font-weight: 700;
+  color: var(--color-neutral-900);
+}
+
+.page-header-description {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-base);
+  color: var(--color-neutral-500);
+}
+
+.page-header-actions {
+  display: flex;
+  gap: var(--space-5);
+  flex-shrink: 0;
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+
 @media (max-width: 900px) {
   .app-frame-header,
   .content-item-row,
@@ -920,5 +1260,56 @@ textarea {
   .dashboard-pub-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  /* Public responsive */
+  .public-topbar-inner {
+    padding: 0 var(--space-7);
+  }
+
+  .public-topbar-logo-subtitle,
+  .public-topbar-logo-divider {
+    display: none;
+  }
+
+  .public-topbar-nav {
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .public-main {
+    padding: var(--space-9) var(--space-7);
+  }
+
+  /* Candidate responsive */
+  .candidate-sidebar {
+    display: none;
+  }
+
+  .candidate-mobile-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    overflow-x: auto;
+    padding: var(--space-4) var(--space-7);
+    border-top: 1px solid var(--color-neutral-200);
+    background: var(--color-surface);
+  }
+
+  .candidate-main {
+    padding: var(--space-9) var(--space-7);
+  }
+
+  .candidate-topbar-name {
+    display: none;
+  }
+
+  .candidate-topbar-logo-subtitle {
+    display: none;
+  }
+
+  .page-header-row {
+    flex-direction: column;
   }
 }
