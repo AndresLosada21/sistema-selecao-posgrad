@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
     setBusy(true); setMessage(null); setTokenPreview(null);
     try {
       const response = await requestPasswordReset({ email });
-      setMessage({ type: "success", text: "Se a conta existir e estiver apta, a recuperacao foi solicitada." });
+      setMessage({ type: "success", text: "Se a conta existir e estiver apta, a recuperação foi solicitada." });
       setTokenPreview(response.resetTokenPreview ?? null);
     } catch (error) {
       setMessage({ type: "error", text: getErrorMessage(error) });
@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
         <div className="auth-card-header">
           <span className="auth-card-icon-raw">{iconKey}</span>
           <strong className="auth-card-title">Esqueci minha senha</strong>
-          <p className="auth-card-desc">Solicite um token temporario para redefinir a senha da sua conta.</p>
+          <p className="auth-card-desc">Solicite um token temporário para redefinir a senha da sua conta.</p>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
           </label>
 
           <button className="auth-submit" disabled={busy} type="submit">
-            {busy ? "Processando..." : "Solicitar recuperacao"}
+            {busy ? "Processando..." : "Solicitar recuperação"}
           </button>
         </form>
 
