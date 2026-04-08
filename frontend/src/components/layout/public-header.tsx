@@ -11,9 +11,8 @@ export function PublicHeader() {
     <header className="public-topbar">
       <div className="public-topbar-inner">
         <Link href="/editais" className="public-topbar-logo" aria-label="Pagina inicial">
-          <span className="public-topbar-logo-text">PPGEE/UFAM</span>
-          <span className="public-topbar-logo-divider" aria-hidden="true" />
-          <span className="public-topbar-logo-subtitle">Portal de Selecao</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/ppgee-branca.png" alt="PPGEE/UFAM" className="public-topbar-logo-img" height={36} />
         </Link>
 
         <div className="public-topbar-spacer" />
