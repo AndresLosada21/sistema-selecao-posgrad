@@ -752,7 +752,9 @@ textarea {
 .dash-steps-row { display: flex; align-items: center; gap: 4px; padding: 16px 24px; overflow-x: auto; }
 .dash-step { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .dash-step-text { font-size: 12px; }
+.dash-step-text--done { font-weight: 600; color: #065F46; }
 .dash-step-text--active { font-weight: 600; color: #92400E; }
+.dash-step-text--error { font-weight: 600; color: #991B1B; }
 .dash-step-text--pending { color: #94A3B8; }
 .dash-step-divider { width: 1px; height: 16px; background: #E2E8F0; flex-shrink: 0; }
 
@@ -992,6 +994,40 @@ textarea {
 .candidate-topbar {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-neutral-200);
+  height: 64px;
+  position: relative;
+}
+
+.candidate-topbar-dropdown {
+  position: absolute;
+  top: 56px;
+  right: 24px;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15,23,42,0.12);
+  min-width: 180px;
+  z-index: 50;
+  padding: 4px 0;
+}
+.candidate-topbar-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+}
+.candidate-topbar-dropdown-item:hover {
+  background: #F8FAFC;
+}
+.candidate-topbar-dropdown-item--danger {
+  color: #DC2626;
 }
 
 .candidate-topbar-inner {
