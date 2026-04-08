@@ -22,9 +22,9 @@ type StatusFilter = {
 
 const STATUS_FILTERS: StatusFilter[] = [
   { key: "ativos", label: "Publicados e em andamento", values: ["PUBLICADO", "EM_ANDAMENTO"] },
-  { key: "todos", label: "Todos os status", values: ["RASCUNHO", "PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"] },
+  { key: "todos", label: "Todos os editais publicos", values: ["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"] },
   { key: "encerrados", label: "Encerrados", values: ["ENCERRADO"] },
-  { key: "rascunho", label: "Rascunhos", values: ["RASCUNHO"] },
+  { key: "cancelados", label: "Cancelados", values: ["CANCELADO"] },
 ];
 
 function isTechnicalEdital(numero: string, titulo: string) {

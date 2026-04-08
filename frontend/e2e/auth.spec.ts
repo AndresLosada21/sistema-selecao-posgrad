@@ -19,8 +19,8 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
     return page.url();
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
-  await expect(page.getByText("Area do candidato")).toBeVisible();
-  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page.getByText("Nenhuma participacao encontrada")).toBeVisible();
+  await page.getByTitle("Encerrar sessao").click();
 
   await page.goto("/entrar");
   await page.getByLabel("E-mail").fill(candidate.email);
@@ -33,7 +33,7 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
     return page.url();
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
-  await expect(page.getByText("Area do candidato")).toBeVisible();
+  await expect(page.getByText("Nenhuma participacao encontrada")).toBeVisible();
 });
 
 test("candidato autenticado consegue aderir a um edital pela UI publica", async ({ page }) => {

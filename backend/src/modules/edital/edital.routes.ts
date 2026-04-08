@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { Role } from "@prisma/client";
+import { Role, StatusEdital } from "@prisma/client";
 
-import { conflict, notFound, validationError } from "../../lib/http-errors.js";
+import { conflict, forbidden, notFound, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 import {
@@ -31,6 +31,8 @@ import {
 
 export const editalRouter = Router();
 
+const publicEditalStatuses: StatusEdital[] = ["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"];
+
 editalRouter.get("/v1/editais", async (request, response) => {
   const parsedQuery = listEditaisQuerySchema.safeParse(request.query);
 
@@ -38,16 +40,21 @@ editalRouter.get("/v1/editais", async (request, response) => {
     return response.status(400).json(validationError("Parametros de consulta invalidos.", parsedQuery.error.flatten()));
   }
 
+  const requestedStatuses: StatusEdital[] = parsedQuery.data.status?.length
+    ? parsedQuery.data.status
+    : ["PUBLICADO", "EM_ANDAMENTO"];
+
+  if (requestedStatuses.some((status) => !publicEditalStatuses.includes(status))) {
+    return response.status(403).json(forbidden("A listagem publica nao permite consultar editais em rascunho."));
+  }
+
   const editais = await listEditais({
     ...parsedQuery.data,
     ativosSomente: false,
-    status: parsedQuery.data.status?.length ? parsedQuery.data.status : ["PUBLICADO", "EM_ANDAMENTO"],
+    status: requestedStatuses,
   });
 
-  return response.status(200).json({
-    items: editais,
-    total: editais.length,
-  });
+  return response.status(200).json(editais);
 });
 
 editalRouter.get("/v1/editais/:editalId", async (request, response) => {
@@ -73,9 +80,8 @@ editalRouter.get("/v1/admin/editais", requireAuth, requireRole(Role.ADMIN), asyn
     return response.status(400).json(validationError("Parametros de consulta invalidos.", parsedQuery.error.flatten()));
   }
 
-  const allEditais = await listAdminEditais({ ...parsedQuery.data, page: 1, pageSize: 10_000 });
   const editais = await listAdminEditais(parsedQuery.data);
-  return response.status(200).json({ items: editais, total: allEditais.length, page: parsedQuery.data.page, pageSize: parsedQuery.data.pageSize });
+  return response.status(200).json(editais);
 });
 
 editalRouter.get("/v1/admin/editais/:editalId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
