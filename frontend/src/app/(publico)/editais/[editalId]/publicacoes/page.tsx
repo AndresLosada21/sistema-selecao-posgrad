@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/page-states";
-import { PublicAccessCta } from "@/components/shared/public-access-cta";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
@@ -77,12 +76,16 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
           </div>
         </SectionCard>
 
-        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <div className="edital-detail-footer" style={{ border: 0 }}>
           <Link className="edital-card-link" href={`/editais/${edital.id}`}>
-            ← Voltar ao edital
+            <span className="edital-card-link-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg></span>
+            Voltar ao edital
           </Link>
-          <div style={{ flex: 1 }} />
-          <PublicAccessCta authenticatedHref="/candidato/participacoes" candidateLabel="Abrir area do candidato" />
+          <div className="edital-card-footer-spacer" />
+          <Link className="edital-card-link" href="/candidato/participacoes">
+            <span className="edital-card-link-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg></span>
+            Abrir area do candidato
+          </Link>
         </div>
       </div>
     );

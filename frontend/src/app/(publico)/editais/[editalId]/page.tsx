@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/page-states";
 import { ParticiparEditalCta } from "@/components/shared/participar-edital-cta";
-import { PublicAccessCta } from "@/components/shared/public-access-cta";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
@@ -22,14 +21,18 @@ const iconHash = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" str
 const iconDot = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg>;
 const iconNext = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>;
 const iconFlask = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2" /><path d="M8.5 2h7" /></svg>;
+const iconCalDays = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" /></svg>;
+const iconMega = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 18-5v12L3 14v-3Z" /><path d="M11.6 16.8a3 3 0 1 1-5.8 1.4" /></svg>;
+const iconUser = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+const iconArrowR = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>;
 
 function MetaItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <span style={{ display: "flex", flexShrink: 0 }}>{icon}</span>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-neutral-400)" }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-neutral-700)" }}>{value}</span>
+    <div className="edital-detail-meta-item">
+      <span className="edital-detail-meta-icon">{icon}</span>
+      <div className="edital-detail-meta-text">
+        <span className="edital-detail-meta-label">{label}</span>
+        <span className="edital-detail-meta-value">{value}</span>
       </div>
     </div>
   );
@@ -52,33 +55,28 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
             { label: "Editais", href: "/editais" },
             { label: edital.numero },
           ]}
-          title={edital.numero}
-          description={getStatusLabel(edital.cursoNivel)}
+          title=""
         />
 
-        {/* Card principal */}
-        <div className="edital-card">
-          <div className="edital-card-top">
+        {/* Card principal — conforme Pencil yL3h0 */}
+        <div className="edital-detail-card">
+          <div className="edital-detail-header">
             <div className="edital-card-title-row">
-              <strong className="edital-card-numero">{edital.numero}</strong>
+              <strong className="edital-detail-titulo">{edital.numero}</strong>
               <StatusBadge variant={getStatusVariant(edital.status)}>{getStatusLabel(edital.status)}</StatusBadge>
             </div>
-            <p className="edital-card-titulo" style={{ fontSize: 16, fontWeight: 600, color: "var(--color-neutral-800)" }}>
-              {edital.titulo}
-            </p>
-            <p className="edital-card-titulo">
-              {edital.descricao ?? "Sem descricao publica cadastrada."}
-            </p>
+            <p className="edital-detail-subtitle">{edital.titulo}</p>
+            <p className="edital-detail-desc">{edital.descricao ?? "Sem descricao publica cadastrada."}</p>
 
-            <div style={{ height: 1, background: "var(--color-neutral-100)" }} />
+            <div className="edital-detail-divider" />
 
-            <div className="edital-card-meta">
-              <div className="edital-card-meta-col" style={{ gap: 12 }}>
+            <div className="edital-detail-meta-grid">
+              <div className="edital-detail-meta-col">
                 <MetaItem icon={iconCap} label="Curso / Nivel" value={getStatusLabel(edital.cursoNivel)} />
                 <MetaItem icon={iconCal} label="Publicado em" value={formatIsoDate(edital.publicadoEm)} />
                 <MetaItem icon={iconHash} label="Edicao" value={formatSemestre(edital.ano, edital.semestre)} />
               </div>
-              <div className="edital-card-meta-col" style={{ gap: 12 }}>
+              <div className="edital-detail-meta-col">
                 <MetaItem icon={iconDot} label="Fase atual" value={edital.faseAtual?.titulo ?? "sem fase ativa"} />
                 <MetaItem icon={iconNext} label="Proxima fase" value={edital.proximaFase?.titulo ?? "sem previsao imediata"} />
                 <MetaItem icon={iconFlask} label="Linhas de pesquisa" value={`${edital.linhasPesquisa.length} linhas disponiveis`} />
@@ -86,21 +84,20 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
             </div>
           </div>
 
-          <div className="edital-card-divider" />
+          <div className="edital-detail-divider" />
 
-          <div className="edital-card-footer">
+          <div className="edital-detail-footer">
             <Link className="edital-card-link" href={`/editais/${edital.id}/cronograma`}>
-              Ver cronograma
+              <span className="edital-card-link-icon">{iconCalDays}</span>Ver cronograma
             </Link>
             <Link className="edital-card-link" href={`/editais/${edital.id}/publicacoes`}>
-              Ver publicacoes
+              <span className="edital-card-link-icon">{iconMega}</span>Ver publicacoes
             </Link>
             <Link className="edital-card-link" href="/candidato/participacoes">
-              Abrir area do candidato
+              <span className="edital-card-link-icon">{iconUser}</span>Abrir area do candidato
             </Link>
             <div className="edital-card-footer-spacer" />
             <ParticiparEditalCta editalId={edital.id} />
-            <PublicAccessCta authenticatedHref="/candidato/participacoes" candidateLabel="" nextPath="/candidato/participacoes" />
           </div>
         </div>
 
@@ -142,7 +139,7 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
               </tfoot>
             </table>
           ) : (
-            <EmptyState title="Linhas de pesquisa indisponiveis" description="Este edital ainda nao possui linhas de pesquisa publicadas para consulta." />
+            <EmptyState title="Linhas de pesquisa indisponiveis" description="Este edital ainda nao possui linhas de pesquisa publicadas." />
           )}
         </SectionCard>
       </div>

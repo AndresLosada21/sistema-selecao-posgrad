@@ -18,13 +18,14 @@ export function PageHeader({ breadcrumb, title, description, actions }: PageHead
     <div className="page-header">
       {breadcrumb?.length ? (
         <nav className="breadcrumb" aria-label="Caminho">
+          <svg className="breadcrumb-separator" aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
           {breadcrumb.map((seg, i) => (
             <span className="breadcrumb-segment" key={`${seg.label}-${i}`}>
-              {i > 0 ? (
-                <svg className="breadcrumb-separator" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              ) : null}
+              <svg className="breadcrumb-separator" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-300)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
               {seg.href ? (
                 <Link href={seg.href} className="breadcrumb-link">{seg.label}</Link>
               ) : (

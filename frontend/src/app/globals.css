@@ -142,10 +142,9 @@ textarea {
 .app-frame-content,
 .stack-layout,
 .content-list,
-.form-grid,
-.section-card-body {
+.form-grid {
   display: grid;
-  gap: var(--space-7);
+  gap: 24px;
 }
 
 /* ============================================
@@ -153,32 +152,33 @@ textarea {
    ============================================ */
 
 .section-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
 .section-card-header {
-  padding: var(--space-8) var(--space-9);
-  border-bottom: 1px solid var(--color-border);
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--color-neutral-100);
 }
 
 .section-card-header h2 {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: 18px;
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: var(--color-neutral-900);
 }
 
 .section-card-header p {
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  margin: 4px 0 0;
+  color: var(--color-neutral-500);
+  font-size: 13px;
 }
 
 .section-card-body {
-  padding: var(--space-8) var(--space-9);
+  padding: 0 28px 20px;
 }
 
 /* ============================================
@@ -222,50 +222,43 @@ textarea {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-1) var(--space-6);
-  font-size: var(--font-size-xs);
-  font-weight: 700;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
   line-height: var(--line-height-tight);
 }
 
 .status-badge--pill {
   border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
 }
 
 .status-badge--tag {
   border-radius: var(--radius-tag);
-  border: 1px solid var(--color-border);
 }
 
 .status-badge--neutral {
-  background: var(--color-bg);
-  color: var(--color-text-secondary);
-  border-color: var(--color-border);
+  background: var(--color-neutral-100);
+  color: var(--color-neutral-600);
 }
 
 .status-badge--success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
-  border-color: var(--color-success-border);
+  background: #D1FAE5;
+  color: #065F46;
 }
 
 .status-badge--error {
   background: var(--color-error-bg);
   color: var(--color-error);
-  border-color: var(--color-error-border);
 }
 
 .status-badge--warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-  border-color: var(--color-warning-border);
+  background: #FEF3C7;
+  color: #92400E;
 }
 
 .status-badge--info {
-  background: var(--color-info-bg);
-  color: var(--color-info);
-  border-color: var(--color-info-border);
+  background: #DBEAFE;
+  color: #1E40AF;
 }
 
 /* ============================================
@@ -538,17 +531,17 @@ textarea {
 
 .page-feedback {
   display: flex;
-  gap: var(--space-5);
-  align-items: flex-start;
-  padding: var(--space-6) var(--space-8);
-  border-radius: var(--radius-md);
+  gap: 12px;
+  align-items: center;
+  padding: 16px 20px;
+  border-radius: 8px;
   border: 1px solid;
 }
 
-.page-feedback--success { background: var(--color-success-bg); border-color: var(--color-success-border); color: var(--color-success); }
-.page-feedback--error   { background: var(--color-error-bg);   border-color: var(--color-error-border);   color: var(--color-error); }
-.page-feedback--info    { background: var(--color-info-bg);    border-color: var(--color-info-border);    color: var(--color-info); }
-.page-feedback--warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); color: var(--color-warning); }
+.page-feedback--success { background: #ECFDF5; border-color: #10B981; color: #065F46; }
+.page-feedback--error   { background: #FEF2F2; border-color: #EF4444; color: #991B1B; }
+.page-feedback--info    { background: #EFF6FF; border-color: #3B82F6; color: #1E40AF; }
+.page-feedback--warning { background: #FFFBEB; border-color: #F59E0B; color: #92400E; }
 
 .page-feedback-icon {
   flex-shrink: 0;
@@ -558,20 +551,21 @@ textarea {
 .page-feedback-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
   flex: 1;
 }
 
 .page-feedback-title {
-  font-size: var(--font-size-base);
-  font-weight: 700;
-  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  color: inherit;
 }
 
 .page-feedback-description {
   margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.85;
 }
 
 .page-feedback-action {
@@ -585,8 +579,8 @@ textarea {
 .breadcrumb {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  font-size: var(--font-size-sm);
+  gap: 6px;
+  font-size: 13px;
 }
 
 .breadcrumb-segment {
@@ -600,16 +594,17 @@ textarea {
 }
 
 .breadcrumb-link {
-  color: var(--color-text-muted);
+  color: var(--color-primary-500);
 }
 
 .breadcrumb-link:hover {
-  color: var(--color-navy-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .breadcrumb-current {
-  font-weight: 600;
-  color: var(--color-text-primary);
+  font-weight: 500;
+  color: var(--color-neutral-700);
 }
 
 /* ============================================
@@ -1209,7 +1204,7 @@ textarea {
 
 .page-header-title {
   margin: 0;
-  font-size: var(--font-size-h2);
+  font-size: 20px;
   font-weight: 700;
   color: var(--color-neutral-900);
 }
@@ -1331,6 +1326,101 @@ textarea {
 }
 
 /* ============================================
+   EditalDetail card (Pencil DS — yL3h0)
+   ============================================ */
+
+.edital-detail-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.edital-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 28px 20px;
+}
+
+.edital-detail-titulo {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-neutral-900);
+}
+
+.edital-detail-subtitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-neutral-800);
+}
+
+.edital-detail-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-neutral-500);
+}
+
+.edital-detail-divider {
+  height: 1px;
+  background: var(--color-neutral-100);
+}
+
+.edital-detail-meta-grid {
+  display: flex;
+  gap: 32px;
+}
+
+.edital-detail-meta-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edital-detail-meta-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.edital-detail-meta-icon {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.edital-detail-meta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.edital-detail-meta-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-neutral-400);
+}
+
+.edital-detail-meta-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-neutral-700);
+}
+
+.edital-detail-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 28px;
+}
+
+/* ============================================
    EditalDetail — Linhas de pesquisa table
    ============================================ */
 
@@ -1355,6 +1445,7 @@ textarea {
 
 .linhas-table td {
   padding: 14px 0;
+  font-weight: 500;
   color: var(--color-neutral-700);
 }
 
@@ -1432,11 +1523,12 @@ textarea {
 
 .crono-table td {
   padding: 14px 0;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--color-neutral-600);
 }
 
 .crono-table td:first-child {
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-neutral-800);
 }
@@ -1510,7 +1602,7 @@ textarea {
   border: 1px solid var(--color-primary-200);
   border-radius: 6px;
   background: var(--color-primary-50);
-  color: var(--color-primary-600);
+  color: var(--color-primary-500);
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
