@@ -66,10 +66,12 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
 
   if (session.isAuthenticated) {
     return (
-      <div className="auth-card">
-        <div className="auth-card-header">
-          <strong className="auth-card-title">Sessao ja autenticada</strong>
-          <p className="auth-card-desc">Redirecionando para a area adequada.</p>
+      <div className="auth-center">
+        <div className="auth-card">
+          <div className="auth-card-header">
+            <strong className="auth-card-title">Sessao ja autenticada</strong>
+            <p className="auth-card-desc">Redirecionando para a area adequada.</p>
+          </div>
         </div>
       </div>
     );
@@ -106,6 +108,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
   const formClass = isLogin ? "auth-form" : "auth-form auth-form--compact";
 
   return (
+    <div className="auth-center">
     <div className={cardClass}>
       <div className="auth-card-header">
         <span className="auth-card-icon">{isLogin ? iconLogin : iconUserPlus}</span>
@@ -184,6 +187,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           </Link>
         </span>
       </div>
+    </div>
     </div>
   );
 }
