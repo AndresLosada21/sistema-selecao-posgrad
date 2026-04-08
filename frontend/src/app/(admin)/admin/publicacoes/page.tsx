@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { PageHeader } from "@/components/layout/page-header";
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
@@ -54,16 +55,18 @@ export default function AdminPublicacoesIndexPage() {
 
   return (
     <div className="stack-layout">
+      <PageHeader title="Publicacoes Oficiais" description="Selecione um edital para abrir o workspace de preview e publicacao." />
+
       <PageFeedback
         type="info"
         title="Entrada operacional das publicacoes oficiais"
         description="Selecione um edital publicado abaixo para abrir o modulo de previews e publicacao oficial."
       />
 
-      <SectionCard title="Abrir publicacoes por edital" description="Selecione o edital desejado ou use a lista resumida abaixo.">
-        <div className="content-list">
+      <SectionCard title="Abrir publicacoes por edital" description="Escolha um edital pelo seletor pesquisável ou use os atalhos abaixo.">
+        <div className="admin-launcher-form">
           <AdminEditalCombobox allowEmpty={false} emptyLabel="Selecione um edital" label="Edital" onChange={setDraftEditalId} token={token ?? ""} value={draftEditalId} />
-          <div className="content-item-links">
+          <div className="content-item-links admin-launcher-form-actions">
             <Link className="nav-link" href={draftEditalId.trim() ? `/admin/publicacoes/${draftEditalId.trim()}` : "/admin/publicacoes"}>
               Abrir publicacoes
             </Link>
@@ -73,12 +76,14 @@ export default function AdminPublicacoesIndexPage() {
 
       <SectionCard title="Editais disponiveis" description="Atalhos para abrir rapidamente o modulo de publicacoes por edital.">
         {data?.items.length ? (
-          <div className="content-list">
+          <div className="admin-launcher-grid">
             {data.items.map((edital) => (
-              <article className="content-item" key={edital.id}>
-                <strong>{edital.numero}</strong>
-                <p>{edital.titulo}</p>
-                <small>ID: {edital.id}</small>
+              <article className="admin-launcher-card" key={edital.id}>
+                <div className="admin-launcher-card-body">
+                  <strong>{edital.numero}</strong>
+                  <p>{edital.titulo}</p>
+                  <small>{`${edital.cursoNivel} · ${edital.status}`}</small>
+                </div>
                 <div className="content-item-links">
                   <Link className="nav-link" href={`/admin/publicacoes/${edital.id}`}>
                     Abrir publicacoes
