@@ -20,13 +20,25 @@ const iconArrowLeft = <svg width="14" height="14" viewBox="0 0 24 24" fill="none
 
 type Props = { params: Promise<{ editalId: string }> };
 
-const RUBRIC_CRITERIA = [
-  { name: "Adequacao e dominio do tema", peso: "50%" },
-  { name: "Estrutura", peso: "10%" },
-  { name: "Organizacao e coerencia", peso: "15%" },
-  { name: "Objetividade e sintese", peso: "15%" },
-  { name: "Grafia e gramatica", peso: "10%" },
-];
+/* Maps backend keys to display labels */
+const CRITERIA_LABELS: Record<string, string> = {
+  adequacaoDominioTema: "Adequacao e dominio do tema",
+  estrutura: "Estrutura",
+  organizacaoCoerencia: "Organizacao e coerencia",
+  objetividadeSintese: "Objetividade e sintese",
+  grafiaGramatica: "Grafia e gramatica",
+};
+
+type RubricaCriterio = { notaAtribuida: number; pesoPercentual: number; contribuicao: number; observacao?: string | null };
+type RubricaDetalhada = {
+  criterios?: Record<string, RubricaCriterio>;
+  notaFinal?: number;
+  situacaoFinal?: string;
+  observacoes?: Record<string, string>;
+  usoIaComprovado?: boolean;
+  fundamentoUsoIa?: string | null;
+  regraEliminacao?: { notaMinima?: number; eliminadaPorNota?: boolean; eliminadaPorUsoIa?: boolean };
+};
 
 export default function CandidateEspelhosPage({ params }: Props) {
   const session = useSession();
@@ -37,6 +49,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
   const [espelho1, setEspelho1] = useState<CandidateEtapa1Espelho | null>(null);
   const [espelho2, setEspelho2] = useState<CandidateEtapa2Espelho | null>(null);
   const [soliciting, setSoliciting] = useState<string | null>(null);
+  const [loadingEspelho, setLoadingEspelho] = useState<string | null>(null);
 
   useEffect(() => { let c = false; params.then((r) => { if (!c) setEditalId(r.editalId); }); return () => { c = true; }; }, [params]);
 
@@ -78,14 +91,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
 
   async function handleVerEspelho(etapa: "1" | "2") {
     if (!session.token || !inscricaoId) return;
-    setMessage(null);
+    setLoadingEspelho(etapa); setMessage(null);
     try {
       if (etapa === "1") { const e = await getEspelhoEtapa1Candidate(inscricaoId, session.token); setEspelho1(e); }
       else { const e = await getEspelhoEtapa2Candidate(inscricaoId, session.token); setEspelho2(e); }
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setMessage(getErrorMessage(error));
-    }
+    } finally { setLoadingEspelho(null); }
   }
 
   if (status === "loading") return <LoadingState title="Carregando espelhos" description="Consultando o acompanhamento do edital." />;
@@ -113,35 +126,84 @@ export default function CandidateEspelhosPage({ params }: Props) {
         <div style={{ height: 1, background: "#F1F5F9" }} />
         <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
           {e1Released && espelho1 ? (
-            <>
-              <span style={{ fontSize: 15, fontWeight: 600, color: "#1E293B" }}>Nota final: {etapa1?.nota ?? "—"}</span>
-              {/* Rubric table */}
-              <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
-                <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
-                  <span style={{ flex: 1 }}>Criterio</span>
-                  <span style={{ width: 60, textAlign: "center" }}>Peso</span>
-                  <span style={{ width: 60, textAlign: "center" }}>Nota</span>
-                </div>
-                {RUBRIC_CRITERIA.map((c, i) => {
-                  const rubrica = espelho1.rubricaDetalhada as Record<string, unknown> | null;
-                  const nota = rubrica?.[c.name] ?? "—";
-                  return (
-                    <div key={c.name} style={{ display: "flex", padding: "10px 16px", background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 13 }}>
-                      <span style={{ flex: 1, color: "#334155" }}>{c.name}</span>
-                      <span style={{ width: 60, textAlign: "center", color: "#64748B" }}>{c.peso}</span>
-                      <span style={{ width: 60, textAlign: "center", fontWeight: 600, color: "#1E293B" }}>{String(nota)}</span>
+            (() => {
+              const rubrica = espelho1.rubricaDetalhada as RubricaDetalhada | null;
+              const criterios = rubrica?.criterios ?? {};
+              const notaFinal = rubrica?.notaFinal ?? etapa1?.nota ?? null;
+              const situacao = rubrica?.situacaoFinal ?? null;
+              const entries = Object.entries(criterios);
+              return (
+                <>
+                  {/* Situacao + nota */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: "#1E293B" }}>Nota final: {notaFinal ?? "—"}</span>
+                    {situacao ? <StatusBadge variant={situacao === "APROVADA" ? "success" : "error"}>{situacao}</StatusBadge> : null}
+                  </div>
+
+                  {/* Tema */}
+                  {espelho1.tema ? (
+                    <div style={{ fontSize: 13, color: "#64748B" }}>
+                      <strong style={{ color: "#334155" }}>Tema:</strong> {espelho1.tema}
                     </div>
-                  );
-                })}
-              </div>
-              <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#94A3B8" }}>
-                <span>Solicitado: {formatIsoDate(etapa1?.espelhoSolicitadoEm ?? null)}</span>
-                <span>Liberado: {formatIsoDate(etapa1?.espelhoLiberadoEm ?? null)}</span>
-              </div>
-            </>
+                  ) : null}
+
+                  {/* Rubric table */}
+                  {entries.length > 0 ? (
+                    <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
+                      <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
+                        <span style={{ flex: 1 }}>Criterio</span>
+                        <span style={{ width: 60, textAlign: "center" }}>Peso</span>
+                        <span style={{ width: 60, textAlign: "center" }}>Nota</span>
+                        <span style={{ width: 80, textAlign: "center" }}>Contrib.</span>
+                      </div>
+                      {entries.map(([key, val], i) => (
+                        <div key={key} style={{ display: "flex", flexDirection: "column", background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9" }}>
+                          <div style={{ display: "flex", padding: "10px 16px", fontSize: 13 }}>
+                            <span style={{ flex: 1, color: "#334155" }}>{CRITERIA_LABELS[key] ?? key}</span>
+                            <span style={{ width: 60, textAlign: "center", color: "#64748B" }}>{val.pesoPercentual}%</span>
+                            <span style={{ width: 60, textAlign: "center", fontWeight: 600, color: "#1E293B" }}>{val.notaAtribuida}</span>
+                            <span style={{ width: 80, textAlign: "center", color: "#64748B" }}>{val.contribuicao}</span>
+                          </div>
+                          {val.observacao ? <div style={{ padding: "0 16px 8px", fontSize: 12, color: "#94A3B8" }}>Obs: {val.observacao}</div> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {/* Espelho de correcao */}
+                  {espelho1.espelhoCorrecao ? (
+                    <div style={{ background: "#F8FAFC", borderRadius: 6, padding: "12px 16px", fontSize: 13, color: "#334155" }}>
+                      <strong>Espelho de correcao:</strong> {espelho1.espelhoCorrecao}
+                    </div>
+                  ) : null}
+
+                  {/* IA warning */}
+                  {rubrica?.usoIaComprovado ? (
+                    <div style={{ background: "#FEF2F2", borderRadius: 6, padding: "10px 14px", fontSize: 12, fontWeight: 500, color: "#991B1B" }}>
+                      Uso de IA comprovado — nota penalizada conforme regras do edital.
+                    </div>
+                  ) : null}
+
+                  {/* Texto submetido */}
+                  {espelho1.textoSubmetido ? (
+                    <details style={{ fontSize: 13, color: "#64748B" }}>
+                      <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver texto submetido</summary>
+                      <pre style={{ whiteSpace: "pre-wrap", marginTop: 8, padding: 12, background: "#F8FAFC", borderRadius: 6, fontSize: 12, lineHeight: 1.6 }}>{espelho1.textoSubmetido}</pre>
+                    </details>
+                  ) : null}
+
+                  {/* Dates */}
+                  <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#94A3B8" }}>
+                    <span>Solicitado: {formatIsoDate(etapa1?.espelhoSolicitadoEm ?? null)}</span>
+                    <span>Liberado: {formatIsoDate(etapa1?.espelhoLiberadoEm ?? null)}</span>
+                    {espelho1.resultadoFinalEm ? <span>Resultado final: {formatIsoDate(espelho1.resultadoFinalEm)}</span> : null}
+                  </div>
+                </>
+              );
+            })()
           ) : e1Released ? (
             <button type="button" onClick={() => handleVerEspelho("1")} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
-              Ver espelho
+              {loadingEspelho ? "Carregando..." : "Ver espelho"}
             </button>
           ) : e1Available && !etapa1?.espelhoSolicitadoEm ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -189,14 +251,49 @@ export default function CandidateEspelhosPage({ params }: Props) {
                   ))}
                 </div>
               ) : null}
+              {/* Espelho de correcao */}
+              {espelho2.espelhoCorrecao ? (
+                <div style={{ background: "#F8FAFC", borderRadius: 6, padding: "12px 16px", fontSize: 13, color: "#334155" }}>
+                  <strong>Espelho de correcao:</strong> {espelho2.espelhoCorrecao}
+                </div>
+              ) : null}
+              {/* Glosas */}
+              {espelho2.glosas && espelho2.glosas.length > 0 ? (
+                <div style={{ fontSize: 13, color: "#334155" }}>
+                  <strong>Glosas aplicadas:</strong>
+                  <ul style={{ margin: "4px 0 0", paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {espelho2.glosas.map((g, i) => {
+                      const glosa = g as Record<string, unknown>;
+                      const item = glosa.item ?? glosa.descricao ?? "";
+                      const pontos = glosa.pontosGlosados ?? glosa.pontos ?? "";
+                      return (
+                        <li key={i} style={{ color: "#64748B" }}>
+                          {String(item)}{pontos ? ` (${pontos} pts glosados)` : ""}
+                          {glosa.descricao && glosa.item ? <span style={{ color: "#94A3B8" }}> — {String(glosa.descricao)}</span> : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null}
+              {/* Memoria de calculo */}
+              {espelho2.memoriaCalculo ? (
+                <details style={{ fontSize: 13, color: "#64748B" }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver memoria de calculo</summary>
+                  <pre style={{ whiteSpace: "pre-wrap", marginTop: 8, padding: 12, background: "#F8FAFC", borderRadius: 6, fontSize: 12, lineHeight: 1.6 }}>
+                    {JSON.stringify(espelho2.memoriaCalculo, null, 2)}
+                  </pre>
+                </details>
+              ) : null}
               <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#94A3B8" }}>
                 <span>Solicitado: {formatIsoDate(etapa2?.espelhoSolicitadoEm ?? null)}</span>
                 <span>Liberado: {formatIsoDate(etapa2?.espelhoLiberadoEm ?? null)}</span>
+                {espelho2.resultadoFinalEm ? <span>Resultado final: {formatIsoDate(espelho2.resultadoFinalEm)}</span> : null}
               </div>
             </>
           ) : e2Released ? (
             <button type="button" onClick={() => handleVerEspelho("2")} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
-              Ver espelho
+              {loadingEspelho ? "Carregando..." : "Ver espelho"}
             </button>
           ) : e2Available && !etapa2?.espelhoSolicitadoEm ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
