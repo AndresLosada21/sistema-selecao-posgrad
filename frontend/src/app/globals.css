@@ -2073,11 +2073,15 @@ textarea {
   gap: var(--space-3);
   padding: 6px 12px 6px 8px;
   border-radius: var(--radius-full);
+  cursor: pointer;
+  border: none;
   background: var(--color-primary-700);
   color: #fff;
   font-size: 13px;
   font-weight: 500;
 }
+
+.admin-topbar-role:hover { background: var(--color-primary-600); }
 
 .admin-topbar-role-dot {
   width: 28px;
@@ -2085,6 +2089,35 @@ textarea {
   border-radius: 999px;
   background: var(--color-primary-500);
 }
+
+.admin-topbar-dropdown {
+  position: absolute;
+  top: 52px;
+  right: 24px;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15,23,42,0.12);
+  min-width: 180px;
+  z-index: 50;
+  padding: 4px 0;
+}
+.admin-topbar-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+}
+.admin-topbar-dropdown-item:hover { background: #F8FAFC; }
+.admin-topbar-dropdown-item--danger { color: #DC2626; }
 
 .admin-mobile-nav {
   display: none;
