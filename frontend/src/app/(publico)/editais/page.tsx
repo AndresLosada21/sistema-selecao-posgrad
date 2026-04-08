@@ -27,6 +27,8 @@ const STATUS_FILTERS: StatusFilter[] = [
   { key: "cancelados", label: "Cancelados", values: ["CANCELADO"] },
 ];
 
+const PAGE_SIZE = 10;
+
 function isTechnicalEdital(numero: string, titulo: string) {
   const n = numero.toUpperCase();
   const t = titulo.toLowerCase();
@@ -40,15 +42,17 @@ export default function EditaisPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [showTechnical, setShowTechnical] = useState(false);
   const [activeFilter, setActiveFilter] = useState("ativos");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const loadEditais = useCallback(async (filterKey?: string) => {
+  const loadEditais = useCallback(async (filterKey?: string, page?: number) => {
     setStatus("loading");
     setMessage(null);
     const filter = STATUS_FILTERS.find((f) => f.key === (filterKey ?? activeFilter)) ?? STATUS_FILTERS[0];
-    const response = await listEditais(filter.values);
+    const targetPage = page ?? currentPage;
+    const response = await listEditais(filter.values, targetPage, PAGE_SIZE);
     setData(response);
     setStatus("ready");
-  }, [activeFilter]);
+  }, [activeFilter, currentPage]);
 
   useAbortableEffect(async (signal) => {
     try {
@@ -63,11 +67,24 @@ export default function EditaisPage() {
   function handleFilterChange(key: string) {
     if (key === activeFilter) return;
     setActiveFilter(key);
-    loadEditais(key).catch((error) => {
+    setCurrentPage(1);
+    loadEditais(key, 1).catch((error) => {
       setMessage(getErrorMessage(error));
       setStatus("error");
     });
   }
+
+  function handlePageChange(page: number) {
+    setCurrentPage(page);
+    loadEditais(activeFilter, page).catch((error) => {
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const filterChips = (
     <div className="edital-filter-bar">
@@ -107,6 +124,8 @@ export default function EditaisPage() {
   const visibleItems = showTechnical ? items : operationalItems;
 
   const activeLabel = STATUS_FILTERS.find((f) => f.key === activeFilter)?.label ?? "";
+  const showingFrom = (currentPage - 1) * PAGE_SIZE + 1;
+  const showingTo = Math.min(currentPage * PAGE_SIZE, total);
 
   return (
     <div className="stack-layout">
@@ -121,7 +140,7 @@ export default function EditaisPage() {
 
       <PageHeader
         title="Editais"
-        description={`${activeLabel} · ${visibleItems.length} edital(is) encontrado(s)${showTechnical ? ` de um total de ${data?.total ?? 0}` : ""}.`}
+        description={`${activeLabel} · ${total} edital(is) encontrado(s).`}
       />
 
       {filterChips}
@@ -131,11 +150,49 @@ export default function EditaisPage() {
       ) : visibleItems.length === 0 ? (
         <EmptyState description="Nenhum edital encontrado para o filtro selecionado." title="Nenhum edital" />
       ) : (
-        <div className="stack-layout">
-          {visibleItems.map((edital) => (
-            <EditalCard edital={edital} key={edital.id} />
-          ))}
-        </div>
+        <>
+          <div className="stack-layout">
+            {visibleItems.map((edital) => (
+              <EditalCard edital={edital} key={edital.id} />
+            ))}
+          </div>
+
+          {totalPages > 1 ? (
+            <div className="pagination-bar">
+              <span className="pagination-info">
+                Mostrando {showingFrom}-{showingTo} de {total} editais
+              </span>
+              <div className="pagination-controls">
+                <button
+                  className="pagination-btn"
+                  disabled={currentPage <= 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  type="button"
+                >
+                  Anterior
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    className={`pagination-btn pagination-page ${currentPage === page ? "pagination-page--active" : ""}`}
+                    onClick={() => handlePageChange(page)}
+                    type="button"
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  className="pagination-btn"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  type="button"
+                >
+                  Proximo
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
 
       {session.hasRole("ADMIN") && technicalItems.length ? (
