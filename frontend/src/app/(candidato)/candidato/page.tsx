@@ -26,12 +26,27 @@ const ACTIVE_STATUSES = new Set([
   "RASCUNHO", "SOLICITADA", "EM_ANALISE", "EM_ANALISE_DOCUMENTAL", "EM_AVALIACAO",
 ]);
 
-function resolveStepColor(status: string | null | undefined): { iconColor: string; textClass: string } {
+const ERROR_STATUSES = new Set([
+  "ELIMINADA", "ELIMINADO", "INDEFERIDA", "INDEFERIDA_PRELIMINAR", "INDEFERIDA_FINAL",
+  "NAO_HOMOLOGADA_PRELIMINAR", "NAO_HOMOLOGADA_FINAL", "NAO_CONFIRMADA",
+]);
+
+type StepVariant = "done" | "active" | "pending" | "error";
+
+function resolveStepVariant(status: string | null | undefined): StepVariant {
   const s = status ?? "";
-  if (!s || PENDING_STATUSES.has(s)) return { iconColor: "#94A3B8", textClass: "dash-step-text dash-step-text--pending" };
-  if (ACTIVE_STATUSES.has(s)) return { iconColor: "#F59E0B", textClass: "dash-step-text dash-step-text--active" };
-  return { iconColor: "#94A3B8", textClass: "dash-step-text dash-step-text--pending" };
+  if (!s || PENDING_STATUSES.has(s)) return "pending";
+  if (ERROR_STATUSES.has(s)) return "error";
+  if (ACTIVE_STATUSES.has(s)) return "active";
+  return "done";
 }
+
+const STEP_STYLES: Record<StepVariant, { iconColor: string; textClass: string }> = {
+  done:    { iconColor: "#22C55E", textClass: "dash-step-text dash-step-text--done" },
+  active:  { iconColor: "#F59E0B", textClass: "dash-step-text dash-step-text--active" },
+  error:   { iconColor: "#EF4444", textClass: "dash-step-text dash-step-text--error" },
+  pending: { iconColor: "#94A3B8", textClass: "dash-step-text dash-step-text--pending" },
+};
 
 function resolveStepLabel(status: string | null | undefined): string {
   if (!status || status.startsWith("SEM_") || PENDING_STATUSES.has(status)) return "Pendente";
@@ -45,6 +60,12 @@ const iconPlus = (
 );
 const iconCircleMinus = (color: string) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M8 12h8" /></svg>
+);
+const iconCircleCheck = (color: string) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>
+);
+const iconCircleX = (color: string) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>
 );
 const iconLoader = (color: string) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4" /><path d="m16.2 7.8 2.9-2.9" /><path d="M18 12h4" /><path d="m16.2 16.2 2.9 2.9" /><path d="M12 18v4" /><path d="m4.9 19.1 2.9-2.9" /><path d="M2 12h4" /><path d="m4.9 4.9 2.9 2.9" /></svg>
@@ -191,14 +212,18 @@ export default function CandidateDashboardPage() {
           <div className="dash-edital-card-divider" />
           <div className="dash-steps-row">
             {steps.map((step, i) => {
-              const { iconColor, textClass } = resolveStepColor(step.status);
+              const variant = resolveStepVariant(step.status);
+              const { iconColor, textClass } = STEP_STYLES[variant];
               const label = `${step.label}: ${resolveStepLabel(step.status)}`;
-              const isActive = ACTIVE_STATUSES.has(step.status ?? "");
+              const icon = variant === "done" ? iconCircleCheck(iconColor)
+                : variant === "active" ? iconLoader(iconColor)
+                : variant === "error" ? iconCircleX(iconColor)
+                : iconCircleMinus(iconColor);
               return (
                 <span key={step.label} style={{ display: "contents" }}>
                   {i > 0 ? <span className="dash-step-divider" /> : null}
                   <span className="dash-step">
-                    {isActive ? iconLoader(iconColor) : iconCircleMinus(iconColor)}
+                    {icon}
                     <span className={textClass}>{label}</span>
                   </span>
                 </span>
