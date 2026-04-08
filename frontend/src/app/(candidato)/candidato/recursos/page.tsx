@@ -107,7 +107,7 @@ export default function CandidateRecursosPage() {
       {/* Form card */}
       <div className="part-card" style={{ padding: "24px 28px" }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>Novo recurso</h3>
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 16 }}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 20 }}>
           <div style={{ display: "flex", gap: 16 }}>
             <div className="wiz-field" style={{ flex: 1 }}>
               <label className="wiz-field-label">Edital *</label>
@@ -141,7 +141,7 @@ export default function CandidateRecursosPage() {
       <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #E2E8F0", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", flex: 1 }}>Recursos interpostos</span>
-          <span style={{ fontSize: 13, color: "#94A3B8" }}>{items.length} recurso(s)</span>
+          <span style={{ fontSize: 13, color: "#94A3B8" }}>{items.length === 1 ? "1 recurso" : `${items.length} recursos`}</span>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
         {items.length === 0 ? (
@@ -158,7 +158,7 @@ export default function CandidateRecursosPage() {
               <span>Enviado: {formatIsoDate(rec.criadoEm)}</span>
               {rec.respondidoEm ? <span>Respondido: {formatIsoDate(rec.respondidoEm)}</span> : null}
             </div>
-            {rec.decisao ? <p style={{ fontSize: 12, color: "#334155", margin: "6px 0 0" }}>Decisao: {rec.decisao}</p> : null}
+{/* decisao refletida apenas pelo badge de status */}
           </div>
         ))}
       </div>
