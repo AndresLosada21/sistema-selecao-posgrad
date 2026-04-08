@@ -1,259 +1,167 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { ActionButton } from "@/components/shared/action-button";
-import { FileField } from "@/components/shared/file-field";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
-import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
-import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { sanitizePayload } from "@/lib/http/sanitize";
-import type { FaseRecurso } from "@/lib/enums";
-import { faseRecursoOptions } from "@/modules/admin-operacao/constants";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { formatIsoDate } from "@/modules/edital/formatters";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
-import { formatIsoDate } from "@/modules/edital/formatters";
-import { createCandidateRecurso, listCandidateRecursos } from "@/modules/recurso/api";
-import type { CandidateRecursosResponse } from "@/modules/recurso/types";
+import { FileField } from "@/components/shared/file-field";
 import { uploadPrivateFile } from "@/modules/upload/api";
+import { faseRecursoOptions } from "@/modules/admin-operacao/constants";
+import { listCandidateRecursos, createCandidateRecurso } from "@/modules/recurso/api";
+import type { CandidateRecursosResponse } from "@/modules/recurso/types";
+import type { FaseRecurso } from "@/lib/enums";
+
+const iconChevronDown = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>;
+const iconPaperclip = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
 
 export default function CandidateRecursosPage() {
   const session = useSession();
-  const token = session.token;
-  const signOut = session.signOut;
   const searchParams = useSearchParams();
+  const preEditalId = searchParams?.get("editalId") ?? "";
+
   const [dashboard, setDashboard] = useState<CandidateDashboardResponse | null>(null);
   const [recursos, setRecursos] = useState<CandidateRecursosResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [editalId, setEditalId] = useState("");
-  const [fase, setFase] = useState("");
-  const [fundamentacao, setFundamentacao] = useState("");
-  const [anexoUrl, setAnexoUrl] = useState("");
-  const [anexoNome, setAnexoNome] = useState("");
-  const [downloadingAnexoId, setDownloadingAnexoId] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    if (!token) {
-      return;
-    }
+  // form state
+  const [formEditalId, setFormEditalId] = useState(preEditalId);
+  const [formFase, setFormFase] = useState<string>(faseRecursoOptions[0]);
+  const [formFundamentacao, setFormFundamentacao] = useState("");
+  const [formAnexoUrl, setFormAnexoUrl] = useState("");
+  const [formAnexoNome, setFormAnexoNome] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-    const [dashboardResponse, recursosResponse] = await Promise.all([
-      getCandidateDashboard(token),
-      listCandidateRecursos(token),
-    ]);
-
-    setDashboard(dashboardResponse);
-    setRecursos(recursosResponse);
-  }, [token]);
-
-  useAbortableEffect(async (signal) => {
-    if (!token) {
-      return;
-    }
-
-    try {
-      await loadData();
-      if (signal.aborted) return;
-      setStatus("ready");
-    } catch (error) {
-      if (signal.aborted) return;
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-
-      setMessage({ type: "error", text: getErrorMessage(error) });
-      setStatus("error");
-    }
-  }, [loadData, signOut, token]);
-
-  useEffect(() => {
-    const editalIdFromQuery = searchParams?.get("editalId");
-    const faseFromQuery = searchParams?.get("fase");
-
-    if (editalIdFromQuery) {
-      setEditalId(editalIdFromQuery);
-    }
-
-    if (faseFromQuery) {
-      setFase(faseFromQuery);
-    }
-  }, [searchParams]);
-
-  const editalOptions = dashboard?.items ?? [];
-  const filteredRecursos = useMemo(() => {
-    const items = recursos?.items ?? [];
-    return items.filter((item) => (editalId ? item.edital.id === editalId : true));
-  }, [editalId, recursos]);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!session.token) {
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      await createCandidateRecurso(
-        sanitizePayload({
-          editalId,
-          fase: fase as FaseRecurso,
-          fundamentacao,
-          anexoUrl: anexoUrl || undefined,
-        }),
-        session.token,
-      );
-
-      await loadData();
-      setFundamentacao("");
-      setAnexoUrl("");
-      setAnexoNome("");
-      setMessage({ type: "success", text: "Recurso registrado e lista atualizada." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleUploadAnexo(file: File) {
+  const load = useCallback(async () => {
     if (!session.token) return;
-    setBusy(true);
-    setMessage(null);
+    setStatus("loading");
+    try {
+      const [d, r] = await Promise.all([getCandidateDashboard(session.token), listCandidateRecursos(session.token)]);
+      setDashboard(d); setRecursos(r); setStatus("ready");
+      if (!formEditalId && d.items.length) setFormEditalId(d.items[0].edital.id);
+    } catch (error) {
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage(getErrorMessage(error)); setStatus("error");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.signOut, session.token]);
+
+  useAbortableEffect(async (signal) => { await load(); if (signal.aborted) return; }, [load]);
+
+  const editais = useMemo(() => dashboard?.items.map((i) => i.edital) ?? [], [dashboard]);
+
+  async function handleUpload(file: File) {
+    if (!session.token) return;
+    setUploading(true); setMessage(null);
     try {
       const uploaded = await uploadPrivateFile(file, session.token);
-      setAnexoUrl(uploaded.urlArquivo);
-      setAnexoNome(uploaded.nomeArquivo);
+      setFormAnexoUrl(uploaded.urlArquivo); setFormAnexoNome(uploaded.nomeArquivo);
     } catch (error) {
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage(getErrorMessage(error));
+    } finally { setUploading(false); }
   }
 
-  async function handleDownloadAnexo(recursoId: string, anexoUrl: string) {
-    if (!session.token) return;
-    setDownloadingAnexoId(recursoId);
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!session.token || !formEditalId || !formFundamentacao.trim()) return;
+    setSubmitting(true); setMessage(null);
     try {
-      await downloadAuthenticatedFile(anexoUrl, session.token, "anexo-recurso.pdf");
+      await createCandidateRecurso(sanitizePayload({
+        editalId: formEditalId,
+        fase: formFase as FaseRecurso,
+        fundamentacao: formFundamentacao,
+        anexoUrl: formAnexoUrl || undefined,
+      }), session.token);
+      setFormFundamentacao(""); setFormAnexoUrl(""); setFormAnexoNome("");
+      const r = await listCandidateRecursos(session.token);
+      setRecursos(r);
+      setMessage(null);
     } catch (error) {
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally {
-      setDownloadingAnexoId(null);
-    }
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage(getErrorMessage(error));
+    } finally { setSubmitting(false); }
   }
 
-  if (status === "loading") {
-    return <LoadingState title="Carregando recursos" description="Consultando recursos e editais vinculados ao candidato." />;
-  }
+  if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando recursos do candidato." />;
+  if (status === "error") return <ErrorState title="Falha ao carregar recursos" description={message ?? undefined} />;
 
-  if (status === "error") {
-    return <ErrorState title="Falha ao carregar recursos" description={message?.text} />;
-  }
+  const items = recursos?.items ?? [];
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback type={message.type} title="Retorno operacional" description={message.text} /> : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div className="part-header"><h1>Recursos</h1><p>Interpor novo recurso ou acompanhar recursos ja interpostos.</p></div>
 
-      <PageFeedback
-        type="info"
-        title="Recursos administrativos do candidato"
-        description="Abra recursos apenas quando houver resultado preliminar e, para etapas com espelho, somente apos solicitar e receber a liberacao correspondente."
-      />
+      {message ? <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>{message}</div> : null}
 
-      <SectionCard title="Novo recurso" description="Formulario do candidato para registro de recurso dentro da janela e da fase corretas. A validacao final permanece no backend.">
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label className="field-block">
-            <span>Edital</span>
-            <select className="select-field" onChange={(event) => setEditalId(event.target.value)} required value={editalId}>
-              <option value="">Selecione</option>
-              {editalOptions.map((item) => (
-                <option key={item.edital.id} value={item.edital.id}>
-                  {item.edital.numero} - {item.edital.titulo}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field-block">
-            <span>Fase</span>
-            <select className="select-field" onChange={(event) => setFase(event.target.value)} required value={fase}>
-              <option value="">Selecione</option>
-              {faseRecursoOptions.map((value) => (
-                <option key={value} value={value}>
-                  {getStatusLabel(value)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field-block">
-            <span>Fundamentacao</span>
-            <textarea className="text-area" minLength={10} onChange={(event) => setFundamentacao(event.target.value)} required value={fundamentacao} />
-          </label>
-
-          <FileField disabled={busy} hint={anexoNome ? `Arquivo enviado: ${anexoNome}` : "Envie um anexo opcional para fundamentar o recurso."} label="Anexo do recurso (opcional)" onFileSelect={handleUploadAnexo} />
-
-          <ActionButton disabled={busy} loading={busy} type="submit">
-            Registrar recurso
-          </ActionButton>
-        </form>
-      </SectionCard>
-
-      <SectionCard title="Historico de recursos" description="Lista dos recursos ja registrados pela conta autenticada.">
-        {filteredRecursos.length ? (
-          <div className="content-list">
-            {filteredRecursos.map((item) => (
-              <article className="content-item" key={item.id}>
-                <div className="content-item-row">
-                  <strong>{item.edital.numero}</strong>
-                  <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
-                </div>
-                <small>Fase: {getStatusLabel(item.fase)}</small>
-                <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
-                <small>Respondido em: {formatIsoDate(item.respondidoEm)}</small>
-                <small>Impacto em resultado: {item.impactoResultado ? "sim" : "nao"}</small>
-                <p>{item.fundamentacao}</p>
-                <small>Decisao: {item.decisao ?? "ainda nao registrada"}</small>
-                {item.anexoUrl ? (
-                  <div className="content-item-links">
-                    <ActionButton disabled={downloadingAnexoId === item.id || !item.anexoUrl} onClick={() => item.anexoUrl ? handleDownloadAnexo(item.id, item.anexoUrl) : undefined} size="sm" type="button" variant="secondary">
-                      {downloadingAnexoId === item.id ? "Baixando..." : "Baixar anexo"}
-                    </ActionButton>
-                  </div>
-                ) : null}
-              </article>
-            ))}
+      {/* Form card */}
+      <div className="part-card" style={{ padding: "24px 28px" }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0 }}>Novo recurso</h3>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 20 }}>
+          <div style={{ display: "flex", gap: 16 }}>
+            <div className="wiz-field" style={{ flex: 1 }}>
+              <label className="wiz-field-label">Edital *</label>
+              <select value={formEditalId} onChange={(e) => setFormEditalId(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                {editais.map((ed) => <option key={ed.id} value={ed.id}>{ed.numero}</option>)}
+              </select>
+            </div>
+            <div className="wiz-field" style={{ flex: 1 }}>
+              <label className="wiz-field-label">Fase *</label>
+              <select value={formFase} onChange={(e) => setFormFase(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                {faseRecursoOptions.map((f) => <option key={f} value={f}>{getStatusLabel(f)}</option>)}
+              </select>
+            </div>
           </div>
-        ) : (
-          <EmptyState title="Sem recursos" description="Nenhum recurso foi registrado por esta conta ate o momento." />
-        )}
-      </SectionCard>
+          <div className="wiz-field">
+            <label className="wiz-field-label">Fundamentacao *</label>
+            <textarea placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => setFormFundamentacao(e.target.value)}
+              style={{ height: 100, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <FileField disabled={uploading} hint={formAnexoNome || "Anexo PDF (opcional)"} label="" onFileSelect={handleUpload} />
+            <span style={{ flex: 1 }} />
+            <button type="submit" disabled={submitting || !formFundamentacao.trim()} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: submitting ? 0.5 : 1 }}>
+              {submitting ? "Enviando..." : "Enviar recurso"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* History card */}
+      <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #E2E8F0", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", flex: 1 }}>Recursos interpostos</span>
+          <span style={{ fontSize: 13, color: "#94A3B8" }}>{items.length === 1 ? "1 recurso" : `${items.length} recursos`}</span>
+        </div>
+        <div style={{ height: 1, background: "#F1F5F9" }} />
+        {items.length === 0 ? (
+          <div style={{ padding: 24, textAlign: "center", color: "#94A3B8", fontSize: 13 }}>Nenhum recurso interposto ainda.</div>
+        ) : items.map((rec) => (
+          <div key={rec.id} style={{ padding: "14px 24px", borderBottom: "1px solid #F1F5F9" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>Recurso — {getStatusLabel(rec.fase)}</span>
+              <StatusBadge variant={getStatusVariant(rec.status)}>{getStatusLabel(rec.status)}</StatusBadge>
+            </div>
+            <p style={{ fontSize: 13, color: "#64748B", margin: "4px 0 0" }}>{rec.fundamentacao}</p>
+            <div style={{ display: "flex", gap: 16, marginTop: 4, fontSize: 12, color: "#94A3B8" }}>
+              <span>{rec.edital.numero}</span>
+              <span>Enviado: {formatIsoDate(rec.criadoEm)}</span>
+              {rec.respondidoEm ? <span>Respondido: {formatIsoDate(rec.respondidoEm)}</span> : null}
+            </div>
+{/* decisao refletida apenas pelo badge de status */}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

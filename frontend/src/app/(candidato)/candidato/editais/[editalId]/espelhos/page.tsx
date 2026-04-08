@@ -1,293 +1,222 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
-import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
-import { getEspelhoEtapa1Candidate, getEspelhoEtapa2Candidate, solicitarEspelhoEtapa1, solicitarEspelhoEtapa2 } from "@/modules/espelho/api";
+import { solicitarEspelhoEtapa1, solicitarEspelhoEtapa2, getEspelhoEtapa1Candidate, getEspelhoEtapa2Candidate } from "@/modules/espelho/api";
 import type { CandidateEtapa1Espelho, CandidateEtapa2Espelho } from "@/modules/espelho/types";
 
-type EspelhosPageProps = {
-  params: Promise<{ editalId: string }>;
-};
+const iconFilePen = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22h6a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v10" /><path d="M14 2v6h6" /><path d="M10.4 21.9a2 2 0 1 1-3.8-1.2l1.4-4.3 4-1.4-1.6 6.9z" /></svg>;
+const iconAward = (c: string) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="6" /><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" /></svg>;
+const iconArrowLeft = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></svg>;
 
-function renderPrimitive(value: unknown) {
-  if (value === null || value === undefined) {
-    return "nao informado";
-  }
+type Props = { params: Promise<{ editalId: string }> };
 
-  if (typeof value === "object") {
-    return "objeto estruturado";
-  }
+const RUBRIC_CRITERIA = [
+  { name: "Adequacao e dominio do tema", peso: "50%" },
+  { name: "Estrutura", peso: "10%" },
+  { name: "Organizacao e coerencia", peso: "15%" },
+  { name: "Objetividade e sintese", peso: "15%" },
+  { name: "Grafia e gramatica", peso: "10%" },
+];
 
-  return String(value);
-}
-
-function renderKeyValueObject(title: string, value: Record<string, unknown> | null | undefined) {
-  if (!value || !Object.keys(value).length) {
-    return null;
-  }
-
-  return (
-    <div className="content-item">
-      <strong>{title}</strong>
-      <div className="content-list">
-        {Object.entries(value).map(([key, entryValue]) => (
-          <small key={key}>{`${key}: ${renderPrimitive(entryValue)}`}</small>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function renderRecordArray(title: string, items: Array<Record<string, unknown>> | null | undefined) {
-  if (!items?.length) {
-    return null;
-  }
-
-  return (
-    <div className="content-item">
-      <strong>{title}</strong>
-      <div className="content-list">
-        {items.map((item) => (
-          <div className="content-item" key={`${title}-${Object.values(item).map(String).join("-")}`}>
-            {Object.entries(item).map(([key, value]) => (
-              <small key={key}>{`${key}: ${renderPrimitive(value)}`}</small>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function renderEspelhoEtapa1(espelho: CandidateEtapa1Espelho) {
-  return (
-    <div className="content-list">
-      <small>Tema: {espelho.tema ?? "nao informado"}</small>
-      <small>Solicitado em: {formatIsoDate(espelho.espelhoSolicitadoEm ?? null)}</small>
-      <small>Liberado em: {formatIsoDate(espelho.espelhoLiberadoEm ?? null)}</small>
-      <small>Resultado preliminar em: {formatIsoDate(espelho.resultadoPreliminarEm ?? null)}</small>
-      <small>Resultado final em: {formatIsoDate(espelho.resultadoFinalEm ?? null)}</small>
-      <div className="content-item">
-        <strong>Texto submetido</strong>
-        <pre className="preformatted-block">{espelho.textoSubmetido ?? "Nao informado."}</pre>
-      </div>
-      <div className="content-item">
-        <strong>Espelho de correcao</strong>
-        <pre className="preformatted-block">{espelho.espelhoCorrecao ?? "Nao informado."}</pre>
-      </div>
-      {renderKeyValueObject("Rubrica detalhada", espelho.rubricaDetalhada ?? undefined)}
-    </div>
-  );
-}
-
-function renderEspelhoEtapa2(espelho: CandidateEtapa2Espelho) {
-  return (
-    <div className="content-list">
-      <small>Pontuacao bruta: {espelho.pontuacaoBruta ?? "nao informada"}</small>
-      <small>Nota normalizada: {espelho.notaNormalizada ?? "nao informada"}</small>
-      <small>Solicitado em: {formatIsoDate(espelho.espelhoSolicitadoEm ?? null)}</small>
-      <small>Liberado em: {formatIsoDate(espelho.espelhoLiberadoEm ?? null)}</small>
-      <small>Resultado preliminar em: {formatIsoDate(espelho.resultadoPreliminarEm ?? null)}</small>
-      <small>Resultado final em: {formatIsoDate(espelho.resultadoFinalEm ?? null)}</small>
-      {renderKeyValueObject("Pontuacao por item", espelho.pontuacaoItens)}
-      {renderRecordArray("Glosas", espelho.glosas)}
-      {renderKeyValueObject("Memoria de calculo", espelho.memoriaCalculo ?? undefined)}
-      <div className="content-item">
-        <strong>Espelho de correcao</strong>
-        <pre className="preformatted-block">{espelho.espelhoCorrecao ?? "Nao informado."}</pre>
-      </div>
-    </div>
-  );
-}
-
-export default function CandidateEspelhosPage({ params }: EspelhosPageProps) {
+export default function CandidateEspelhosPage({ params }: Props) {
   const session = useSession();
-  const token = session.token;
-  const signOut = session.signOut;
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<CandidateDashboardResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
-  const [busy, setBusy] = useState<"etapa1-request" | "etapa1-load" | "etapa2-request" | "etapa2-load" | null>(null);
-  const [espelhoEtapa1, setEspelhoEtapa1] = useState<CandidateEtapa1Espelho | null>(null);
-  const [espelhoEtapa2, setEspelhoEtapa2] = useState<CandidateEtapa2Espelho | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [espelho1, setEspelho1] = useState<CandidateEtapa1Espelho | null>(null);
+  const [espelho2, setEspelho2] = useState<CandidateEtapa2Espelho | null>(null);
+  const [soliciting, setSoliciting] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); });
-    return () => { cancelled = true; };
-  }, [params]);
-
-  const loadDashboard = useCallback(async () => {
-    if (!token) {
-      return;
-    }
-
-    const response = await getCandidateDashboard(token);
-    setData(response);
-  }, [token]);
+  useEffect(() => { let c = false; params.then((r) => { if (!c) setEditalId(r.editalId); }); return () => { c = true; }; }, [params]);
 
   useAbortableEffect(async (signal) => {
-    if (!token || !editalId) {
-      return;
-    }
-
+    if (!session.token || !editalId) return;
     try {
-      await loadDashboard();
+      const response = await getCandidateDashboard(session.token);
       if (signal.aborted) return;
-      setStatus("ready");
+      setData(response); setStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-
-      setMessage({ type: "error", text: getErrorMessage(error) });
-      setStatus("error");
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage(getErrorMessage(error)); setStatus("error");
     }
-  }, [editalId, loadDashboard, signOut, token]);
+  }, [editalId, session.signOut, session.token]);
 
-  const item = useMemo(() => data?.items.find((entry) => entry.edital.id === editalId) ?? null, [data, editalId]);
+  const item = useMemo(() => data?.items.find((e) => e.edital.id === editalId) ?? null, [data, editalId]);
   const inscricaoId = item?.inscricao?.id ?? null;
   const etapa1 = item?.inscricao?.etapa1 ?? null;
   const etapa2 = item?.inscricao?.etapa2 ?? null;
-  const podeSolicitarEtapa1 = Boolean(inscricaoId && etapa1 && ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"].includes(etapa1.status) && !etapa1.espelhoSolicitadoEm);
-  const podeSolicitarEtapa2 = Boolean(inscricaoId && etapa2 && ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"].includes(etapa2.status) && !etapa2.espelhoSolicitadoEm);
-  const podeVerEtapa1 = Boolean(inscricaoId && etapa1?.espelhoLiberadoEm);
-  const podeVerEtapa2 = Boolean(inscricaoId && etapa2?.espelhoLiberadoEm);
+  const e1Available = Boolean(etapa1 && ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"].includes(etapa1.status));
+  const e2Available = Boolean(etapa2 && ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"].includes(etapa2.status));
+  const e1Released = Boolean(etapa1?.espelhoLiberadoEm);
+  const e2Released = Boolean(etapa2?.espelhoLiberadoEm);
 
-  async function handleSolicitarEtapa1() {
+  async function handleSolicitar(etapa: "1" | "2") {
     if (!session.token || !inscricaoId) return;
-    setBusy("etapa1-request");
-    setMessage(null);
-      try {
-        await solicitarEspelhoEtapa1(inscricaoId, session.token);
-        await loadDashboard();
-        setMessage({ type: "success", text: "Solicitacao do espelho da etapa 1 registrada." });
-      } catch (error) {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-      } finally { setBusy(null); }
+    setSoliciting(etapa); setMessage(null);
+    try {
+      if (etapa === "1") await solicitarEspelhoEtapa1(inscricaoId, session.token);
+      else await solicitarEspelhoEtapa2(inscricaoId, session.token);
+      const response = await getCandidateDashboard(session.token);
+      setData(response);
+    } catch (error) {
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage(getErrorMessage(error));
+    } finally { setSoliciting(null); }
   }
 
-  async function handleSolicitarEtapa2() {
+  async function handleVerEspelho(etapa: "1" | "2") {
     if (!session.token || !inscricaoId) return;
-    setBusy("etapa2-request");
     setMessage(null);
-      try {
-        await solicitarEspelhoEtapa2(inscricaoId, session.token);
-        await loadDashboard();
-        setMessage({ type: "success", text: "Solicitacao do espelho da etapa 2 registrada." });
-      } catch (error) {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-      } finally { setBusy(null); }
+    try {
+      if (etapa === "1") { const e = await getEspelhoEtapa1Candidate(inscricaoId, session.token); setEspelho1(e); }
+      else { const e = await getEspelhoEtapa2Candidate(inscricaoId, session.token); setEspelho2(e); }
+    } catch (error) {
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage(getErrorMessage(error));
+    }
   }
 
-  async function handleCarregarEtapa1() {
-    if (!session.token || !inscricaoId) return;
-    setBusy("etapa1-load");
-    setMessage(null);
-      try {
-        setEspelhoEtapa1(await getEspelhoEtapa1Candidate(inscricaoId, session.token));
-      } catch (error) {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-      } finally { setBusy(null); }
-  }
-
-  async function handleCarregarEtapa2() {
-    if (!session.token || !inscricaoId) return;
-    setBusy("etapa2-load");
-    setMessage(null);
-      try {
-        setEspelhoEtapa2(await getEspelhoEtapa2Candidate(inscricaoId, session.token));
-      } catch (error) {
-        if (isUnauthorizedError(error)) { signOut(); return; }
-        setMessage({ type: "error", text: getErrorMessage(error) });
-      } finally { setBusy(null); }
-  }
-
-  if (status === "loading") return <LoadingState title="Carregando espelhos" description="Consultando o contexto do edital e das etapas avaliativas." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar espelhos" description={message?.text} />;
-  if (!item || !item.inscricao) {
-    return (
-      <div className="stack-layout">
-        <EmptyState title="Inscricao nao localizada" description="O edital informado nao possui inscricao ativa no contexto autenticado do candidato." />
-        <div className="content-item-links">
-          <Link className="nav-link" href="/candidato/participacoes">Ver participacoes</Link>
-        </div>
-      </div>
-    );
-  }
+  if (status === "loading") return <LoadingState title="Carregando espelhos" description="Consultando o acompanhamento do edital." />;
+  if (status === "error") return <ErrorState title="Falha ao carregar espelhos" description={message ?? undefined} />;
+  if (!item) return <EmptyState title="Edital nao vinculado" description="Nao foi encontrada participacao para este edital." />;
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback type={message.type} title="Retorno operacional" description={message.text} /> : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div className="part-header">
+        <h1>Espelhos de correcao</h1>
+        <p>{item.edital.numero} — Visualize os espelhos disponiveis das etapas 1 e 2.</p>
+      </div>
 
-      <PageFeedback
-        type="info"
-        title="Espelhos do edital"
-        description="Solicite e consulte os espelhos apenas quando a etapa correspondente estiver em janela e o backend permitir a operacao."
-      />
+      {message ? <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>{message}</div> : null}
 
-      <SectionCard title={`Espelhos de ${item.edital.numero}`} description={item.edital.titulo}>
-        <div className="content-list">
-          <small>Inscricao: {getStatusLabel(item.inscricao.status)}</small>
-          <small>Etapa 1: {getStatusLabel(etapa1?.status ?? "SEM_RESULTADO")}</small>
-          <small>Etapa 2: {getStatusLabel(etapa2?.status ?? "SEM_RESULTADO")}</small>
+      {/* Etapa 1 card */}
+      <div className="part-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
+          {iconFilePen}
+          <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 1 — Redacao</span>
+          <StatusBadge variant={e1Released ? "success" : e1Available ? "info" : "neutral"}>
+            {e1Released ? "Disponivel" : etapa1?.espelhoSolicitadoEm ? "Solicitado" : "Nao solicitado"}
+          </StatusBadge>
         </div>
-      </SectionCard>
+        <div style={{ height: 1, background: "#F1F5F9" }} />
+        <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {e1Released && espelho1 ? (
+            <>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "#1E293B" }}>Nota final: {etapa1?.nota ?? "—"}</span>
+              {/* Rubric table */}
+              <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
+                <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
+                  <span style={{ flex: 1 }}>Criterio</span>
+                  <span style={{ width: 60, textAlign: "center" }}>Peso</span>
+                  <span style={{ width: 60, textAlign: "center" }}>Nota</span>
+                </div>
+                {RUBRIC_CRITERIA.map((c, i) => {
+                  const rubrica = espelho1.rubricaDetalhada as Record<string, unknown> | null;
+                  const nota = rubrica?.[c.name] ?? "—";
+                  return (
+                    <div key={c.name} style={{ display: "flex", padding: "10px 16px", background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 13 }}>
+                      <span style={{ flex: 1, color: "#334155" }}>{c.name}</span>
+                      <span style={{ width: 60, textAlign: "center", color: "#64748B" }}>{c.peso}</span>
+                      <span style={{ width: 60, textAlign: "center", fontWeight: 600, color: "#1E293B" }}>{String(nota)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#94A3B8" }}>
+                <span>Solicitado: {formatIsoDate(etapa1?.espelhoSolicitadoEm ?? null)}</span>
+                <span>Liberado: {formatIsoDate(etapa1?.espelhoLiberadoEm ?? null)}</span>
+              </div>
+            </>
+          ) : e1Released ? (
+            <button type="button" onClick={() => handleVerEspelho("1")} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+              Ver espelho
+            </button>
+          ) : e1Available && !etapa1?.espelhoSolicitadoEm ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho para visualizar a correcao da etapa 1.</span>
+              <button type="button" onClick={() => handleSolicitar("1")} disabled={soliciting === "1"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                {soliciting === "1" ? "Solicitando..." : "Solicitar espelho"}
+              </button>
+            </div>
+          ) : (
+            <span style={{ fontSize: 13, color: "#64748B" }}>
+              {etapa1?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao." : "Espelho nao disponivel para esta etapa."}
+            </span>
+          )}
+        </div>
+      </div>
 
-      <SectionCard title="Espelho da etapa 1" description="Redacao, rubrica e texto avaliado quando liberados ao candidato.">
-        {etapa1 ? (
-          <div className="content-list">
-            <div className="content-item-row">
-              <small>Status</small>
-              <StatusBadge variant={getStatusVariant(etapa1.status)}>{getStatusLabel(etapa1.status)}</StatusBadge>
+      {/* Etapa 2 card */}
+      <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #E2E8F0", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
+          {iconAward(e2Released ? "#2563EB" : "#94A3B8")}
+          <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 2 — Titulos</span>
+          <StatusBadge variant={e2Released ? "success" : e2Available ? "info" : "neutral"}>
+            {e2Released ? "Disponivel" : etapa2?.espelhoSolicitadoEm ? "Solicitado" : "Nao solicitado"}
+          </StatusBadge>
+        </div>
+        <div style={{ height: 1, background: "#F1F5F9" }} />
+        <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {e2Released && espelho2 ? (
+            <>
+              <div style={{ display: "flex", gap: 24, fontSize: 14 }}>
+                <span>Pontuacao bruta: <strong>{espelho2.pontuacaoBruta ?? "—"}</strong></span>
+                <span>Nota normalizada: <strong>{espelho2.notaNormalizada ?? "—"}</strong></span>
+              </div>
+              {espelho2.pontuacaoItens ? (
+                <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
+                  <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
+                    <span style={{ flex: 1 }}>Item</span>
+                    <span style={{ width: 80, textAlign: "center" }}>Pontuacao</span>
+                  </div>
+                  {Object.entries(espelho2.pontuacaoItens).map(([key, val], i) => (
+                    <div key={key} style={{ display: "flex", padding: "10px 16px", background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 13 }}>
+                      <span style={{ flex: 1, color: "#334155" }}>{key}</span>
+                      <span style={{ width: 80, textAlign: "center", fontWeight: 600, color: "#1E293B" }}>{String(val)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#94A3B8" }}>
+                <span>Solicitado: {formatIsoDate(etapa2?.espelhoSolicitadoEm ?? null)}</span>
+                <span>Liberado: {formatIsoDate(etapa2?.espelhoLiberadoEm ?? null)}</span>
+              </div>
+            </>
+          ) : e2Released ? (
+            <button type="button" onClick={() => handleVerEspelho("2")} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+              Ver espelho
+            </button>
+          ) : e2Available && !etapa2?.espelhoSolicitadoEm ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho para visualizar a correcao da etapa 2.</span>
+              <button type="button" onClick={() => handleSolicitar("2")} disabled={soliciting === "2"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                {soliciting === "2" ? "Solicitando..." : "Solicitar espelho"}
+              </button>
             </div>
-            <small>Solicitado em: {formatIsoDate(etapa1.espelhoSolicitadoEm ?? null)}</small>
-            <small>Liberado em: {formatIsoDate(etapa1.espelhoLiberadoEm ?? null)}</small>
-            <div className="content-item-links">
-              {podeSolicitarEtapa1 ? <ActionButton disabled={busy !== null} onClick={handleSolicitarEtapa1} type="button">Solicitar espelho da etapa 1</ActionButton> : null}
-              {podeVerEtapa1 ? <ActionButton disabled={busy !== null} onClick={handleCarregarEtapa1} type="button" variant="secondary">Ver espelho da etapa 1</ActionButton> : null}
-            </div>
-            {espelhoEtapa1 ? renderEspelhoEtapa1(espelhoEtapa1) : null}
-          </div>
-        ) : <EmptyState title="Etapa 1 indisponivel" description="Nao ha avaliacao da etapa 1 vinculada a esta inscricao." />}
-      </SectionCard>
+          ) : (
+            <span style={{ fontSize: 13, color: "#64748B" }}>
+              {etapa2?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao." : "Espelho nao disponivel para esta etapa."}
+            </span>
+          )}
+        </div>
+      </div>
 
-      <SectionCard title="Espelho da etapa 2" description="Pontuacao, glosas e memoria da avaliacao curricular quando liberadas ao candidato.">
-        {etapa2 ? (
-          <div className="content-list">
-            <div className="content-item-row">
-              <small>Status</small>
-              <StatusBadge variant={getStatusVariant(etapa2.status)}>{getStatusLabel(etapa2.status)}</StatusBadge>
-            </div>
-            <small>Solicitado em: {formatIsoDate(etapa2.espelhoSolicitadoEm ?? null)}</small>
-            <small>Liberado em: {formatIsoDate(etapa2.espelhoLiberadoEm ?? null)}</small>
-            <div className="content-item-links">
-              {podeSolicitarEtapa2 ? <ActionButton disabled={busy !== null} onClick={handleSolicitarEtapa2} type="button">Solicitar espelho da etapa 2</ActionButton> : null}
-              {podeVerEtapa2 ? <ActionButton disabled={busy !== null} onClick={handleCarregarEtapa2} type="button" variant="secondary">Ver espelho da etapa 2</ActionButton> : null}
-            </div>
-            {espelhoEtapa2 ? renderEspelhoEtapa2(espelhoEtapa2) : null}
-          </div>
-        ) : <EmptyState title="Etapa 2 indisponivel" description="Nao ha avaliacao da etapa 2 vinculada a esta inscricao." />}
-      </SectionCard>
+      {/* Back link */}
+      <Link href={`/candidato/editais/${editalId}`} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500, color: "#2563EB", textDecoration: "none" }}>
+        {iconArrowLeft} Voltar ao edital
+      </Link>
     </div>
   );
 }
