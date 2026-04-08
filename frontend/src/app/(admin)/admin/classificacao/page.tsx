@@ -19,9 +19,9 @@ export default function AdminClassificacaoIndexPage() {
       <SectionCard title="Abrir classificação" description="Selecione um edital para continuar.">
         <div className="admin-launcher-select-card">
           <AdminEditalCombobox allowEmpty={false} emptyLabel="Selecione um edital" label="Edital" onChange={setDraftEditalId} token={session.token ?? ""} value={draftEditalId} />
-          <div className="content-item-links admin-launcher-form-actions">
-            <Link className="nav-link" href={draftEditalId.trim() ? `/admin/classificacao/${draftEditalId.trim()}` : "/admin/classificacao"}>
-              Abrir classificação
+          <div className="admin-launcher-form-actions">
+            <Link className="action-btn action-btn--primary action-btn--md" href={draftEditalId.trim() ? `/admin/classificacao/${draftEditalId.trim()}` : "/admin/classificacao"}>
+              Abrir classificacao
             </Link>
           </div>
         </div>
