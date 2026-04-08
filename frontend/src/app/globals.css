@@ -1222,6 +1222,242 @@ textarea {
 }
 
 /* ============================================
+   Auth pages (Pencil DS — N9gAJ, zfQH3, nyVhm, ex5eq)
+   ============================================ */
+
+.auth-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.auth-card {
+  width: 440px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 40px 36px;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow-elevated);
+}
+
+.auth-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--color-primary-50);
+  margin-bottom: 4px;
+}
+
+.auth-card-icon-raw {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.auth-card-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-neutral-900);
+}
+
+.auth-card-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-neutral-500);
+  text-align: center;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-neutral-700);
+}
+
+.auth-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--color-neutral-300);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--color-neutral-800);
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 2px var(--color-primary-100);
+}
+
+.auth-input::placeholder {
+  color: var(--color-neutral-400);
+}
+
+.auth-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-neutral-300);
+  border-radius: 6px;
+  background: #fff;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--color-neutral-800);
+  resize: vertical;
+}
+
+.auth-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 2px var(--color-primary-100);
+}
+
+.auth-row {
+  display: flex;
+  gap: 12px;
+}
+
+.auth-row .auth-field {
+  flex: 1;
+}
+
+.auth-submit {
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary-500);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: var(--color-primary-600);
+}
+
+.auth-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.auth-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-primary-500);
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-link-strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-500);
+  text-decoration: none;
+}
+
+.auth-link-strong:hover {
+  text-decoration: underline;
+}
+
+.auth-divider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.auth-divider {
+  flex: 1;
+  height: 1px;
+  background: var(--color-neutral-200);
+}
+
+.auth-divider-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-neutral-400);
+}
+
+.auth-switch-row {
+  font-size: 13px;
+  color: var(--color-neutral-500);
+}
+
+.auth-back-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-primary-500);
+  text-decoration: none;
+}
+
+.auth-back-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-token-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--color-neutral-100);
+  font-size: 12px;
+}
+
+.auth-token-preview code {
+  word-break: break-all;
+  font-size: 11px;
+  color: var(--color-neutral-700);
+}
+
+/* ============================================
    Pagination (Pencil DS)
    ============================================ */
 

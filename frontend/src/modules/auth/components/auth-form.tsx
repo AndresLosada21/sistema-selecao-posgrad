@@ -4,9 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { ErrorState } from "@/components/shared/page-states";
-import { SectionCard } from "@/components/shared/section-card";
 import { resolveAuthRedirectPath } from "@/lib/auth/next-path";
 import { getErrorMessage } from "@/lib/http/api-error";
 import { useSession } from "@/lib/auth/session-provider";
@@ -16,6 +14,18 @@ type AuthFormProps = {
   mode: "login" | "cadastro";
   nextPath?: string;
 };
+
+const iconLogin = (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" x2="3" y1="12" y2="12" />
+  </svg>
+);
+
+const iconUserPlus = (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="22" x2="16" y1="11" y2="11" />
+  </svg>
+);
 
 export function AuthForm({ mode, nextPath }: AuthFormProps) {
   const router = useRouter();
@@ -37,21 +47,18 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
   }, []);
 
   useEffect(() => {
-    if (!session.isAuthenticated) {
-      return;
-    }
-
+    if (!session.isAuthenticated) return;
     router.replace(resolveAuthRedirectPath(nextPath));
   }, [nextPath, router, session.isAuthenticated]);
 
   if (session.isAuthenticated) {
     return (
-      <SectionCard
-        title={mode === "login" ? "Sessao ja autenticada" : "Conta ja autenticada"}
-        description="Voce ja esta autenticado. Redirecionando para a area adequada."
-      >
-        <p className="muted-text">A navegação sera atualizada automaticamente.</p>
-      </SectionCard>
+      <div className="auth-card">
+        <div className="auth-card-header">
+          <strong className="auth-card-title">Sessao ja autenticada</strong>
+          <p className="auth-card-desc">Redirecionando para a area adequada.</p>
+        </div>
+      </div>
     );
   }
 
@@ -67,7 +74,6 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           : await login({ email, senha });
 
       session.setSessionFromAuthResponse(response);
-      // status permanece "loading" intencionalmente: o redirect/re-render do session effect cuida do estado final.
       router.replace(resolveAuthRedirectPath(nextPath));
     } catch (error) {
       setStatus("error");
@@ -82,55 +88,78 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
     }
   }
 
+  const isLogin = mode === "login";
+
   return (
-    <SectionCard
-      title={mode === "login" ? "Entrar" : "Criar conta"}
-      description={mode === "login" ? "Autentique-se para acessar os fluxos do processo." : "Cadastre a conta base do candidato para acessar os editais."}
-    >
-      <form className="form-grid" onSubmit={handleSubmit}>
-        {mode === "cadastro" ? (
-          <label className="field-block">
-            <span>Nome completo</span>
-            <input autoComplete="name" onChange={(event) => { setNomeCompleto(event.target.value); setMessage(null); setStatus("idle"); }} required value={nomeCompleto} />
+    <div className="auth-card">
+      <div className="auth-card-header">
+        <span className="auth-card-icon">{isLogin ? iconLogin : iconUserPlus}</span>
+        <strong className="auth-card-title">{isLogin ? "Entrar" : "Criar conta"}</strong>
+        <p className="auth-card-desc">
+          {isLogin
+            ? "Autentique-se para acessar os fluxos do processo."
+            : "Cadastre a conta base do candidato para acessar os editais."}
+        </p>
+      </div>
+
+      <form className="auth-form" onSubmit={handleSubmit}>
+        {!isLogin ? (
+          <label className="auth-field">
+            <span className="auth-field-label">Nome completo *</span>
+            <input className="auth-input" autoComplete="name" onChange={(e) => { setNomeCompleto(e.target.value); setMessage(null); setStatus("idle"); }} required value={nomeCompleto} />
           </label>
         ) : null}
 
-        <label className="field-block">
-          <span>E-mail</span>
-          <input autoComplete="email" onChange={(event) => { setEmail(event.target.value); setMessage(null); setStatus("idle"); }} required type="email" value={email} />
+        <label className="auth-field">
+          <span className="auth-field-label">E-mail {!isLogin ? "*" : ""}</span>
+          <input className="auth-input" autoComplete="email" onChange={(e) => { setEmail(e.target.value); setMessage(null); setStatus("idle"); }} required type="email" value={email} placeholder={isLogin ? "candidato@email.com" : ""} />
         </label>
 
-        <label className="field-block">
-          <span>Senha</span>
-          <input autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={8} onChange={(event) => { setSenha(event.target.value); setMessage(null); setStatus("idle"); }} required type="password" value={senha} />
+        <label className="auth-field">
+          <span className="auth-field-label">Senha {!isLogin ? "*" : ""}</span>
+          <input className="auth-input" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); }} required type="password" value={senha} />
         </label>
 
-        {mode === "cadastro" ? (
-          <>
-            <label className="field-block">
-              <span>Telefone</span>
-              <input autoComplete="tel" onChange={(event) => { setTelefone(event.target.value); setMessage(null); setStatus("idle"); }} value={telefone} />
+        {!isLogin ? (
+          <div className="auth-row">
+            <label className="auth-field">
+              <span className="auth-field-label">Telefone</span>
+              <input className="auth-input" autoComplete="tel" onChange={(e) => { setTelefone(e.target.value); setMessage(null); setStatus("idle"); }} value={telefone} placeholder="(92) 99123-4567" />
             </label>
-            <label className="field-block">
-              <span>CPF</span>
-              <input autoComplete="off" inputMode="numeric" onChange={(event) => { setCpf(event.target.value); setMessage(null); setStatus("idle"); }} value={cpf} />
+            <label className="auth-field">
+              <span className="auth-field-label">CPF</span>
+              <input className="auth-input" autoComplete="off" inputMode="numeric" onChange={(e) => { setCpf(e.target.value); setMessage(null); setStatus("idle"); }} value={cpf} placeholder="000.000.000-00" />
             </label>
-          </>
-        ) : null}
-
-        <ActionButton disabled={status === "loading"} loading={status === "loading"} loadingText="Processando..." type="submit">
-          {status === "loading" ? "Processando..." : mode === "login" ? "Entrar" : "Criar conta"}
-        </ActionButton>
-        {mode === "login" ? (
-          <div className="content-item-links">
-            <Link className="nav-link" href="/esqueci-senha">
-              Esqueci minha senha
-            </Link>
           </div>
         ) : null}
+
+        <button className="auth-submit" disabled={status === "loading"} type="submit">
+          {status === "loading" ? "Processando..." : isLogin ? "Entrar" : "Criar conta"}
+        </button>
       </form>
 
-      {message ? <ErrorState description={message} title={mode === "login" ? "Falha ao entrar" : "Falha ao criar conta"} /> : null}
-    </SectionCard>
+      {message ? (
+        <ErrorState description={message} title={isLogin ? "Falha ao entrar" : "Falha ao criar conta"} />
+      ) : null}
+
+      <div className="auth-links">
+        {isLogin ? (
+          <Link className="auth-link" href="/esqueci-senha">Esqueci minha senha</Link>
+        ) : null}
+
+        <div className="auth-divider-row">
+          <span className="auth-divider" />
+          <span className="auth-divider-text">ou</span>
+          <span className="auth-divider" />
+        </div>
+
+        <span className="auth-switch-row">
+          {isLogin ? "Nao tem conta? " : "Ja tem conta? "}
+          <Link className="auth-link-strong" href={isLogin ? "/criar-conta" : "/entrar"}>
+            {isLogin ? "Criar conta" : "Entrar"}
+          </Link>
+        </span>
+      </div>
+    </div>
   );
 }
