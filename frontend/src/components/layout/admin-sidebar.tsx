@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { useSession } from "@/lib/auth/session-provider";
+
 type AdminNavItem = {
   href: string;
   label: string;
@@ -25,19 +27,20 @@ const iconLogout = <svg aria-hidden="true" width="16" height="16" viewBox="0 0 2
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admin", label: "Painel Geral", section: "principal", icon: iconDashboard },
   { href: "/admin/editais", label: "Editais", section: "modulos", icon: iconEdital },
-  { href: "/admin/isencao", label: "Isencao", section: "modulos", icon: iconShield },
-  { href: "/admin/homologacao", label: "Homologacao", section: "modulos", icon: iconCheck },
-  { href: "/admin/etapa-1", label: "Etapa 1 — Redacao", section: "modulos", icon: iconPencil },
-  { href: "/admin/etapa-2", label: "Etapa 2 — Titulos", section: "modulos", icon: iconFile },
-  { href: "/admin/classificacao", label: "Classificacao Final", section: "modulos", icon: iconTrophy },
+  { href: "/admin/isencao", label: "Isenção", section: "modulos", icon: iconShield },
+  { href: "/admin/homologacao", label: "Homologação", section: "modulos", icon: iconCheck },
+  { href: "/admin/etapa-1", label: "Etapa 1 — Redação", section: "modulos", icon: iconPencil },
+  { href: "/admin/etapa-2", label: "Etapa 2 — Títulos", section: "modulos", icon: iconFile },
+  { href: "/admin/classificacao", label: "Classificação Final", section: "modulos", icon: iconTrophy },
   { href: "/admin/politicas-afirmativas", label: "Pol. Afirmativas", section: "modulos", icon: iconShield },
   { href: "/admin/recursos", label: "Recursos", section: "modulos", icon: iconFile },
-  { href: "/admin/usuarios", label: "Usuarios", section: "administracao", icon: iconUsers },
-  { href: "/admin/publicacoes", label: "Publicacoes Oficiais", section: "administracao", icon: iconMegaphone },
+  { href: "/admin/usuarios", label: "Usuários", section: "administracao", icon: iconUsers },
+  { href: "/admin/publicacoes", label: "Publicações Oficiais", section: "administracao", icon: iconMegaphone },
 ];
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const session = useSession();
 
   function isActive(href: string) {
     if (!pathname) return false;
@@ -47,8 +50,8 @@ export function AdminSidebar() {
 
   const sections: Array<{ key: "principal" | "modulos" | "administracao"; label?: string }> = [
     { key: "principal" },
-    { key: "modulos", label: "OPERATIVO" },
-    { key: "administracao", label: "ADMINISTRACAO" },
+    { key: "modulos", label: "AVALIAÇÃO" },
+    { key: "administracao", label: "ADMINISTRAÇÃO" },
   ];
 
   return (
@@ -71,10 +74,10 @@ export function AdminSidebar() {
       })}
 
       <div className="admin-sidebar-footer">
-        <Link href="/candidato" className="admin-sidebar-item">
+        <button aria-label="Sair" className="admin-sidebar-item admin-sidebar-item--danger" onClick={session.signOut} type="button">
           <span className="admin-sidebar-icon" aria-hidden="true">{iconLogout}</span>
-          <span>Area do candidato</span>
-        </Link>
+          <span>Sair</span>
+        </button>
       </div>
     </aside>
   );

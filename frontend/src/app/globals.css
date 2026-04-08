@@ -1223,24 +1223,35 @@ textarea {
 }
 
 .admin-topbar {
-  height: 40px;
+  min-height: var(--topbar-height);
   background: var(--color-primary-800);
   color: #fff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .admin-topbar-inner {
-  height: 100%;
+  min-height: var(--topbar-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
-  padding: 0 var(--space-7);
+  padding: 0 var(--space-8);
+}
+
+.admin-topbar-brand {
+  display: flex;
+  align-items: center;
+}
+
+.admin-topbar-brand-logo {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .admin-topbar-title {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-primary-200);
 }
 
 .admin-topbar-right {
@@ -1249,28 +1260,29 @@ textarea {
   gap: var(--space-4);
 }
 
+.admin-topbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-primary-600);
+}
+
 .admin-topbar-role {
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--space-3);
-  height: 22px;
+  gap: var(--space-3);
+  padding: 6px 12px 6px 8px;
   border-radius: var(--radius-full);
-  background: rgba(59, 130, 246, 0.2);
-  color: var(--color-primary-100);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.admin-topbar-signout {
-  border: 0;
-  background: transparent;
-  color: var(--color-primary-100);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.admin-topbar-signout:hover {
+  background: var(--color-primary-700);
   color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.admin-topbar-role-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--color-primary-500);
 }
 
 .admin-mobile-nav {
@@ -1368,6 +1380,18 @@ textarea {
   padding-top: var(--space-4);
 }
 
+.admin-sidebar-item--danger {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #ef4444;
+  cursor: pointer;
+}
+
+.admin-sidebar-item--danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
 .admin-main {
   flex: 1;
   min-width: 0;
@@ -1381,7 +1405,7 @@ textarea {
 
 .admin-launcher-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-5);
 }
 
@@ -1390,7 +1414,7 @@ textarea {
   flex-direction: column;
   justify-content: space-between;
   gap: var(--space-4);
-  min-height: 132px;
+  min-height: 120px;
   border: 1px solid var(--color-neutral-200);
   border-radius: var(--radius-md);
   padding: var(--space-6);
@@ -1418,8 +1442,41 @@ textarea {
   gap: var(--space-4);
 }
 
+.admin-launcher-select-card {
+  width: 480px;
+  max-width: 100%;
+  display: grid;
+  gap: var(--space-4);
+}
+
 .admin-launcher-form-actions {
   justify-content: flex-start;
+}
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.admin-stat-card {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  background: #fff;
+  padding: 20px 24px;
+}
+
+.admin-stat-label {
+  font-size: 12px;
+  color: var(--color-neutral-500);
+}
+
+.admin-stat-value {
+  font-size: 32px;
+  line-height: 1;
+  color: var(--color-neutral-900);
 }
 
 /* ============================================
@@ -1541,6 +1598,10 @@ textarea {
   }
 
   .admin-launcher-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-stats-grid {
     grid-template-columns: 1fr;
   }
 }

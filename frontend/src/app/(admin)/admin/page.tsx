@@ -1,65 +1,113 @@
+"use client";
+
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
-import { PageFeedback } from "@/components/shared/page-feedback";
+import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { SectionCard } from "@/components/shared/section-card";
-import { SummaryGrid } from "@/components/shared/summary-grid";
+import { useSession } from "@/lib/auth/session-provider";
+import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { listAllAdminEditais } from "@/modules/admin-edital/api";
+import { listInscricoesParaHomologacao } from "@/modules/admin-homologacao/api";
+import { listAdminIsencoes } from "@/modules/admin-isencao/api";
 
-const adminModules = [
-  { href: "/admin/editais", title: "Editais", description: "CRUD administrativo de editais, linhas e cronogramas.", section: "Operativo" },
-  { href: "/admin/isencao", title: "Isencao", description: "Fila administrativa de pedidos de isencao.", section: "Operativo" },
-  { href: "/admin/homologacao", title: "Homologacao", description: "Fila de inscricoes para homologacao preliminar e final.", section: "Operativo" },
-  { href: "/admin/etapa-1", title: "Etapa 1 — Redacao", description: "Avaliacao e liberacao de espelho da redacao.", section: "Operativo" },
-  { href: "/admin/etapa-2", title: "Etapa 2 — Titulos", description: "Analise curricular e nota normalizada.", section: "Operativo" },
-  { href: "/admin/classificacao", title: "Classificacao Final", description: "Ranking final por edital e recalculo.", section: "Operativo" },
-  { href: "/admin/politicas-afirmativas", title: "Pol. Afirmativas", description: "Encaminhamento e resultados da etapa.", section: "Operativo" },
-  { href: "/admin/recursos", title: "Recursos", description: "Fila de recursos e impactos derivados.", section: "Operativo" },
-  { href: "/admin/usuarios", title: "Usuarios", description: "Contas, perfis e escopos de avaliador.", section: "Administracao" },
-  { href: "/admin/publicacoes", title: "Publicacoes Oficiais", description: "Preview, publicacao e historico versionado.", section: "Administracao" },
-];
+const launcherRows = [
+  [
+    { href: "/admin/editais", title: "Editais", description: "Ver editais, linhas e cronograma" },
+    { href: "/admin/usuarios", title: "Usuários", description: "Contas, perfis e escopos" },
+    { href: "/admin/isencao", title: "Isenção", description: "Fila de pedidos de isenção de taxa" },
+  ],
+  [
+    { href: "/admin/homologacao", title: "Homologação", description: "Fila de inscrições para homologar" },
+    { href: "/admin/etapa-1", title: "Etapa 1 — Redação", description: "Avaliação de redações" },
+    { href: "/admin/etapa-2", title: "Etapa 2 — Títulos", description: "Análise curricular e pontuação" },
+  ],
+  [
+    { href: "/admin/classificacao", title: "Classificação", description: "Ranking final por edital" },
+    { href: "/admin/recursos", title: "Recursos", description: "Fila de recursos interpostos" },
+    { href: "/admin/publicacoes", title: "Publicações", description: "Oficiais, retificações e PDFs" },
+  ],
+] as const;
 
 export default function AdminHomePage() {
-  const groupedModules = {
-    Operativo: adminModules.filter((item) => item.section === "Operativo"),
-    Administracao: adminModules.filter((item) => item.section === "Administracao"),
-  };
+  const session = useSession();
+  const token = session.token;
+  const signOut = session.signOut;
+
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [message, setMessage] = useState<string | null>(null);
+  const [stats, setStats] = useState({ totalInscricoes: 0, editaisAtivos: 0, pedidosPendentes: 0, homologacoesPendentes: 0 });
+
+  useAbortableEffect(async (signal) => {
+    if (!token) return;
+
+    try {
+      const [editais, isencoes, homologacao] = await Promise.all([
+        listAllAdminEditais(token),
+        listAdminIsencoes(token, { page: 1, pageSize: 1 }),
+        listInscricoesParaHomologacao(token, { page: 1, pageSize: 1 }),
+      ]);
+
+      if (signal.aborted) return;
+
+      setStats({
+        totalInscricoes: homologacao.total,
+        editaisAtivos: editais.items.filter((item) => item.status === "PUBLICADO" || item.status === "EM_ANDAMENTO").length,
+        pedidosPendentes: isencoes.total,
+        homologacoesPendentes: homologacao.total,
+      });
+      setStatus("ready");
+    } catch (error) {
+      if (signal.aborted) return;
+      if (isUnauthorizedError(error)) {
+        signOut();
+        return;
+      }
+
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    }
+  }, [signOut, token]);
+
+  if (status === "loading") {
+    return <LoadingState title="Carregando painel administrativo" description="Consultando atalhos e indicadores operacionais." />;
+  }
+
+  if (status === "error") {
+    return <ErrorState title="Falha ao carregar painel administrativo" description={message ?? undefined} />;
+  }
 
   return (
     <div className="stack-layout">
       <PageHeader title="Painel Administrativo" description="Acesse os módulos operacionais do sistema de seleção." />
 
-      <SummaryGrid
-        items={[
-          { label: "Trilhas prioritarias", value: 3 },
-          { label: "Modulos ativos", value: adminModules.length },
-          { label: "Entradas rapidas", value: 2 },
-        ]}
-      />
+      <div className="admin-stats-grid">
+        <article className="admin-stat-card"><span className="admin-stat-label">Trilhas/Inscrições</span><strong className="admin-stat-value">{stats.totalInscricoes}</strong></article>
+        <article className="admin-stat-card"><span className="admin-stat-label">Editais Ativos</span><strong className="admin-stat-value">{stats.editaisAtivos}</strong></article>
+        <article className="admin-stat-card"><span className="admin-stat-label">Pedidos Pendentes</span><strong className="admin-stat-value">{stats.pedidosPendentes}</strong></article>
+        <article className="admin-stat-card"><span className="admin-stat-label">Homologações Pendentes</span><strong className="admin-stat-value">{stats.homologacoesPendentes}</strong></article>
+      </div>
 
-      <PageFeedback
-        type="info"
-        title="Operacao administrativa do processo seletivo"
-        description="Acesse diretamente o modulo operacional desejado. O foco desta area e execucao funcional das etapas e resultados do edital."
-      />
-
-      {Object.entries(groupedModules).map(([section, items]) => (
-        <SectionCard key={section} title={section} description={section === "Operativo" ? "Fluxos centrais do edital e das etapas." : "Cadastros e operações estruturantes da área administrativa."}>
-          <div className="admin-launcher-grid">
-            {items.map((moduleItem) => (
-              <article className="admin-launcher-card" key={moduleItem.href}>
-                <div className="admin-launcher-card-body">
-                  <strong>{moduleItem.title}</strong>
-                  <p>{moduleItem.description}</p>
-                </div>
-                <div className="content-item-links">
-                  <Link className="nav-link" href={moduleItem.href}>
-                    Abrir modulo
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </SectionCard>
+      {launcherRows.map((row) => (
+        <div className="admin-launcher-grid" key={row[0].href}>
+          {row.map((moduleItem) => (
+            <article className="admin-launcher-card" key={moduleItem.href}>
+              <div className="admin-launcher-card-body">
+                <strong>{moduleItem.title}</strong>
+                <p>{moduleItem.description}</p>
+              </div>
+              <div className="content-item-links">
+                <Link className="nav-link" href={moduleItem.href}>
+                  Abrir
+                </Link>
+              </div>
+            </article>
+          ))}
+        </div>
       ))}
     </div>
   );
