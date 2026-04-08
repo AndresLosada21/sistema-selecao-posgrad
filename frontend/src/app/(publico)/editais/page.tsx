@@ -14,6 +14,19 @@ import { EditalCard } from "@/modules/edital/components/edital-card";
 import { listEditais } from "@/modules/edital/api";
 import type { EditaisResponse } from "@/modules/edital/types";
 
+type StatusFilter = {
+  key: string;
+  label: string;
+  values: string[];
+};
+
+const STATUS_FILTERS: StatusFilter[] = [
+  { key: "ativos", label: "Publicados e em andamento", values: ["PUBLICADO", "EM_ANDAMENTO"] },
+  { key: "todos", label: "Todos os status", values: ["RASCUNHO", "PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"] },
+  { key: "encerrados", label: "Encerrados", values: ["ENCERRADO"] },
+  { key: "rascunho", label: "Rascunhos", values: ["RASCUNHO"] },
+];
+
 function isTechnicalEdital(numero: string, titulo: string) {
   const n = numero.toUpperCase();
   const t = titulo.toLowerCase();
@@ -26,14 +39,16 @@ export default function EditaisPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [showTechnical, setShowTechnical] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("ativos");
 
-  const loadEditais = useCallback(async () => {
+  const loadEditais = useCallback(async (filterKey?: string) => {
     setStatus("loading");
     setMessage(null);
-    const response = await listEditais();
+    const filter = STATUS_FILTERS.find((f) => f.key === (filterKey ?? activeFilter)) ?? STATUS_FILTERS[0];
+    const response = await listEditais(filter.values);
     setData(response);
     setStatus("ready");
-  }, []);
+  }, [activeFilter]);
 
   useAbortableEffect(async (signal) => {
     try {
@@ -45,16 +60,40 @@ export default function EditaisPage() {
     }
   }, [loadEditais]);
 
-  if (status === "loading") {
-    return <LoadingState description="Consultando os editais publicados..." title="Carregando editais" />;
+  function handleFilterChange(key: string) {
+    if (key === activeFilter) return;
+    setActiveFilter(key);
+    loadEditais(key).catch((error) => {
+      setMessage(getErrorMessage(error));
+      setStatus("error");
+    });
   }
 
-  if (status === "error") {
+  const filterChips = (
+    <div className="edital-filter-bar">
+      {STATUS_FILTERS.map((filter) => (
+        <button
+          key={filter.key}
+          type="button"
+          className={`edital-filter-chip ${activeFilter === filter.key ? "edital-filter-chip--active" : ""}`}
+          onClick={() => handleFilterChange(filter.key)}
+        >
+          {filter.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (status === "loading" && !data) {
+    return <LoadingState description="Consultando os editais..." title="Carregando editais" />;
+  }
+
+  if (status === "error" && !data) {
     return (
       <div className="stack-layout">
         <ErrorState description={message ?? undefined} title="Falha ao carregar editais" />
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <ActionButton onClick={loadEditais} type="button" variant="secondary">
+          <ActionButton onClick={() => loadEditais()} type="button" variant="secondary">
             Tentar novamente
           </ActionButton>
         </div>
@@ -62,13 +101,12 @@ export default function EditaisPage() {
     );
   }
 
-  if (!data?.items.length) {
-    return <EmptyState description="Nenhum edital foi disponibilizado no momento." title="Nenhum edital encontrado" />;
-  }
+  const items = data?.items ?? [];
+  const operationalItems = items.filter((edital) => !isTechnicalEdital(edital.numero, edital.titulo));
+  const technicalItems = items.filter((edital) => isTechnicalEdital(edital.numero, edital.titulo));
+  const visibleItems = showTechnical ? items : operationalItems;
 
-  const operationalItems = data.items.filter((edital) => !isTechnicalEdital(edital.numero, edital.titulo));
-  const technicalItems = data.items.filter((edital) => isTechnicalEdital(edital.numero, edital.titulo));
-  const visibleItems = showTechnical ? data.items : operationalItems;
+  const activeLabel = STATUS_FILTERS.find((f) => f.key === activeFilter)?.label ?? "";
 
   return (
     <div className="stack-layout">
@@ -82,15 +120,23 @@ export default function EditaisPage() {
       />
 
       <PageHeader
-        title="Editais publicados"
-        description={`Exibindo ${visibleItems.length} edital(is) publico(s)${showTechnical ? ` de um total de ${data.total}` : ""}.`}
+        title="Editais"
+        description={`${activeLabel} · ${visibleItems.length} edital(is) encontrado(s)${showTechnical ? ` de um total de ${data?.total ?? 0}` : ""}.`}
       />
 
-      <div className="stack-layout">
-        {visibleItems.map((edital) => (
-          <EditalCard edital={edital} key={edital.id} />
-        ))}
-      </div>
+      {filterChips}
+
+      {status === "loading" ? (
+        <LoadingState title="Atualizando" description="Filtrando editais..." />
+      ) : visibleItems.length === 0 ? (
+        <EmptyState description="Nenhum edital encontrado para o filtro selecionado." title="Nenhum edital" />
+      ) : (
+        <div className="stack-layout">
+          {visibleItems.map((edital) => (
+            <EditalCard edital={edital} key={edital.id} />
+          ))}
+        </div>
+      )}
 
       {session.hasRole("ADMIN") && technicalItems.length ? (
         <div style={{ display: "flex", justifyContent: "center" }}>

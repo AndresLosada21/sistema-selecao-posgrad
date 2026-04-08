@@ -2,8 +2,9 @@ import { apiGet } from "@/lib/http/client";
 
 import type { EditaisResponse, EditalDetalhe } from "./types";
 
-export function listEditais() {
-  return apiGet<EditaisResponse>("/v1/editais?status=PUBLICADO,EM_ANDAMENTO");
+export function listEditais(statusFilter?: string[]) {
+  const status = statusFilter?.length ? statusFilter.join(",") : "PUBLICADO,EM_ANDAMENTO";
+  return apiGet<EditaisResponse>(`/v1/editais?status=${status}`);
 }
 
 export function getEditalById(editalId: string) {
