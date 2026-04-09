@@ -1,7 +1,8 @@
-import { Prisma, StatusConfirmacaoReserva, StatusInscricao } from "@prisma/client";
+import { Prisma, StatusConfirmacaoReserva, StatusInscricao, StatusPagamentoInscricao, TipoDocumentoInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { toInputJsonOrDbNull } from "../../lib/serialization.js";
+import { recordAuditEvent } from "../operacao/audit.service.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
 import {
   buildMotivoPublicacaoHomologacao,
@@ -193,6 +194,66 @@ export async function atualizarConfirmacaoReserva(
       modalidadeConcorrencia: updated.modalidadeConcorrencia,
       confirmacaoAcoesAfirmativas: updated.confirmacaoAcoesAfirmativas,
       confirmacaoPcd: updated.confirmacaoPcd,
+    },
+  };
+}
+
+export async function atualizarStatusPagamentoHomologacao(
+  inscricaoId: string,
+  statusPagamento: "PENDENTE" | "PAGO" | "INVALIDADO",
+  actorUserId?: string,
+) {
+  const inscricao = await prisma.inscricao.findUnique({
+    where: { id: inscricaoId },
+    include: {
+      participacaoEdital: {
+        include: {
+          pedidoIsencao: true,
+        },
+      },
+      documentos: true,
+    },
+  });
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (!inscricao.submetidaEm) {
+    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
+
+  if (inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL" || inscricao.statusPagamento === StatusPagamentoInscricao.DISPENSADO) {
+    return { error: "PAGAMENTO_DISPENSADO_POR_ISENCAO" as const };
+  }
+
+  const hasComprovantePagamento = inscricao.documentos.some((documento) => documento.tipo === TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO);
+
+  if ((statusPagamento === StatusPagamentoInscricao.PAGO || statusPagamento === StatusPagamentoInscricao.INVALIDADO) && !hasComprovantePagamento) {
+    return { error: "COMPROVANTE_PAGAMENTO_OBRIGATORIO" as const };
+  }
+
+  const updated = await prisma.inscricao.update({
+    where: { id: inscricaoId },
+    data: { statusPagamento },
+  });
+
+  await recordAuditEvent({
+    entidade: "INSCRICAO",
+    entidadeId: inscricaoId,
+    acao: "STATUS_PAGAMENTO_ATUALIZADO",
+    descricao: `Status de pagamento atualizado para ${statusPagamento}.`,
+    payload: {
+      statusPagamentoAnterior: inscricao.statusPagamento,
+      statusPagamentoAtual: statusPagamento,
+    },
+    criadoPorId: actorUserId,
+  });
+
+  return {
+    inscricao: {
+      id: updated.id,
+      statusPagamento: updated.statusPagamento,
     },
   };
 }

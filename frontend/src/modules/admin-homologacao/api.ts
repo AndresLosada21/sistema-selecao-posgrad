@@ -7,6 +7,7 @@ import type {
   ConfirmacaoReservaPayload,
   HomologacaoDecisionPayload,
   HomologacaoFundamentosResponse,
+  PagamentoHomologacaoPayload,
 } from "./types";
 
 export function listFundamentosHomologacao(token: string) {
@@ -36,6 +37,10 @@ export function registrarHomologacaoFinal(inscricaoId: string, payload: Homologa
 
 export function atualizarConfirmacaoReserva(inscricaoId: string, payload: ConfirmacaoReservaPayload, token: string) {
   return apiPut<Record<string, unknown>>(`/v1/admin/inscricoes/${inscricaoId}/confirmacao-reserva`, payload, token);
+}
+
+export function atualizarStatusPagamentoHomologacao(inscricaoId: string, payload: PagamentoHomologacaoPayload, token: string) {
+  return apiPut<{ id: string; statusPagamento: string }>(`/v1/admin/inscricoes/${inscricaoId}/pagamento`, payload, token);
 }
 
 export function baixarAnexoIvAdmin(inscricaoId: string, token: string) {

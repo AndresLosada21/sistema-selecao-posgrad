@@ -11,16 +11,16 @@ import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload, downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import type { StatusConfirmacaoReserva } from "@/lib/enums";
+import type { StatusConfirmacaoReserva, StatusPagamentoInscricao } from "@/lib/enums";
 import { formatIsoDate } from "@/modules/edital/formatters";
 
 import {
+  atualizarStatusPagamentoHomologacao,
   atualizarConfirmacaoReserva, baixarAnexoIvAdmin, baixarAnexoIvFlattenAdmin,
   getPacoteDocumentalAdmin, getInscricaoHomologacaoAdmin, listFundamentosHomologacao,
-  registrarPacoteDocumentalAdmin, registrarHomologacaoFinal, registrarHomologacaoPreliminar,
+  registrarHomologacaoFinal, registrarHomologacaoPreliminar,
 } from "@/modules/admin-homologacao/api";
 import type { AdminInscricaoHomologacao, HomologacaoFundamento } from "@/modules/admin-homologacao/types";
-import { uploadPrivateFile } from "@/modules/upload/api";
 
 /* Icons */
 const iconDownload = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>;
@@ -38,6 +38,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState(false);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
+  const [busyPagamento, setBusyPagamento] = useState(false);
+  const [downloadingPacote, setDownloadingPacote] = useState(false);
 
   // Decision state
   const [prelimHomologada, setPrelimHomologada] = useState(true);
@@ -97,12 +99,32 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     finally { setBusyDocId(null); }
   }
 
-  async function handleLoadPacote() {
+  async function handleDownloadPacote() {
     if (!session.token || !item) return;
-    setBusy(true);
-    try { const r = await getPacoteDocumentalAdmin(item.id, session.token); setPacote(r.pacoteDocumental); }
+    setDownloadingPacote(true);
+    try {
+      const pacoteAtual = pacote ?? (await getPacoteDocumentalAdmin(item.id, session.token)).pacoteDocumental;
+      setPacote(pacoteAtual);
+      await downloadAuthenticatedFile(pacoteAtual.urlArquivo, session.token, pacoteAtual.nomeArquivo ?? "pacote-documental.pdf");
+    }
     catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Pacote indisponivel", description: getErrorMessage(error) }); }
-    finally { setBusy(false); }
+    finally { setDownloadingPacote(false); }
+  }
+
+  async function handleStatusPagamento(statusPagamento: Exclude<StatusPagamentoInscricao, "NAO_APLICAVEL" | "DISPENSADO">) {
+    if (!session.token || !item) return;
+    setBusyPagamento(true);
+    setMessage(null);
+    try {
+      await atualizarStatusPagamentoHomologacao(item.id, { statusPagamento }, session.token);
+      await loadItem();
+      setMessage({ type: "success", title: "Pagamento atualizado", description: `Status alterado para ${getStatusLabel(statusPagamento)}.` });
+    } catch (error) {
+      if (handleUnauth(error)) return;
+      setMessage({ type: "error", title: "Falha no pagamento", description: getErrorMessage(error) });
+    } finally {
+      setBusyPagamento(false);
+    }
   }
 
   function addMotivo(target: "prelim" | "final") {
@@ -146,6 +168,13 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   const homolog = item.homologacao;
   const hasPrelim = !!homolog?.statusPreliminar;
   const hasFinal = !!homolog?.statusFinal;
+  const comprovantePagamento = item.documentos.find((doc) => doc.tipo === "COMPROVANTE_PAGAMENTO");
+  const pagamentoManualDisponivel = item.statusPagamento !== "DISPENSADO";
+  const pagamentoAction = !pagamentoManualDisponivel || !comprovantePagamento
+    ? null
+    : item.statusPagamento === "PAGO"
+      ? { label: "Invalidar pagamento", nextStatus: "INVALIDADO" as const, background: "#FEF2F2", color: "#B91C1C", border: "#FECACA" }
+      : { label: "Confirmar pagamento", nextStatus: "PAGO" as const, background: "#ECFDF5", color: "#047857", border: "#A7F3D0" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -190,8 +219,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <button type="button" disabled={busy} onClick={() => handleDownloadAnexo("flatten")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#1E293B" }}>
             {iconDownload} Anexo IV (flattened)
           </button>
-          <button type="button" disabled={busy} onClick={handleLoadPacote} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#475569" }}>
-            Carregar pacote documental
+          <button type="button" disabled={downloadingPacote} onClick={handleDownloadPacote} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#475569" }}>
+            {iconDownload} {downloadingPacote ? "Baixando pacote..." : "Baixar pacote documental"}
           </button>
         </div>
         {pacote ? (
@@ -212,6 +241,29 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#1E293B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.nomeArquivo ?? doc.nome}</div>
                 <div style={{ fontSize: 11, color: "#94A3B8" }}>{getStatusLabel(doc.tipo)}{doc.obrigatorio ? " · Obrigatorio" : ""}</div>
               </div>
+              {doc.tipo === "COMPROVANTE_PAGAMENTO" && pagamentoAction ? (
+                <button
+                  type="button"
+                  disabled={busyPagamento}
+                  onClick={() => handleStatusPagamento(pagamentoAction.nextStatus)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 12px",
+                    background: pagamentoAction.background,
+                    border: `1px solid ${pagamentoAction.border}`,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    color: pagamentoAction.color,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    flexShrink: 0,
+                  }}
+                >
+                  {busyPagamento ? "Atualizando..." : pagamentoAction.label}
+                </button>
+              ) : null}
               <button type="button" disabled={busyDocId === doc.id} onClick={() => handleDownloadDoc(doc.id, doc.urlArquivo, doc.nomeArquivo)}
                 style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 4, color: "#2563EB", fontSize: 12 }}>
                 {iconDownload} {busyDocId === doc.id ? "..." : ""}
@@ -219,6 +271,13 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             </div>
           ))}
           {item.documentos.length === 0 ? <span style={{ fontSize: 13, color: "#94A3B8", padding: "12px 0" }}>Nenhum documento registrado.</span> : null}
+        </div>
+        <div style={{ fontSize: 12, color: "#64748B" }}>
+          {item.statusPagamento === "DISPENSADO"
+            ? "Pagamento dispensado automaticamente por isencao final deferida."
+            : comprovantePagamento
+              ? "A conferencia do comprovante e manual e acontece nesta tela de homologacao."
+              : "Sem comprovante de pagamento enviado; a validacao manual so pode ocorrer quando o arquivo estiver disponivel."}
         </div>
       </div>
 

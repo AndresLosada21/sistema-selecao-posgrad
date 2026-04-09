@@ -11,9 +11,11 @@ import {
   homologacaoDecisionSchema,
   inscricaoIdParamSchema,
   listInscricoesAdminQuerySchema,
+  pagamentoHomologacaoSchema,
 } from "./homologacao.schemas.js";
 import {
   atualizarConfirmacaoReserva,
+  atualizarStatusPagamentoHomologacao,
   getInscricaoHomologacaoById,
   listFundamentosHomologacao,
   listInscricoesParaHomologacao,
@@ -118,6 +120,36 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/confirmacao-reserva", r
   if ("error" in result) {
     const errorCode = result.error as string;
     return response.status(404).json(notFound(errorCode, errorCode));
+  }
+
+  return response.status(200).json(result.inscricao);
+});
+
+homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/pagamento", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+  const parsedBody = pagamentoHomologacaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json(requestValidationError("Dados de pagamento invalidos.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    }));
+  }
+
+  const result = await atualizarStatusPagamentoHomologacao(
+    parsedParams.data.inscricaoId,
+    parsedBody.data.statusPagamento,
+    request.auth!.userId,
+  );
+
+  if ("error" in result) {
+    const errorCode = result.error as string;
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    return response.status(status).json(
+      status === 404
+        ? notFound(errorCode, errorCode)
+        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+    );
   }
 
   return response.status(200).json(result.inscricao);

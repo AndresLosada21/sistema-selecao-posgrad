@@ -1,4 +1,4 @@
-import { StatusConfirmacaoReserva, TipoDocumentoInscricao } from "@prisma/client";
+import { StatusConfirmacaoReserva, StatusPagamentoInscricao, TipoDocumentoInscricao } from "@prisma/client";
 import { z } from "zod";
 
 export const inscricaoIdParamSchema = z.object({
@@ -44,3 +44,11 @@ export const confirmacaoReservaSchema = z.object({
     path: ["confirmacaoAcoesAfirmativas"],
   },
 );
+
+export const pagamentoHomologacaoSchema = z.object({
+  statusPagamento: z.enum([
+    StatusPagamentoInscricao.PENDENTE,
+    StatusPagamentoInscricao.PAGO,
+    StatusPagamentoInscricao.INVALIDADO,
+  ]),
+});

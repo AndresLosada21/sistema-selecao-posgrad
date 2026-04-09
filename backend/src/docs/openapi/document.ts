@@ -1,5 +1,6 @@
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import type { ZodTypeAny } from "zod";
+import { z } from "zod";
 
 import {
   AddDocumentoRequestSchema,
@@ -11,6 +12,7 @@ import {
   ClassificacaoListResponseSchema,
   ConfirmacaoReservaResumoSchema,
   ConfirmacaoReservaRequestSchema,
+  PagamentoHomologacaoRequestSchema,
   EncaminhamentoPoliticasAfirmativasRequestSchema,
   CreatePoliticasAfirmativasPublicacaoRequestSchema,
   CreatePoliticasAfirmativasPublicacaoResponseSchema,
@@ -542,6 +544,28 @@ registry.registerPath({
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/inscricoes/{inscricaoId}/pagamento",
+  tags: ["Homologacao"],
+  operationId: "atualizarStatusPagamentoHomologacao",
+  summary: "Atualiza status manual do pagamento na homologacao",
+  description: withAuthDescription("Permite ao admin confirmar manualmente o comprovante de pagamento da inscricao na tela de homologacao, marcando-o como pago, invalidado ou retornando-o para pendente. Inscricoes com isencao final deferida permanecem dispensadas."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(PagamentoHomologacaoRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Status de pagamento atualizado.", content: jsonContent(z.object({ id: z.string(), statusPagamento: z.string() })) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Pagamento indisponivel para alteracao no contexto atual.", content: jsonContent(ConflictErrorResponseSchema) },
   },
 });
 
