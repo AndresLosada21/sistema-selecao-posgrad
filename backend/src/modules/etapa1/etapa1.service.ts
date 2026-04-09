@@ -21,6 +21,7 @@ function mapEtapa1Inscricao(inscricao: Prisma.InscricaoGetPayload<{
   return {
     avaliacao: avaliacao
       ? {
+          textoSubmetido: avaliacao.textoSubmetido,
           nota: avaliacao.nota?.toNumber() ?? null,
           tema: avaliacao.tema,
           espelhoCorrecao: avaliacao.espelhoCorrecao,

@@ -2846,6 +2846,36 @@ textarea {
 .admin-eval-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .admin-eval-field { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px; }
 .admin-eval-field label { font-size: 13px; font-weight: 600; color: #334155; }
+.admin-inline-help {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #CBD5E1;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-inline-help:hover { background: #F8FAFC; }
+.admin-etapa1-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.admin-etapa1-redacao-card {
+  position: sticky;
+  top: 24px;
+}
+.admin-etapa1-form-card { min-width: 0; }
+@media (max-width: 1180px) {
+  .admin-etapa1-workbench { grid-template-columns: 1fr; }
+  .admin-etapa1-redacao-card { position: static; }
+}
 .admin-eval-field .eval-display {
   display: flex; align-items: center; padding: 0 14px; height: 42px;
   background: #fff; border: 1px solid #CBD5E1; border-radius: 6px;

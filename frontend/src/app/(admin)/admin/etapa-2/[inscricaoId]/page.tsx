@@ -35,6 +35,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const [espelhoCorrecao, setEspelhoCorrecao] = useState("");
   const [liberarEspelhoFlag, setLiberarEspelhoFlag] = useState(false);
   const [publicacao, setPublicacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
+  const [helperHint, setHelperHint] = useState<"liquido" | "referencia" | null>(null);
 
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
@@ -85,6 +86,8 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const totalGlosa = glosasDraft.reduce((sum, entry) => sum + (Number(entry.pontosGlosados) || 0), 0);
   const totalLiquido = totalBruto - totalGlosa;
   const notaNormalizada = maiorPontuacaoBruta > 0 ? (pontuacaoBruta / maiorPontuacaoBruta) * 10 : 0;
+  const pontuacaoDivergente = Math.abs(pontuacaoBruta - totalLiquido) > 0.001;
+  const referenciaMenorQueBruta = maiorPontuacaoBruta < pontuacaoBruta;
 
   async function loadEspelho() {
     if (!token || !inscricaoId) return;
@@ -184,6 +187,30 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             {item.avaliacao?.notaNormalizada ?? notaNormalizada.toFixed(1)}
           </span>
         </div>
+      </div>
+
+      <div className="admin-form-card" style={{ gap: 10 }}>
+        <h2 className="admin-form-card-title">Leitura operacional</h2>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 13, color: "#475569" }}>
+          <span>Total bruto dos itens: <strong style={{ color: "#1E293B" }}>{totalBruto}</strong></span>
+          <span>Total de glosas: <strong style={{ color: "#B45309" }}>{totalGlosa}</strong></span>
+          <span>Total liquido calculado: <strong style={{ color: "#1E293B" }}>{totalLiquido}</strong></span>
+          <span>Formula do edital: <strong style={{ color: "#1E293B" }}>({pontuacaoBruta} / {maiorPontuacaoBruta || 0}) * 10 = {notaNormalizada.toFixed(2)}</strong></span>
+        </div>
+        {pontuacaoDivergente ? (
+          <PageFeedback
+            type="warning"
+            title="Pontuacao bruta diferente do total liquido"
+            description="A tabela soma um total liquido diferente da pontuacao bruta informada. Revise a digitacao ou use o atalho para aplicar o total calculado."
+          />
+        ) : null}
+        {referenciaMenorQueBruta ? (
+          <PageFeedback
+            type="warning"
+            title="Maior pontuacao de referencia menor que a pontuacao do candidato"
+            description="A referencia usada para normalizacao ficou menor que a pontuacao bruta informada. Ajuste a referencia para evitar nota acima de 10."
+          />
+        ) : null}
       </div>
 
       {/* Itens de pontuacao */}
@@ -313,6 +340,59 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             <input min={0.1} onChange={(e) => setMaiorPontuacaoBruta(Number(e.target.value) || 0)} step={0.1} type="number" value={maiorPontuacaoBruta} />
           </div>
         </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button
+              className="admin-pagination-btn"
+              onClick={() => setPontuacaoBruta(Number(totalLiquido.toFixed(2)))}
+              style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
+              type="button"
+            >
+              Usar total liquido calculado
+            </button>
+            <button
+              type="button"
+              onClick={() => setHelperHint((current) => current === "liquido" ? null : "liquido")}
+              className="admin-inline-help"
+              aria-label="Explicar uso do total liquido calculado"
+            >
+              ?
+            </button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button
+              className="admin-pagination-btn"
+              onClick={() => setMaiorPontuacaoBruta(Math.max(pontuacaoBruta, Number(totalLiquido.toFixed(2)), 0.1))}
+              style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
+              type="button"
+            >
+              Usar maior referencia compativel
+            </button>
+            <button
+              type="button"
+              onClick={() => setHelperHint((current) => current === "referencia" ? null : "referencia")}
+              className="admin-inline-help"
+              aria-label="Explicar uso da maior referencia compativel"
+            >
+              ?
+            </button>
+          </div>
+        </div>
+        {helperHint === "liquido" ? (
+          <PageFeedback
+            type="info"
+            title="Usar total liquido calculado"
+            description="Copia para o campo de pontuacao bruta o total dos itens menos as glosas. Use quando a pontuacao final do candidato deve ser exatamente o resultado da tabela acima."
+          />
+        ) : null}
+        {helperHint === "referencia" ? (
+          <PageFeedback
+            type="info"
+            title="Usar maior referencia compativel"
+            description="Ajusta a maior pontuacao de referencia para nao ficar menor que a pontuacao usada no calculo. Isso evita nota normalizada acima de 10 por erro operacional."
+          />
+        ) : null}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>

@@ -25,6 +25,15 @@ const CRITERIOS = [
 
 type CriterioKey = (typeof CRITERIOS)[number]["key"];
 
+type RubricaSnapshot = {
+  criterios?: Partial<Record<CriterioKey, { notaAtribuida?: number; contribuicao?: number; observacao?: string | null }>>;
+  observacoes?: Partial<Record<CriterioKey | "geral", string | null>> | null;
+  notaFinal?: number;
+  notaCalculadaSemPenalidadeIa?: number;
+  usoIaComprovado?: boolean;
+  fundamentoUsoIa?: string | null;
+};
+
 function normalizeObs(obs: Record<CriterioKey | "geral", string>) {
   return Object.fromEntries(Object.entries(obs).filter(([, v]) => v.trim().length >= 3));
 }
@@ -64,8 +73,31 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     if (!token || !inscricaoId) return;
     const found = await getEtapa1Item(inscricaoId, token);
     setItem(found);
+    const rubricaSalva = (found?.avaliacao?.rubricaDetalhada as RubricaSnapshot | null) ?? null;
+    const criterios = rubricaSalva?.criterios;
+    const observacoesSalvas = rubricaSalva?.observacoes;
+
+    setRubrica({
+      adequacaoDominioTema: criterios?.adequacaoDominioTema?.notaAtribuida ?? 0,
+      estrutura: criterios?.estrutura?.notaAtribuida ?? 0,
+      organizacaoCoerencia: criterios?.organizacaoCoerencia?.notaAtribuida ?? 0,
+      objetividadeSintese: criterios?.objetividadeSintese?.notaAtribuida ?? 0,
+      grafiaGramatica: criterios?.grafiaGramatica?.notaAtribuida ?? 0,
+    });
+    setObservacoes({
+      adequacaoDominioTema: observacoesSalvas?.adequacaoDominioTema ?? criterios?.adequacaoDominioTema?.observacao ?? "",
+      estrutura: observacoesSalvas?.estrutura ?? criterios?.estrutura?.observacao ?? "",
+      organizacaoCoerencia: observacoesSalvas?.organizacaoCoerencia ?? criterios?.organizacaoCoerencia?.observacao ?? "",
+      objetividadeSintese: observacoesSalvas?.objetividadeSintese ?? criterios?.objetividadeSintese?.observacao ?? "",
+      grafiaGramatica: observacoesSalvas?.grafiaGramatica ?? criterios?.grafiaGramatica?.observacao ?? "",
+      geral: observacoesSalvas?.geral ?? "",
+    });
     setTema(found?.avaliacao?.tema ?? "");
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
+    setUsoIaComprovado(rubricaSalva?.usoIaComprovado ?? found?.avaliacao?.usoIaComprovado ?? false);
+    setFundamentoUsoIa(rubricaSalva?.fundamentoUsoIa ?? found?.avaliacao?.fundamentoUsoIa ?? "");
+    setPublicacao(found?.avaliacao?.status === "FINAL_PUBLICADA" ? "FINAL" : "PRELIMINAR");
+    setLiberarEspelhoFlag(Boolean(found?.avaliacao?.espelhoLiberadoEm));
   }, [inscricaoId, token]);
 
   useAbortableEffect(async (signal) => {
@@ -89,8 +121,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   }, [rubrica]);
 
   const redacaoText = useMemo(() => {
-    const raw = item?.avaliacao?.rubricaDetalhada as Record<string, unknown> | null;
-    return (raw?.textoSubmetido as string) ?? null;
+    return item?.avaliacao?.textoSubmetido ?? null;
   }, [item]);
 
   const charCount = redacaoText?.length ?? 0;
@@ -153,6 +184,9 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   if (!item) return <EmptyState title="Inscricao nao encontrada" description="Inscricao nao localizada na fila da etapa 1." />;
 
   const espelhoLiberado = !!item.avaliacao?.espelhoLiberadoEm;
+  const avaliacaoStatus = item.avaliacao?.status ?? "SEM_AVALIACAO";
+  const rubricaSnapshot = (item.avaliacao?.rubricaDetalhada as RubricaSnapshot | null) ?? null;
+  const notaPersistida = item.avaliacao?.nota ?? rubricaSnapshot?.notaFinal ?? null;
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -164,20 +198,47 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         <p>Edital {item.edital.numero} &middot; Avaliacao da redacao</p>
       </div>
 
-      {/* Redacao card */}
-      <div className="admin-form-card">
-        <h2 className="admin-form-card-title">Redacao do candidato</h2>
-        <div className="admin-redacao-meta">
-          <span>Tema: {tema || item.avaliacao?.tema || "nao informado"}</span>
-          <span className="admin-char-badge">{charCount} caracteres</span>
+      <div className="admin-summary-cards">
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Status da inscricao</span>
+          <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
         </div>
-        <div className="admin-redacao-box">
-          {redacaoText ?? "Redacao nao disponivel."}
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Status da avaliacao</span>
+          <StatusBadge variant={getStatusVariant(avaliacaoStatus)}>{getStatusLabel(avaliacaoStatus)}</StatusBadge>
+        </div>
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Nota registrada</span>
+          <span className="admin-summary-card-value admin-summary-card-value--primary">{notaPersistida?.toFixed?.(2) ?? "—"}</span>
+        </div>
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Espelho</span>
+          <span style={{ fontSize: 13, color: "#475569" }}>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "Nao liberado"}</span>
         </div>
       </div>
 
+      {usoIaComprovado ? (
+        <PageFeedback
+          type="warning"
+          title="Uso de IA marcado como comprovado"
+          description="Conforme a regra da etapa 1, a nota final sera zerada enquanto esse marcador estiver ativo. Informe o fundamento no campo proprio antes de salvar."
+        />
+      ) : null}
+
+      <div className="admin-etapa1-workbench">
+        <div className="admin-form-card admin-etapa1-redacao-card">
+          <h2 className="admin-form-card-title">Redacao do candidato</h2>
+          <div className="admin-redacao-meta">
+            <span>Tema: {tema || item.avaliacao?.tema || "nao informado"}</span>
+            <span className="admin-char-badge">{charCount} caracteres</span>
+          </div>
+          <div className="admin-redacao-box">
+            {redacaoText ?? "Redacao nao disponivel."}
+          </div>
+        </div>
+
       {/* Rubrica e nota */}
-      <form className="admin-form-card" onSubmit={onSubmit}>
+      <form className="admin-form-card admin-etapa1-form-card" onSubmit={onSubmit}>
         <h2 className="admin-form-card-title">Rubrica e nota</h2>
 
         <div className="admin-eval-row">
@@ -273,6 +334,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
           Salvar avaliacao
         </button>
       </form>
+      </div>
 
       {/* Criterios da rubrica (readonly preview table) */}
       <div className="admin-form-card">

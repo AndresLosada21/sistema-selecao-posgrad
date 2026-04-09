@@ -16,6 +16,7 @@ export type Etapa1AdminItem = {
     nome: string;
   } | null;
   avaliacao: {
+    textoSubmetido: string | null;
     nota: number | null;
     tema: string | null;
     espelhoCorrecao: string | null;
