@@ -2718,10 +2718,10 @@ textarea {
 
 .admin-homologacao-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1180px;
   border-collapse: separate;
   border-spacing: 0;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .admin-homologacao-table thead th {
@@ -2767,11 +2767,13 @@ textarea {
 
 .admin-homologacao-table-center {
   text-align: center;
+  white-space: nowrap;
 }
 
 .admin-homologacao-table-center .status-badge {
+  display: inline-flex;
+  width: max-content;
   justify-content: center;
-  max-width: 100%;
   white-space: nowrap;
 }
 

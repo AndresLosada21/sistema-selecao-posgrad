@@ -83,12 +83,12 @@ export default function AdminHomologacaoPage() {
           <div className="admin-homologacao-table-wrap">
             <table className="admin-homologacao-table">
               <colgroup>
-                <col style={{ width: "31%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "6%" }} />
+                <col style={{ width: "320px" }} />
+                <col style={{ width: "220px" }} />
+                <col style={{ width: "220px" }} />
+                <col style={{ width: "220px" }} />
+                <col style={{ width: "190px" }} />
+                <col style={{ width: "80px" }} />
               </colgroup>
               <thead>
                 <tr>
