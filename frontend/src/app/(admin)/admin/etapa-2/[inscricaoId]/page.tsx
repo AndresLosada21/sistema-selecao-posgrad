@@ -2,27 +2,23 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
-import { StructuredPreview } from "@/components/shared/structured-preview";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { formatIsoDate } from "@/modules/edital/formatters";
 import { getEspelhoEtapa2, getEtapa2Item, liberarEspelhoEtapa2, registrarEtapa2 } from "@/modules/admin-etapas/api";
 import type { Etapa2AdminItem, Etapa2Espelho } from "@/modules/admin-etapas/types";
 
 type Props = { params: Promise<{ inscricaoId: string }> };
 
-type PontuacaoItemDraft = { id: string; chave: string; valor: string };
+type ItemDraft = { id: string; chave: string; valor: string };
 type GlosaDraft = { id: string; item: string; descricao: string; pontosGlosados: string };
 
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-const emptyPontuacaoItem = (): PontuacaoItemDraft => ({ id: uid(), chave: "", valor: "0" });
-const emptyGlosa = (): GlosaDraft => ({ id: uid(), item: "", descricao: "", pontosGlosados: "0" });
 
 export default function AdminEtapa2DetailPage({ params }: Props) {
   const session = useSession();
@@ -31,36 +27,41 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<Etapa2AdminItem | null>(null);
   const [espelho, setEspelho] = useState<Etapa2Espelho | null>(null);
-  const [pontuacaoItensDraft, setPontuacaoItensDraft] = useState<PontuacaoItemDraft[]>([emptyPontuacaoItem()]);
+
+  const [itensDraft, setItensDraft] = useState<ItemDraft[]>([{ id: uid(), chave: "", valor: "0" }]);
+  const [glosasDraft, setGlosasDraft] = useState<GlosaDraft[]>([]);
   const [pontuacaoBruta, setPontuacaoBruta] = useState(0);
   const [maiorPontuacaoBruta, setMaiorPontuacaoBruta] = useState(10);
-  const [glosasDraft, setGlosasDraft] = useState<GlosaDraft[]>([]);
   const [espelhoCorrecao, setEspelhoCorrecao] = useState("");
-  const [liberarEspelho, setLiberarEspelho] = useState(false);
+  const [liberarEspelhoFlag, setLiberarEspelhoFlag] = useState(false);
   const [publicacao, setPublicacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
+
+  const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); }); return () => { cancelled = true; }; }, [params]);
+  useEffect(() => {
+    let cancelled = false;
+    params.then((r) => { if (!cancelled) setInscricaoId(r.inscricaoId); });
+    return () => { cancelled = true; };
+  }, [params]);
 
   const loadItem = useCallback(async () => {
     if (!token || !inscricaoId) return;
-
     const found = await getEtapa2Item(inscricaoId, token);
     setItem(found);
-    setPontuacaoItensDraft(
+    setItensDraft(
       Object.entries(found?.avaliacao?.pontuacaoItens ?? { titulo: 0 }).map(([chave, valor]) => ({ id: uid(), chave, valor: String(valor) })),
     );
     setPontuacaoBruta(found?.avaliacao?.pontuacaoBruta ?? 0);
     setMaiorPontuacaoBruta(Math.max(found?.avaliacao?.pontuacaoBruta ?? 10, 10));
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
     setGlosasDraft(
-      (found?.avaliacao?.glosas ?? []).map((glosa) => ({
+      (found?.avaliacao?.glosas ?? []).map((g) => ({
         id: uid(),
-        item: String(glosa.item ?? ""),
-        descricao: String(glosa.descricao ?? ""),
-        pontosGlosados: String(glosa.pontosGlosados ?? 0),
+        item: String((g as Record<string, unknown>).item ?? ""),
+        descricao: String((g as Record<string, unknown>).descricao ?? ""),
+        pontosGlosados: String((g as Record<string, unknown>).pontosGlosados ?? 0),
       })),
     );
   }, [inscricaoId, token]);
@@ -70,161 +71,319 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     try {
       await loadItem();
       if (signal.aborted) return;
-      setStatus("ready");
+      setPageStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-      setStatus("error");
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setPageStatus("error");
     }
   }, [loadItem, inscricaoId, signOut, token]);
+
+  // Computed totals
+  const totalBruto = itensDraft.reduce((sum, entry) => sum + (Number(entry.valor) || 0), 0);
+  const totalGlosa = glosasDraft.reduce((sum, entry) => sum + (Number(entry.pontosGlosados) || 0), 0);
+  const totalLiquido = totalBruto - totalGlosa;
+  const notaNormalizada = maiorPontuacaoBruta > 0 ? (pontuacaoBruta / maiorPontuacaoBruta) * 10 : 0;
 
   async function loadEspelho() {
     if (!token || !inscricaoId) return;
     try {
-      const response = await getEspelhoEtapa2(inscricaoId, token);
-      setEspelho(response);
+      const r = await getEspelhoEtapa2(inscricaoId, token);
+      setEspelho(r);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getErrorMessage(error) });
     }
   }
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (!token || !inscricaoId) return;
-    setBusy(true); setMessage(null);
+    setBusy(true);
+    setFeedback(null);
     try {
       const pontuacaoItens = Object.fromEntries(
-        pontuacaoItensDraft
-          .filter((entry) => entry.chave.trim())
-          .map((entry) => [entry.chave.trim(), Number(entry.valor) || 0]),
+        itensDraft.filter((entry) => entry.chave.trim()).map((entry) => [entry.chave.trim(), Number(entry.valor) || 0]),
       );
-
       if (!Object.keys(pontuacaoItens).length) {
-        setMessage({ type: "warning", text: "Informe ao menos um item de pontuacao antes do envio." });
+        setFeedback({ type: "warning", text: "Informe ao menos um item de pontuacao." });
         return;
       }
-
       const glosas = glosasDraft
         .filter((entry) => entry.item.trim() || entry.descricao.trim() || Number(entry.pontosGlosados) > 0)
-        .map((entry) => ({
-          item: entry.item.trim(),
-          descricao: entry.descricao.trim(),
-          pontosGlosados: Number(entry.pontosGlosados) || 0,
-        }));
-
+        .map((entry) => ({ item: entry.item.trim(), descricao: entry.descricao.trim(), pontosGlosados: Number(entry.pontosGlosados) || 0 }));
       if (maiorPontuacaoBruta <= 0) {
-        setMessage({ type: "warning", text: "A maior pontuacao bruta deve ser maior que zero." });
+        setFeedback({ type: "warning", text: "A maior pontuacao bruta deve ser maior que zero." });
         return;
       }
-
       if (pontuacaoBruta < 0) {
-        setMessage({ type: "warning", text: "A pontuacao bruta nao pode ser negativa." });
+        setFeedback({ type: "warning", text: "A pontuacao bruta nao pode ser negativa." });
         return;
       }
-
-      await registrarEtapa2(inscricaoId, {
-        pontuacaoItens,
-        pontuacaoBruta,
-        maiorPontuacaoBruta,
-        glosas,
-        espelhoCorrecao,
-        liberarEspelho,
-        publicacao,
-      }, token);
+      await registrarEtapa2(inscricaoId, { pontuacaoItens, pontuacaoBruta, maiorPontuacaoBruta, glosas, espelhoCorrecao, liberarEspelho: liberarEspelhoFlag, publicacao }, token);
       await loadItem();
-      setMessage({ type: "success", text: "Resultado da etapa 2 enviado ao backend e estado recarregado." });
+      setFeedback({ type: "success", text: "Resultado da etapa 2 registrado." });
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
   async function onLiberarEspelho() {
     if (!token || !inscricaoId) return;
-    setBusy(true); setMessage(null);
+    setBusy(true);
+    setFeedback(null);
     try {
       await liberarEspelhoEtapa2(inscricaoId, token);
       await loadItem();
-      setMessage({ type: "success", text: "Espelho da etapa 2 liberado e estado recarregado." });
+      setFeedback({ type: "success", text: "Espelho da etapa 2 liberado." });
       await loadEspelho();
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
-  if (status === "loading") return <LoadingState title="Carregando detalhe da etapa 2" description="Consultando a inscricao selecionada." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar etapa 2" description={message?.text} />;
-  if (!item) return <EmptyState title="Inscricao nao encontrada" description="A inscricao nao foi encontrada na fila atual da etapa 2." />;
+  if (pageStatus === "loading") return <LoadingState title="Carregando detalhe" description="Consultando a inscricao." />;
+  if (pageStatus === "error") return <ErrorState title="Falha ao carregar" description={feedback?.text} />;
+  if (!item) return <EmptyState title="Inscricao nao encontrada" description="Inscricao nao localizada na fila da etapa 2." />;
 
-  function updatePontuacaoItem(index: number, field: keyof PontuacaoItemDraft, value: string) {
-    setPontuacaoItensDraft((current) => current.map((entry, currentIndex) => currentIndex === index ? { ...entry, [field]: value } : entry));
+  const espelhoLiberado = !!item.avaliacao?.espelhoLiberadoEm;
+
+  function updateItem(index: number, field: keyof ItemDraft, value: string) {
+    setItensDraft((cur) => cur.map((entry, i) => i === index ? { ...entry, [field]: value } : entry));
   }
-
   function updateGlosa(index: number, field: keyof GlosaDraft, value: string) {
-    setGlosasDraft((current) => current.map((entry, currentIndex) => currentIndex === index ? { ...entry, [field]: value } : entry));
+    setGlosasDraft((cur) => cur.map((entry, i) => i === index ? { ...entry, [field]: value } : entry));
   }
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback description={message.text} title="Retorno operacional" type={message.type} /> : null}
+    <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
 
-      <SectionCard title={`Etapa 2 de ${item.candidato.nomeCompleto}`} description={`Edital ${item.edital.numero} · ${item.edital.titulo}`}>
-        <div className="content-list">
-          <small>E-mail: {item.candidato.email}</small>
-          <div className="content-item-row"><small>Status da inscricao: {getStatusLabel(item.status)}</small><StatusBadge variant={getStatusVariant(item.avaliacao?.status ?? item.status)}>{getStatusLabel(item.avaliacao?.status ?? item.status)}</StatusBadge></div>
-          <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
-          <small>Pontuacao atual: {item.avaliacao?.pontuacaoBruta ?? "sem avaliacao"}</small>
-          <small>Nota atual: {item.avaliacao?.notaNormalizada ?? "sem avaliacao"}</small>
+      {/* Header */}
+      <div className="admin-detail-header">
+        <h1>Etapa 2 — {item.candidato.nomeCompleto}</h1>
+        <p>Edital {item.edital.numero} — Pontuacao de titulos do Anexo II</p>
+      </div>
+
+      {/* Summary cards */}
+      <div className="admin-summary-cards">
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Pontuacao bruta</span>
+          <span className="admin-summary-card-value">{item.avaliacao?.pontuacaoBruta ?? totalLiquido}</span>
         </div>
-      </SectionCard>
-      <SectionCard title="Registro do resultado" description="Formulario operacional da etapa 2 baseado no payload do backend.">
-        <form className="form-grid" onSubmit={onSubmit}>
-          <div className="field-block">
-            <span>Pontuacao por item</span>
-            <div className="content-list">
-              {pontuacaoItensDraft.map((entry, index) => (
-                <div className="content-item-row" key={entry.id}>
-                  <input onChange={(e) => updatePontuacaoItem(index, "chave", e.target.value)} placeholder="criterio" value={entry.chave} />
-                  <input min="0" onChange={(e) => updatePontuacaoItem(index, "valor", e.target.value)} placeholder="0" step="0.1" type="number" value={entry.valor} />
-                  <ActionButton disabled={busy || pontuacaoItensDraft.length <= 1} onClick={() => setPontuacaoItensDraft((current) => current.filter((_, currentIndex) => currentIndex !== index))} type="button" variant="ghost">Remover</ActionButton>
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Maior pontuacao</span>
+          <span className="admin-summary-card-value">{maiorPontuacaoBruta}</span>
+        </div>
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Nota normalizada</span>
+          <span className="admin-summary-card-value admin-summary-card-value--primary">
+            {item.avaliacao?.notaNormalizada ?? notaNormalizada.toFixed(1)}
+          </span>
+        </div>
+      </div>
+
+      {/* Itens de pontuacao */}
+      <form className="admin-form-card" onSubmit={onSubmit}>
+        <h2 className="admin-form-card-title">Itens de pontuacao</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Adicione os itens do Anexo II com pontuacao e glosas quando aplicavel.</p>
+
+        <table className="admin-pont-table">
+          <thead>
+            <tr>
+              <th>Item do Anexo II</th>
+              <th>Valor</th>
+              <th>Glosa</th>
+              <th>Liquido</th>
+              <th style={{ width: 60 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {itensDraft.map((entry, index) => {
+              const valor = Number(entry.valor) || 0;
+              const glosaForItem = glosasDraft
+                .filter((g) => g.item.trim().toLowerCase() === entry.chave.trim().toLowerCase())
+                .reduce((sum, g) => sum + (Number(g.pontosGlosados) || 0), 0);
+              const liquido = valor - glosaForItem;
+
+              return (
+                <tr key={entry.id}>
+                  <td>
+                    <input
+                      onChange={(e) => updateItem(index, "chave", e.target.value)}
+                      placeholder="Nome do item"
+                      style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, fontWeight: 500, color: "#1E293B" }}
+                      value={entry.chave}
+                    />
+                  </td>
+                  <td className="pont-valor">
+                    <input
+                      min={0}
+                      onChange={(e) => updateItem(index, "valor", e.target.value)}
+                      step={0.1}
+                      style={{ width: 60, textAlign: "center", border: "none", background: "transparent", fontWeight: 700 }}
+                      type="number"
+                      value={entry.valor}
+                    />
+                  </td>
+                  <td className={glosaForItem > 0 ? "pont-glosa" : "pont-zero"}>{glosaForItem}</td>
+                  <td className="pont-valor">{liquido}</td>
+                  <td>
+                    {itensDraft.length > 1 && (
+                      <button
+                        onClick={() => setItensDraft((cur) => cur.filter((_, i) => i !== index))}
+                        style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 16 }}
+                        type="button"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td style={{ fontWeight: 700 }}>Total</td>
+              <td className="pont-valor">{totalBruto}</td>
+              <td className="pont-glosa">{totalGlosa}</td>
+              <td className="pont-total-liq">{totalLiquido}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <button
+          className="admin-pagination-btn"
+          onClick={() => setItensDraft((cur) => [...cur, { id: uid(), chave: "", valor: "0" }])}
+          style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
+          type="button"
+        >
+          + Adicionar item
+        </button>
+
+        {/* Glosas */}
+        {glosasDraft.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Glosas aplicadas</label>
+            {glosasDraft.map((g, index) => (
+              <div className="admin-form-row" key={g.id}>
+                <div className="admin-eval-field">
+                  <input onChange={(e) => updateGlosa(index, "item", e.target.value)} placeholder="Item glosado" value={g.item} />
                 </div>
-              ))}
-              <ActionButton disabled={busy} onClick={() => setPontuacaoItensDraft((current) => [...current, emptyPontuacaoItem()])} type="button" variant="secondary">Adicionar item</ActionButton>
+                <div className="admin-eval-field" style={{ flex: 2 }}>
+                  <input onChange={(e) => updateGlosa(index, "descricao", e.target.value)} placeholder="Descricao da glosa" value={g.descricao} />
+                </div>
+                <div className="admin-eval-field" style={{ maxWidth: 100 }}>
+                  <input min={0} onChange={(e) => updateGlosa(index, "pontosGlosados", e.target.value)} step={0.1} type="number" value={g.pontosGlosados} />
+                </div>
+                <button
+                  onClick={() => setGlosasDraft((cur) => cur.filter((_, i) => i !== index))}
+                  style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 16, alignSelf: "center" }}
+                  type="button"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          className="admin-pagination-btn"
+          onClick={() => setGlosasDraft((cur) => [...cur, { id: uid(), item: "", descricao: "", pontosGlosados: "0" }])}
+          style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
+          type="button"
+        >
+          + Adicionar glosa
+        </button>
+
+        {/* Pontuacao bruta e maior */}
+        <div className="admin-form-row">
+          <div className="admin-eval-field">
+            <label>Pontuacao bruta</label>
+            <input min={0} onChange={(e) => setPontuacaoBruta(Number(e.target.value) || 0)} type="number" value={pontuacaoBruta} />
+          </div>
+          <div className="admin-eval-field">
+            <label>Maior pontuacao bruta</label>
+            <input min={0.1} onChange={(e) => setMaiorPontuacaoBruta(Number(e.target.value) || 0)} step={0.1} type="number" value={maiorPontuacaoBruta} />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
+          <textarea className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} />
+        </div>
+
+        <div className="admin-form-row">
+          <div className="admin-eval-field">
+            <label>Publicacao</label>
+            <select className="select-field" onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}>
+              <option value="PRELIMINAR">Preliminar</option>
+              <option value="FINAL">Final</option>
+            </select>
+          </div>
+          <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input checked={liberarEspelhoFlag} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
+              Liberar espelho junto do resultado
+            </label>
+          </div>
+        </div>
+
+        <button className="admin-page-cta" disabled={busy} style={{ width: 200 }} type="submit">
+          Salvar avaliacao
+        </button>
+      </form>
+
+      {/* Espelho section */}
+      <div className="admin-form-card">
+        <h2 className="admin-form-card-title">Espelho da avaliacao</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Gerencie a liberacao do espelho de avaliacao para o candidato.</p>
+
+        <div className="admin-espelho-row">
+          <div className="admin-espelho-status">
+            <label>Status do espelho</label>
+            <div className="admin-espelho-info">
+              <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
+                {espelhoLiberado ? "Liberado" : "Nao liberado"}
+              </StatusBadge>
+              <span>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "O candidato ainda nao pode visualizar o espelho."}</span>
             </div>
           </div>
-          <label className="field-block"><span>Pontuacao bruta</span><input min="0" onChange={(e) => setPontuacaoBruta(Number(e.target.value) || 0)} type="number" value={pontuacaoBruta} /></label>
-          <label className="field-block"><span>Maior pontuacao bruta</span><input min="0.1" onChange={(e) => setMaiorPontuacaoBruta(Number(e.target.value) || 0)} step="0.1" type="number" value={maiorPontuacaoBruta} /></label>
-          <div className="field-block">
-            <span>Glosas</span>
-            <div className="content-list">
-              {glosasDraft.map((entry, index) => (
-                <div className="content-item" key={entry.id}>
-                  <input onChange={(e) => updateGlosa(index, "item", e.target.value)} placeholder="item" value={entry.item} />
-                  <textarea className="text-area" onChange={(e) => updateGlosa(index, "descricao", e.target.value)} placeholder="descricao da glosa" value={entry.descricao} />
-                  <input min="0" onChange={(e) => updateGlosa(index, "pontosGlosados", e.target.value)} placeholder="0" step="0.1" type="number" value={entry.pontosGlosados} />
-                  <ActionButton disabled={busy} onClick={() => setGlosasDraft((current) => current.filter((_, currentIndex) => currentIndex !== index))} type="button" variant="ghost">Remover glosa</ActionButton>
-                </div>
-              ))}
-              <ActionButton disabled={busy} onClick={() => setGlosasDraft((current) => [...current, emptyGlosa()])} type="button" variant="secondary">Adicionar glosa</ActionButton>
-            </div>
+          <button className="admin-page-cta" disabled={busy} onClick={onLiberarEspelho} type="button">
+            Liberar espelho
+          </button>
+        </div>
+
+        {espelho && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16, background: "#F8FAFC", borderRadius: 6 }}>
+            <small><strong>Espelho de correcao:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
+            <small><strong>Pontuacao bruta:</strong> {espelho.pontuacaoBruta ?? "—"}</small>
+            <small><strong>Nota normalizada:</strong> {espelho.notaNormalizada ?? "—"}</small>
+            <small><strong>Solicitado em:</strong> {formatIsoDate(espelho.espelhoSolicitadoEm)}</small>
+            <small><strong>Liberado em:</strong> {formatIsoDate(espelho.espelhoLiberadoEm)}</small>
+            <small><strong>Resultado preliminar em:</strong> {formatIsoDate(espelho.resultadoPreliminarEm)}</small>
+            <small><strong>Resultado final em:</strong> {formatIsoDate(espelho.resultadoFinalEm)}</small>
           </div>
-          <label className="field-block"><span>Espelho de correcao</span><textarea className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} /></label>
-          <label className="field-block"><span>Publicacao</span><select className="select-field" onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}><option value="PRELIMINAR">PRELIMINAR</option><option value="FINAL">FINAL</option></select></label>
-          <label className="field-inline"><input checked={liberarEspelho} onChange={(e) => setLiberarEspelho(e.target.checked)} type="checkbox" /><span>Liberar espelho junto do resultado</span></label>
-          <ActionButton disabled={busy} loading={busy} type="submit">Registrar resultado</ActionButton>
-          <ActionButton disabled={busy} onClick={onLiberarEspelho} type="button" variant="secondary">Liberar espelho</ActionButton>
-        </form>
-      </SectionCard>
-      <SectionCard title="Espelho administrativo" description="Leitura do espelho retornado pelo backend no contexto admin.">
-        <div className="content-item-links"><ActionButton disabled={busy} onClick={loadEspelho} type="button" variant="secondary">Carregar espelho</ActionButton></div>
-        {espelho ? <StructuredPreview data={espelho} /> : <EmptyState title="Espelho nao carregado" description="Use a acao acima para consultar o espelho administrativo." />}
-      </SectionCard>
+        )}
+
+        {!espelho && (
+          <button
+            className="admin-pagination-btn"
+            disabled={busy}
+            onClick={loadEspelho}
+            style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
+            type="button"
+          >
+            Carregar espelho administrativo
+          </button>
+        )}
+      </div>
     </div>
   );
 }

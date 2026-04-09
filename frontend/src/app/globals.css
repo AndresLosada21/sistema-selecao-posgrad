@@ -2808,6 +2808,86 @@ textarea {
   background: none; border: none; cursor: pointer; color: #2563EB; padding: 4px;
 }
 
+/* -- Admin Etapas Detail (Pencil DS) -- */
+.admin-detail-header { display: flex; flex-direction: column; gap: 4px; }
+.admin-detail-header h1 { margin: 0; font-size: 22px; font-weight: 700; color: #0F172A; }
+.admin-detail-header p { margin: 0; font-size: 14px; color: #64748B; }
+
+.admin-redacao-meta { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.admin-redacao-meta span { font-size: 13px; color: #475569; }
+.admin-char-badge { display: inline-flex; padding: 3px 8px; border-radius: 9999px; background: #F1F5F9; font-size: 11px; font-weight: 500; color: #64748B; }
+.admin-redacao-box {
+  background: #F8FAFC; border: 1px solid #F1F5F9; border-radius: 6px; padding: 16px;
+  font-size: 13px; font-style: italic; color: #475569; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto;
+}
+
+.admin-rubrica-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.admin-rubrica-table thead th {
+  padding: 10px 16px; background: #F8FAFC; font-size: 12px; font-weight: 600; color: #64748B;
+  text-align: left; border-bottom: 1px solid #F1F5F9;
+}
+.admin-rubrica-table thead th:not(:first-child) { text-align: center; }
+.admin-rubrica-table tbody td {
+  padding: 12px 16px; font-size: 13px; border-top: 1px solid #F1F5F9;
+}
+.admin-rubrica-table tbody td:not(:first-child) { text-align: center; }
+.admin-rubrica-table tbody tr:nth-child(even) { background: #F8FAFC; }
+.admin-rubrica-table tfoot td {
+  padding: 12px 16px; background: #F8FAFC; font-size: 13px; font-weight: 700;
+  border-top: 1px solid #E2E8F0;
+}
+.admin-rubrica-table tfoot td:not(:first-child) { text-align: center; }
+.admin-rubrica-table .rubrica-nota { font-weight: 700; color: #1E293B; }
+.admin-rubrica-table .rubrica-peso { color: #475569; }
+.admin-rubrica-table .rubrica-contribuicao { font-weight: 600; color: #334155; }
+.admin-rubrica-table .rubrica-total-valor { font-weight: 700; color: #2563EB; font-size: 14px; }
+
+.admin-eval-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.admin-eval-field { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px; }
+.admin-eval-field label { font-size: 13px; font-weight: 600; color: #334155; }
+.admin-eval-field .eval-display {
+  display: flex; align-items: center; padding: 0 14px; height: 42px;
+  background: #fff; border: 1px solid #CBD5E1; border-radius: 6px;
+  font-size: 14px; font-weight: 700; color: #1E293B;
+}
+
+.admin-espelho-row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.admin-espelho-status { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.admin-espelho-status label { font-size: 13px; font-weight: 600; color: #334155; }
+.admin-espelho-info { display: flex; align-items: center; gap: 8px; }
+.admin-espelho-info span { font-size: 12px; color: #64748B; }
+
+.admin-pont-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.admin-pont-table thead th {
+  padding: 10px 16px; background: #F8FAFC; font-size: 12px; font-weight: 600; color: #64748B;
+  text-align: left; border-bottom: 1px solid #F1F5F9;
+}
+.admin-pont-table thead th:not(:first-child) { text-align: center; width: 80px; }
+.admin-pont-table tbody td {
+  padding: 12px 16px; font-size: 13px; border-top: 1px solid #F1F5F9;
+}
+.admin-pont-table tbody td:not(:first-child) { text-align: center; width: 80px; }
+.admin-pont-table tbody tr:nth-child(even) { background: #F8FAFC; }
+.admin-pont-table .pont-glosa { font-weight: 600; color: #991B1B; }
+.admin-pont-table .pont-zero { color: #94A3B8; }
+.admin-pont-table .pont-valor { font-weight: 700; color: #1E293B; }
+.admin-pont-table tfoot td {
+  padding: 12px 16px; background: #F8FAFC; font-size: 13px; font-weight: 700;
+  border-top: 1px solid #E2E8F0;
+}
+.admin-pont-table tfoot td:not(:first-child) { text-align: center; width: 80px; }
+.admin-pont-table .pont-total-liq { font-weight: 700; color: #2563EB; font-size: 14px; }
+
+.admin-summary-cards { display: flex; gap: 16px; flex-wrap: wrap; }
+.admin-summary-card {
+  flex: 1; min-width: 160px; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 16px; display: flex; flex-direction: column; gap: 4px;
+}
+.admin-summary-card-label { font-size: 12px; font-weight: 600; color: #64748B; }
+.admin-summary-card-value { font-size: 24px; font-weight: 700; color: #0F172A; }
+.admin-summary-card-value--primary { color: #2563EB; }
+
 /* ============================================
    Responsive
    ============================================ */
