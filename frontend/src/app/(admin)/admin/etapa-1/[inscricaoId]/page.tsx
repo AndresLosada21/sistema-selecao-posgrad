@@ -161,7 +161,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
       {/* Header */}
       <div className="admin-detail-header">
         <h1>Etapa 1 — {item.candidato.nomeCompleto}</h1>
-        <p>Edital {item.edital.numero} — Avaliacao da redacao</p>
+        <p>Edital {item.edital.numero} &middot; Avaliacao da redacao</p>
       </div>
 
       {/* Redacao card */}

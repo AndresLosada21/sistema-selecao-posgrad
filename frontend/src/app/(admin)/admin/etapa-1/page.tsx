@@ -107,8 +107,10 @@ export default function AdminEtapa1Page() {
                   <td className="admin-homologacao-table-center" style={{ fontSize: 12, color: "#475569" }}>
                     {formatIsoDate(item.avaliacao?.espelhoSolicitadoEm ?? null)}
                   </td>
-                  <td className="admin-homologacao-table-center" style={{ fontSize: 12 }}>
-                    {item.avaliacao?.status ? getStatusLabel(item.avaliacao.status) : "—"}
+                  <td className="admin-homologacao-table-center">
+                    {item.avaliacao?.status
+                      ? <StatusBadge variant={getStatusVariant(item.avaliacao.status)}>{getStatusLabel(item.avaliacao.status)}</StatusBadge>
+                      : "—"}
                   </td>
                   <td className="admin-homologacao-table-center" style={{ fontSize: 12, color: "#475569" }}>
                     {formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}
@@ -130,7 +132,7 @@ export default function AdminEtapa1Page() {
           </table>
         </div>
         <div className="admin-pagination">
-          <span>Mostrando {data?.items.length ?? 0} de {data?.total ?? 0} avaliacoes</span>
+          <span>Mostrando {((data?.page ?? 1) - 1) * (data?.pageSize ?? PAGE_SIZE) + 1}–{((data?.page ?? 1) - 1) * (data?.pageSize ?? PAGE_SIZE) + (data?.items.length ?? 0)} de {data?.total ?? 0} avaliacoes</span>
           <div className="admin-pagination-controls">
             <button className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">
               &lsaquo;

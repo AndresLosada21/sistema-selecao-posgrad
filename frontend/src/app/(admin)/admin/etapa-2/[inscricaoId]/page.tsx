@@ -165,14 +165,14 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       {/* Header */}
       <div className="admin-detail-header">
         <h1>Etapa 2 — {item.candidato.nomeCompleto}</h1>
-        <p>Edital {item.edital.numero} — Pontuacao de titulos do Anexo II</p>
+        <p>Edital {item.edital.numero} &middot; Pontuacao de titulos do Anexo II</p>
       </div>
 
       {/* Summary cards */}
       <div className="admin-summary-cards">
         <div className="admin-summary-card">
           <span className="admin-summary-card-label">Pontuacao bruta</span>
-          <span className="admin-summary-card-value">{item.avaliacao?.pontuacaoBruta ?? totalLiquido}</span>
+          <span className="admin-summary-card-value">{item.avaliacao?.pontuacaoBruta ?? "—"}</span>
         </div>
         <div className="admin-summary-card">
           <span className="admin-summary-card-label">Maior pontuacao</span>
