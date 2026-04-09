@@ -367,21 +367,33 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
     <div className="stack-layout">
       {message ? <PageFeedback description={message.description} title={message.title} type={message.type} /> : null}
 
-      <SectionCard title={`Homologacao de ${item.candidato.nomeCompleto}`} description={`Edital ${item.edital.numero} · ${item.edital.titulo}`}>
-        <div className="content-list">
-          <small>E-mail do candidato: {item.candidato.email}</small>
-          <small>Modalidade: {getStatusLabel(item.modalidadeConcorrencia)}</small>
-          <small>Status da inscricao: {getStatusLabel(item.status)}</small>
-          <small>Status do pagamento: {getStatusLabel(item.statusPagamento)}</small>
-          <small>Submetida em: {formatIsoDate(item.submetidaEm)}</small>
-          <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
-          <div className="content-item-links">
-            <ActionButton disabled={busy} onClick={() => handleDownload("formulario")} type="button" variant="secondary">Baixar Anexo IV formulario</ActionButton>
-            <ActionButton disabled={busy} onClick={() => handleDownload("flatten")} type="button" variant="secondary">Baixar Anexo IV flattened</ActionButton>
-            <ActionButton disabled={busy} onClick={handlePacote} type="button" variant="secondary">Ler pacote documental</ActionButton>
+      {/* Header */}
+      <div className="admin-page-header">
+        <div className="admin-page-header-left">
+          <h1>Homologacao — {item.candidato.nomeCompleto}</h1>
+          <p>Edital {item.edital.numero} · {getStatusLabel(item.status)} · Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</p>
+        </div>
+      </div>
+
+      {/* Summary grid */}
+      <div style={{ display: "flex", gap: 16 }}>
+        <div className="admin-stat-card" style={{ flex: 1 }}>
+          <span className="admin-stat-label">Documentos</span>
+          <strong style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{item.documentos.length} enviados</strong>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <ActionButton disabled={busy} onClick={() => handleDownload("formulario")} size="sm" type="button" variant="secondary">Anexo IV</ActionButton>
+            <ActionButton disabled={busy} onClick={() => handleDownload("flatten")} size="sm" type="button" variant="secondary">Flatten</ActionButton>
           </div>
         </div>
-      </SectionCard>
+        <div className="admin-stat-card" style={{ flex: 1 }}>
+          <span className="admin-stat-label">Reserva</span>
+          <strong style={{ fontSize: 14, color: "#1E293B" }}>{getStatusLabel(item.modalidadeConcorrencia)}</strong>
+        </div>
+        <div className="admin-stat-card" style={{ flex: 1 }}>
+          <span className="admin-stat-label">Pagamento</span>
+          <StatusBadge variant={getStatusVariant(item.statusPagamento)}>{getStatusLabel(item.statusPagamento)}</StatusBadge>
+        </div>
+      </div>
 
       <SectionCard title="Documentos apresentados" description="Leitura dos documentos e de seus metadados de validacao no contexto admin.">
         <div className="content-list">
