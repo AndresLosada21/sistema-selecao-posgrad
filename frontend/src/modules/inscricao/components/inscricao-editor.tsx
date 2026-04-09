@@ -195,6 +195,27 @@ function splitNaturalidade(value: string) {
 
 const municipioCache = new Map<string, string[]>();
 
+function getNacionalidadeValue(input: InscricaoEditorState["fichaInscricao"] | string | undefined) {
+  if (typeof input === "string") {
+    return input.trim().toUpperCase();
+  }
+
+  return String(input?.nacionalidade ?? "").trim().toUpperCase();
+}
+
+function isBrasileiro(input: InscricaoEditorState["fichaInscricao"] | string | undefined) {
+  const nacionalidade = getNacionalidadeValue(input);
+  return nacionalidade === "BRASILEIRA" || nacionalidade === "BRASILEIRO" || nacionalidade === "BRASIL";
+}
+
+function withCurrentOption(options: string[], currentValue: string) {
+  if (!currentValue || options.includes(currentValue)) {
+    return options;
+  }
+
+  return [currentValue, ...options];
+}
+
 async function fetchMunicipiosByUf(uf: string) {
   const normalized = uf.trim().toUpperCase();
   if (!normalized || normalized.length !== 2) {
@@ -214,8 +235,8 @@ async function fetchMunicipiosByUf(uf: string) {
 }
 
 function isEstrangeiro(ficha: InscricaoEditorState["fichaInscricao"]) {
-  const nacionalidade = String(ficha.nacionalidade ?? "").trim().toUpperCase();
-  return nacionalidade.length > 0 && nacionalidade !== "BRASILEIRA" && nacionalidade !== "BRASILEIRO";
+  const nacionalidade = getNacionalidadeValue(ficha);
+  return nacionalidade.length > 0 && !isBrasileiro(ficha);
 }
 
 function getRequiredDocumentTypes(input: {
@@ -263,7 +284,6 @@ function getStepFieldErrors(input: {
     const requiredTextFields: Array<[string, string]> = [
       ["nomeCompleto", "Informe o nome completo."],
       ["nacionalidade", "Informe a nacionalidade."],
-      ["naturalidade", "Informe a naturalidade."],
       ["email", "Informe o e-mail."],
       ["telefoneWhatsapp", "Informe o telefone/WhatsApp."],
       ["dataNascimento", "Informe a data de nascimento."],
@@ -329,11 +349,15 @@ function getStepFieldErrors(input: {
       errors.ufResidencial = "Informe uma UF valida com 2 letras.";
     }
 
-    if (hasText(ficha.naturalidade) && !isValidNaturalidade(String(ficha.naturalidade))) {
-      errors.naturalidade = "Use o formato Cidade/UF para naturalidade.";
+    if (isBrasileiro(ficha)) {
+      if (!hasText(ficha.naturalidade)) {
+        errors.naturalidade = "Informe a naturalidade.";
+      } else if (!isValidNaturalidade(String(ficha.naturalidade))) {
+        errors.naturalidade = "Selecione a cidade e a UF de naturalidade.";
+      }
     }
 
-    if (!isEstrangeiro(ficha) && !hasText(ficha.passaporte)) {
+    if (!isEstrangeiro(ficha)) {
       if (!hasText(ficha.rg)) {
         errors.rg = "Informe o RG.";
       }
@@ -840,9 +864,14 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     <div className="wiz-shell">
       <StepBar current={step} maxReachedStep={maxReachedStep} onSelectStep={navigateToStep} />
 
-      <div className="wiz-body">
-        {message ? <div style={{ width: 760, maxWidth: "100%" }}><PageFeedback type={message.type ?? "success"} title={message.title} description={message.description} /></div> : null}
+      {/* Notificacoes fora do scroll — nao afetam o layout do conteudo */}
+      {message ? (
+        <div className="wiz-notice">
+          <PageFeedback type={message.type ?? "success"} title={message.title} description={message.description} />
+        </div>
+      ) : null}
 
+      <div className="wiz-body">
         {step === 0 && <Step1DadosPessoais formState={formState} setFormState={setFormState} updateFicha={updateFicha} fieldErrors={fieldErrors} onCepBlur={handleCepBlur} cepLookupMessage={cepLookupMessage} />}
         {step === 1 && <Step2DadosAcademicos formState={formState} setFormState={setFormState} edital={edital} cursoLabel={cursoLabel} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} />}
         {step === 2 && <Step3Redacao formState={formState} setFormState={setFormState} redacaoLength={redacaoLength} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} />}
@@ -909,31 +938,70 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
 }) {
   const f = formState.fichaInscricao;
   const v = (key: string) => String(f[key] ?? "");
+  const brasileiro = isBrasileiro(f);
+  const estrangeiro = isEstrangeiro(f);
+  const nacionalidadeValue = brasileiro ? "Brasileira" : v("nacionalidade");
   const naturalidade = splitNaturalidade(v("naturalidade"));
   const [cidadeResidencialOptions, setCidadeResidencialOptions] = useState<string[]>([]);
   const [cidadeNaturalidadeOptions, setCidadeNaturalidadeOptions] = useState<string[]>([]);
+  const [cidadeResidencialLoading, setCidadeResidencialLoading] = useState(false);
+  const [cidadeNaturalidadeLoading, setCidadeNaturalidadeLoading] = useState(false);
+  const [cidadeResidencialFailed, setCidadeResidencialFailed] = useState(false);
+  const [cidadeNaturalidadeFailed, setCidadeNaturalidadeFailed] = useState(false);
+
+  const cidadeResidencialSelectOptions = useMemo(() => withCurrentOption(cidadeResidencialOptions, v("cidadeResidencial")), [cidadeResidencialOptions, f.cidadeResidencial]);
+  const cidadeNaturalidadeSelectOptions = useMemo(() => withCurrentOption(cidadeNaturalidadeOptions, naturalidade.cidade), [cidadeNaturalidadeOptions, naturalidade.cidade]);
 
   useEffect(() => {
     const uf = v("ufResidencial");
     if (!uf) {
       setCidadeResidencialOptions([]);
+      setCidadeResidencialFailed(false);
       return;
     }
-    fetchMunicipiosByUf(uf).then(setCidadeResidencialOptions).catch(() => setCidadeResidencialOptions([]));
+    setCidadeResidencialLoading(true);
+    setCidadeResidencialFailed(false);
+    fetchMunicipiosByUf(uf)
+      .then((municipios) => setCidadeResidencialOptions(municipios))
+      .catch(() => {
+        setCidadeResidencialOptions([]);
+        setCidadeResidencialFailed(true);
+      })
+      .finally(() => setCidadeResidencialLoading(false));
   }, [f.ufResidencial]);
 
   useEffect(() => {
-    if (!naturalidade.uf) {
+    if (!brasileiro || !naturalidade.uf) {
       setCidadeNaturalidadeOptions([]);
+      setCidadeNaturalidadeFailed(false);
       return;
     }
-    fetchMunicipiosByUf(naturalidade.uf).then(setCidadeNaturalidadeOptions).catch(() => setCidadeNaturalidadeOptions([]));
-  }, [naturalidade.uf]);
+    setCidadeNaturalidadeLoading(true);
+    setCidadeNaturalidadeFailed(false);
+    fetchMunicipiosByUf(naturalidade.uf)
+      .then((municipios) => setCidadeNaturalidadeOptions(municipios))
+      .catch(() => {
+        setCidadeNaturalidadeOptions([]);
+        setCidadeNaturalidadeFailed(true);
+      })
+      .finally(() => setCidadeNaturalidadeLoading(false));
+  }, [brasileiro, naturalidade.uf]);
 
   function updateNaturalidade(next: { cidade?: string; uf?: string }) {
-    const cidade = (next.cidade ?? naturalidade.cidade).trim();
+    const cidade = next.uf !== undefined && next.uf !== naturalidade.uf ? "" : (next.cidade ?? naturalidade.cidade).trim();
     const uf = (next.uf ?? naturalidade.uf).trim().toUpperCase();
     updateFicha("naturalidade", cidade && uf ? `${cidade}/${uf}` : cidade || uf);
+  }
+
+  function handleNacionalidadeChange(value: string) {
+    updateFicha("nacionalidade", value);
+
+    if (isBrasileiro(value)) {
+      updateFicha("passaporte", "");
+      return;
+    }
+
+    updateFicha("naturalidade", "");
   }
 
   return (
@@ -955,11 +1023,13 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <input aria-invalid={!!fieldErrors.cpf} inputMode="numeric" placeholder="000.000.000-00" value={v("cpf")} onChange={(e) => updateFicha("cpf", formatCpf(e.target.value))} />
             <FieldError message={fieldErrors.cpf} />
           </div>
-          <div className="wiz-field">
-            <label className="wiz-field-label">Passaporte</label>
-            <input aria-invalid={!!fieldErrors.passaporte} placeholder="Ex: BR123456 (para estrangeiros)" value={v("passaporte")} onChange={(e) => updateFicha("passaporte", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
-            <FieldError message={fieldErrors.passaporte} />
-          </div>
+          {estrangeiro ? (
+            <div className="wiz-field">
+              <label className="wiz-field-label">Passaporte</label>
+              <input aria-invalid={!!fieldErrors.passaporte} placeholder="Ex: BR123456" value={v("passaporte")} onChange={(e) => updateFicha("passaporte", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
+              <FieldError message={fieldErrors.passaporte} />
+            </div>
+          ) : null}
         </div>
         <div className="wiz-field-row">
           <div className="wiz-field">
@@ -991,30 +1061,37 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         <div className="wiz-field-row">
           <div className="wiz-field">
             <label className="wiz-field-label">Nacionalidade</label>
-            <select aria-invalid={!!fieldErrors.nacionalidade} value={v("nacionalidade")} onChange={(e) => updateFicha("nacionalidade", e.target.value)}>
+            <select aria-invalid={!!fieldErrors.nacionalidade} value={nacionalidadeValue} onChange={(e) => handleNacionalidadeChange(e.target.value)}>
               <option value="">Selecione</option>
-              {nacionalidadeOptions.map((option) => <option key={option} value={option}>{option === "BRASILEIRA" ? "Brasileira" : "Estrangeira"}</option>)}
+              {nacionalidadeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
             <FieldError message={fieldErrors.nacionalidade} />
           </div>
-          <div className="wiz-field">
-            <label className="wiz-field-label">Naturalidade</label>
-            <div className="wiz-field-row">
-              <div className="wiz-field">
-                <input aria-invalid={!!fieldErrors.naturalidade} list="naturalidade-cidades" placeholder="Cidade de nascimento" value={naturalidade.cidade} onChange={(e) => updateNaturalidade({ cidade: normalizeTextName(e.target.value) })} />
-                <datalist id="naturalidade-cidades">
-                  {cidadeNaturalidadeOptions.map((cidade) => <option key={cidade} value={cidade} />)}
-                </datalist>
+          {brasileiro ? (
+            <div className="wiz-field">
+              <label className="wiz-field-label">Naturalidade</label>
+              <div className="wiz-field-row">
+                <div className="wiz-field" style={{ maxWidth: 110 }}>
+                  <select aria-invalid={!!fieldErrors.naturalidade} value={naturalidade.uf} onChange={(e) => updateNaturalidade({ uf: e.target.value })}>
+                    <option value="">UF</option>
+                    {ufOptions.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                  </select>
+                </div>
+                <div className="wiz-field">
+                  {cidadeNaturalidadeFailed ? (
+                    <input aria-invalid={!!fieldErrors.naturalidade} placeholder="Cidade de nascimento" value={naturalidade.cidade} onChange={(e) => updateNaturalidade({ cidade: normalizeTextName(e.target.value) })} />
+                  ) : (
+                    <select aria-invalid={!!fieldErrors.naturalidade} value={naturalidade.cidade} disabled={!naturalidade.uf || cidadeNaturalidadeLoading} onChange={(e) => updateNaturalidade({ cidade: e.target.value })}>
+                      <option value="">{!naturalidade.uf ? "Selecione a UF" : cidadeNaturalidadeLoading ? "Carregando cidades..." : "Selecione a cidade"}</option>
+                      {cidadeNaturalidadeSelectOptions.map((cidade) => <option key={cidade} value={cidade}>{cidade}</option>)}
+                    </select>
+                  )}
+                </div>
               </div>
-              <div className="wiz-field" style={{ maxWidth: 110 }}>
-                <select aria-invalid={!!fieldErrors.naturalidade} value={naturalidade.uf} onChange={(e) => updateNaturalidade({ uf: e.target.value })}>
-                  <option value="">UF</option>
-                  {ufOptions.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
-                </select>
-              </div>
+              {cidadeNaturalidadeFailed ? <span className="wiz-field-hint">Nao foi possivel carregar as cidades agora. Preencha manualmente.</span> : null}
+              <FieldError message={fieldErrors.naturalidade} />
             </div>
-            <FieldError message={fieldErrors.naturalidade} />
-          </div>
+          ) : null}
         </div>
         <div className="wiz-field" style={{ maxWidth: "50%" }}>
           <label className="wiz-field-label">Estado Civil</label>
@@ -1071,15 +1148,23 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
           </div>
           <div className="wiz-field">
             <label className="wiz-field-label">Cidade</label>
-            <input aria-invalid={!!fieldErrors.cidadeResidencial} list="cidade-residencial-options" placeholder="Ex: Manaus" value={v("cidadeResidencial")} onChange={(e) => updateFicha("cidadeResidencial", normalizeTextName(e.target.value))} />
-            <datalist id="cidade-residencial-options">
-              {cidadeResidencialOptions.map((cidade) => <option key={cidade} value={cidade} />)}
-            </datalist>
+            {cidadeResidencialFailed ? (
+              <input aria-invalid={!!fieldErrors.cidadeResidencial} placeholder="Ex: Manaus" value={v("cidadeResidencial")} onChange={(e) => updateFicha("cidadeResidencial", normalizeTextName(e.target.value))} />
+            ) : (
+              <select aria-invalid={!!fieldErrors.cidadeResidencial} value={v("cidadeResidencial")} disabled={!v("ufResidencial") || cidadeResidencialLoading} onChange={(e) => updateFicha("cidadeResidencial", e.target.value)}>
+                <option value="">{!v("ufResidencial") ? "Selecione a UF" : cidadeResidencialLoading ? "Carregando cidades..." : "Selecione a cidade"}</option>
+                {cidadeResidencialSelectOptions.map((cidade) => <option key={cidade} value={cidade}>{cidade}</option>)}
+              </select>
+            )}
+            {cidadeResidencialFailed ? <span className="wiz-field-hint">Nao foi possivel carregar as cidades agora. Preencha manualmente.</span> : null}
             <FieldError message={fieldErrors.cidadeResidencial} />
           </div>
           <div className="wiz-field" style={{ maxWidth: 90 }}>
             <label className="wiz-field-label">UF</label>
-            <select aria-invalid={!!fieldErrors.ufResidencial} value={v("ufResidencial")} onChange={(e) => updateFicha("ufResidencial", e.target.value)}>
+            <select aria-invalid={!!fieldErrors.ufResidencial} value={v("ufResidencial")} onChange={(e) => {
+              updateFicha("ufResidencial", e.target.value);
+              updateFicha("cidadeResidencial", "");
+            }}>
               <option value="">UF</option>
               {ufOptions.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
             </select>
