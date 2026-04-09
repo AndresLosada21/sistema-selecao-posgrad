@@ -10,6 +10,7 @@ import { ApiError, getErrorMessage, isUnauthorizedError } from "@/lib/http/api-e
 import { sanitizePayload } from "@/lib/http/sanitize";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
 import type { ModalidadeConcorrencia, TipoDocumentoInscricao } from "@/lib/enums";
+import type { AuthUser } from "@/modules/auth/types";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import type { EditalDetalhe } from "@/modules/edital/types";
 import { uploadPrivateFile } from "@/modules/upload/api";
@@ -133,6 +134,56 @@ function isValidNaturalidade(value: string) {
   return /^[^/]+\/[A-Z]{2}$/i.test(value.trim());
 }
 
+function formatRg(value: string) {
+  // Remove tudo exceto dígitos e X (dígito verificador em alguns estados)
+  const cleaned = value.replace(/[^\dXx]/g, "").toUpperCase().slice(0, 9);
+  if (cleaned.length <= 2) return cleaned;
+  if (cleaned.length <= 5) return cleaned.replace(/^(\d{2})(.+)/, "$1.$2");
+  if (cleaned.length <= 8) return cleaned.replace(/^(\d{2})(\d{3})(.+)/, "$1.$2.$3");
+  return cleaned.replace(/^(\d{2})(\d{3})(\d{3})(.{1})/, "$1.$2.$3-$4");
+}
+
+function parseDateBR(value: string): Date | null {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day)) return null;
+  return date;
+}
+
+function validateDateBRNascimento(value: string): string | null {
+  if (!value) return null;
+  const date = parseDateBR(value);
+  if (!date) return "Data invalida. Use o formato DD/MM/AAAA.";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (date > today) return "A data de nascimento nao pode ser no futuro.";
+  const age = today.getFullYear() - date.getFullYear() -
+    (today < new Date(today.getFullYear(), date.getMonth(), date.getDate()) ? 1 : 0);
+  if (age < 16) return "O candidato deve ter pelo menos 16 anos.";
+  if (age > 100) return "Data de nascimento invalida.";
+  return null;
+}
+
+function validateDateBRExpedicao(value: string): string | null {
+  if (!value) return null;
+  const date = parseDateBR(value);
+  if (!date) return "Data invalida. Use o formato DD/MM/AAAA.";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (date > today) return "A data de expedicao nao pode ser no futuro.";
+  return null;
+}
+
+function hasMinWords(value: string, min = 2): boolean {
+  return value.trim().split(/\s+/).filter(Boolean).length >= min;
+}
+
+function hasNoDigits(value: string): boolean {
+  return !/\d/.test(value);
+}
+
 function normalizeTextName(value: string) {
   return value.replace(/\s+/g, " ").trimStart();
 }
@@ -218,8 +269,7 @@ function getStepFieldErrors(input: {
       ["dataNascimento", "Informe a data de nascimento."],
       ["estadoCivil", "Selecione o estado civil."],
       ["genero", "Selecione o genero."],
-      ["tipoSanguineo", "Selecione o tipo sanguineo."],
-      ["fatorRh", "Selecione o fator Rh."],
+      ["tipoSanguineo", "Selecione o tipo sanguineo (ex: A+, O-)."],
       ["racaCor", "Selecione a raca/cor."],
       ["nomePai", "Informe o nome do pai."],
       ["nomeMae", "Informe o nome da mae."],
@@ -237,8 +287,12 @@ function getStepFieldErrors(input: {
       }
     }
 
-    if (hasText(ficha.nomeCompleto) && /\d/.test(String(ficha.nomeCompleto))) {
-      errors.nomeCompleto = "Nome completo nao pode conter numeros.";
+    if (hasText(ficha.nomeCompleto)) {
+      if (/\d/.test(String(ficha.nomeCompleto))) {
+        errors.nomeCompleto = "Nome completo nao pode conter numeros.";
+      } else if (!hasMinWords(String(ficha.nomeCompleto), 2)) {
+        errors.nomeCompleto = "Informe nome e sobrenome.";
+      }
     }
 
     if (hasText(ficha.email) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(ficha.email))) {
@@ -249,12 +303,22 @@ function getStepFieldErrors(input: {
       errors.telefoneWhatsapp = "Informe um telefone com DDD valido.";
     }
 
-    if (hasText(ficha.dataNascimento) && !isValidDateBR(String(ficha.dataNascimento))) {
-      errors.dataNascimento = "Informe a data de nascimento no formato DD/MM/AAAA.";
+    if (hasText(ficha.dataNascimento)) {
+      const dateError = validateDateBRNascimento(String(ficha.dataNascimento));
+      if (dateError) errors.dataNascimento = dateError;
     }
 
-    if (hasText(ficha.rgDataExpedicao) && !isValidDateBR(String(ficha.rgDataExpedicao))) {
-      errors.rgDataExpedicao = "Informe a data de expedicao no formato DD/MM/AAAA.";
+    if (hasText(ficha.rgDataExpedicao)) {
+      const expError = validateDateBRExpedicao(String(ficha.rgDataExpedicao));
+      if (expError) errors.rgDataExpedicao = expError;
+    }
+
+    if (hasText(ficha.nomePai) && !hasNoDigits(String(ficha.nomePai))) {
+      errors.nomePai = "Nome do pai nao pode conter numeros.";
+    }
+
+    if (hasText(ficha.nomeMae) && !hasNoDigits(String(ficha.nomeMae))) {
+      errors.nomeMae = "Nome da mae nao pode conter numeros.";
     }
 
     if (hasText(ficha.cepResidencial) && !isValidCep(String(ficha.cepResidencial))) {
@@ -383,9 +447,20 @@ function FieldError({ message }: { message?: string }) {
   return <span className="wiz-field-error">{message}</span>;
 }
 
-function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashboardResponse["items"][number] | null): InscricaoEditorState {
+function buildInitialState(
+  edital: EditalDetalhe,
+  dashboardItem: CandidateDashboardResponse["items"][number] | null,
+  authUser: AuthUser | null,
+): InscricaoEditorState {
   const inscricao = dashboardItem?.inscricao;
   const ficha = (inscricao?.dadosFormulario as Record<string, string | boolean | undefined> | undefined) ?? {};
+
+  // Para cada campo: ficha salva tem prioridade; se vazia, usa dados da conta
+  function fichaOr(fichaKey: string, accountValue: string | null | undefined): string {
+    const saved = ficha[fichaKey] as string | undefined;
+    return saved?.trim() ? saved : (accountValue ?? "");
+  }
+
   return {
     linhaPesquisaId: inscricao?.linhaPesquisa?.id ?? edital.linhasPesquisa[0]?.id ?? "",
     modalidadeConcorrencia: inscricao?.modalidadeConcorrencia ?? "AMPLA_CONCORRENCIA",
@@ -393,25 +468,39 @@ function buildInitialState(edital: EditalDetalhe, dashboardItem: CandidateDashbo
     resumoCurriculo: inscricao?.resumoCurriculo ?? "",
     redacaoTexto: inscricao?.redacaoTexto ?? "",
     fichaInscricao: {
-      nomeCompleto: (ficha.nomeCompleto as string) ?? "", rg: (ficha.rg as string) ?? "",
-      rgDataExpedicao: (ficha.rgDataExpedicao as string) ?? "", cpf: (ficha.cpf as string) ?? "",
-      passaporte: (ficha.passaporte as string) ?? "", nacionalidade: (ficha.nacionalidade as string) ?? "",
-      naturalidade: (ficha.naturalidade as string) ?? "", email: (ficha.email as string) ?? "",
-      telefoneWhatsapp: (ficha.telefoneWhatsapp as string) ?? "", dataNascimento: (ficha.dataNascimento as string) ?? "",
-      estadoCivil: (ficha.estadoCivil as string) ?? "", genero: (ficha.genero as string) ?? generoOptions[0],
-      tipoSanguineo: (ficha.tipoSanguineo as string) ?? "", fatorRh: (ficha.fatorRh as string) ?? "",
-      racaCor: (ficha.racaCor as string) ?? racaCorOptions[0],
+      // Campos pré-preenchidos da conta do candidato como ponto de partida
+      nomeCompleto: fichaOr("nomeCompleto", authUser?.nomeCompleto),
+      email: fichaOr("email", authUser?.email),
+      cpf: fichaOr("cpf", authUser?.cpf ? formatCpf(authUser.cpf) : ""),
+      telefoneWhatsapp: fichaOr("telefoneWhatsapp", authUser?.telefone ? formatPhone(authUser.telefone) : ""),
+      // Demais campos da ficha
+      rg: (ficha.rg as string) ?? "",
+      rgDataExpedicao: (ficha.rgDataExpedicao as string) ?? "",
+      passaporte: (ficha.passaporte as string) ?? "",
+      nacionalidade: (ficha.nacionalidade as string) ?? "",
+      naturalidade: (ficha.naturalidade as string) ?? "",
+      dataNascimento: (ficha.dataNascimento as string) ?? "",
+      estadoCivil: (ficha.estadoCivil as string) ?? "",
+      genero: (ficha.genero as string) ?? "",
+      tipoSanguineo: (ficha.tipoSanguineo as string) ?? "",
+      fatorRh: (ficha.fatorRh as string) ?? "",
+      racaCor: (ficha.racaCor as string) ?? "",
       pessoaComDeficiencia: Boolean(ficha.pessoaComDeficiencia),
       concorreAcoesAfirmativas: Boolean(ficha.concorreAcoesAfirmativas),
       vaiSolicitarBolsa: Boolean(ficha.vaiSolicitarBolsa),
-      nomePai: (ficha.nomePai as string) ?? "", nomeMae: (ficha.nomeMae as string) ?? "",
-      enderecoResidencial: (ficha.enderecoResidencial as string) ?? "", cepResidencial: (ficha.cepResidencial as string) ?? "",
-      bairroResidencial: (ficha.bairroResidencial as string) ?? "", ufResidencial: (ficha.ufResidencial as string) ?? "",
+      nomePai: (ficha.nomePai as string) ?? "",
+      nomeMae: (ficha.nomeMae as string) ?? "",
+      enderecoResidencial: (ficha.enderecoResidencial as string) ?? "",
+      cepResidencial: (ficha.cepResidencial as string) ?? "",
+      bairroResidencial: (ficha.bairroResidencial as string) ?? "",
+      ufResidencial: (ficha.ufResidencial as string) ?? "",
       cidadeResidencial: (ficha.cidadeResidencial as string) ?? "",
-      empregadoSituacao: (ficha.empregadoSituacao as string) ?? "", regimeTrabalho: (ficha.regimeTrabalho as string) ?? "",
+      empregadoSituacao: (ficha.empregadoSituacao as string) ?? "",
+      regimeTrabalho: (ficha.regimeTrabalho as string) ?? "",
       instituicaoTrabalho: (ficha.instituicaoTrabalho as string) ?? "",
       unidadeDepartamentoTrabalho: (ficha.unidadeDepartamentoTrabalho as string) ?? "",
-      enderecoTrabalho: (ficha.enderecoTrabalho as string) ?? "", cepTrabalho: (ficha.cepTrabalho as string) ?? "",
+      enderecoTrabalho: (ficha.enderecoTrabalho as string) ?? "",
+      cepTrabalho: (ficha.cepTrabalho as string) ?? "",
       cidadeBairroTrabalho: (ficha.cidadeBairroTrabalho as string) ?? "",
     },
   };
@@ -475,7 +564,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const session = useSession();
   const pagamentoDispensado = dashboardItem?.isencao?.status === "DEFERIDA_FINAL";
   const [step, setStep] = useState(0);
-  const [formState, setFormState] = useState<InscricaoEditorState>(() => buildInitialState(edital, dashboardItem));
+  const [formState, setFormState] = useState<InscricaoEditorState>(() => buildInitialState(edital, dashboardItem, session.user));
   const [savingDraft, setSavingDraft] = useState(false);
   const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [autosaveAt, setAutosaveAt] = useState<string | null>(null);
@@ -875,19 +964,19 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         <div className="wiz-field-row">
           <div className="wiz-field">
             <label className="wiz-field-label">RG</label>
-            <input aria-invalid={!!fieldErrors.rg} value={v("rg")} onChange={(e) => updateFicha("rg", e.target.value.replace(/[^\w.-]/g, "").slice(0, 20))} />
+            <input aria-invalid={!!fieldErrors.rg} inputMode="numeric" placeholder="XX.XXX.XXX-X" value={v("rg")} onChange={(e) => updateFicha("rg", formatRg(e.target.value))} />
             <FieldError message={fieldErrors.rg} />
           </div>
           <div className="wiz-field">
             <label className="wiz-field-label">Data de Expedicao do RG</label>
-            <input aria-invalid={!!fieldErrors.rgDataExpedicao} placeholder="DD/MM/AAAA" value={v("rgDataExpedicao")} onChange={(e) => updateFicha("rgDataExpedicao", formatDateBR(e.target.value))} />
+            <input aria-invalid={!!fieldErrors.rgDataExpedicao} inputMode="numeric" placeholder="DD/MM/AAAA" value={v("rgDataExpedicao")} onChange={(e) => updateFicha("rgDataExpedicao", formatDateBR(e.target.value))} />
             <FieldError message={fieldErrors.rgDataExpedicao} />
           </div>
         </div>
         <div className="wiz-field-row">
           <div className="wiz-field">
             <label className="wiz-field-label">Data de Nascimento</label>
-            <input aria-invalid={!!fieldErrors.dataNascimento} placeholder="DD/MM/AAAA" value={v("dataNascimento")} onChange={(e) => updateFicha("dataNascimento", formatDateBR(e.target.value))} />
+            <input aria-invalid={!!fieldErrors.dataNascimento} inputMode="numeric" placeholder="DD/MM/AAAA" value={v("dataNascimento")} onChange={(e) => updateFicha("dataNascimento", formatDateBR(e.target.value))} />
             <FieldError message={fieldErrors.dataNascimento} />
           </div>
           <div className="wiz-field">
@@ -941,7 +1030,15 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         </div>
         <div className="wiz-field">
           <label className="wiz-field-label">E-mail</label>
-          <input aria-invalid={!!fieldErrors.email} type="email" placeholder="candidato@email.com" value={v("email")} onChange={(e) => updateFicha("email", e.target.value.trim())} />
+          <input
+            aria-invalid={!!fieldErrors.email}
+            type="email"
+            readOnly
+            style={{ background: "#F8FAFC", color: "#475569", cursor: "default" }}
+            value={v("email")}
+            onChange={(e) => updateFicha("email", e.target.value.trim().toLowerCase())}
+          />
+          <span className="wiz-field-hint">O e-mail e o mesmo da sua conta. Para alterar, acesse as configuracoes da sua conta.</span>
           <FieldError message={fieldErrors.email} />
         </div>
         <div className="wiz-field">
@@ -997,24 +1094,26 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         <p className="wiz-card-subtitle">Informacoes complementares, declaracoes e vinculo empregaticio</p>
         <div className="wiz-card-divider" />
 
-        <div className="wiz-field-row">
-          <div className="wiz-field">
-            <label className="wiz-field-label">Tipo Sanguineo</label>
-              <select value={v("tipoSanguineo")} onChange={(e) => updateFicha("tipoSanguineo", e.target.value)}>
-              <option value="">Selecione</option>
-              {["A", "B", "AB", "O"].map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-              <FieldError message={fieldErrors.tipoSanguineo} />
-            </div>
-            <div className="wiz-field">
-              <label className="wiz-field-label">Fator Rh</label>
-            <select value={v("fatorRh")} onChange={(e) => updateFicha("fatorRh", e.target.value)}>
-              <option value="">Selecione</option>
-              <option value="+">+</option>
-              <option value="-">-</option>
-              </select>
-              <FieldError message={fieldErrors.fatorRh} />
-            </div>
+        <div className="wiz-field" style={{ maxWidth: 200 }}>
+          <label className="wiz-field-label">Tipo Sanguineo</label>
+          <select
+            aria-invalid={!!fieldErrors.tipoSanguineo}
+            value={v("tipoSanguineo") && v("fatorRh") ? `${v("tipoSanguineo")}${v("fatorRh")}` : ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (!val) { updateFicha("tipoSanguineo", ""); updateFicha("fatorRh", ""); return; }
+              const tipo = val.replace(/[+-]/, "");
+              const rh = val.includes("+") ? "+" : "-";
+              updateFicha("tipoSanguineo", tipo);
+              updateFicha("fatorRh", rh);
+            }}
+          >
+            <option value="">Selecione</option>
+            {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+          <FieldError message={fieldErrors.tipoSanguineo} />
         </div>
         <div className="wiz-field">
           <label className="wiz-field-label">Raca/Cor</label>
