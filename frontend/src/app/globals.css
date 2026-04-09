@@ -874,13 +874,30 @@ textarea {
 
 /* -- Inscription Wizard (Pencil DS) -- */
 
-/* Wizard needs to break out of candidate-main-inner max-width and candidate-main padding */
-.candidate-main-inner:has(.wiz-shell) { max-width: none; }
-.candidate-main:has(.wiz-shell) { padding: 0; overflow: hidden; }
+/* Wizard needs to break out of candidate-main-inner max-width and candidate-main padding.
+   A cadeia de altura deve ser DEFINIDA (não min-height) para que overflow-y: auto
+   funcione corretamente em wiz-body. */
+.candidate-main:has(.wiz-shell) {
+  padding: 0;
+  /* Converte de flex item sem altura definida para container com altura fixa */
+  height: calc(100vh - var(--topbar-height));
+  min-height: unset;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.candidate-main-inner:has(.wiz-shell) {
+  max-width: none;
+  flex: 1;
+  min-height: 0;   /* override min-height: auto do grid */
+  display: flex;
+  flex-direction: column;
+}
 
 .wiz-shell {
   display: flex; flex-direction: column;
-  height: calc(100vh - 64px);
+  flex: 1;
+  min-height: 0;   /* necessário para que flex: 1 resulte em altura definida */
   overflow: hidden;
 }
 
@@ -924,7 +941,9 @@ textarea {
 }
 
 .wiz-body {
-  flex: 1; background: #F8FAFC;
+  flex: 1;
+  min-height: 0;   /* FIX CRÍTICO: sem isso flex: 1 mantém min-height: auto e overflow-y: auto nunca aciona */
+  background: #F8FAFC;
   display: flex; flex-direction: column; align-items: center;
   padding: 32px 40px 96px; gap: 24px; overflow-y: auto;
 }
