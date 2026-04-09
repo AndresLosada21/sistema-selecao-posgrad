@@ -14,6 +14,7 @@ import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
+import { getAdminEditalById } from "@/modules/admin-edital/api";
 import { listAdminPublicacoesByEdital, previewClassificacaoPublicacao, previewHomologacaoPublicacao, publicarClassificacao, publicarGenerica, publicarHomologacao } from "@/modules/admin-publicacao/api";
 import { previewPublicacaoPoliticas, publicarPoliticas } from "@/modules/admin-politicas/api";
 import type { PublicacoesResponse } from "@/modules/publicacao/types";
@@ -49,6 +50,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [observacoesGenericas, setObservacoesGenericas] = useState("");
   const [referenciaGenerica, setReferenciaGenerica] = useState("");
   const [page, setPage] = useState(1);
+  const [editalLabel, setEditalLabel] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
@@ -65,8 +67,12 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   useAbortableEffect(async (signal) => {
     if (!editalId || !token) return;
     try {
-      await reload();
+      const [, editalData] = await Promise.all([
+        reload(),
+        getAdminEditalById(editalId, token).catch(() => null),
+      ]);
       if (signal.aborted) return;
+      if (editalData) setEditalLabel(`${(editalData as Record<string, unknown>).numero ?? ""}`);
       setPageStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
@@ -169,7 +175,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="admin-page-header-left" style={{ flex: 1 }}>
-          <h1>Publicacoes — Edital {editalId ?? ""}</h1>
+          <h1>Publicacoes — Edital {editalLabel || (editalId ?? "")}</h1>
           <p>Preview, publicacao e historico versionado.</p>
         </div>
       </div>
@@ -215,8 +221,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </select>
           </div>
           <div className="admin-pub-card-actions">
-            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("homologacao")} type="button">Preview</button>
-            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "homologacao", fase: faseHomologacao })} type="button">Publicar</button>
+            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("homologacao")} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
+            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "homologacao", fase: faseHomologacao })} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> Publicar</button>
           </div>
         </div>
 
@@ -224,7 +230,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         <div className="admin-pub-card">
           <div className="admin-pub-card-header">
             <div className="admin-pub-card-icon admin-pub-card-icon--purple">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C5.4 4 6 5 6 5s.6-1 1.5-1a2.5 2.5 0 0 1 0 5H6z"/><path d="M6 2v7"/><path d="M12 15.5c0 .83.67 1.5 1.5 1.5h1a1.5 1.5 0 0 0 0-3h-1a1.5 1.5 0 0 1 0-3h1c.83 0 1.5.67 1.5 1.5"/><path d="M14 10v1m0 6v1"/><path d="M2 12h20"/><rect x="2" y="2" width="20" height="20" rx="5"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C5.4 4 6 4.5 6 4.5S6.6 4 7.5 4A2.5 2.5 0 0 1 10 6.5 2.5 2.5 0 0 1 7.5 9H6z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5c-.9 0-1.5.5-1.5.5S17.4 4 16.5 4A2.5 2.5 0 0 0 14 6.5 2.5 2.5 0 0 0 16.5 9H18z"/><path d="M6 9v6a6 6 0 0 0 12 0V9"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             </div>
             <span className="admin-pub-card-title">Publicar Classificacao</span>
           </div>
@@ -240,8 +246,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </select>
           </div>
           <div className="admin-pub-card-actions">
-            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("classificacao")} type="button">Preview</button>
-            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "classificacao", fase: faseClassificacao })} type="button">Publicar</button>
+            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("classificacao")} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
+            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "classificacao", fase: faseClassificacao })} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> Publicar</button>
           </div>
         </div>
 
@@ -255,8 +261,10 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           </div>
           <p className="admin-pub-card-desc">Publique o resultado da etapa de politicas afirmativas/heteroidentificacao com snapshot auditavel.</p>
           <div className="admin-pub-card-status">
-            <span className={`admin-pub-card-dot ${latestPolPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--blue"}`} />
-            <span>{latestPolPub ? `Politicas publicadas (v${latestPolPub.versao})` : "Resultado preliminar disponivel para publicacao."}</span>
+            <span className={`admin-pub-card-dot ${latestPolPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--yellow"}`} />
+            <span style={!latestPolPub ? { color: "#1E40AF" } : undefined}>
+              {latestPolPub ? `Politicas publicadas (v${latestPolPub.versao})` : "Resultado preliminar disponivel para publicacao."}
+            </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <select className="select-field" onChange={(e) => setFasePoliticas(e.target.value as "PRELIMINAR" | "FINAL")} style={{ width: 140 }} value={fasePoliticas}>
@@ -265,8 +273,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </select>
           </div>
           <div className="admin-pub-card-actions">
-            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("politicas")} type="button">Preview</button>
-            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "politicas", fase: fasePoliticas })} type="button">Publicar</button>
+            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("politicas")} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
+            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "politicas", fase: fasePoliticas })} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Publicar</button>
           </div>
         </div>
       </div>

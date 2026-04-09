@@ -113,9 +113,11 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
           <p>Ranking por posicao geral, linha e modalidade.</p>
         </div>
         <button className="admin-page-cta" disabled={busy} onClick={() => setConfirmRecalc("PRELIMINAR")} type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           Recalcular preliminar
         </button>
         <button className="admin-pub-btn-dark" disabled={busy} onClick={() => setConfirmRecalc("FINAL")} type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           Recalcular final
         </button>
       </div>
@@ -210,7 +212,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
             <tbody>
               {filtered.length ? filtered.map((item) => (
                 <tr key={item.id}>
-                  <td style={{ textAlign: "center", fontWeight: 700 }}>{item.posicaoGeral ?? "—"}</td>
+                  <td style={{ textAlign: "center", fontWeight: 700, color: "#1E293B" }}>{item.posicaoGeral ?? "—"}</td>
                   <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
                   <td className="admin-homologacao-table-muted">{item.linhaPesquisa?.nome ?? "—"}</td>
                   <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>{item.notaEtapa1 !== null ? item.notaEtapa1.toFixed(1) : "—"}</td>
