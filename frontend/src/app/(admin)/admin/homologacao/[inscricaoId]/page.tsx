@@ -395,7 +395,7 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         </div>
       </div>
 
-      <SectionCard title="Documentos apresentados" description="Leitura dos documentos e de seus metadados de validacao no contexto admin.">
+      <SectionCard title="Documentos da inscricao" description="Documentos apresentados pelo candidato.">
         <div className="content-list">
           {item.documentos.map((documento) => (
             <article className="content-item" key={documento.id}>
@@ -438,11 +438,14 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         </div>
       </SectionCard>
 
-      <SectionCard title="Homologacao preliminar" description="Registro do parecer preliminar e dos motivos objetivos quando houver indeferimento.">
+      <SectionCard title="Decisao de homologacao" description="Registro do parecer preliminar e dos motivos objetivos quando houver indeferimento.">
         <form className="form-grid" onSubmit={handlePreliminar}>
-          <label className="field-inline">
-            <input checked={preliminarHomologada} onChange={(event) => setPreliminarHomologada(event.target.checked)} type="checkbox" />
-            <span>Homologada na preliminar</span>
+          <label className="field-block">
+            <span>Resultado *</span>
+            <select className="select-field" value={preliminarHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(event) => setPreliminarHomologada(event.target.value === "HOMOLOGADA")}>
+              <option value="HOMOLOGADA">Homologada</option>
+              <option value="INDEFERIDA">Indeferida</option>
+            </select>
           </label>
           <label className="field-block">
             <span>Parecer preliminar</span>
@@ -513,11 +516,15 @@ export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoD
         </form>
       </SectionCard>
 
-      <SectionCard title="Homologacao final" description="Registro do parecer final da inscricao com base na situacao consolidada.">
+      <SectionCard title="Decisao final de homologacao" description="Registro do parecer final da inscricao com base na situacao consolidada.">
         <form className="form-grid" onSubmit={handleFinal}>
-          <label className="field-inline">
-            <input checked={finalHomologada} onChange={(event) => setFinalHomologada(event.target.checked)} type="checkbox" />
-            <span>Homologada no resultado final</span>
+          <label className="field-block">
+            <span>Resultado *</span>
+            <select className="select-field" value={finalHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(event) => setFinalHomologada(event.target.value === "HOMOLOGADA")}>
+              <option value="">Selecione o resultado final</option>
+              <option value="HOMOLOGADA">Homologada</option>
+              <option value="INDEFERIDA">Indeferida</option>
+            </select>
           </label>
           <label className="field-block">
             <span>Parecer final</span>

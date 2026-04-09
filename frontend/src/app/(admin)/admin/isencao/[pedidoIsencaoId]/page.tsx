@@ -86,7 +86,6 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
           <h1>Isencao — {item.candidato.nomeCompleto}</h1>
           <p>Edital {item.edital.numero} · Decisao preliminar e final</p>
         </div>
-        <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
       </div>
 
       {/* Card 1: Dados do pedido */}
@@ -121,11 +120,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
             <p style={{ fontSize: 13, color: "#334155", margin: "4px 0 0", lineHeight: 1.6 }}>{item.justificativa}</p>
           </div>
         ) : null}
-        <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
-          <span>Criado: {formatIsoDate(item.criadoEm)}</span>
-          <span>Atualizado: {formatIsoDate(item.atualizadoEm)}</span>
-          <span>E-mail: {item.candidato.email}</span>
-        </div>
+{/* metadata inline removido para alinhar ao Pencil */}
       </div>
 
       {/* Alert CadUnico */}
@@ -147,8 +142,8 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
               <label className="wiz-field-label">Resultado *</label>
               <select value={preliminar.deferida ? "DEFERIDA_PRELIMINAR" : "INDEFERIDA_PRELIMINAR"} onChange={(e) => setPreliminar((c) => ({ ...c, deferida: e.target.value === "DEFERIDA_PRELIMINAR" }))}
                 style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
-                <option value="DEFERIDA_PRELIMINAR">Deferida preliminar</option>
-                <option value="INDEFERIDA_PRELIMINAR">Indeferida preliminar</option>
+                <option value="DEFERIDA_PRELIMINAR">Deferida</option>
+                <option value="INDEFERIDA_PRELIMINAR">Indeferida</option>
               </select>
             </div>
             <div className="wiz-field">
