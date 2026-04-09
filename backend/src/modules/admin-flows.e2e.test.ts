@@ -8,6 +8,7 @@ import {
   Role,
   StatusConta,
   StatusEdital,
+  TipoDocumentoInscricao,
   TipoCronogramaEdital,
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -110,6 +111,17 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
     });
     inscricaoId = inscricao.id;
 
+    await prisma.documentoInscricao.create({
+      data: {
+        inscricaoId,
+        tipo: TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO,
+        nome: "Comprovante de pagamento",
+        nomeArquivo: `comprovante-${suffix}.pdf`,
+        urlArquivo: `private://uploads/${candidato.id}/comprovante-${suffix}.pdf`,
+        obrigatorio: true,
+      },
+    });
+
     const fundamentos = await request(app)
       .get("/v1/admin/homologacao/fundamentos")
       .set("Authorization", `Bearer ${adminToken}`);
@@ -121,6 +133,13 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
       .set("Authorization", `Bearer ${adminToken}`);
     assert.equal(listHomologacao.status, 200);
     assert.equal(listHomologacao.body.total, 1);
+
+    const pagamentoConfirmado = await request(app)
+      .put(`/v1/admin/inscricoes/${inscricaoId}/pagamento`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ statusPagamento: "PAGO" });
+    assert.equal(pagamentoConfirmado.status, 200);
+    assert.equal(pagamentoConfirmado.body.statusPagamento, "PAGO");
 
     const homologacaoPreliminar = await request(app)
       .put(`/v1/admin/inscricoes/${inscricaoId}/homologacao/preliminar`)

@@ -28,7 +28,7 @@ import { loginSchema, registerSchema } from "../../modules/auth/auth.schemas.js"
 import { recalcularClassificacaoSchema } from "../../modules/classificacao/classificacao.schemas.js";
 import { resultadoEtapa1Schema } from "../../modules/etapa1/etapa1.schemas.js";
 import { resultadoEtapa2Schema } from "../../modules/etapa2/etapa2.schemas.js";
-import { confirmacaoReservaSchema, homologacaoDecisionSchema, homologacaoMotivoSchema } from "../../modules/homologacao/homologacao.schemas.js";
+import { confirmacaoReservaSchema, homologacaoDecisionSchema, homologacaoMotivoSchema, pagamentoHomologacaoSchema } from "../../modules/homologacao/homologacao.schemas.js";
 import { addDocumentoSchema, fichaInscricaoSchema, saveDraftSchema } from "../../modules/inscricao/inscricao.schemas.js";
 import { createIsencaoSchema } from "../../modules/isencao/isencao.schemas.js";
 import {
@@ -1100,6 +1100,11 @@ export const ConfirmacaoReservaRequestSchema = confirmacaoReservaSchema.openapi(
   example: {
     confirmacaoAcoesAfirmativas: "CONFIRMADA",
     confirmacaoPcd: "NAO_SE_APLICA",
+  },
+});
+export const PagamentoHomologacaoRequestSchema = pagamentoHomologacaoSchema.openapi("PagamentoHomologacaoRequest", {
+  example: {
+    statusPagamento: "PAGO",
   },
 });
 export const EncaminhamentoPoliticasAfirmativasRequestSchema = encaminhamentoPoliticasAfirmativasSchema.openapi("EncaminhamentoPoliticasAfirmativasRequest", {

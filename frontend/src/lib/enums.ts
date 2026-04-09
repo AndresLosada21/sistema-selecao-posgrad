@@ -85,6 +85,9 @@ export const statusInscricaoOptions = [
 ] as const;
 export type StatusInscricao = (typeof statusInscricaoOptions)[number];
 
+export const statusPagamentoInscricaoOptions = ["NAO_APLICAVEL", "PENDENTE", "PAGO", "DISPENSADO", "INVALIDADO"] as const;
+export type StatusPagamentoInscricao = (typeof statusPagamentoInscricaoOptions)[number];
+
 export const statusContaOptions = ["CRIADA", "ATIVA", "BLOQUEADA"] as const;
 export type StatusConta = (typeof statusContaOptions)[number];
 

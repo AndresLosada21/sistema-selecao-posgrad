@@ -1,5 +1,6 @@
 import type { TipoDocumentoInscricao } from "@/lib/enums";
 import type { StatusConfirmacaoReserva } from "@/lib/enums";
+import type { StatusPagamentoInscricao } from "@/lib/enums";
 
 export type HomologacaoFundamento = {
   codigo: string;
@@ -87,6 +88,10 @@ export type HomologacaoDecisionPayload = {
 export type ConfirmacaoReservaPayload = {
   confirmacaoAcoesAfirmativas?: StatusConfirmacaoReserva;
   confirmacaoPcd?: StatusConfirmacaoReserva;
+};
+
+export type PagamentoHomologacaoPayload = {
+  statusPagamento: Exclude<StatusPagamentoInscricao, "NAO_APLICAVEL" | "DISPENSADO">;
 };
 
 export type AdminPacoteDocumentalResponse = {
