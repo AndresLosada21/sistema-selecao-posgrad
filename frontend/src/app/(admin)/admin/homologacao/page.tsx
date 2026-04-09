@@ -1,168 +1,123 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
-import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { formatIsoDate } from "@/modules/edital/formatters";
+import { listInscricoesParaHomologacao } from "@/modules/admin-homologacao/api";
+import type { AdminInscricoesHomologacaoResponse } from "@/modules/admin-homologacao/types";
 
-import { listFundamentosHomologacao, listInscricoesParaHomologacao } from "@/modules/admin-homologacao/api";
-import type { AdminInscricoesHomologacaoResponse, HomologacaoFundamentosResponse } from "@/modules/admin-homologacao/types";
+const iconChevL = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>;
+const iconChevR = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>;
 
 export default function AdminHomologacaoPage() {
   const session = useSession();
-  const token = session.token;
-  const signOut = session.signOut;
   const [data, setData] = useState<AdminInscricoesHomologacaoResponse | null>(null);
-  const [fundamentos, setFundamentos] = useState<HomologacaoFundamentosResponse | null>(null);
-  const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
+  const [draftFilter, setDraftFilter] = useState("");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
 
   useAbortableEffect(async (signal) => {
-    if (!token) {
-      return;
-    }
-
+    if (!session.token) return;
     try {
-      const [items, fundamentosResponse] = await Promise.all([
-        listInscricoesParaHomologacao(token, { editalId: filter || undefined, page, pageSize: 20 }),
-        listFundamentosHomologacao(token),
-      ]);
-
+      const response = await listInscricoesParaHomologacao(session.token, { editalId: filter || undefined, page, pageSize: 20 });
       if (signal.aborted) return;
-      setData(items);
-      setFundamentos(fundamentosResponse);
-      setStatus("ready");
+      setData(response); setStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-
-      setMessage(getErrorMessage(error));
-      setStatus("error");
+      if (isUnauthorizedError(error)) { session.signOut(); return; }
+      setMessage(getErrorMessage(error)); setStatus("error");
     }
-  }, [filter, page, signOut, token]);
+  }, [filter, page, session.signOut, session.token]);
 
-  const resumo = useMemo(() => ({
-    total: data?.total ?? 0,
-    totalPaginaAtual: data?.items.length ?? 0,
-    comParecerPreliminar: data?.items.filter((item) => item.homologacao?.statusPreliminar).length ?? 0,
-    comParecerFinal: data?.items.filter((item) => item.homologacao?.statusFinal).length ?? 0,
-  }), [data]);
+  const stats = useMemo(() => {
+    const items = data?.items ?? [];
+    return {
+      total: data?.total ?? 0,
+      pendentes: items.filter((i) => !i.homologacao?.statusPreliminar).length,
+      homologadas: items.filter((i) => i.homologacao?.statusFinal === "HOMOLOGADA_FINAL").length,
+    };
+  }, [data]);
 
-  if (status === "loading") {
-    return <LoadingState title="Carregando fila de homologacao" description="Consultando inscricoes, filtros e fundamentos operacionais." />;
-  }
+  if (status === "loading") return <LoadingState title="Carregando homologacao" description="Consultando fila de inscricoes." />;
+  if (status === "error") return <ErrorState title="Falha ao carregar homologacao" description={message ?? undefined} />;
 
-  if (status === "error") {
-    return <ErrorState title="Falha ao carregar homologacao" description={message ?? undefined} />;
-  }
+  const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 
   return (
-    <div className="stack-layout">
-      <PageFeedback
-        type="info"
-        title="Fila administrativa de homologacao"
-        description="Use o filtro por edital apenas quando precisar restringir a fila. Sem filtro aplicado, a pagina busca todas as inscricoes retornadas pelo backend."
-      />
-
-      <SectionCard title="Resumo da fila de homologacao" description="Leitura inicial dos contratos administrativos do modulo de homologacao.">
-        <div className="summary-grid">
-          <article className="summary-card">
-            <span>Total de inscricoes</span>
-            <strong>{resumo.total}</strong>
-          </article>
-          <article className="summary-card">
-            <span>{`Com preliminar na pagina (${resumo.totalPaginaAtual} itens)`}</span>
-            <strong>{resumo.comParecerPreliminar}</strong>
-          </article>
-          <article className="summary-card">
-            <span>{`Com final na pagina (${resumo.totalPaginaAtual} itens)`}</span>
-            <strong>{resumo.comParecerFinal}</strong>
-          </article>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="admin-page-header">
+        <div className="admin-page-header-left">
+          <h1>Homologacao</h1>
+          <p>Fila de inscricoes para homologacao preliminar e final.</p>
         </div>
-      </SectionCard>
+      </div>
 
-      <SectionCard title="Filtro operacional" description="Filtra a fila por edital quando necessario.">
-        <div className="content-list">
-          <AdminEditalCombobox allowEmpty emptyLabel="Todos os editais" label="Edital" onChange={setDraftFilter} token={token ?? ""} value={draftFilter} />
-          <div className="content-item-links">
-            <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
-            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }} type="button" variant="ghost">Limpar filtro</ActionButton>
-            <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
+      {/* Stats */}
+      <div style={{ display: "flex", gap: 16 }}>
+        <div className="admin-stat-card" style={{ flex: 1 }}><span className="admin-stat-label">Total</span><strong className="admin-stat-value" style={{ fontSize: 24 }}>{stats.total}</strong></div>
+        <div className="admin-stat-card" style={{ flex: 1 }}><span className="admin-stat-label" style={{ color: "#92400E" }}>Pendentes</span><strong className="admin-stat-value" style={{ fontSize: 24 }}>{stats.pendentes}</strong></div>
+        <div className="admin-stat-card" style={{ flex: 1 }}><span className="admin-stat-label" style={{ color: "#065F46" }}>Homologadas</span><strong className="admin-stat-value" style={{ fontSize: 24 }}>{stats.homologadas}</strong></div>
+      </div>
+
+      {/* Filter */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 12 }}>
+        <div style={{ flex: 1, maxWidth: 280 }}>
+          <AdminEditalCombobox allowEmpty emptyLabel="Todos os editais" label="Edital" onChange={setDraftFilter} token={session.token ?? ""} value={draftFilter} />
+        </div>
+        <button type="button" className="admin-page-cta" style={{ height: 40, padding: "0 16px", fontSize: 13 }} onClick={() => { setFilter(draftFilter); setPage(1); }}>Aplicar</button>
+        {filter ? <button type="button" style={{ height: 40, padding: "0 16px", fontSize: 13, background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", color: "#475569" }} onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }}>Limpar</button> : null}
+      </div>
+
+      {/* Table */}
+      {data?.items.length ? (
+        <div className="admin-table">
+          <div className="admin-table-head">
+            <span className="admin-table-cell admin-table-cell--grow">Candidato</span>
+            <span className="admin-table-cell" style={{ width: 120 }}>Edital</span>
+            <span className="admin-table-cell" style={{ width: 160 }}>Linha</span>
+            <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>Inscricao</span>
+            <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>Homologacao</span>
+            <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>Acao</span>
+          </div>
+          {data.items.map((item) => (
+            <div key={item.id} className="admin-table-row">
+              <span className="admin-table-cell admin-table-cell--grow admin-table-cell--bold">{item.candidato.nomeCompleto}</span>
+              <span className="admin-table-cell admin-table-cell--muted" style={{ width: 120 }}>{item.edital.numero}</span>
+              <span className="admin-table-cell admin-table-cell--muted" style={{ width: 160 }}>{item.linhaPesquisa?.nome ?? "—"}</span>
+              <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>
+                <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
+              </span>
+              <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>
+                <StatusBadge variant={getStatusVariant(item.homologacao?.statusFinal ?? item.homologacao?.statusPreliminar ?? "PENDENTE")}>
+                  {getStatusLabel(item.homologacao?.statusFinal ?? item.homologacao?.statusPreliminar ?? "Pendente")}
+                </StatusBadge>
+              </span>
+              <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>
+                <Link href={`/admin/homologacao/${item.id}`} style={{ fontSize: 13, fontWeight: 500, color: "#2563EB", textDecoration: "none" }}>Abrir</Link>
+              </span>
+            </div>
+          ))}
+          <div className="admin-pagination">
+            <span>Mostrando {((page - 1) * 20) + 1}-{Math.min(page * 20, data.total)} de {data.total} inscricoes</span>
+            <div className="admin-pagination-controls">
+              <button type="button" className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{iconChevL}</button>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button key={i} type="button" className={`admin-pagination-btn${page === i + 1 ? " admin-pagination-btn--active" : ""}`} onClick={() => setPage(i + 1)}>{i + 1}</button>
+              ))}
+              <button type="button" className="admin-pagination-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{iconChevR}</button>
+            </div>
           </div>
         </div>
-      </SectionCard>
-
-      <SectionCard title="Fila de inscricoes" description="Lista administrativa para abertura do detalhe operacional da homologacao.">
-        {data?.items.length ? (
-          <div className="content-list">
-            {data.items.map((item) => (
-              <article className="content-item" key={item.id}>
-                <div className="content-item-row">
-                  <strong>{item.candidato.nomeCompleto}</strong>
-                  <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
-                </div>
-                <small>Edital: {item.edital.numero}</small>
-                <small>Curso: {getStatusLabel(item.edital.cursoNivel)}</small>
-                <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
-                <small>Pagamento: {getStatusLabel(item.statusPagamento)}</small>
-                <small>Documentos: {item.documentosTotal}</small>
-                <small>Submetida em: {formatIsoDate(item.submetidaEm)}</small>
-                <small>Homologacao preliminar: {getStatusLabel(item.homologacao?.statusPreliminar ?? "SEM_PARECER")}</small>
-                <small>Homologacao final: {getStatusLabel(item.homologacao?.statusFinal ?? "SEM_PARECER")}</small>
-                <div className="content-item-links">
-                  <Link className="nav-link" href={`/admin/homologacao/${item.id}`}>
-                    Abrir detalhe
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="Fila vazia" description="Nenhuma inscricao foi retornada para o filtro atual." />
-        )}
-        <div className="content-item-links">
-          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
-          <small>{`Pagina ${data?.page ?? page}`}</small>
-          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Fundamentos operacionais" description="Catalogo de fundamentos devolvido pelo backend para apoiar os pareceres.">
-        {fundamentos?.items.length ? (
-          <div className="content-list">
-            {fundamentos.items.map((fundamento) => (
-              <article className="content-item" key={fundamento.codigo}>
-                <div className="content-item-row">
-                  <strong>{fundamento.codigo}</strong>
-                  <StatusBadge variant={fundamento.sanavel ? "warning" : "error"}>{fundamento.sanavel ? "Sanavel" : "Nao sanavel"}</StatusBadge>
-                </div>
-                <p>{fundamento.titulo}</p>
-                <small>Item do edital: {fundamento.itemEdital}</small>
-                <small>Documento: {fundamento.documentoTipo ?? "nao vinculado"}</small>
-                <small>{fundamento.descricao}</small>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="Sem fundamentos" description="O backend nao retornou fundamentos operacionais para a homologacao." />
-        )}
-      </SectionCard>
+      ) : <EmptyState title="Fila vazia" description="Nenhuma inscricao retornada para o filtro atual." />}
     </div>
   );
 }
