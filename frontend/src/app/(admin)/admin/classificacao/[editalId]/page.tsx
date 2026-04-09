@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
@@ -16,6 +16,26 @@ import type { ClassificacaoAdminResponse, ClassificacaoAdminItem } from "@/modul
 type Props = { params: Promise<{ editalId: string }> };
 
 const PAGE_SIZE = 20;
+
+async function loadAllClassificacaoPages(editalId: string, token: string) {
+  const firstPage = await listClassificacaoAdmin(editalId, token, { page: 1, pageSize: 100 });
+  const totalPages = Math.max(1, Math.ceil(firstPage.total / firstPage.pageSize));
+
+  if (totalPages === 1) {
+    return firstPage.items;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      listClassificacaoAdmin(editalId, token, { page: index + 2, pageSize: 100 }),
+    ),
+  );
+
+  return [
+    ...firstPage.items,
+    ...remainingPages.flatMap((pageResult) => pageResult.items),
+  ];
+}
 
 function formatNF(value: number | null): string {
   if (value === null || value === undefined) return "—";
@@ -41,11 +61,23 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
     return () => { cancelled = true; };
   }, [params]);
 
+  const loadData = useCallback(async () => {
+    if (!token || !editalId) return null;
+    const items = await loadAllClassificacaoPages(editalId, token);
+    return {
+      items,
+      total: items.length,
+      page: 1,
+      pageSize: PAGE_SIZE,
+    } satisfies ClassificacaoAdminResponse;
+  }, [editalId, token]);
+
   useAbortableEffect(async (signal) => {
     if (!token || !editalId) return;
     try {
-      const response = await listClassificacaoAdmin(editalId, token, { page, pageSize: PAGE_SIZE });
+      const response = await loadData();
       if (signal.aborted) return;
+      if (!response) return;
       setData(response);
       setPageStatus("ready");
     } catch (error) {
@@ -54,7 +86,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
       setFeedback({ type: "error", text: getErrorMessage(error) });
       setPageStatus("error");
     }
-  }, [editalId, page, signOut, token]);
+  }, [editalId, loadData, signOut, token]);
 
   const linhas = useMemo(() => {
     if (!data?.items) return [];
@@ -71,14 +103,19 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
     return data.items.filter((item) => item.linhaPesquisa?.nome === linhaFilter);
   }, [data, linhaFilter]);
 
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
+
   // Operational insights
-  const totalClassificados = data?.items.filter((i) => i.posicaoGeral !== null).length ?? 0;
-  const totalEliminados = data?.items.filter((i) => i.posicaoGeral === null).length ?? 0;
-  const semNotaFinal = data?.items.filter((i) => i.notaFinal === null).length ?? 0;
+  const totalClassificados = filtered.filter((i) => i.posicaoGeral !== null).length;
+  const totalEliminados = filtered.filter((i) => i.posicaoGeral === null).length;
+  const semNotaFinal = filtered.filter((i) => i.notaFinal === null).length;
   const mediaGeral = useMemo(() => {
-    const notas = (data?.items ?? []).filter((i) => i.notaFinal !== null).map((i) => i.notaFinal as number);
+    const notas = filtered.filter((i) => i.notaFinal !== null).map((i) => i.notaFinal as number);
     return notas.length > 0 ? (notas.reduce((a, b) => a + b, 0) / notas.length) : null;
-  }, [data]);
+  }, [filtered]);
 
   async function recalculate(pub: "PRELIMINAR" | "FINAL") {
     if (!token || !editalId) return;
@@ -88,7 +125,8 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
     try {
       await recalcularClassificacaoAdmin(editalId, pub, token);
       setFeedback({ type: "success", text: `Classificacao recalculada em modo ${pub.toLowerCase()}.` });
-      const response = await listClassificacaoAdmin(editalId, token, { page, pageSize: PAGE_SIZE });
+      const response = await loadData();
+      if (!response) return;
       setData(response);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
@@ -99,7 +137,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   if (pageStatus === "loading") return <LoadingState title="Carregando classificacao" description="Consultando a classificacao do edital." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar classificacao" description={feedback?.text} />;
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const editalNumero = data?.items[0]?.edital?.numero ?? editalId ?? "";
 
   return (
@@ -113,11 +151,11 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
           <p>Ranking por posicao geral, linha e modalidade.</p>
         </div>
         <button className="admin-page-cta" disabled={busy} onClick={() => setConfirmRecalc("PRELIMINAR")} type="button">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           Recalcular preliminar
         </button>
         <button className="admin-pub-btn-dark" disabled={busy} onClick={() => setConfirmRecalc("FINAL")} type="button">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           Recalcular final
         </button>
       </div>
@@ -145,7 +183,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
       <div className="admin-summary-cards">
         <div className="admin-summary-card">
           <span className="admin-summary-card-label">Total no edital</span>
-          <span className="admin-summary-card-value">{data?.total ?? 0}</span>
+          <span className="admin-summary-card-value">{filtered.length}</span>
         </div>
         <div className="admin-summary-card">
           <span className="admin-summary-card-label">Classificados</span>
@@ -173,7 +211,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
       <div className="admin-chip-bar">
         <button
           className={`admin-chip${!linhaFilter ? " admin-chip--active" : ""}`}
-          onClick={() => setLinhaFilter(null)}
+          onClick={() => { setLinhaFilter(null); setPage(1); }}
           type="button"
         >
           Todas as linhas
@@ -182,7 +220,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
           <button
             className={`admin-chip${linhaFilter === l ? " admin-chip--active" : ""}`}
             key={l}
-            onClick={() => setLinhaFilter(l)}
+            onClick={() => { setLinhaFilter(l); setPage(1); }}
             type="button"
           >
             {l}
@@ -210,7 +248,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length ? filtered.map((item) => (
+              {pagedItems.length ? pagedItems.map((item) => (
                 <tr key={item.id}>
                   <td style={{ textAlign: "center", fontWeight: 700, color: "#1E293B" }}>{item.posicaoGeral ?? "—"}</td>
                   <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
@@ -241,7 +279,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
           </table>
         </div>
         <div className="admin-pagination">
-          <span>Mostrando {((page - 1) * PAGE_SIZE) + 1}–{((page - 1) * PAGE_SIZE) + (data?.items.length ?? 0)} de {data?.total ?? 0} candidatos</span>
+            <span>Mostrando {filtered.length === 0 ? 0 : ((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length} candidatos</span>
           <div className="admin-pagination-controls">
             <button className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">&lsaquo;</button>
             {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (

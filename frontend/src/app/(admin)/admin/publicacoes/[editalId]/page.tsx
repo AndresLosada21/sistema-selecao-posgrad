@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
@@ -24,6 +24,26 @@ type Props = { params: Promise<{ editalId: string }> };
 const PAGE_SIZE = 20;
 
 type PubType = "homologacao" | "classificacao" | "politicas";
+
+async function loadAllPublicacoesPages(editalId: string, token: string) {
+  const firstPage = await listAdminPublicacoesByEdital(editalId, token, { page: 1, pageSize: 100 });
+  const totalPages = Math.max(1, Math.ceil(firstPage.total / (firstPage.pageSize ?? 100)));
+
+  if (totalPages === 1) {
+    return firstPage.items;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      listAdminPublicacoesByEdital(editalId, token, { page: index + 2, pageSize: 100 }),
+    ),
+  );
+
+  return [
+    ...firstPage.items,
+    ...remainingPages.flatMap((pageResult) => pageResult.items),
+  ];
+}
 
 export default function AdminPublicacoesDetailPage({ params }: Props) {
   const session = useSession();
@@ -58,11 +78,11 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     return () => { cancelled = true; };
   }, [params]);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     if (!editalId || !token) return;
-    const response = await listAdminPublicacoesByEdital(editalId, token, { page, pageSize: PAGE_SIZE });
-    setHistory(response);
-  };
+    const items = await loadAllPublicacoesPages(editalId, token);
+    setHistory({ items, total: items.length, page: 1, pageSize: PAGE_SIZE });
+  }, [editalId, token]);
 
   useAbortableEffect(async (signal) => {
     if (!editalId || !token) return;
@@ -80,7 +100,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       setFeedback({ type: "error", text: getErrorMessage(error) });
       setPageStatus("error");
     }
-  }, [editalId, page, signOut, token]);
+  }, [editalId, reload, signOut, token]);
 
   const faseFor = (type: PubType) => type === "homologacao" ? faseHomologacao : type === "classificacao" ? faseClassificacao : fasePoliticas;
 
@@ -158,15 +178,20 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     } finally { setBusy(false); }
   }
 
-  if (pageStatus === "loading") return <LoadingState title="Carregando publicacoes" description="Consultando o historico do edital." />;
-  if (pageStatus === "error") return <ErrorState title="Falha ao carregar publicacoes" description={feedback?.text} />;
+  const pagedHistoryItems = useMemo(() => {
+    const items = history?.items ?? [];
+    const start = (page - 1) * PAGE_SIZE;
+    return items.slice(start, start + PAGE_SIZE);
+  }, [history?.items, page]);
 
-  const totalPages = history ? Math.max(1, Math.ceil(history.total / (history.pageSize ?? PAGE_SIZE))) : 1;
+  const totalPages = history ? Math.max(1, Math.ceil(history.total / PAGE_SIZE)) : 1;
 
-  // Detect latest pub status per type for dot color
   const latestHomPub = history?.items.find((i) => i.tipo.includes("HOMOLOGACAO"));
   const latestClassPub = history?.items.find((i) => i.tipo.includes("CLASSIFICACAO"));
   const latestPolPub = history?.items.find((i) => i.tipo.includes("POLITICAS"));
+
+  if (pageStatus === "loading") return <LoadingState title="Carregando publicacoes" description="Consultando o historico do edital." />;
+  if (pageStatus === "error") return <ErrorState title="Falha ao carregar publicacoes" description={feedback?.text} />;
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -205,7 +230,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         <div className="admin-pub-card">
           <div className="admin-pub-card-header">
             <div className="admin-pub-card-icon admin-pub-card-icon--blue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </div>
             <span className="admin-pub-card-title">Publicar Homologacao</span>
           </div>
@@ -221,8 +246,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </select>
           </div>
           <div className="admin-pub-card-actions">
-            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("homologacao")} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
-            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "homologacao", fase: faseHomologacao })} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> Publicar</button>
+            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("homologacao")} type="button"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
+            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "homologacao", fase: faseHomologacao })} type="button"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> Publicar</button>
           </div>
         </div>
 
@@ -230,7 +255,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         <div className="admin-pub-card">
           <div className="admin-pub-card-header">
             <div className="admin-pub-card-icon admin-pub-card-icon--purple">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C5.4 4 6 4.5 6 4.5S6.6 4 7.5 4A2.5 2.5 0 0 1 10 6.5 2.5 2.5 0 0 1 7.5 9H6z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5c-.9 0-1.5.5-1.5.5S17.4 4 16.5 4A2.5 2.5 0 0 0 14 6.5 2.5 2.5 0 0 0 16.5 9H18z"/><path d="M6 9v6a6 6 0 0 0 12 0V9"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C5.4 4 6 4.5 6 4.5S6.6 4 7.5 4A2.5 2.5 0 0 1 10 6.5 2.5 2.5 0 0 1 7.5 9H6z"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5c-.9 0-1.5.5-1.5.5S17.4 4 16.5 4A2.5 2.5 0 0 0 14 6.5 2.5 2.5 0 0 0 16.5 9H18z"/><path d="M6 9v6a6 6 0 0 0 12 0V9"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             </div>
             <span className="admin-pub-card-title">Publicar Classificacao</span>
           </div>
@@ -246,8 +271,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </select>
           </div>
           <div className="admin-pub-card-actions">
-            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("classificacao")} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
-            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "classificacao", fase: faseClassificacao })} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> Publicar</button>
+            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("classificacao")} type="button"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
+            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "classificacao", fase: faseClassificacao })} type="button"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m3 11 18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg> Publicar</button>
           </div>
         </div>
 
@@ -255,7 +280,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         <div className="admin-pub-card">
           <div className="admin-pub-card-header">
             <div className="admin-pub-card-icon admin-pub-card-icon--indigo">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
             <span className="admin-pub-card-title">Publicar Pol. Afirmativas</span>
           </div>
@@ -273,8 +298,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </select>
           </div>
           <div className="admin-pub-card-actions">
-            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("politicas")} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
-            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "politicas", fase: fasePoliticas })} type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Publicar</button>
+            <button className="admin-pub-btn-preview" disabled={busy} onClick={() => loadPreview("politicas")} type="button"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>
+            <button className="admin-pub-btn-publish" disabled={busy} onClick={() => setConfirmPublish({ type: "politicas", fase: fasePoliticas })} type="button"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Publicar</button>
           </div>
         </div>
       </div>
@@ -302,12 +327,13 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                   <th style={{ minWidth: 200 }}>Titulo</th>
                   <th style={{ minWidth: 140 }}>Tipo</th>
                   <th style={{ width: 80, textAlign: "center" }}>Versao</th>
+                  <th style={{ width: 90, textAlign: "center" }}>Republic.</th>
                   <th style={{ minWidth: 140 }}>Data</th>
                   <th style={{ width: 60, textAlign: "center" }}>PDF</th>
                 </tr>
               </thead>
               <tbody>
-                {history.items.map((item) => (
+                {pagedHistoryItems.map((item) => (
                   <tr key={item.id}>
                     <td className="admin-homologacao-table-primary">{item.titulo}</td>
                     <td className="admin-homologacao-table-muted">{getStatusLabel(item.tipo)}</td>
@@ -316,6 +342,9 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                       {item.versaoFinal && (
                         <StatusBadge variant="success" shape="tag">Final</StatusBadge>
                       )}
+                    </td>
+                    <td style={{ textAlign: "center", color: item.republicacaoDeId ? "#B45309" : "#94A3B8", fontWeight: item.republicacaoDeId ? 600 : 500 }}>
+                      {item.republicacaoDeId ? "Sim" : "Nao"}
                     </td>
                     <td className="admin-homologacao-table-muted">{formatIsoDate(item.publicadoEm)}</td>
                     <td className="admin-homologacao-table-center">
@@ -333,7 +362,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         )}
 
         <div className="admin-pagination">
-          <span>Mostrando {((page - 1) * PAGE_SIZE) + 1}–{((page - 1) * PAGE_SIZE) + (history?.items.length ?? 0)} de {history?.total ?? 0} publicacoes</span>
+          <span>Mostrando {history?.total ? ((page - 1) * PAGE_SIZE) + 1 : 0}–{Math.min(page * PAGE_SIZE, history?.total ?? 0)} de {history?.total ?? 0} publicacoes</span>
           <div className="admin-pagination-controls">
             <button className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">&lsaquo;</button>
             {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
