@@ -2712,6 +2712,80 @@ textarea {
 .admin-pagination-btn--active { background: #2563EB; color: #fff; border-color: #2563EB; font-weight: 600; }
 .admin-pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.admin-homologacao-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-homologacao-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.admin-homologacao-table thead th {
+  padding: 14px 24px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+  text-align: left;
+}
+
+.admin-homologacao-table tbody td {
+  padding: 18px 24px;
+  border-top: 1px solid #F1F5F9;
+  vertical-align: middle;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.admin-homologacao-table tbody tr:nth-child(odd) {
+  background: #fff;
+}
+
+.admin-homologacao-table tbody tr:nth-child(even) {
+  background: #F8FAFC;
+}
+
+.admin-homologacao-table-primary {
+  font-weight: 600;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-homologacao-table-muted {
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-homologacao-table-center {
+  text-align: center;
+}
+
+.admin-homologacao-table-center .status-badge {
+  justify-content: center;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.admin-homologacao-table-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563EB;
+  text-decoration: none;
+}
+
+.admin-homologacao-table-link:hover {
+  text-decoration: underline;
+}
+
 /* -- Admin Form Card (Pencil DS) -- */
 .admin-form-card {
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;

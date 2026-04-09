@@ -80,32 +80,48 @@ export default function AdminHomologacaoPage() {
       {/* Table */}
       {data?.items.length ? (
         <div className="admin-table">
-          <div className="admin-table-head" style={{ minWidth: 900 }}>
-            <span className="admin-table-cell" style={{ flex: 2, minWidth: 180 }}>Candidato</span>
-            <span className="admin-table-cell" style={{ flex: 1, minWidth: 100 }}>Edital</span>
-            <span className="admin-table-cell" style={{ flex: 1, minWidth: 120 }}>Linha</span>
-            <span className="admin-table-cell" style={{ minWidth: 110, textAlign: "center" }}>Inscricao</span>
-            <span className="admin-table-cell" style={{ minWidth: 120, textAlign: "center" }}>Homologacao</span>
-            <span className="admin-table-cell" style={{ minWidth: 60, textAlign: "center" }}>Acao</span>
+          <div className="admin-homologacao-table-wrap">
+            <table className="admin-homologacao-table">
+              <colgroup>
+                <col style={{ width: "31%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "6%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Candidato</th>
+                  <th>Edital</th>
+                  <th>Linha</th>
+                  <th className="admin-homologacao-table-center">Inscricao</th>
+                  <th className="admin-homologacao-table-center">Homologacao</th>
+                  <th className="admin-homologacao-table-center">Acao</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
+                    <td className="admin-homologacao-table-muted">{item.edital.numero}</td>
+                    <td className="admin-homologacao-table-muted">{item.linhaPesquisa?.nome ?? "—"}</td>
+                    <td className="admin-homologacao-table-center">
+                      <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
+                    </td>
+                    <td className="admin-homologacao-table-center">
+                      <StatusBadge variant={getStatusVariant(item.homologacao?.statusFinal ?? item.homologacao?.statusPreliminar ?? "PENDENTE")}>
+                        {getStatusLabel(item.homologacao?.statusFinal ?? item.homologacao?.statusPreliminar ?? "Pendente")}
+                      </StatusBadge>
+                    </td>
+                    <td className="admin-homologacao-table-center">
+                      <Link href={`/admin/homologacao/${item.id}`} className="admin-homologacao-table-link">Abrir</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          {data.items.map((item) => (
-            <div key={item.id} className="admin-table-row" style={{ minWidth: 900 }}>
-              <span className="admin-table-cell admin-table-cell--bold" style={{ flex: 2, minWidth: 180 }}>{item.candidato.nomeCompleto}</span>
-              <span className="admin-table-cell admin-table-cell--muted" style={{ flex: 1, minWidth: 100 }}>{item.edital.numero}</span>
-              <span className="admin-table-cell admin-table-cell--muted" style={{ flex: 1, minWidth: 120 }}>{item.linhaPesquisa?.nome ?? "—"}</span>
-              <span className="admin-table-cell" style={{ minWidth: 110, textAlign: "center" }}>
-                <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
-              </span>
-              <span className="admin-table-cell" style={{ minWidth: 120, textAlign: "center" }}>
-                <StatusBadge variant={getStatusVariant(item.homologacao?.statusFinal ?? item.homologacao?.statusPreliminar ?? "PENDENTE")}>
-                  {getStatusLabel(item.homologacao?.statusFinal ?? item.homologacao?.statusPreliminar ?? "Pendente")}
-                </StatusBadge>
-              </span>
-              <span className="admin-table-cell" style={{ minWidth: 60, textAlign: "center" }}>
-                <Link href={`/admin/homologacao/${item.id}`} style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Abrir</Link>
-              </span>
-            </div>
-          ))}
           <div className="admin-pagination">
             <span>Mostrando {((page - 1) * 20) + 1}-{Math.min(page * 20, data.total)} de {data.total} inscricoes</span>
             <div className="admin-pagination-controls">
