@@ -2654,7 +2654,7 @@ textarea {
 }
 
 /* -- Admin Table (Pencil DS) -- */
-.admin-table { background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; }
+.admin-table { background: #fff; border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden; overflow-x: auto; }
 .admin-table-head {
   display: flex; padding: 12px 20px; background: #F8FAFC;
   font-size: 12px; font-weight: 600; color: #64748B;
@@ -2665,8 +2665,8 @@ textarea {
 }
 .admin-table-row:nth-child(odd) { background: #fff; }
 .admin-table-row:nth-child(even) { background: #F8FAFC; }
-.admin-table-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.admin-table-cell--grow { flex: 1; min-width: 0; }
+.admin-table-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex-shrink: 0; }
+.admin-table-cell--grow { flex: 1; min-width: 0; flex-shrink: 1; }
 .admin-table-cell--bold { font-weight: 600; color: #1E293B; }
 .admin-table-cell--muted { color: #475569; }
 .admin-table-cell--center { text-align: center; display: flex; justify-content: center; }
