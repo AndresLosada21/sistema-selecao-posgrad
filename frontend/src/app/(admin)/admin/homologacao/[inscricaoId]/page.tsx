@@ -5,543 +5,342 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getFilenameFromDispositionHeader, triggerBrowserDownload } from "@/lib/files/download";
-import { downloadAuthenticatedFile } from "@/lib/files/download";
+import { getFilenameFromDispositionHeader, triggerBrowserDownload, downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import type { StatusConfirmacaoReserva } from "@/lib/enums";
 import { formatIsoDate } from "@/modules/edital/formatters";
 
 import {
-  atualizarConfirmacaoReserva,
-  baixarAnexoIvAdmin,
-  baixarAnexoIvFlattenAdmin,
-  getPacoteDocumentalAdmin,
-  getInscricaoHomologacaoAdmin,
-  listFundamentosHomologacao,
-  registrarPacoteDocumentalAdmin,
-  registrarHomologacaoFinal,
-  registrarHomologacaoPreliminar,
+  atualizarConfirmacaoReserva, baixarAnexoIvAdmin, baixarAnexoIvFlattenAdmin,
+  getPacoteDocumentalAdmin, getInscricaoHomologacaoAdmin, listFundamentosHomologacao,
+  registrarPacoteDocumentalAdmin, registrarHomologacaoFinal, registrarHomologacaoPreliminar,
 } from "@/modules/admin-homologacao/api";
 import type { AdminInscricaoHomologacao, HomologacaoFundamento } from "@/modules/admin-homologacao/types";
 import { uploadPrivateFile } from "@/modules/upload/api";
 
-type AdminHomologacaoDetailProps = {
-  params: Promise<{ inscricaoId: string }>;
-};
+/* Icons */
+const iconDownload = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>;
+const iconFile = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /></svg>;
 
-const confirmacaoReservaOptions = ["PENDENTE", "CONFIRMADA", "NAO_CONFIRMADA", "NAO_SE_APLICA"] as const;
+type Props = { params: Promise<{ inscricaoId: string }> };
+const confirmacaoOptions = ["PENDENTE", "CONFIRMADA", "NAO_CONFIRMADA", "NAO_SE_APLICA"] as const;
 
-type FeedbackMessage = {
-  type: "success" | "error";
-  title: string;
-  description: string;
-};
-
-export default function AdminHomologacaoDetailPage({ params }: AdminHomologacaoDetailProps) {
+export default function AdminHomologacaoDetailPage({ params }: Props) {
   const session = useSession();
-  const token = session.token;
-  const signOut = session.signOut;
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<AdminInscricaoHomologacao | null>(null);
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamento[]>([]);
-  const [message, setMessage] = useState<FeedbackMessage | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; title: string; description: string } | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [preliminarParecer, setPreliminarParecer] = useState("");
-  const [finalParecer, setFinalParecer] = useState("");
-  const [preliminarHomologada, setPreliminarHomologada] = useState(true);
-  const [finalHomologada, setFinalHomologada] = useState(true);
-  const [selectedMotivoCodigo, setSelectedMotivoCodigo] = useState("");
-  const [motivosPreliminar, setMotivosPreliminar] = useState<HomologacaoFundamento[]>([]);
-  const [motivosFinal, setMotivosFinal] = useState<HomologacaoFundamento[]>([]);
-  const [confirmacaoAcoesAfirmativas, setConfirmacaoAcoesAfirmativas] = useState<StatusConfirmacaoReserva>(confirmacaoReservaOptions[0]);
-  const [confirmacaoPcd, setConfirmacaoPcd] = useState<StatusConfirmacaoReserva>(confirmacaoReservaOptions[0]);
   const [busy, setBusy] = useState(false);
-  const [busyDocumentoId, setBusyDocumentoId] = useState<string | null>(null);
-  const [pacoteResumo, setPacoteResumo] = useState<{ urlArquivo: string; nomeArquivo: string | null; mimeType: string | null; tamanhoBytes: number | null; versaoSubmissao: number | null; geradoEm: string | null; geradoPorId: string | null } | null>(null);
-  const [pacoteForm, setPacoteForm] = useState({ urlArquivo: "", nomeArquivo: "", mimeType: "application/pdf", tamanhoBytes: "" });
+  const [busyDocId, setBusyDocId] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); });
-    return () => { cancelled = true; };
-  }, [params]);
+  // Decision state
+  const [prelimHomologada, setPrelimHomologada] = useState(true);
+  const [prelimParecer, setPrelimParecer] = useState("");
+  const [finalHomologada, setFinalHomologada] = useState(true);
+  const [finalParecer, setFinalParecer] = useState("");
+  const [motivosPrelim, setMotivosPrelim] = useState<HomologacaoFundamento[]>([]);
+  const [motivosFinal, setMotivosFinal] = useState<HomologacaoFundamento[]>([]);
+  const [selectedMotivo, setSelectedMotivo] = useState("");
+
+  // Reserve confirmation
+  const [confirmAA, setConfirmAA] = useState<StatusConfirmacaoReserva>("PENDENTE");
+  const [confirmPCD, setConfirmPCD] = useState<StatusConfirmacaoReserva>("PENDENTE");
+
+  // Pacote
+  const [pacote, setPacote] = useState<{ urlArquivo: string; nomeArquivo: string | null; geradoEm: string | null } | null>(null);
+
+  useEffect(() => { let c = false; params.then((r) => { if (!c) setInscricaoId(r.inscricaoId); }); return () => { c = true; }; }, [params]);
 
   const loadItem = useCallback(async () => {
-    if (!token || !inscricaoId) {
-      return;
-    }
-
-    const [found, fundamentosResponse] = await Promise.all([getInscricaoHomologacaoAdmin(inscricaoId, token), listFundamentosHomologacao(token)]);
+    if (!session.token || !inscricaoId) return;
+    const [found, f] = await Promise.all([getInscricaoHomologacaoAdmin(inscricaoId, session.token), listFundamentosHomologacao(session.token)]);
     setItem(found);
-    setFundamentos(fundamentosResponse.items);
-    setSelectedMotivoCodigo(fundamentosResponse.items[0]?.codigo ?? "");
-  }, [inscricaoId, token]);
+    setFundamentos(f.items);
+    setSelectedMotivo(f.items[0]?.codigo ?? "");
+    setPrelimParecer(found.homologacao?.parecerPreliminar ?? "");
+    setFinalParecer(found.homologacao?.parecerFinal ?? "");
+    setMotivosPrelim(found.homologacao?.motivosPreliminar ?? []);
+    setMotivosFinal(found.homologacao?.motivosFinal ?? []);
+    setConfirmAA(found.confirmacaoAcoesAfirmativas as StatusConfirmacaoReserva);
+    setConfirmPCD(found.confirmacaoPcd as StatusConfirmacaoReserva);
+  }, [inscricaoId, session.token]);
 
   useAbortableEffect(async (signal) => {
-    if (!token || !inscricaoId) {
-      return;
-    }
+    if (!session.token || !inscricaoId) return;
+    try { await loadItem(); if (signal.aborted) return; setStatus("ready"); }
+    catch (error) { if (signal.aborted) return; if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", title: "Erro", description: getErrorMessage(error) }); setStatus("error"); }
+  }, [inscricaoId, loadItem, session.signOut, session.token]);
 
+  function handleUnauth(error: unknown) { if (isUnauthorizedError(error)) { session.signOut(); return true; } return false; }
+
+  async function handleDownloadAnexo(kind: "formulario" | "flatten") {
+    if (!session.token || !item) return;
+    setBusy(true); setMessage(null);
     try {
-      await loadItem();
-      if (signal.aborted) return;
-      setStatus("ready");
-    } catch (error) {
-      if (signal.aborted) return;
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
-
-      setMessage({ type: "error", title: "Falha ao carregar inscricao", description: getErrorMessage(error) });
-      setStatus("error");
-    }
-  }, [inscricaoId, loadItem, signOut, token]);
-
-  useEffect(() => {
-    if (!item) {
-      return;
-    }
-
-    setConfirmacaoAcoesAfirmativas(item.confirmacaoAcoesAfirmativas as StatusConfirmacaoReserva);
-    setConfirmacaoPcd(item.confirmacaoPcd as StatusConfirmacaoReserva);
-    setPreliminarParecer(item.homologacao?.parecerPreliminar ?? "");
-    setFinalParecer(item.homologacao?.parecerFinal ?? "");
-    setMotivosPreliminar(item.homologacao?.motivosPreliminar ?? []);
-    setMotivosFinal(item.homologacao?.motivosFinal ?? []);
-  }, [item]);
-
-  const selectedFundamento = useMemo(
-    () => fundamentos.find((fundamento) => fundamento.codigo === selectedMotivoCodigo) ?? null,
-    [fundamentos, selectedMotivoCodigo],
-  );
-
-  function handleUnauthorized(error: unknown) {
-    if (isUnauthorizedError(error)) {
-      signOut();
-      return true;
-    }
-
-    return false;
+      const result = kind === "formulario" ? await baixarAnexoIvAdmin(item.id, session.token) : await baixarAnexoIvFlattenAdmin(item.id, session.token);
+      triggerBrowserDownload(result.blob, getFilenameFromDispositionHeader(result.disposition, `anexo-iv${kind === "flatten" ? "-flatten" : ""}.pdf`));
+    } catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha no download", description: getErrorMessage(error) }); }
+    finally { setBusy(false); }
   }
 
-  function addMotivo(target: "preliminar" | "final") {
-    if (!selectedFundamento) {
-      return;
-    }
-
-    if (target === "preliminar") {
-      setMotivosPreliminar((current) => (current.some((item) => item.codigo === selectedFundamento.codigo) ? current : [...current, selectedFundamento]));
-      return;
-    }
-
-    setMotivosFinal((current) => (current.some((item) => item.codigo === selectedFundamento.codigo) ? current : [...current, selectedFundamento]));
+  async function handleDownloadDoc(docId: string, url: string, nome: string | null) {
+    if (!session.token) return;
+    setBusyDocId(docId);
+    try { await downloadAuthenticatedFile(url, session.token, nome ?? "documento.pdf"); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha no download", description: getErrorMessage(error) }); }
+    finally { setBusyDocId(null); }
   }
 
-  async function handleDownload(kind: "formulario" | "flatten") {
-    if (!token || !item) {
-      return;
-    }
-
+  async function handleLoadPacote() {
+    if (!session.token || !item) return;
     setBusy(true);
-    setMessage(null);
-
-    try {
-      const result =
-        kind === "formulario"
-          ? await baixarAnexoIvAdmin(item.id, token)
-          : await baixarAnexoIvFlattenAdmin(item.id, token);
-
-      triggerBrowserDownload(result.blob, getFilenameFromDispositionHeader(result.disposition, kind === "formulario" ? "anexo-iv.pdf" : "anexo-iv-flatten.pdf"));
-    } catch (error) {
-      if (handleUnauthorized(error)) {
-        return;
-      }
-
-      setMessage({ type: "error", title: "Falha ao baixar Anexo IV", description: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
+    try { const r = await getPacoteDocumentalAdmin(item.id, session.token); setPacote(r.pacoteDocumental); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Pacote indisponivel", description: getErrorMessage(error) }); }
+    finally { setBusy(false); }
   }
 
-  async function handlePacote() {
-    if (!token || !item) {
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      const pacote = await getPacoteDocumentalAdmin(item.id, token);
-      setPacoteResumo(pacote.pacoteDocumental);
-      setMessage({
-        type: "success",
-        title: "Pacote documental carregado",
-        description: `Arquivo: ${pacote.pacoteDocumental.nomeArquivo ?? "sem nome"} · Gerado em: ${formatIsoDate(pacote.pacoteDocumental.geradoEm)}`,
-      });
-    } catch (error) {
-      if (handleUnauthorized(error)) {
-        return;
-      }
-
-      setMessage({ type: "error", title: "Falha ao carregar pacote documental", description: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
+  function addMotivo(target: "prelim" | "final") {
+    const f = fundamentos.find((x) => x.codigo === selectedMotivo);
+    if (!f) return;
+    if (target === "prelim") setMotivosPrelim((c) => c.some((x) => x.codigo === f.codigo) ? c : [...c, f]);
+    else setMotivosFinal((c) => c.some((x) => x.codigo === f.codigo) ? c : [...c, f]);
   }
 
-  async function handleRegistrarPacote(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!token || !item) {
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      const response = await registrarPacoteDocumentalAdmin(item.id, {
-        urlArquivo: pacoteForm.urlArquivo,
-        nomeArquivo: pacoteForm.nomeArquivo,
-        mimeType: pacoteForm.mimeType || undefined,
-        tamanhoBytes: pacoteForm.tamanhoBytes ? Number(pacoteForm.tamanhoBytes) : undefined,
-      }, token);
-
-      setPacoteResumo(response);
-      setMessage({ type: "success", title: "Pacote documental registrado", description: "O pacote documental consolidado foi registrado para esta inscricao." });
-    } catch (error) {
-      if (handleUnauthorized(error)) {
-        return;
-      }
-
-      setMessage({ type: "error", title: "Falha ao registrar pacote documental", description: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
+  async function handlePrelim(e: FormEvent) {
+    e.preventDefault();
+    if (!session.token || !item) return;
+    setBusy(true); setMessage(null);
+    try { await registrarHomologacaoPreliminar(item.id, { homologada: prelimHomologada, parecer: prelimParecer, motivos: motivosPrelim }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao preliminar salva." }); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
+    finally { setBusy(false); }
   }
 
-  async function handleUploadPacote(file: File | null) {
-    if (!token || !file) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const uploaded = await uploadPrivateFile(file, token);
-      setPacoteForm({
-        urlArquivo: uploaded.urlArquivo,
-        nomeArquivo: uploaded.nomeArquivo,
-        mimeType: uploaded.mimeType || "application/pdf",
-        tamanhoBytes: String(uploaded.tamanhoBytes ?? ""),
-      });
-      setMessage({ type: "success", title: "Pacote enviado", description: "O arquivo do pacote documental foi enviado e preenchido no formulario." });
-    } catch (error) {
-      if (handleUnauthorized(error)) return;
-      setMessage({ type: "error", title: "Falha no upload do pacote", description: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
+  async function handleFinal(e: FormEvent) {
+    e.preventDefault();
+    if (!session.token || !item) return;
+    setBusy(true); setMessage(null);
+    try { await registrarHomologacaoFinal(item.id, { homologada: finalHomologada, parecer: finalParecer, motivos: motivosFinal }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao final salva." }); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
+    finally { setBusy(false); }
   }
 
-  async function handleDownloadDocumento(documentoId: string, urlArquivo: string, nomeArquivo: string | null) {
-    if (!token) return;
-    setBusyDocumentoId(documentoId);
-    setMessage(null);
-    try {
-      await downloadAuthenticatedFile(urlArquivo, token, nomeArquivo ?? "documento-inscricao.pdf");
-    } catch (error) {
-      if (handleUnauthorized(error)) return;
-      setMessage({ type: "error", title: "Falha ao baixar documento", description: getErrorMessage(error) });
-    } finally {
-      setBusyDocumentoId(null);
-    }
+  async function handleConfirmacao(e: FormEvent) {
+    e.preventDefault();
+    if (!session.token || !item) return;
+    setBusy(true); setMessage(null);
+    try { await atualizarConfirmacaoReserva(item.id, { confirmacaoAcoesAfirmativas: confirmAA, confirmacaoPcd: confirmPCD }, session.token); await loadItem(); setMessage({ type: "success", title: "Confirmacao atualizada", description: "Reservas atualizadas." }); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
+    finally { setBusy(false); }
   }
 
-  async function handlePreliminar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  if (status === "loading") return <LoadingState title="Carregando homologacao" description="Consultando inscricao e documentos." />;
+  if (status === "error") return <ErrorState title="Falha ao carregar" description={message?.description} />;
+  if (!item) return <EmptyState title="Inscricao nao encontrada" />;
 
-    if (!token || !item) {
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      await registrarHomologacaoPreliminar(item.id, {
-        homologada: preliminarHomologada,
-        parecer: preliminarParecer,
-        motivos: motivosPreliminar,
-      }, token);
-
-      await loadItem();
-      setMessage({ type: "success", title: "Homologacao preliminar registrada", description: "O parecer preliminar foi aceito pelo backend." });
-    } catch (error) {
-      if (handleUnauthorized(error)) {
-        return;
-      }
-
-      setMessage({ type: "error", title: "Falha na homologacao preliminar", description: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleFinal(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!token || !item) {
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      await registrarHomologacaoFinal(item.id, {
-        homologada: finalHomologada,
-        parecer: finalParecer,
-        motivos: motivosFinal,
-      }, token);
-
-      await loadItem();
-      setMessage({ type: "success", title: "Homologacao final registrada", description: "O parecer final foi aceito pelo backend." });
-    } catch (error) {
-      if (handleUnauthorized(error)) {
-        return;
-      }
-
-      setMessage({ type: "error", title: "Falha na homologacao final", description: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleConfirmacaoReserva(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!token || !item) {
-      return;
-    }
-
-    setBusy(true);
-    setMessage(null);
-
-    try {
-      await atualizarConfirmacaoReserva(item.id, {
-        confirmacaoAcoesAfirmativas,
-        confirmacaoPcd,
-      }, token);
-
-      await loadItem();
-      setMessage({ type: "success", title: "Confirmacao de reserva atualizada", description: "A confirmacao operacional foi enviada ao backend." });
-    } catch (error) {
-      if (handleUnauthorized(error)) {
-        return;
-      }
-
-      setMessage({ type: "error", title: "Falha na confirmacao de reserva", description: getErrorMessage(error) });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (status === "loading") {
-    return <LoadingState title="Carregando detalhe de homologacao" description="Consultando a inscricao, os documentos e os fundamentos operacionais." />;
-  }
-
-  if (status === "error") {
-    return <ErrorState title="Falha ao carregar detalhe" description={message?.description} />;
-  }
-
-  if (!item) {
-    return <EmptyState title="Inscricao nao encontrada" description="Nao foi encontrada inscricao correspondente para a fila de homologacao." />;
-  }
+  const homolog = item.homologacao;
+  const hasPrelim = !!homolog?.statusPreliminar;
+  const hasFinal = !!homolog?.statusFinal;
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback description={message.description} title={message.title} type={message.type} /> : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {message ? <PageFeedback type={message.type} title={message.title} description={message.description} /> : null}
 
       {/* Header */}
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Homologacao — {item.candidato.nomeCompleto}</h1>
-          <p>Edital {item.edital.numero} · {getStatusLabel(item.status)} · Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</p>
+          <p>Edital {item.edital.numero} · {getStatusLabel(item.edital.cursoNivel)} · Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</p>
         </div>
+        <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
       </div>
 
-      {/* Summary grid */}
-      <div style={{ display: "flex", gap: 16 }}>
-        <div className="admin-stat-card" style={{ flex: 1 }}>
+      {/* Summary grid - 4 cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div className="admin-stat-card">
           <span className="admin-stat-label">Documentos</span>
-          <strong style={{ fontSize: 14, fontWeight: 700, color: "#1E293B" }}>{item.documentos.length} enviados</strong>
-          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-            <ActionButton disabled={busy} onClick={() => handleDownload("formulario")} size="sm" type="button" variant="secondary">Anexo IV</ActionButton>
-            <ActionButton disabled={busy} onClick={() => handleDownload("flatten")} size="sm" type="button" variant="secondary">Flatten</ActionButton>
-          </div>
+          <strong style={{ fontSize: 16, color: "#1E293B" }}>{item.documentos.length} enviados</strong>
         </div>
-        <div className="admin-stat-card" style={{ flex: 1 }}>
-          <span className="admin-stat-label">Reserva</span>
-          <strong style={{ fontSize: 14, color: "#1E293B" }}>{getStatusLabel(item.modalidadeConcorrencia)}</strong>
+        <div className="admin-stat-card">
+          <span className="admin-stat-label">Modalidade</span>
+          <strong style={{ fontSize: 13, color: "#1E293B" }}>{getStatusLabel(item.modalidadeConcorrencia)}</strong>
         </div>
-        <div className="admin-stat-card" style={{ flex: 1 }}>
+        <div className="admin-stat-card">
           <span className="admin-stat-label">Pagamento</span>
           <StatusBadge variant={getStatusVariant(item.statusPagamento)}>{getStatusLabel(item.statusPagamento)}</StatusBadge>
         </div>
+        <div className="admin-stat-card">
+          <span className="admin-stat-label">Submetida em</span>
+          <strong style={{ fontSize: 13, color: "#1E293B" }}>{formatIsoDate(item.submetidaEm)}</strong>
+        </div>
       </div>
 
-      <SectionCard title="Documentos da inscricao" description="Documentos apresentados pelo candidato.">
-        <div className="content-list">
-          {item.documentos.map((documento) => (
-            <article className="content-item" key={documento.id}>
-              <div className="content-item-row">
-                <strong>{documento.tipo}</strong>
-                <StatusBadge variant={getStatusVariant(documento.statusValidacao ?? "SEM_VALIDACAO")}>{getStatusLabel(documento.statusValidacao ?? "SEM_VALIDACAO")}</StatusBadge>
-              </div>
-              <small>Nome: {documento.nome}</small>
-              <small>Arquivo: {documento.nomeArquivo ?? "nao informado"}</small>
-              <small>Obrigatorio: {documento.obrigatorio ? "sim" : "nao"}</small>
-              <small>Observacao: {documento.observacaoValidacao ?? "sem observacao"}</small>
-              <div className="content-item-links">
-                <ActionButton disabled={busyDocumentoId === documento.id} onClick={() => handleDownloadDocumento(documento.id, documento.urlArquivo, documento.nomeArquivo)} size="sm" type="button" variant="secondary">
-                  {busyDocumentoId === documento.id ? "Baixando..." : "Baixar documento"}
-                </ActionButton>
-              </div>
-            </article>
-          ))}
+      {/* Anexo IV + Pacote */}
+      <div className="admin-form-card">
+        <h3 className="admin-form-card-title">Artefatos da inscricao</h3>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button type="button" disabled={busy} onClick={() => handleDownloadAnexo("formulario")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#1E293B" }}>
+            {iconDownload} Anexo IV (formulario)
+          </button>
+          <button type="button" disabled={busy} onClick={() => handleDownloadAnexo("flatten")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#1E293B" }}>
+            {iconDownload} Anexo IV (flattened)
+          </button>
+          <button type="button" disabled={busy} onClick={handleLoadPacote} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#475569" }}>
+            Carregar pacote documental
+          </button>
         </div>
-      </SectionCard>
-
-      <SectionCard title="Fundamentos disponiveis" description="Catalogo de fundamentos fornecido pelo backend para composicao dos pareceres.">
-        <div className="field-block">
-          <span>Fundamento selecionado</span>
-          <select className="select-field" onChange={(event) => setSelectedMotivoCodigo(event.target.value)} value={selectedMotivoCodigo}>
-            {fundamentos.map((fundamento) => (
-              <option key={fundamento.codigo} value={fundamento.codigo}>
-                {fundamento.codigo} · {fundamento.titulo}
-              </option>
-            ))}
-          </select>
-          <div className="content-item-links">
-             <ActionButton onClick={() => addMotivo("preliminar")} type="button" variant="secondary">
-               Adicionar na preliminar
-             </ActionButton>
-             <ActionButton onClick={() => addMotivo("final")} type="button" variant="secondary">
-               Adicionar na final
-             </ActionButton>
-           </div>
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Decisao de homologacao" description="Registro do parecer preliminar e dos motivos objetivos quando houver indeferimento.">
-        <form className="form-grid" onSubmit={handlePreliminar}>
-          <label className="field-block">
-            <span>Resultado *</span>
-            <select className="select-field" value={preliminarHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(event) => setPreliminarHomologada(event.target.value === "HOMOLOGADA")}>
-              <option value="HOMOLOGADA">Homologada</option>
-              <option value="INDEFERIDA">Indeferida</option>
-            </select>
-          </label>
-          <label className="field-block">
-            <span>Parecer preliminar</span>
-            <textarea className="text-area" onChange={(event) => setPreliminarParecer(event.target.value)} value={preliminarParecer} />
-          </label>
-          <div className="content-list">
-            {motivosPreliminar.map((motivo) => (
-              <article className="content-item" key={`pre-${motivo.codigo}`}>
-                <strong>{motivo.codigo}</strong>
-                <small>{motivo.titulo}</small>
-                <small>{motivo.itemEdital}</small>
-              </article>
-            ))}
-          </div>
-          <ActionButton disabled={busy} loading={busy} type="submit">Registrar preliminar</ActionButton>
-        </form>
-      </SectionCard>
-
-      <SectionCard title="Pacote documental" description="Consulta e registro do pacote documental consolidado da inscricao.">
-        <div className="content-item-links">
-          <ActionButton disabled={busy} onClick={handlePacote} type="button" variant="secondary">Atualizar leitura do pacote</ActionButton>
-        </div>
-        {pacoteResumo ? (
-          <div className="content-item">
-            <small>Arquivo: {pacoteResumo.nomeArquivo ?? "sem nome"}</small>
-            <small>Arquivo privado consolidado no sistema.</small>
-            <small>Versao da submissao: {pacoteResumo.versaoSubmissao ?? "nao informada"}</small>
-            <small>Gerado em: {formatIsoDate(pacoteResumo.geradoEm)}</small>
-            <div className="content-item-links">
-              <ActionButton disabled={busy} onClick={() => handleDownloadDocumento("pacote-documental", pacoteResumo.urlArquivo, pacoteResumo.nomeArquivo)} size="sm" type="button" variant="secondary">Baixar pacote atual</ActionButton>
-            </div>
+        {pacote ? (
+          <div style={{ fontSize: 12, color: "#64748B", marginTop: 4 }}>
+            Pacote: {pacote.nomeArquivo ?? "sem nome"} · Gerado em: {formatIsoDate(pacote.geradoEm)}
           </div>
         ) : null}
+      </div>
 
-        <form className="form-grid" onSubmit={handleRegistrarPacote}>
-          <label className="field-block"><span>Upload do pacote</span><input accept="application/pdf" onChange={(event) => void handleUploadPacote(event.target.files?.[0] ?? null)} type="file" /></label>
-          <label className="field-block"><span>URL do pacote</span><input readOnly required value={pacoteForm.urlArquivo} /></label>
-          <label className="field-block"><span>Nome do arquivo</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, nomeArquivo: event.target.value }))} required value={pacoteForm.nomeArquivo} /></label>
-          <label className="field-block"><span>MIME type</span><input onChange={(event) => setPacoteForm((current) => ({ ...current, mimeType: event.target.value }))} value={pacoteForm.mimeType} /></label>
-          <label className="field-block"><span>Tamanho em bytes</span><input min="1" onChange={(event) => setPacoteForm((current) => ({ ...current, tamanhoBytes: event.target.value }))} type="number" value={pacoteForm.tamanhoBytes} /></label>
-          <ActionButton disabled={busy} loading={busy} type="submit">Registrar pacote documental</ActionButton>
-        </form>
-      </SectionCard>
+      {/* Documentos */}
+      <div className="admin-form-card">
+        <h3 className="admin-form-card-title">Documentos da inscricao</h3>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {item.documentos.map((doc) => (
+            <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #F1F5F9" }}>
+              {iconFile}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1E293B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.nomeArquivo ?? doc.nome}</div>
+                <div style={{ fontSize: 11, color: "#94A3B8" }}>{getStatusLabel(doc.tipo)}{doc.obrigatorio ? " · Obrigatorio" : ""}</div>
+              </div>
+              <button type="button" disabled={busyDocId === doc.id} onClick={() => handleDownloadDoc(doc.id, doc.urlArquivo, doc.nomeArquivo)}
+                style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 4, color: "#2563EB", fontSize: 12 }}>
+                {iconDownload} {busyDocId === doc.id ? "..." : ""}
+              </button>
+            </div>
+          ))}
+          {item.documentos.length === 0 ? <span style={{ fontSize: 13, color: "#94A3B8", padding: "12px 0" }}>Nenhum documento registrado.</span> : null}
+        </div>
+      </div>
 
-      <SectionCard title="Confirmacao operacional de reserva" description="Atualizacao do estado operacional das reservas por inscricao.">
-        <form className="form-grid" onSubmit={handleConfirmacaoReserva}>
-          <label className="field-block">
-            <span>Acoes afirmativas</span>
-            <select className="select-field" onChange={(event) => setConfirmacaoAcoesAfirmativas(event.target.value as StatusConfirmacaoReserva)} value={confirmacaoAcoesAfirmativas}>
-              {confirmacaoReservaOptions.map((value) => (
-                <option key={value} value={value}>
-                    {getStatusLabel(value)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-block">
-            <span>PCD</span>
-            <select className="select-field" onChange={(event) => setConfirmacaoPcd(event.target.value as StatusConfirmacaoReserva)} value={confirmacaoPcd}>
-              {confirmacaoReservaOptions.map((value) => (
-                <option key={value} value={value}>
-                    {getStatusLabel(value)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <ActionButton disabled={busy} loading={busy} type="submit" variant="secondary">Atualizar confirmacao</ActionButton>
-        </form>
-      </SectionCard>
-
-      <SectionCard title="Decisao final de homologacao" description="Registro do parecer final da inscricao com base na situacao consolidada.">
-        <form className="form-grid" onSubmit={handleFinal}>
-          <label className="field-block">
-            <span>Resultado *</span>
-            <select className="select-field" value={finalHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(event) => setFinalHomologada(event.target.value === "HOMOLOGADA")}>
-              <option value="">Selecione o resultado final</option>
-              <option value="HOMOLOGADA">Homologada</option>
-              <option value="INDEFERIDA">Indeferida</option>
-            </select>
-          </label>
-          <label className="field-block">
-            <span>Parecer final</span>
-            <textarea className="text-area" onChange={(event) => setFinalParecer(event.target.value)} value={finalParecer} />
-          </label>
-          <div className="content-list">
-            {motivosFinal.map((motivo) => (
-              <article className="content-item" key={`final-${motivo.codigo}`}>
-                <strong>{motivo.codigo}</strong>
-                <small>{motivo.titulo}</small>
-                <small>{motivo.itemEdital}</small>
-              </article>
-            ))}
+      {/* Decisao preliminar */}
+      <div className="admin-form-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 className="admin-form-card-title">Decisao de homologacao</h3>
+          {hasPrelim ? <StatusBadge variant={getStatusVariant(homolog?.statusPreliminar ?? "")}>{getStatusLabel(homolog?.statusPreliminar ?? "")}</StatusBadge> : null}
+        </div>
+        <form onSubmit={handlePrelim} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="admin-form-row">
+            <div className="wiz-field">
+              <label className="wiz-field-label">Resultado *</label>
+              <select value={prelimHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setPrelimHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                <option value="HOMOLOGADA">Homologada</option>
+                <option value="INDEFERIDA">Indeferida</option>
+              </select>
+            </div>
+            <div className="wiz-field" style={{ flex: 2 }}>
+              <label className="wiz-field-label">Parecer</label>
+              <textarea value={prelimParecer} onChange={(e) => setPrelimParecer(e.target.value)} placeholder="Documentacao completa e regular..." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+            </div>
           </div>
-          <ActionButton disabled={busy} loading={busy} type="submit">Registrar final</ActionButton>
+          {/* Motivos */}
+          {motivosPrelim.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Motivos adicionados:</span>
+              {motivosPrelim.map((m) => (
+                <div key={m.codigo} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#475569", padding: "4px 8px", background: "#F8FAFC", borderRadius: 4 }}>
+                  <strong>{m.codigo}</strong> — {m.titulo}
+                  <button type="button" onClick={() => setMotivosPrelim((c) => c.filter((x) => x.codigo !== m.codigo))} style={{ marginLeft: "auto", background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 11 }}>Remover</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <div className="wiz-field" style={{ flex: 1 }}>
+              <label className="wiz-field-label">Adicionar fundamento</label>
+              <select value={selectedMotivo} onChange={(e) => setSelectedMotivo(e.target.value)} style={{ height: 36, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 10px", fontSize: 12 }}>
+                {fundamentos.map((f) => <option key={f.codigo} value={f.codigo}>{f.codigo} · {f.titulo}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={() => addMotivo("prelim")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
+          </div>
+          <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 220 }}>
+            {busy ? "Registrando..." : "Registrar homologacao"}
+          </button>
         </form>
-      </SectionCard>
+      </div>
+
+      {/* Decisao final */}
+      <div className="admin-form-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 className="admin-form-card-title">Decisao final de homologacao</h3>
+          {hasFinal ? <StatusBadge variant={getStatusVariant(homolog?.statusFinal ?? "")}>{getStatusLabel(homolog?.statusFinal ?? "")}</StatusBadge> : null}
+        </div>
+        <form onSubmit={handleFinal} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="admin-form-row">
+            <div className="wiz-field">
+              <label className="wiz-field-label">Resultado *</label>
+              <select value={finalHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setFinalHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                <option value="">Selecione o resultado final</option>
+                <option value="HOMOLOGADA">Homologada</option>
+                <option value="INDEFERIDA">Indeferida</option>
+              </select>
+            </div>
+            <div className="wiz-field" style={{ flex: 2 }}>
+              <label className="wiz-field-label">Parecer</label>
+              <textarea value={finalParecer} onChange={(e) => setFinalParecer(e.target.value)} placeholder="Parecer da homologacao final..." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+            </div>
+          </div>
+          {motivosFinal.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#334155" }}>Motivos adicionados:</span>
+              {motivosFinal.map((m) => (
+                <div key={m.codigo} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#475569", padding: "4px 8px", background: "#F8FAFC", borderRadius: 4 }}>
+                  <strong>{m.codigo}</strong> — {m.titulo}
+                  <button type="button" onClick={() => setMotivosFinal((c) => c.filter((x) => x.codigo !== m.codigo))} style={{ marginLeft: "auto", background: "none", border: "none", color: "#DC2626", cursor: "pointer", fontSize: 11 }}>Remover</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <div className="wiz-field" style={{ flex: 1 }}>
+              <label className="wiz-field-label">Adicionar fundamento</label>
+              <select value={selectedMotivo} onChange={(e) => setSelectedMotivo(e.target.value)} style={{ height: 36, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 10px", fontSize: 12 }}>
+                {fundamentos.map((f) => <option key={f.codigo} value={f.codigo}>{f.codigo} · {f.titulo}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={() => addMotivo("final")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
+          </div>
+          <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 240 }}>
+            {busy ? "Registrando..." : "Registrar homologacao final"}
+          </button>
+        </form>
+      </div>
+
+      {/* Confirmacao de reserva */}
+      {item.modalidadeConcorrencia !== "AMPLA_CONCORRENCIA" ? (
+        <div className="admin-form-card">
+          <h3 className="admin-form-card-title">Confirmacao operacional de reserva</h3>
+          <form onSubmit={handleConfirmacao} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="admin-form-row">
+              <div className="wiz-field">
+                <label className="wiz-field-label">Acoes afirmativas</label>
+                <select value={confirmAA} onChange={(e) => setConfirmAA(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  {confirmacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                </select>
+              </div>
+              <div className="wiz-field">
+                <label className="wiz-field-label">PCD</label>
+                <select value={confirmPCD} onChange={(e) => setConfirmPCD(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  {confirmacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                </select>
+              </div>
+            </div>
+            <button type="submit" disabled={busy} style={{ alignSelf: "flex-start", padding: "10px 20px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: "pointer", color: "#334155" }}>
+              {busy ? "Atualizando..." : "Atualizar confirmacao"}
+            </button>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
