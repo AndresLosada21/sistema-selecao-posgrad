@@ -2876,6 +2876,61 @@ textarea {
   .admin-etapa1-workbench { grid-template-columns: 1fr; }
   .admin-etapa1-redacao-card { position: static; }
 }
+
+/* -- Admin Classificacao & Publicacoes (Pencil DS) -- */
+.admin-chip-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-chip {
+  display: inline-flex; align-items: center; padding: 6px 14px;
+  border-radius: 9999px; font-size: 12px; font-weight: 500; color: #334155;
+  background: #fff; border: 1px solid #E2E8F0; cursor: pointer;
+}
+.admin-chip:hover { background: #F8FAFC; }
+.admin-chip--active { background: #2563EB; color: #fff; border-color: #2563EB; font-weight: 600; }
+
+.admin-pub-cards { display: flex; gap: 20px; flex-wrap: wrap; }
+.admin-pub-card {
+  flex: 1; min-width: 280px; background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
+  padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;
+}
+.admin-pub-card-header { display: flex; align-items: center; gap: 10px; }
+.admin-pub-card-icon {
+  width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+}
+.admin-pub-card-icon--blue { background: #DBEAFE; color: #3B82F6; }
+.admin-pub-card-icon--purple { background: #EDE9FE; color: #7C3AED; }
+.admin-pub-card-icon--indigo { background: #DBEAFE; color: #2563EB; }
+.admin-pub-card-title { font-size: 15px; font-weight: 700; color: #0F172A; }
+.admin-pub-card-desc { font-size: 13px; color: #64748B; line-height: 1.5; }
+.admin-pub-card-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #475569; }
+.admin-pub-card-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.admin-pub-card-dot--green { background: #10B981; }
+.admin-pub-card-dot--yellow { background: #F59E0B; }
+.admin-pub-card-dot--blue { background: #3B82F6; }
+.admin-pub-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-pub-btn-preview {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+  border-radius: 6px; background: #F1F5F9; border: 1px solid #E2E8F0;
+  font-size: 12px; font-weight: 500; color: #334155; cursor: pointer;
+}
+.admin-pub-btn-preview:hover { background: #E2E8F0; }
+.admin-pub-btn-publish {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+  border-radius: 6px; background: #2563EB; border: none;
+  font-size: 12px; font-weight: 600; color: #fff; cursor: pointer;
+}
+.admin-pub-btn-publish:hover { background: #1D4ED8; }
+.admin-pub-btn-publish:disabled, .admin-pub-btn-preview:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-pub-btn-dark {
+  display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px;
+  border-radius: 8px; background: #1E293B; border: none;
+  font-size: 13px; font-weight: 600; color: #fff; cursor: pointer;
+}
+.admin-pub-btn-dark:hover { background: #0F172A; }
+.admin-pub-btn-dark:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.admin-nf-cell { font-weight: 700; color: #2152A0; }
+.admin-conf-ok { color: #065F46; font-size: 12px; font-weight: 500; }
+.admin-conf-na { color: #94A3B8; }
 .admin-eval-field .eval-display {
   display: flex; align-items: center; padding: 0 14px; height: 42px;
   background: #fff; border: 1px solid #CBD5E1; border-radius: 6px;

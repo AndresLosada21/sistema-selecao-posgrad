@@ -1,21 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { listClassificacaoAdmin, recalcularClassificacaoAdmin } from "@/modules/admin-classificacao/api";
-import type { ClassificacaoAdminResponse } from "@/modules/admin-classificacao/types";
+import type { ClassificacaoAdminResponse, ClassificacaoAdminItem } from "@/modules/admin-classificacao/types";
 
 type Props = { params: Promise<{ editalId: string }> };
+
+const PAGE_SIZE = 20;
+
+async function loadAllClassificacaoPages(editalId: string, token: string) {
+  const firstPage = await listClassificacaoAdmin(editalId, token, { page: 1, pageSize: 100 });
+  const totalPages = Math.max(1, Math.ceil(firstPage.total / firstPage.pageSize));
+
+  if (totalPages === 1) {
+    return firstPage.items;
+  }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      listClassificacaoAdmin(editalId, token, { page: index + 2, pageSize: 100 }),
+    ),
+  );
+
+  return [
+    ...firstPage.items,
+    ...remainingPages.flatMap((pageResult) => pageResult.items),
+  ];
+}
+
+function formatNF(value: number | null): string {
+  if (value === null || value === undefined) return "—";
+  return value.toFixed(2);
+}
 
 export default function AdminClassificacaoDetailPage({ params }: Props) {
   const session = useSession();
@@ -24,88 +49,259 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<ClassificacaoAdminResponse | null>(null);
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [linhaFilter, setLinhaFilter] = useState<string | null>(null);
+  const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmRecalc, setConfirmRecalc] = useState<"PRELIMINAR" | "FINAL" | null>(null);
 
-  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
+  useEffect(() => {
+    let cancelled = false;
+    params.then((r) => { if (!cancelled) setEditalId(r.editalId); });
+    return () => { cancelled = true; };
+  }, [params]);
+
+  const loadData = useCallback(async () => {
+    if (!token || !editalId) return null;
+    const items = await loadAllClassificacaoPages(editalId, token);
+    return {
+      items,
+      total: items.length,
+      page: 1,
+      pageSize: PAGE_SIZE,
+    } satisfies ClassificacaoAdminResponse;
+  }, [editalId, token]);
 
   useAbortableEffect(async (signal) => {
     if (!token || !editalId) return;
     try {
-      const response = await listClassificacaoAdmin(editalId, token, { page, pageSize: 20 });
+      const response = await loadData();
       if (signal.aborted) return;
+      if (!response) return;
       setData(response);
-      setStatus("ready");
+      setPageStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-      setStatus("error");
+      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setPageStatus("error");
     }
-  }, [editalId, page, signOut, token]);
+  }, [editalId, loadData, signOut, token]);
 
-  async function recalculate(publicacao: "PRELIMINAR" | "FINAL") {
+  const linhas = useMemo(() => {
+    if (!data?.items) return [];
+    const names = new Set<string>();
+    for (const item of data.items) {
+      if (item.linhaPesquisa?.nome) names.add(item.linhaPesquisa.nome);
+    }
+    return Array.from(names).sort();
+  }, [data]);
+
+  const filtered = useMemo(() => {
+    if (!data?.items) return [];
+    if (!linhaFilter) return data.items;
+    return data.items.filter((item) => item.linhaPesquisa?.nome === linhaFilter);
+  }, [data, linhaFilter]);
+
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
+
+  // Operational insights
+  const totalClassificados = filtered.filter((i) => i.posicaoGeral !== null).length;
+  const totalEliminados = filtered.filter((i) => i.posicaoGeral === null).length;
+  const semNotaFinal = filtered.filter((i) => i.notaFinal === null).length;
+  const mediaGeral = useMemo(() => {
+    const notas = filtered.filter((i) => i.notaFinal !== null).map((i) => i.notaFinal as number);
+    return notas.length > 0 ? (notas.reduce((a, b) => a + b, 0) / notas.length) : null;
+  }, [filtered]);
+
+  async function recalculate(pub: "PRELIMINAR" | "FINAL") {
     if (!token || !editalId) return;
-    setBusy(true); setMessage(null);
+    setBusy(true);
+    setFeedback(null);
+    setConfirmRecalc(null);
     try {
-      await recalcularClassificacaoAdmin(editalId, publicacao, token);
-      setMessage({ type: "success", text: `Classificacao recalculada em modo ${publicacao}.` });
-      const response = await listClassificacaoAdmin(editalId, token, { page, pageSize: 20 });
+      await recalcularClassificacaoAdmin(editalId, pub, token);
+      setFeedback({ type: "success", text: `Classificacao recalculada em modo ${pub.toLowerCase()}.` });
+      const response = await loadData();
+      if (!response) return;
       setData(response);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
-  if (status === "loading") return <LoadingState title="Carregando classificacao" description="Consultando a classificacao do edital." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar classificacao" description={message?.text} />;
+  if (pageStatus === "loading") return <LoadingState title="Carregando classificacao" description="Consultando a classificacao do edital." />;
+  if (pageStatus === "error") return <ErrorState title="Falha ao carregar classificacao" description={feedback?.text} />;
 
-  const total = data?.total ?? 0;
-  const pageItemCount = data?.items.length ?? 0;
-  const classificados = data?.items.filter((item) => item.posicaoGeral !== null).length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const editalNumero = data?.items[0]?.edital?.numero ?? editalId ?? "";
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback description={message.text} title="Retorno operacional" type={message.type} /> : null}
+    <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
 
-      <SectionCard title={`Classificacao do edital ${editalId ?? ""}`} description="Lista consolidada e operacoes de recalculo no contexto admin.">
-        <div className="summary-grid">
-          <article className="summary-card"><span>Total no edital</span><strong>{total}</strong></article>
-          <article className="summary-card"><span>{`Com posicao na pagina (${pageItemCount} itens)`}</span><strong>{classificados}</strong></article>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div className="admin-page-header-left" style={{ flex: 1 }}>
+          <h1>Classificacao — Edital {editalNumero}</h1>
+          <p>Ranking por posicao geral, linha e modalidade.</p>
         </div>
-        <div className="content-item-links">
-          <ActionButton disabled={busy} onClick={() => recalculate("PRELIMINAR")} type="button" variant="secondary">Recalcular preliminar</ActionButton>
-          <ActionButton disabled={busy} onClick={() => recalculate("FINAL")} type="button">Recalcular final</ActionButton>
-          <Link className="nav-link" href={`/admin/publicacoes/${editalId}`}>Abrir publicacoes deste edital</Link>
+        <button className="admin-page-cta" disabled={busy} onClick={() => setConfirmRecalc("PRELIMINAR")} type="button">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Recalcular preliminar
+        </button>
+        <button className="admin-pub-btn-dark" disabled={busy} onClick={() => setConfirmRecalc("FINAL")} type="button">
+          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Recalcular final
+        </button>
+      </div>
+
+      {/* Confirmation guard for recalculate */}
+      {confirmRecalc && (
+        <PageFeedback
+          type="warning"
+          title={`Confirmar recalculo ${confirmRecalc.toLowerCase()}`}
+          description={`Esta acao vai recalcular a classificacao ${confirmRecalc.toLowerCase()} para todo o edital. O resultado anterior sera substituido. Confirme para prosseguir.`}
+        />
+      )}
+      {confirmRecalc && (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="admin-page-cta" disabled={busy} onClick={() => recalculate(confirmRecalc)} type="button">
+            Confirmar recalculo {confirmRecalc.toLowerCase()}
+          </button>
+          <button className="admin-pub-btn-preview" onClick={() => setConfirmRecalc(null)} type="button">
+            Cancelar
+          </button>
         </div>
-      </SectionCard>
-      <SectionCard title="Lista de classificacao" description="Leitura do contrato administrativo de classificacao final por edital.">
-        {data?.items.length ? (
-          <div className="content-list">
-            {data.items.map((item) => (
-              <article className="content-item" key={item.id}>
-                <div className="content-item-row"><strong>{item.candidato.nomeCompleto}</strong><StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge></div>
-                <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
-                <small>Modalidade: {getStatusLabel(item.modalidadeConcorrencia)}</small>
-                <small>Confirmacao acoes afirmativas: {getStatusLabel(item.confirmacaoAcoesAfirmativas ?? "NAO_SE_APLICA")}</small>
-                <small>Confirmacao PCD: {getStatusLabel(item.confirmacaoPcd ?? "NAO_SE_APLICA")}</small>
-                <small>Nota etapa 1: {item.notaEtapa1 ?? "-"}</small>
-                <small>Nota etapa 2: {item.notaEtapa2 ?? "-"}</small>
-                <small>Nota final: {item.notaFinal ?? "-"}</small>
-                <small>Posicao geral: {item.posicaoGeral ?? "-"}</small>
-                <small>Posicao na linha: {item.posicaoLinha ?? "-"}</small>
-              </article>
+      )}
+
+      {/* Summary cards */}
+      <div className="admin-summary-cards">
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Total no edital</span>
+          <span className="admin-summary-card-value">{filtered.length}</span>
+        </div>
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Classificados</span>
+          <span className="admin-summary-card-value">{totalClassificados}</span>
+        </div>
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Eliminados / sem posicao</span>
+          <span className="admin-summary-card-value">{totalEliminados}</span>
+        </div>
+        <div className="admin-summary-card">
+          <span className="admin-summary-card-label">Media NF (classificados)</span>
+          <span className="admin-summary-card-value admin-summary-card-value--primary">{mediaGeral !== null ? mediaGeral.toFixed(2) : "—"}</span>
+        </div>
+      </div>
+
+      {semNotaFinal > 0 && (
+        <PageFeedback
+          type="warning"
+          title={`${semNotaFinal} inscricao(oes) sem nota final`}
+          description="Existem inscricoes na classificacao sem nota final calculada. Verifique se todas as etapas foram avaliadas antes do recalculo final."
+        />
+      )}
+
+      {/* Chips filter por linha */}
+      <div className="admin-chip-bar">
+        <button
+          className={`admin-chip${!linhaFilter ? " admin-chip--active" : ""}`}
+          onClick={() => { setLinhaFilter(null); setPage(1); }}
+          type="button"
+        >
+          Todas as linhas
+        </button>
+        {linhas.map((l) => (
+          <button
+            className={`admin-chip${linhaFilter === l ? " admin-chip--active" : ""}`}
+            key={l}
+            onClick={() => { setLinhaFilter(l); setPage(1); }}
+            type="button"
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="admin-table">
+        <div className="admin-homologacao-table-wrap">
+          <table className="admin-homologacao-table" style={{ minWidth: 1100 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 40, textAlign: "center" }}>#</th>
+                <th style={{ minWidth: 180 }}>Candidato</th>
+                <th style={{ minWidth: 140 }}>Linha</th>
+                <th style={{ width: 60, textAlign: "center" }}>E1</th>
+                <th style={{ width: 60, textAlign: "center" }}>E2</th>
+                <th style={{ width: 60, textAlign: "center" }}>NF</th>
+                <th style={{ minWidth: 120 }}>Modalidade</th>
+                <th style={{ width: 60, textAlign: "center" }}>P. Linha</th>
+                <th style={{ width: 80, textAlign: "center" }}>Conf. AA</th>
+                <th style={{ width: 80, textAlign: "center" }}>Conf. PCD</th>
+                <th style={{ width: 120, textAlign: "center" }}>Situacao</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedItems.length ? pagedItems.map((item) => (
+                <tr key={item.id}>
+                  <td style={{ textAlign: "center", fontWeight: 700, color: "#1E293B" }}>{item.posicaoGeral ?? "—"}</td>
+                  <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
+                  <td className="admin-homologacao-table-muted">{item.linhaPesquisa?.nome ?? "—"}</td>
+                  <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>{item.notaEtapa1 !== null ? item.notaEtapa1.toFixed(1) : "—"}</td>
+                  <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>{item.notaEtapa2 !== null ? item.notaEtapa2.toFixed(1) : "—"}</td>
+                  <td className="admin-nf-cell" style={{ textAlign: "center" }}>{formatNF(item.notaFinal)}</td>
+                  <td className="admin-homologacao-table-muted">{getStatusLabel(item.modalidadeConcorrencia)}</td>
+                  <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>{item.posicaoLinha ?? "—"}</td>
+                  <td style={{ textAlign: "center" }}>
+                    <ConfBadge value={item.confirmacaoAcoesAfirmativas} />
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    <ConfBadge value={item.confirmacaoPcd} />
+                  </td>
+                  <td className="admin-homologacao-table-center">
+                    <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={11} style={{ textAlign: "center", padding: 32, color: "#64748B" }}>
+                    Nenhum item de classificacao retornado{linhaFilter ? ` para a linha "${linhaFilter}"` : ""}.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="admin-pagination">
+            <span>Mostrando {filtered.length === 0 ? 0 : ((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length} candidatos</span>
+          <div className="admin-pagination-controls">
+            <button className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">&lsaquo;</button>
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
+              <button className={`admin-pagination-btn${p === page ? " admin-pagination-btn--active" : ""}`} key={p} onClick={() => setPage(p)} type="button">{p}</button>
             ))}
+            <button className="admin-pagination-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} type="button">&rsaquo;</button>
           </div>
-        ) : <EmptyState title="Sem classificacao" description="Nenhum item de classificacao foi retornado para este edital." />}
-        <div className="content-item-links">
-          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
-          <small>{`Pagina ${data?.page ?? page}`}</small>
-          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
         </div>
-      </SectionCard>
+      </div>
+
+      {/* Link to publicacoes */}
+      <div style={{ display: "flex", gap: 12 }}>
+        <Link className="admin-pub-btn-preview" href={`/admin/publicacoes/${editalId}`} style={{ textDecoration: "none" }}>
+          Abrir publicacoes deste edital
+        </Link>
+      </div>
     </div>
   );
+}
+
+function ConfBadge({ value }: { value: string | null }) {
+  if (!value || value === "NAO_SE_APLICA") return <span className="admin-conf-na">—</span>;
+  if (value === "CONFIRMADA") return <span className="admin-conf-ok">Confirmada</span>;
+  return <StatusBadge variant={getStatusVariant(value)}>{getStatusLabel(value)}</StatusBadge>;
 }
