@@ -553,6 +553,7 @@ export const Etapa1AdminItemSchema = z
     linhaPesquisa: LinhaPesquisaCurtaSchema,
     avaliacao: z
       .object({
+        textoSubmetido: z.string().nullable(),
         nota: z.number().nullable(),
         tema: z.string().nullable(),
         espelhoCorrecao: z.string().nullable(),

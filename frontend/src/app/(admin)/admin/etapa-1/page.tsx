@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
-import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
@@ -16,6 +13,8 @@ import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { listEtapa1 } from "@/modules/admin-etapas/api";
 import type { Etapa1ListResponse } from "@/modules/admin-etapas/types";
+
+const PAGE_SIZE = 20;
 
 export default function AdminEtapa1Page() {
   const session = useSession();
@@ -30,18 +29,14 @@ export default function AdminEtapa1Page() {
 
   useAbortableEffect(async (signal) => {
     if (!token) return;
-
     try {
-      const response = await listEtapa1(token, { editalId: filter || undefined, page, pageSize: 20 });
+      const response = await listEtapa1(token, { editalId: filter || undefined, page, pageSize: PAGE_SIZE });
       if (signal.aborted) return;
       setData(response);
       setStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
-      if (isUnauthorizedError(error)) {
-        signOut();
-        return;
-      }
+      if (isUnauthorizedError(error)) { signOut(); return; }
       setMessage(getErrorMessage(error));
       setStatus("error");
     }
@@ -50,57 +45,114 @@ export default function AdminEtapa1Page() {
   if (status === "loading") return <LoadingState title="Carregando etapa 1" description="Consultando a fila administrativa da etapa 1." />;
   if (status === "error") return <ErrorState title="Falha ao carregar etapa 1" description={message ?? undefined} />;
 
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+
   return (
-    <div className="stack-layout">
-      <PageFeedback
-        type="info"
-        title="Fila administrativa da etapa 1"
-        description="Sem filtro aplicado, a pagina busca a fila completa retornada pelo backend. Use o ID do edital apenas para restringir a operacao."
-      />
-
-      <SectionCard title="Filtro da etapa 1" description="Filtra a fila pelo edital quando necessario.">
-        <div className="content-list">
-          <AdminEditalCombobox allowEmpty emptyLabel="Todos os editais" label="Edital" onChange={setDraftFilter} token={token ?? ""} value={draftFilter} />
-          <div className="content-item-links">
-            <ActionButton onClick={() => setFilter(draftFilter.trim())} type="button" variant="secondary">Aplicar filtro</ActionButton>
-            <ActionButton onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }} type="button" variant="ghost">Limpar filtro</ActionButton>
-            <Link className="nav-link" href="/editais">Consultar editais publicados</Link>
-          </div>
+    <div className="admin-main-inner">
+      <div className="admin-page-header">
+        <div className="admin-page-header-left">
+          <h1>Etapa 1 — Redacao</h1>
+          <p>Fila de avaliacao de redacoes por edital.</p>
         </div>
-      </SectionCard>
+      </div>
 
-      <SectionCard title="Fila da etapa 1" description="Lista administrativa das inscricoes aptas para avaliacao e leitura do espelho.">
-        {data?.items.length ? (
-          <div className="content-list">
-            {data.items.map((item) => (
-              <article className="content-item" key={item.id}>
-                <div className="content-item-row">
-                  <strong>{item.candidato.nomeCompleto}</strong>
-                  <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
-                </div>
-                <small>Edital: {item.edital.numero}</small>
-                <small>Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</small>
-                <small>Nota atual: {item.avaliacao?.nota ?? "sem nota"}</small>
-                <small>Status da avaliacao: {getStatusLabel(item.avaliacao?.status ?? "SEM_AVALIACAO")}</small>
-                <small>Espelho solicitado em: {formatIsoDate(item.avaliacao?.espelhoSolicitadoEm ?? null)}</small>
-                <small>Espelho liberado em: {formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}</small>
-                <div className="content-item-links">
-                  <Link className="nav-link" href={`/admin/etapa-1/${item.id}`}>
-                    Abrir detalhe
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyState title="Sem inscricoes para etapa 1" description="Nenhuma inscricao foi retornada para o filtro atual." />
+      <div className="admin-search-bar">
+        <AdminEditalCombobox
+          allowEmpty
+          emptyLabel="Todos os editais"
+          label="Edital"
+          onChange={setDraftFilter}
+          token={token ?? ""}
+          value={draftFilter}
+        />
+        <button className="admin-page-cta" onClick={() => { setFilter(draftFilter.trim()); setPage(1); }} type="button">
+          Aplicar filtro
+        </button>
+        {filter && (
+          <button
+            className="admin-pagination-btn"
+            onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }}
+            type="button"
+            style={{ width: "auto", padding: "0 12px", fontSize: 13 }}
+          >
+            Limpar
+          </button>
         )}
-        <div className="content-item-links">
-          <ActionButton disabled={page <= 1} onClick={() => setPage((current) => current - 1)} type="button" variant="ghost">Pagina anterior</ActionButton>
-          <small>{`Pagina ${data?.page ?? page}`}</small>
-          <ActionButton disabled={(data?.items.length ?? 0) < (data?.pageSize ?? 20)} onClick={() => setPage((current) => current + 1)} type="button" variant="ghost">Proxima pagina</ActionButton>
+      </div>
+
+      <div className="admin-table">
+        <div className="admin-homologacao-table-wrap">
+          <table className="admin-homologacao-table">
+            <thead>
+              <tr>
+                <th style={{ minWidth: 200 }}>Candidato</th>
+                <th style={{ minWidth: 140 }}>Linha</th>
+                <th style={{ minWidth: 80, textAlign: "center" }}>Nota</th>
+                <th style={{ minWidth: 140, textAlign: "center" }}>Status</th>
+                <th style={{ minWidth: 90, textAlign: "center" }}>Esp. solicit.</th>
+                <th style={{ minWidth: 100, textAlign: "center" }}>Status aval.</th>
+                <th style={{ minWidth: 90, textAlign: "center" }}>Esp. liber.</th>
+                <th style={{ minWidth: 80, textAlign: "center" }}>Acao</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.items.length ? data.items.map((item) => (
+                <tr key={item.id}>
+                  <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
+                  <td className="admin-homologacao-table-muted">{item.linhaPesquisa?.nome ?? "—"}</td>
+                  <td style={{ textAlign: "center", fontWeight: 700 }}>{item.avaliacao?.nota ?? "—"}</td>
+                  <td className="admin-homologacao-table-center">
+                    <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
+                  </td>
+                  <td className="admin-homologacao-table-center" style={{ fontSize: 12, color: "#475569" }}>
+                    {formatIsoDate(item.avaliacao?.espelhoSolicitadoEm ?? null)}
+                  </td>
+                  <td className="admin-homologacao-table-center">
+                    {item.avaliacao?.status
+                      ? <StatusBadge variant={getStatusVariant(item.avaliacao.status)}>{getStatusLabel(item.avaliacao.status)}</StatusBadge>
+                      : "—"}
+                  </td>
+                  <td className="admin-homologacao-table-center" style={{ fontSize: 12, color: "#475569" }}>
+                    {formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}
+                  </td>
+                  <td className="admin-homologacao-table-center">
+                    <Link className="admin-homologacao-table-link" href={`/admin/etapa-1/${item.id}`}>
+                      Abrir
+                    </Link>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "center", padding: 32, color: "#64748B" }}>
+                    Nenhuma inscricao retornada para o filtro atual.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      </SectionCard>
+        <div className="admin-pagination">
+          <span>Mostrando {((data?.page ?? 1) - 1) * (data?.pageSize ?? PAGE_SIZE) + 1}–{((data?.page ?? 1) - 1) * (data?.pageSize ?? PAGE_SIZE) + (data?.items.length ?? 0)} de {data?.total ?? 0} avaliacoes</span>
+          <div className="admin-pagination-controls">
+            <button className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">
+              &lsaquo;
+            </button>
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
+              <button
+                className={`admin-pagination-btn${p === page ? " admin-pagination-btn--active" : ""}`}
+                key={p}
+                onClick={() => setPage(p)}
+                type="button"
+              >
+                {p}
+              </button>
+            ))}
+            <button className="admin-pagination-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} type="button">
+              &rsaquo;
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
