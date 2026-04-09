@@ -102,7 +102,7 @@ export default function AdminHomologacaoPage() {
                 </StatusBadge>
               </span>
               <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>
-                <Link href={`/admin/homologacao/${item.id}`} style={{ fontSize: 13, fontWeight: 500, color: "#2563EB", textDecoration: "none" }}>Abrir</Link>
+                <Link href={`/admin/homologacao/${item.id}`} style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Abrir</Link>
               </span>
             </div>
           ))}

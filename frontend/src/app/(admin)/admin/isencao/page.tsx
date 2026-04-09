@@ -9,6 +9,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
 import { listAdminIsencoes } from "@/modules/admin-isencao/api";
 import type { AdminIsencoesResponse } from "@/modules/admin-isencao/types";
 
@@ -21,6 +22,8 @@ export default function AdminIsencaoPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [filter, setFilter] = useState("");
+  const [draftFilter, setDraftFilter] = useState("");
 
   useAbortableEffect(async (signal) => {
     if (!session.token) return;
@@ -49,6 +52,15 @@ export default function AdminIsencaoPage() {
         </div>
       </div>
 
+      {/* Filter */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Edital:</span>
+        <div style={{ width: 280 }}>
+          <AdminEditalCombobox allowEmpty emptyLabel="Todos" label="" onChange={setDraftFilter} token={session.token ?? ""} value={draftFilter} />
+        </div>
+        <button type="button" className="admin-page-cta" style={{ height: 38, padding: "0 14px", fontSize: 13 }} onClick={() => { setFilter(draftFilter); setPage(1); }}>Aplicar</button>
+      </div>
+
       {data?.items.length ? (
         <div className="admin-table">
           <div className="admin-table-head">
@@ -67,7 +79,7 @@ export default function AdminIsencaoPage() {
                 <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
               </span>
               <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>
-                <Link href={`/admin/isencao/${item.id}`} style={{ fontSize: 13, fontWeight: 500, color: "#2563EB", textDecoration: "none" }}>
+                <Link href={`/admin/isencao/${item.id}`} style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>
                   {item.status === "SOLICITADA" ? "Analisar" : "Ver"}
                 </Link>
               </span>
