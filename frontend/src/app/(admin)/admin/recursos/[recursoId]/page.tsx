@@ -2,19 +2,18 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
+import { statusIsencaoOptions, type StatusIsencao } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { statusIsencaoOptions, type StatusIsencao } from "@/lib/enums";
+import { formatIsoDate } from "@/modules/edital/formatters";
 import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
 import type { AdminRecursoItem } from "@/modules/admin-recursos/types";
 import { resultadoPoliticasOptions } from "@/modules/admin-operacao/constants";
-import { getStatusLabel } from "@/components/shared/status-variant-map";
-import { formatIsoDate } from "@/modules/edital/formatters";
 
 type Props = { params: Promise<{ recursoId: string }> };
 
@@ -24,8 +23,8 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const signOut = session.signOut;
   const [recursoId, setRecursoId] = useState<string | null>(null);
   const [item, setItem] = useState<AdminRecursoItem | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
+  const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [deferido, setDeferido] = useState(false);
   const [decisao, setDecisao] = useState("");
@@ -39,42 +38,30 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [novoResultadoPoliticas, setNovoResultadoPoliticas] = useState<(typeof resultadoPoliticasOptions)[number] | "">("");
   const [novoParecerPoliticas, setNovoParecerPoliticas] = useState("");
 
-  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setRecursoId(resolved.recursoId); }); return () => { cancelled = true; }; }, [params]);
+  useEffect(() => { let c = false; params.then((r) => { if (!c) setRecursoId(r.recursoId); }); return () => { c = true; }; }, [params]);
 
   const loadItem = useCallback(async () => {
     if (!token || !recursoId) return;
-    setItem(await getAdminRecursoById(recursoId, token));
+    const found = await getAdminRecursoById(recursoId, token);
+    setItem(found);
+    setDeferido(found.status === "DEFERIDO");
+    setDecisao(found.decisao ?? "");
+    setImpactoResultado(found.impactoResultado);
   }, [recursoId, token]);
 
   useAbortableEffect(async (signal) => {
     if (!token || !recursoId) return;
-    try {
-      await loadItem();
-      if (signal.aborted) return;
-      setStatus("ready");
-    } catch (error) {
-      if (signal.aborted) return;
-      if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) }); setStatus("error");
-    }
+    try { await loadItem(); if (signal.aborted) return; setPageStatus("ready"); }
+    catch (e) { if (signal.aborted) return; if (isUnauthorizedError(e)) { signOut(); return; } setFeedback({ type: "error", text: getErrorMessage(e) }); setPageStatus("error"); }
   }, [loadItem, recursoId, signOut, token]);
 
-  useEffect(() => {
-    if (!item) return;
-    setDeferido(item.status === "DEFERIDO");
-    setDecisao(item.decisao ?? "");
-    setImpactoResultado(item.impactoResultado);
-  }, [item]);
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
     if (!token || !recursoId) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setFeedback(null);
     try {
       await decidirRecursoAdmin(recursoId, {
-        deferido,
-        decisao,
-        impactoResultado,
+        deferido, decisao, impactoResultado,
         novoStatusIsencao: (novoStatusIsencao || undefined) as StatusIsencao | undefined,
         novoResultadoHomologacao: novoResultadoHomologacao || undefined,
         novaNotaEtapa1: novaNotaEtapa1 ? Number(novaNotaEtapa1) : undefined,
@@ -85,62 +72,137 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         novoParecerFinalPoliticasAfirmativas: novoParecerPoliticas || undefined,
       }, token);
       await loadItem();
-      setMessage({ type: "success", text: "Decisao do recurso enviada ao backend e estado recarregado." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "success", text: "Decisao registrada." });
+    } catch (e) {
+      if (isUnauthorizedError(e)) { signOut(); return; }
+      setFeedback({ type: "error", text: getErrorMessage(e) });
     } finally { setBusy(false); }
   }
 
-  if (status === "loading") return <LoadingState title="Carregando recurso" description="Consultando o recurso selecionado." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar recurso" description={message?.text} />;
-  if (!item) return <EmptyState title="Recurso nao encontrado" description="O recurso nao foi encontrado na fila administrativa atual." />;
+  if (pageStatus === "loading") return <LoadingState title="Carregando recurso" description="Consultando o recurso." />;
+  if (pageStatus === "error") return <ErrorState title="Falha ao carregar" description={feedback?.text} />;
+  if (!item) return <EmptyState title="Recurso nao encontrado" description="Recurso nao localizado." />;
 
   const isEtapa1 = item.fase === "ETAPA_1";
   const isEtapa2 = item.fase === "ETAPA_2";
   const isHomologacao = item.fase === "HOMOLOGACAO";
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback description={message.text} title="Retorno operacional" type={message.type} /> : null}
+    <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
 
-      <SectionCard title={`Recurso de ${item.candidato.nomeCompleto}`} description={`Edital ${item.edital.numero} · fase ${item.fase}`}>
-        <div className="content-list">
-          <small>Status: {getStatusLabel(item.status)}</small>
-          <small>Impacto em resultado: {item.impactoResultado ? "sim" : "nao"}</small>
-          {item.faseHomologacaoReferencia ? <small>Fase homologatoria referenciada: {item.faseHomologacaoReferencia}</small> : null}
-          <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
-          <small>Respondido em: {formatIsoDate(item.respondidoEm)}</small>
-          <small>Fundamentacao: {item.fundamentacao}</small>
-          <small>Decisao atual: {item.decisao ?? "ainda nao registrada"}</small>
-          {item.efeitoPraticoResumo ? <small>Efeito pratico: {item.efeitoPraticoResumo}</small> : null}
-          {item.contextoHomologacao?.statusVigente ? <small>Homologacao vigente: {item.contextoHomologacao.faseVigente} · {getStatusLabel(item.contextoHomologacao.statusVigente)}</small> : null}
-          <small>Anexo: {item.anexoUrl ?? "nao informado"}</small>
+      <div className="admin-detail-header">
+        <h1>Recurso — {getStatusLabel(item.fase)}</h1>
+        <p>{item.candidato.nomeCompleto} &middot; Edital {item.edital.numero}</p>
+      </div>
+
+      {/* Impact warning */}
+      {item.impactoResultado && (
+        <div style={{ display: "flex", gap: 12, padding: "14px 16px", background: "#FEF3C7", border: "1px solid #F59E0B", borderRadius: 8 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2" style={{ flexShrink: 0, marginTop: 2 }}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>Recurso com impacto no resultado</div>
+            <div style={{ fontSize: 12, color: "#92400E" }}>O deferimento deste recurso disparara reprocessamento automatico da classificacao e republicacao das publicacoes derivadas.</div>
+          </div>
         </div>
-      </SectionCard>
-      <SectionCard title="Decisao do recurso" description="Formulario administrativo para registrar a decisao e, quando houver impacto, atualizar o estado derivado no backend.">
-        <form className="form-grid" onSubmit={onSubmit}>
-          <label className="field-inline"><input checked={deferido} onChange={(e) => setDeferido(e.target.checked)} type="checkbox" /><span>Deferido</span></label>
-          <label className="field-inline"><input checked={impactoResultado} onChange={(e) => setImpactoResultado(e.target.checked)} type="checkbox" /><span>Impacta o resultado</span></label>
-          <label className="field-block"><span>Decisao</span><textarea className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} required value={decisao} /></label>
-          {impactoResultado ? (
-            <>
-              {isHomologacao ? <PageFeedback type="info" title="Homologacao" description="Ao deferir com impacto, informe o novo resultado homologatorio da fase referenciada pelo recurso." /> : null}
-              {isEtapa1 ? <PageFeedback type="info" title="Etapa 1" description="Ao informar a nova nota, o backend recompõe automaticamente o snapshot auditavel da avaliacao final da etapa 1." /> : null}
-              {isEtapa2 ? <PageFeedback type="info" title="Etapa 2" description="Informe apenas a nova pontuacao bruta. O backend recalcula automaticamente a nota normalizada e recompõe a memoria de calculo auditavel conforme a formula oficial do edital." /> : null}
-              <label className="field-block"><span>Novo status da isencao</span><select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}><option value="">Nao alterar</option>{statusIsencaoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
-              {isHomologacao ? <label className="field-block"><span>Novo resultado da homologacao</span><select className="select-field" onChange={(e) => setNovoResultadoHomologacao((e.target.value || "") as "HOMOLOGADA" | "NAO_HOMOLOGADA" | "")} value={novoResultadoHomologacao}><option value="">Selecione</option><option value="HOMOLOGADA">Homologada</option><option value="NAO_HOMOLOGADA">Nao homologada</option></select></label> : null}
-              <label className="field-block"><span>Nova nota etapa 1</span><input min="0" max="10" onChange={(e) => setNovaNotaEtapa1(e.target.value)} step="0.1" type="number" value={novaNotaEtapa1} /></label>
-              <label className="field-block"><span>Novo espelho etapa 1</span><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} value={novoEspelhoEtapa1} /></label>
-              <label className="field-block"><span>Nova pontuacao bruta etapa 2</span><input min="0" onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step="0.1" type="number" value={novaPontuacaoBrutaEtapa2} /></label>
-              <label className="field-block"><span>Novo espelho etapa 2</span><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} value={novoEspelhoEtapa2} /></label>
-              <label className="field-block"><span>Novo resultado final de politicas afirmativas</span><select className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}><option value="">Selecione</option>{resultadoPoliticasOptions.filter((value) => value !== "PENDENTE").map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
-              <label className="field-block"><span>Novo parecer final de politicas afirmativas</span><textarea className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} value={novoParecerPoliticas} /></label>
-            </>
-          ) : null}
-          <ActionButton disabled={busy} loading={busy} type="submit">Registrar decisao</ActionButton>
-        </form>
-      </SectionCard>
+      )}
+
+      {/* Fundamentacao readonly */}
+      <div className="admin-form-card">
+        <h2 className="admin-form-card-title">Fundamentacao do candidato</h2>
+        <div style={{ background: "#F8FAFC", borderRadius: 6, border: "1px solid #F1F5F9", padding: 16, fontSize: 13, color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {item.fundamentacao || "Sem fundamentacao registrada."}
+        </div>
+        {item.anexoUrl && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#2563EB" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            <span>Anexo do candidato vinculado</span>
+          </div>
+        )}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B" }}>
+          <span>Status: <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge></span>
+          <span>Criado em: {formatIsoDate(item.criadoEm)}</span>
+          {item.respondidoEm && <span>Respondido em: {formatIsoDate(item.respondidoEm)}</span>}
+          {item.efeitoPraticoResumo && <span>Efeito pratico: {item.efeitoPraticoResumo}</span>}
+        </div>
+      </div>
+
+      {/* Decisao form */}
+      <form className="admin-form-card" onSubmit={onSubmit}>
+        <h2 className="admin-form-card-title">Decisao administrativa</h2>
+        <div className="admin-form-row">
+          <div className="admin-eval-field">
+            <label>Resultado *</label>
+            <select className="select-field" onChange={(e) => setDeferido(e.target.value === "DEFERIDO")} value={deferido ? "DEFERIDO" : "INDEFERIDO"}>
+              <option value="DEFERIDO">Deferido</option>
+              <option value="INDEFERIDO">Indeferido</option>
+            </select>
+          </div>
+          <div className="admin-eval-field">
+            <label>Impacto no resultado?</label>
+            <select className="select-field" onChange={(e) => setImpactoResultado(e.target.value === "sim")} value={impactoResultado ? "sim" : "nao"}>
+              <option value="nao">Nao</option>
+              <option value="sim">Sim — reprocessar</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="admin-eval-field">
+          <label>Decisao *</label>
+          <textarea className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} placeholder="Recurso procedente. Documentacao..." required style={{ minHeight: 72 }} value={decisao} />
+        </div>
+
+        {impactoResultado && (
+          <>
+            {isHomologacao && (
+              <div className="admin-eval-field">
+                <label>Novo resultado da homologacao</label>
+                <select className="select-field" onChange={(e) => setNovoResultadoHomologacao((e.target.value || "") as "HOMOLOGADA" | "NAO_HOMOLOGADA" | "")} value={novoResultadoHomologacao}>
+                  <option value="">Selecione</option>
+                  <option value="HOMOLOGADA">Homologada</option>
+                  <option value="NAO_HOMOLOGADA">Nao homologada</option>
+                </select>
+              </div>
+            )}
+            {isEtapa1 && (
+              <div className="admin-form-row">
+                <div className="admin-eval-field"><label>Nova nota etapa 1</label><input max={10} min={0} onChange={(e) => setNovaNotaEtapa1(e.target.value)} step={0.1} type="number" value={novaNotaEtapa1} /></div>
+                <div className="admin-eval-field"><label>Novo espelho etapa 1</label><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa1} /></div>
+              </div>
+            )}
+            {isEtapa2 && (
+              <div className="admin-form-row">
+                <div className="admin-eval-field"><label>Nova pontuacao bruta etapa 2</label><input min={0} onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step={0.1} type="number" value={novaPontuacaoBrutaEtapa2} /></div>
+                <div className="admin-eval-field"><label>Novo espelho etapa 2</label><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa2} /></div>
+              </div>
+            )}
+            <div className="admin-eval-field">
+              <label>Novo status da isencao</label>
+              <select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}>
+                <option value="">Nao alterar</option>
+                {statusIsencaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+              </select>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-eval-field">
+                <label>Resultado politicas afirmativas</label>
+                <select className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}>
+                  <option value="">Selecione</option>
+                  {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                </select>
+              </div>
+              <div className="admin-eval-field">
+                <label>Parecer politicas afirmativas</label>
+                <textarea className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} style={{ minHeight: 60 }} value={novoParecerPoliticas} />
+              </div>
+            </div>
+          </>
+        )}
+
+        <button className="admin-page-cta" disabled={busy} style={{ width: 200 }} type="submit">
+          Registrar decisao
+        </button>
+      </form>
     </div>
   );
 }

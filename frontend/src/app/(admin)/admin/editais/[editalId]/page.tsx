@@ -3,29 +3,20 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { ActionButton } from "@/components/shared/action-button";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { SectionCard } from "@/components/shared/section-card";
-import { getStatusLabel } from "@/components/shared/status-variant-map";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { isoToDatetimeLocalInput } from "@/lib/datetime-local";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { formatIsoDate } from "@/modules/edital/formatters";
 import { cursoNivelOptions, statusEditalOptions, tipoCronogramaEditalOptions, type CursoNivel, type StatusEdital, type TipoCronogramaEdital } from "@/lib/enums";
 import {
-  createCronogramaAdmin,
-  createLinhaPesquisaAdmin,
-  createTemaRedacaoAdmin,
-  deleteCronogramaAdmin,
-  deleteLinhaPesquisaAdmin,
-  deleteAdminEdital,
-  deleteTemaRedacaoAdmin,
-  getAdminEditalById,
-  updateCronogramaAdmin,
-  updateAdminEdital,
-  updateLinhaPesquisaAdmin,
-  updateTemaRedacaoAdmin,
+  createCronogramaAdmin, createLinhaPesquisaAdmin, createTemaRedacaoAdmin,
+  deleteCronogramaAdmin, deleteLinhaPesquisaAdmin, deleteAdminEdital, deleteTemaRedacaoAdmin,
+  getAdminEditalById, updateCronogramaAdmin, updateAdminEdital, updateLinhaPesquisaAdmin, updateTemaRedacaoAdmin,
 } from "@/modules/admin-edital/api";
 import type { AdminEditalDetalhe } from "@/modules/admin-edital/types";
 
@@ -39,348 +30,315 @@ export default function AdminEditalDetailPage({ params }: Props) {
   const [editalId, setEditalId] = useState<string | null>(null);
   const [data, setData] = useState<AdminEditalDetalhe | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const [editalForm, setEditalForm] = useState<{
-    numero: string;
-    titulo: string;
-    descricao: string;
-    ano: string;
-    semestre: string;
-    cursoNivel: CursoNivel;
-    status: StatusEdital;
-    publicadoEm: string;
+    numero: string; titulo: string; descricao: string; ano: string; semestre: string;
+    cursoNivel: CursoNivel; status: StatusEdital; publicadoEm: string;
   }>({ numero: "", titulo: "", descricao: "", ano: "", semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO", publicadoEm: "" });
+
   const [editingLinhaId, setEditingLinhaId] = useState<string | null>(null);
   const [linhaForm, setLinhaForm] = useState({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" });
+  const [showLinhaForm, setShowLinhaForm] = useState(false);
+
   const [editingCronogramaId, setEditingCronogramaId] = useState<string | null>(null);
-  const [cronogramaForm, setCronogramaForm] = useState<{
-    tipo: TipoCronogramaEdital;
-    titulo: string;
-    descricao: string;
-    inicioEm: string;
-    fimEm: string;
-  }>({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" });
+  const [cronogramaForm, setCronogramaForm] = useState<{ tipo: TipoCronogramaEdital; titulo: string; descricao: string; inicioEm: string; fimEm: string }>({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" });
+  const [showCronogramaForm, setShowCronogramaForm] = useState(false);
+
   const [editingTemaId, setEditingTemaId] = useState<string | null>(null);
   const [temaForm, setTemaForm] = useState({ titulo: "", descricao: "", ordem: "0", ativo: true });
+  const [showTemaForm, setShowTemaForm] = useState(false);
 
-  useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
+  useEffect(() => { let c = false; params.then((r) => { if (!c) setEditalId(r.editalId); }); return () => { c = true; }; }, [params]);
 
   const load = useCallback(async () => {
     if (!editalId || !token) return;
-    const response = await getAdminEditalById(editalId, token);
-    setData(response);
+    const r = await getAdminEditalById(editalId, token);
+    setData(r);
     setEditalForm({
-      numero: response.numero,
-      titulo: response.titulo,
-      descricao: response.descricao ?? "",
-      ano: String(response.ano),
-      semestre: String(response.semestre ?? 1),
-      cursoNivel: response.cursoNivel as CursoNivel,
-      status: response.status as StatusEdital,
-        publicadoEm: isoToDatetimeLocalInput(response.publicadoEm),
+      numero: r.numero, titulo: r.titulo, descricao: r.descricao ?? "",
+      ano: String(r.ano), semestre: String(r.semestre ?? 1),
+      cursoNivel: r.cursoNivel as CursoNivel, status: r.status as StatusEdital,
+      publicadoEm: isoToDatetimeLocalInput(r.publicadoEm),
     });
   }, [editalId, token]);
 
   useAbortableEffect(async (signal) => {
-    if (!editalId || !token) return;
-    try {
-      await load();
-      if (signal.aborted) return;
-      setStatus("ready");
-    } catch (error) {
-      if (signal.aborted) return;
-      if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-      setStatus("error");
-    }
+    if (!token || !editalId) return;
+    try { await load(); if (signal.aborted) return; setStatus("ready"); }
+    catch (e) { if (signal.aborted) return; if (isUnauthorizedError(e)) { signOut(); return; } setFeedback({ type: "error", text: getErrorMessage(e) }); setStatus("error"); }
   }, [editalId, load, signOut, token]);
 
-  async function submitEdital(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token || !editalId) return;
-    setBusy(true); setMessage(null);
-    try {
+  async function wrap(fn: () => Promise<void>) {
+    setBusy(true); setFeedback(null);
+    try { await fn(); await load(); } catch (e) { if (isUnauthorizedError(e)) { signOut(); return; } setFeedback({ type: "error", text: getErrorMessage(e) }); } finally { setBusy(false); }
+  }
+
+  async function submitEdital(e: FormEvent) {
+    e.preventDefault(); if (!token || !editalId) return;
+    await wrap(async () => {
       await updateAdminEdital(editalId, {
-        numero: editalForm.numero,
-        titulo: editalForm.titulo,
-        descricao: editalForm.descricao || undefined,
-        ano: Number(editalForm.ano),
-        semestre: editalForm.semestre ? Number(editalForm.semestre) : undefined,
-        cursoNivel: editalForm.cursoNivel,
-        status: editalForm.status,
+        numero: editalForm.numero, titulo: editalForm.titulo, descricao: editalForm.descricao || undefined,
+        ano: Number(editalForm.ano), semestre: editalForm.semestre ? Number(editalForm.semestre) : undefined,
+        cursoNivel: editalForm.cursoNivel, status: editalForm.status,
+        publicadoEm: editalForm.publicadoEm ? new Date(editalForm.publicadoEm).toISOString() : undefined,
       }, token);
-      await load();
-      setMessage({ type: "success", text: "Edital atualizado." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(false); }
+      setFeedback({ type: "success", text: "Edital atualizado." });
+    });
   }
 
-  async function submitLinha(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token || !editalId) return;
-    setBusy(true); setMessage(null);
-    try {
-      const payload = {
-        nome: linhaForm.nome,
-        descricao: linhaForm.descricao || undefined,
-        vagasAmplaConcorrencia: Number(linhaForm.vagasAmplaConcorrencia),
-        vagasAcoesAfirmativas: Number(linhaForm.vagasAcoesAfirmativas),
-        vagasPcd: Number(linhaForm.vagasPcd),
-      };
-
-      if (editingLinhaId) {
-        await updateLinhaPesquisaAdmin(editingLinhaId, payload, token);
-      } else {
-        await createLinhaPesquisaAdmin(editalId, payload, token);
-      }
-
-      setEditingLinhaId(null);
-      setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" });
-      await load();
-      setMessage({ type: "success", text: editingLinhaId ? "Linha de pesquisa atualizada." : "Linha de pesquisa criada." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(false); }
+  async function submitLinha(e: FormEvent) {
+    e.preventDefault(); if (!token || !editalId) return;
+    await wrap(async () => {
+      const p = { nome: linhaForm.nome, descricao: linhaForm.descricao || undefined, vagasAmplaConcorrencia: Number(linhaForm.vagasAmplaConcorrencia), vagasAcoesAfirmativas: Number(linhaForm.vagasAcoesAfirmativas), vagasPcd: Number(linhaForm.vagasPcd) };
+      if (editingLinhaId) await updateLinhaPesquisaAdmin(editingLinhaId, p, token);
+      else await createLinhaPesquisaAdmin(editalId, p, token);
+      setEditingLinhaId(null); setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" }); setShowLinhaForm(false);
+      setFeedback({ type: "success", text: editingLinhaId ? "Linha atualizada." : "Linha criada." });
+    });
   }
 
-  async function submitCronograma(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token || !editalId) return;
-    setBusy(true); setMessage(null);
-    try {
-      if (!cronogramaForm.inicioEm || !cronogramaForm.fimEm) {
-        setMessage({ type: "error", text: "As datas de inicio e fim do cronograma sao obrigatorias." });
-        setBusy(false);
-        return;
-      }
-
-      const inicioDate = new Date(cronogramaForm.inicioEm);
-      const fimDate = new Date(cronogramaForm.fimEm);
-
-      if (Number.isNaN(inicioDate.getTime()) || Number.isNaN(fimDate.getTime())) {
-        setMessage({ type: "error", text: "As datas informadas para o cronograma sao invalidas." });
-        setBusy(false);
-        return;
-      }
-
-      const payload = {
-        tipo: cronogramaForm.tipo,
-        titulo: cronogramaForm.titulo,
-        descricao: cronogramaForm.descricao || undefined,
-        inicioEm: inicioDate.toISOString(),
-        fimEm: fimDate.toISOString(),
-      };
-
-      if (editingCronogramaId) {
-        await updateCronogramaAdmin(editingCronogramaId, payload, token);
-      } else {
-        await createCronogramaAdmin(editalId, payload, token);
-      }
-
-      setEditingCronogramaId(null);
-      setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" });
-      await load();
-      setMessage({ type: "success", text: editingCronogramaId ? "Cronograma atualizado." : "Cronograma criado." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(false); }
+  async function submitCronograma(e: FormEvent) {
+    e.preventDefault(); if (!token || !editalId) return;
+    await wrap(async () => {
+      const inicioDate = new Date(cronogramaForm.inicioEm); const fimDate = new Date(cronogramaForm.fimEm);
+      const p = { tipo: cronogramaForm.tipo, titulo: cronogramaForm.titulo, descricao: cronogramaForm.descricao || undefined, inicioEm: inicioDate.toISOString(), fimEm: fimDate.toISOString() };
+      if (editingCronogramaId) await updateCronogramaAdmin(editingCronogramaId, p, token);
+      else await createCronogramaAdmin(editalId, p, token);
+      setEditingCronogramaId(null); setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" }); setShowCronogramaForm(false);
+      setFeedback({ type: "success", text: editingCronogramaId ? "Fase atualizada." : "Fase criada." });
+    });
   }
 
-  async function handleDeleteLinha(id: string) {
-    if (!token) return;
-    setBusy(true); setMessage(null);
-    try {
-      await deleteLinhaPesquisaAdmin(id, token);
-      if (editingLinhaId === id) {
-        setEditingLinhaId(null);
-        setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" });
-      }
-      await load();
-      setMessage({ type: "success", text: "Linha removida." });
-    }
-    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
-    finally { setBusy(false); }
+  async function submitTema(e: FormEvent) {
+    e.preventDefault(); if (!token || !editalId) return;
+    await wrap(async () => {
+      const p = { titulo: temaForm.titulo, descricao: temaForm.descricao || undefined, ordem: Number(temaForm.ordem || 0), ativo: temaForm.ativo };
+      if (editingTemaId) await updateTemaRedacaoAdmin(editingTemaId, p, token);
+      else await createTemaRedacaoAdmin(editalId, p, token);
+      setEditingTemaId(null); setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true }); setShowTemaForm(false);
+      setFeedback({ type: "success", text: editingTemaId ? "Tema atualizado." : "Tema criado." });
+    });
   }
 
   function handleEditLinha(id: string) {
-    const linha = data?.linhasPesquisa.find((item) => item.id === id);
-    if (!linha) return;
-
-    setEditingLinhaId(id);
-    setLinhaForm({
-      nome: linha.nome,
-      descricao: linha.descricao ?? "",
-      vagasAmplaConcorrencia: String(linha.vagasAmplaConcorrencia),
-      vagasAcoesAfirmativas: String(linha.vagasAcoesAfirmativas),
-      vagasPcd: String(linha.vagasPcd),
-    });
-  }
-
-  async function handleDeleteCronograma(id: string) {
-    if (!token) return;
-    setBusy(true); setMessage(null);
-    try {
-      await deleteCronogramaAdmin(id, token);
-      if (editingCronogramaId === id) {
-        setEditingCronogramaId(null);
-        setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" });
-      }
-      await load();
-      setMessage({ type: "success", text: "Cronograma removido." });
-    }
-    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
-    finally { setBusy(false); }
+    const l = data?.linhasPesquisa.find((i) => i.id === id); if (!l) return;
+    setEditingLinhaId(id); setShowLinhaForm(true);
+    setLinhaForm({ nome: l.nome, descricao: l.descricao ?? "", vagasAmplaConcorrencia: String(l.vagasAmplaConcorrencia), vagasAcoesAfirmativas: String(l.vagasAcoesAfirmativas), vagasPcd: String(l.vagasPcd) });
   }
 
   function handleEditCronograma(id: string) {
-    const cronograma = data?.cronogramas.find((item) => item.id === id);
-    if (!cronograma) return;
-
-    setEditingCronogramaId(id);
-    setCronogramaForm({
-      tipo: cronograma.tipo as TipoCronogramaEdital,
-      titulo: cronograma.titulo,
-      descricao: cronograma.descricao ?? "",
-      inicioEm: cronograma.inicioEm.slice(0, 16),
-      fimEm: cronograma.fimEm.slice(0, 16),
-    });
-  }
-
-  async function handleDeleteEdital() {
-    if (!token || !editalId) return;
-    setBusy(true); setMessage(null);
-    try { await deleteAdminEdital(editalId, token); router.replace("/admin/editais"); }
-    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
-    finally { setBusy(false); }
-  }
-
-  async function submitTema(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!token || !editalId) return;
-    setBusy(true); setMessage(null);
-    try {
-      const payload = {
-        titulo: temaForm.titulo,
-        descricao: temaForm.descricao || undefined,
-        ordem: Number(temaForm.ordem || 0),
-        ativo: temaForm.ativo,
-      };
-
-      if (editingTemaId) {
-        await updateTemaRedacaoAdmin(editingTemaId, payload, token);
-      } else {
-        await createTemaRedacaoAdmin(editalId, payload, token);
-      }
-
-      setEditingTemaId(null);
-      setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true });
-      await load();
-      setMessage({ type: "success", text: editingTemaId ? "Tema de redacao atualizado." : "Tema de redacao criado." });
-    } catch (error) {
-      if (isUnauthorizedError(error)) { signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(false); }
+    const c = data?.cronogramas.find((i) => i.id === id); if (!c) return;
+    setEditingCronogramaId(id); setShowCronogramaForm(true);
+    setCronogramaForm({ tipo: c.tipo as TipoCronogramaEdital, titulo: c.titulo, descricao: c.descricao ?? "", inicioEm: c.inicioEm.slice(0, 16), fimEm: c.fimEm.slice(0, 16) });
   }
 
   function handleEditTema(id: string) {
-    const tema = data?.temasRedacao.find((item) => item.id === id);
-    if (!tema) return;
-
-    setEditingTemaId(id);
-    setTemaForm({
-      titulo: tema.titulo,
-      descricao: tema.descricao ?? "",
-      ordem: String(tema.ordem),
-      ativo: tema.ativo,
-    });
+    const t = data?.temasRedacao.find((i) => i.id === id); if (!t) return;
+    setEditingTemaId(id); setShowTemaForm(true);
+    setTemaForm({ titulo: t.titulo, descricao: t.descricao ?? "", ordem: String(t.ordem), ativo: t.ativo });
   }
 
-  async function handleDeleteTema(id: string) {
-    if (!token) return;
-    setBusy(true); setMessage(null);
-    try {
-      await deleteTemaRedacaoAdmin(id, token);
-      if (editingTemaId === id) {
-        setEditingTemaId(null);
-        setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true });
-      }
-      await load();
-      setMessage({ type: "success", text: "Tema de redacao removido ou inativado." });
-    }
-    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
-    finally { setBusy(false); }
+  if (status === "loading") return <LoadingState title="Carregando edital" description="Consultando detalhe do edital." />;
+  if (status === "error") return <ErrorState title="Falha ao carregar edital" description={feedback?.text} />;
+  if (!data) return <EmptyState title="Edital indisponivel" description="Edital nao encontrado." />;
+
+  const cursoLabel = data.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
+
+  function formatDateRange(inicio: string, fim: string) {
+    return `${formatIsoDate(inicio)} – ${formatIsoDate(fim)}`;
   }
 
-  if (status === "loading") return <LoadingState title="Carregando edital admin" description="Consultando detalhe do edital para manutencao." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar edital" description={message?.text} />;
-  if (!data) return <EmptyState title="Edital indisponivel" description="O edital nao esta mais disponivel para manutencao nesta rota." />;
+  function getCronoBadgeVariant(tipo: string): "warning" | "info" | "neutral" {
+    const now = new Date();
+    const c = data?.cronogramas.find((i) => i.tipo === tipo);
+    if (!c) return "neutral";
+    const inicio = new Date(c.inicioEm); const fim = new Date(c.fimEm);
+    if (now >= inicio && now <= fim) return "warning";
+    if (now < inicio) return "info";
+    return "neutral";
+  }
 
   return (
-    <div className="stack-layout">
-      {message ? <PageFeedback type={message.type} title="Retorno operacional" description={message.text} /> : null}
-      <SectionCard title={`Editar edital ${data.numero}`} description={data.titulo}>
-        <form className="form-grid" onSubmit={submitEdital}>
-          <label className="field-block"><span>Numero</span><input onChange={(e) => setEditalForm((c) => ({ ...c, numero: e.target.value }))} required value={editalForm.numero} /></label>
-          <label className="field-block"><span>Titulo</span><input onChange={(e) => setEditalForm((c) => ({ ...c, titulo: e.target.value }))} required value={editalForm.titulo} /></label>
-          <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setEditalForm((c) => ({ ...c, descricao: e.target.value }))} value={editalForm.descricao} /></label>
-          <label className="field-block"><span>Ano</span><input onChange={(e) => setEditalForm((c) => ({ ...c, ano: e.target.value }))} type="number" value={editalForm.ano} /></label>
-          <label className="field-block"><span>Semestre</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, semestre: e.target.value }))} value={editalForm.semestre}><option value="1">1</option><option value="2">2</option></select></label>
-          <label className="field-block"><span>Curso</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))} value={editalForm.cursoNivel}>{cursoNivelOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
-          <label className="field-block"><span>Status</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, status: e.target.value as StatusEdital }))} value={editalForm.status}>{statusEditalOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
-          <div className="field-block"><span>Publicado em</span><div className="eval-display">{editalForm.publicadoEm || "Definido automaticamente pelo sistema ao publicar"}</div></div>
-          <ActionButton disabled={busy} loading={busy} type="submit">Salvar edital</ActionButton>
-          <ActionButton disabled={busy} onClick={handleDeleteEdital} type="button" variant="ghost">Excluir edital</ActionButton>
-        </form>
-      </SectionCard>
+    <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
 
-      <SectionCard title="Linhas de pesquisa" description="Cadastro e leitura das linhas vinculadas ao edital.">
-        <form className="form-grid" onSubmit={submitLinha}>
-          <label className="field-block"><span>Nome</span><input onChange={(e) => setLinhaForm((c) => ({ ...c, nome: e.target.value }))} required value={linhaForm.nome} /></label>
-          <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setLinhaForm((c) => ({ ...c, descricao: e.target.value }))} value={linhaForm.descricao} /></label>
-          <label className="field-block"><span>Ampla concorrencia</span><input min="0" onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAmplaConcorrencia: e.target.value }))} required type="number" value={linhaForm.vagasAmplaConcorrencia} /></label>
-          <label className="field-block"><span>Acoes afirmativas</span><input min="0" onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAcoesAfirmativas: e.target.value }))} required type="number" value={linhaForm.vagasAcoesAfirmativas} /></label>
-          <label className="field-block"><span>PCD</span><input min="0" onChange={(e) => setLinhaForm((c) => ({ ...c, vagasPcd: e.target.value }))} required type="number" value={linhaForm.vagasPcd} /></label>
-          <ActionButton disabled={busy} loading={busy} type="submit">{editingLinhaId ? "Salvar linha" : "Adicionar linha"}</ActionButton>
-          {editingLinhaId ? <ActionButton disabled={busy} onClick={() => { setEditingLinhaId(null); setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" }); }} type="button" variant="ghost">Cancelar edicao</ActionButton> : null}
-        </form>
-        <div className="content-list">
-          {data.linhasPesquisa.map((linha) => <article className="content-item" key={linha.id}><strong>{linha.nome}</strong><small>Total de vagas: {linha.totalVagas}</small><div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleEditLinha(linha.id)} size="sm" type="button" variant="secondary">Editar</ActionButton><ActionButton disabled={busy} onClick={() => handleDeleteLinha(linha.id)} size="sm" type="button" variant="ghost">Excluir</ActionButton></div></article>)}
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div className="admin-page-header-left" style={{ flex: 1 }}>
+          <h1>Edital {data.numero}</h1>
+          <p>{cursoLabel} &middot; Manutencao completa</p>
         </div>
-      </SectionCard>
+        <button className="admin-page-cta" disabled={busy} form="edital-form" type="submit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar edital
+        </button>
+      </div>
 
-      <SectionCard title="Cronograma" description="Cadastro e leitura das fases operacionais do edital.">
-        <form className="form-grid" onSubmit={submitCronograma}>
-          <label className="field-block"><span>Tipo</span><select className="select-field" onChange={(e) => setCronogramaForm((c) => ({ ...c, tipo: e.target.value as TipoCronogramaEdital }))} value={cronogramaForm.tipo}>{tipoCronogramaEditalOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
-          <label className="field-block"><span>Titulo</span><input onChange={(e) => setCronogramaForm((c) => ({ ...c, titulo: e.target.value }))} required value={cronogramaForm.titulo} /></label>
-          <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setCronogramaForm((c) => ({ ...c, descricao: e.target.value }))} value={cronogramaForm.descricao} /></label>
-          <label className="field-block"><span>Inicio</span><input onChange={(e) => setCronogramaForm((c) => ({ ...c, inicioEm: e.target.value }))} type="datetime-local" value={cronogramaForm.inicioEm} /></label>
-          <label className="field-block"><span>Fim</span><input onChange={(e) => setCronogramaForm((c) => ({ ...c, fimEm: e.target.value }))} type="datetime-local" value={cronogramaForm.fimEm} /></label>
-          <ActionButton disabled={busy} loading={busy} type="submit">{editingCronogramaId ? "Salvar fase" : "Adicionar fase"}</ActionButton>
-          {editingCronogramaId ? <ActionButton disabled={busy} onClick={() => { setEditingCronogramaId(null); setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" }); }} type="button" variant="ghost">Cancelar edicao</ActionButton> : null}
+      {/* Metadados card */}
+      <div className="admin-form-card">
+        <h2 className="admin-form-card-title">Metadados</h2>
+        <form id="edital-form" onSubmit={submitEdital} style={{ display: "contents" }}>
+          <div className="admin-form-row">
+            <div className="admin-eval-field"><label>Numero</label><input onChange={(e) => setEditalForm((c) => ({ ...c, numero: e.target.value }))} required value={editalForm.numero} /></div>
+            <div className="admin-eval-field"><label>Titulo</label><input onChange={(e) => setEditalForm((c) => ({ ...c, titulo: e.target.value }))} required value={editalForm.titulo} /></div>
+          </div>
+          <div className="admin-form-row">
+            <div className="admin-eval-field"><label>Ano</label><input min={2024} onChange={(e) => setEditalForm((c) => ({ ...c, ano: e.target.value }))} type="number" value={editalForm.ano} /></div>
+            <div className="admin-eval-field"><label>Semestre</label><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, semestre: e.target.value }))} value={editalForm.semestre}><option value="1">1</option><option value="2">2</option></select></div>
+            <div className="admin-eval-field"><label>Curso</label><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))} value={editalForm.cursoNivel}>{cursoNivelOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
+          </div>
+          <div className="admin-eval-field"><label>Descricao</label><textarea className="text-area" onChange={(e) => setEditalForm((c) => ({ ...c, descricao: e.target.value }))} style={{ minHeight: 80 }} value={editalForm.descricao} /></div>
+          <div className="admin-form-row">
+            <div className="admin-eval-field"><label>Status</label><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, status: e.target.value as StatusEdital }))} value={editalForm.status}>{statusEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
+            <div className="admin-eval-field">
+              <label>Publicado em</label>
+              <div className="eval-display" style={{ fontSize: 13, fontWeight: 500 }}>{editalForm.publicadoEm ? formatIsoDate(data.publicadoEm) : "Definido automaticamente ao publicar"}</div>
+            </div>
+          </div>
         </form>
-        <div className="content-list">
-          {data.cronogramas.map((cronograma) => <article className="content-item" key={cronograma.id}><strong>{cronograma.titulo}</strong><small>{cronograma.tipo}</small><small>{cronograma.inicioEm} {'->'} {cronograma.fimEm}</small><div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleEditCronograma(cronograma.id)} size="sm" type="button" variant="secondary">Editar</ActionButton><ActionButton disabled={busy} onClick={() => handleDeleteCronograma(cronograma.id)} size="sm" type="button" variant="ghost">Excluir</ActionButton></div></article>)}
-        </div>
-      </SectionCard>
+      </div>
 
-      <SectionCard title="Temas de redacao" description="Temas exibidos em dropdown para o candidato durante a inscricao.">
-        <form className="form-grid" onSubmit={submitTema}>
-          <label className="field-block"><span>Titulo do tema</span><input onChange={(e) => setTemaForm((c) => ({ ...c, titulo: e.target.value }))} required value={temaForm.titulo} /></label>
-          <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setTemaForm((c) => ({ ...c, descricao: e.target.value }))} value={temaForm.descricao} /></label>
-          <label className="field-block"><span>Ordem</span><input min="0" onChange={(e) => setTemaForm((c) => ({ ...c, ordem: e.target.value }))} required type="number" value={temaForm.ordem} /></label>
-          <label className="field-block"><span>Ativo</span><select className="select-field" onChange={(e) => setTemaForm((c) => ({ ...c, ativo: e.target.value === "true" }))} value={String(temaForm.ativo)}><option value="true">Sim</option><option value="false">Nao</option></select></label>
-          <ActionButton disabled={busy} loading={busy} type="submit">{editingTemaId ? "Salvar tema" : "Adicionar tema"}</ActionButton>
-          {editingTemaId ? <ActionButton disabled={busy} onClick={() => { setEditingTemaId(null); setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true }); }} type="button" variant="ghost">Cancelar edicao</ActionButton> : null}
-        </form>
-        <div className="content-list">
-          {data.temasRedacao.map((tema) => <article className="content-item" key={tema.id}><strong>{tema.titulo}</strong><small>{tema.descricao ?? "Sem descricao adicional."}</small><small>Ordem: {tema.ordem} · {tema.ativo ? "Ativo" : "Inativo"}</small><div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleEditTema(tema.id)} size="sm" type="button" variant="secondary">Editar</ActionButton><ActionButton disabled={busy} onClick={() => handleDeleteTema(tema.id)} size="sm" type="button" variant="ghost">Remover/Inativar</ActionButton></div></article>)}
+      {/* Linhas de pesquisa */}
+      <div className="admin-form-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h2 className="admin-form-card-title" style={{ flex: 1 }}>Linhas de pesquisa</h2>
+          <button className="admin-pub-btn-preview" onClick={() => { setShowLinhaForm(true); setEditingLinhaId(null); setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" }); }} type="button">+ Adicionar</button>
         </div>
-      </SectionCard>
+
+        {data.linhasPesquisa.map((l, i) => (
+          <div className="admin-line-row" key={l.id} style={i % 2 === 0 ? { background: "#F8FAFC" } : undefined}>
+            <span className="admin-line-name">{l.nome}</span>
+            <span className="admin-line-meta">{l.vagasAmplaConcorrencia} ampla &middot; {l.vagasAcoesAfirmativas} cotas &middot; {l.vagasPcd} PCD = {l.totalVagas}</span>
+            <button className="admin-line-edit" onClick={() => handleEditLinha(l.id)} title="Editar" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
+            </button>
+            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteLinhaPesquisaAdmin(l.id, token!); setFeedback({ type: "success", text: "Linha removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </button>
+          </div>
+        ))}
+        {!data.linhasPesquisa.length && <span style={{ fontSize: 13, color: "#94A3B8" }}>Nenhuma linha cadastrada.</span>}
+
+        {showLinhaForm && (
+          <form onSubmit={submitLinha} style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{editingLinhaId ? "Editar linha" : "Nova linha"}</span>
+            <div className="admin-form-row">
+              <div className="admin-eval-field"><label>Nome</label><input onChange={(e) => setLinhaForm((c) => ({ ...c, nome: e.target.value }))} required value={linhaForm.nome} /></div>
+              <div className="admin-eval-field"><label>Descricao</label><input onChange={(e) => setLinhaForm((c) => ({ ...c, descricao: e.target.value }))} value={linhaForm.descricao} /></div>
+            </div>
+            <div className="admin-form-row">
+              <div className="admin-eval-field"><label>Ampla</label><input min={0} onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAmplaConcorrencia: e.target.value }))} required type="number" value={linhaForm.vagasAmplaConcorrencia} /></div>
+              <div className="admin-eval-field"><label>Cotas</label><input min={0} onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAcoesAfirmativas: e.target.value }))} required type="number" value={linhaForm.vagasAcoesAfirmativas} /></div>
+              <div className="admin-eval-field"><label>PCD</label><input min={0} onChange={(e) => setLinhaForm((c) => ({ ...c, vagasPcd: e.target.value }))} required type="number" value={linhaForm.vagasPcd} /></div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingLinhaId ? "Salvar" : "Criar"}</button>
+              <button className="admin-pub-btn-preview" onClick={() => { setShowLinhaForm(false); setEditingLinhaId(null); }} type="button">Cancelar</button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Cronogramas */}
+      <div className="admin-form-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h2 className="admin-form-card-title" style={{ flex: 1 }}>Cronogramas</h2>
+          <button className="admin-pub-btn-preview" onClick={() => { setShowCronogramaForm(true); setEditingCronogramaId(null); setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" }); }} type="button">+ Adicionar</button>
+        </div>
+
+        {data.cronogramas.map((c, i) => (
+          <div className="admin-line-row" key={c.id} style={i % 2 === 0 ? { background: "#F8FAFC" } : undefined}>
+            <span className="admin-line-name">{c.titulo || getStatusLabel(c.tipo)}</span>
+            <span className="admin-line-meta">{formatDateRange(c.inicioEm, c.fimEm)}</span>
+            <StatusBadge variant={getStatusVariant(c.tipo)} shape="pill">{getCronoBadgeVariant(c.tipo) === "warning" ? "Em andamento" : getCronoBadgeVariant(c.tipo) === "info" ? "Agendado" : "Encerrado"}</StatusBadge>
+            <button className="admin-line-edit" onClick={() => handleEditCronograma(c.id)} title="Editar" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
+            </button>
+            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteCronogramaAdmin(c.id, token!); setFeedback({ type: "success", text: "Fase removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </button>
+          </div>
+        ))}
+        {!data.cronogramas.length && <span style={{ fontSize: 13, color: "#94A3B8" }}>Nenhuma fase cadastrada.</span>}
+
+        {showCronogramaForm && (
+          <form onSubmit={submitCronograma} style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{editingCronogramaId ? "Editar fase" : "Nova fase"}</span>
+            <div className="admin-form-row">
+              <div className="admin-eval-field"><label>Tipo</label><select className="select-field" onChange={(e) => setCronogramaForm((c) => ({ ...c, tipo: e.target.value as TipoCronogramaEdital }))} value={cronogramaForm.tipo}>{tipoCronogramaEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
+              <div className="admin-eval-field"><label>Titulo</label><input onChange={(e) => setCronogramaForm((c) => ({ ...c, titulo: e.target.value }))} required value={cronogramaForm.titulo} /></div>
+            </div>
+            <div className="admin-eval-field"><label>Descricao</label><textarea className="text-area" onChange={(e) => setCronogramaForm((c) => ({ ...c, descricao: e.target.value }))} style={{ minHeight: 60 }} value={cronogramaForm.descricao} /></div>
+            <div className="admin-form-row">
+              <div className="admin-eval-field"><label>Inicio</label><input onChange={(e) => setCronogramaForm((c) => ({ ...c, inicioEm: e.target.value }))} required type="datetime-local" value={cronogramaForm.inicioEm} /></div>
+              <div className="admin-eval-field"><label>Fim</label><input onChange={(e) => setCronogramaForm((c) => ({ ...c, fimEm: e.target.value }))} required type="datetime-local" value={cronogramaForm.fimEm} /></div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingCronogramaId ? "Salvar" : "Criar"}</button>
+              <button className="admin-pub-btn-preview" onClick={() => { setShowCronogramaForm(false); setEditingCronogramaId(null); }} type="button">Cancelar</button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Temas de redacao */}
+      <div className="admin-form-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h2 className="admin-form-card-title" style={{ flex: 1 }}>Temas de redacao</h2>
+          <button className="admin-pub-btn-preview" onClick={() => { setShowTemaForm(true); setEditingTemaId(null); setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true }); }} type="button">+ Adicionar</button>
+        </div>
+
+        {data.temasRedacao.map((t, i) => (
+          <div className="admin-line-row" key={t.id} style={i % 2 === 0 ? { background: "#F8FAFC" } : undefined}>
+            <span className="admin-line-name">{t.titulo}</span>
+            <span className="admin-line-meta">Ordem: {t.ordem}</span>
+            <StatusBadge variant={t.ativo ? "success" : "neutral"}>{t.ativo ? "Ativo" : "Inativo"}</StatusBadge>
+            <button className="admin-line-edit" onClick={() => handleEditTema(t.id)} title="Editar" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
+            </button>
+            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteTemaRedacaoAdmin(t.id, token!); setFeedback({ type: "success", text: "Tema removido." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </button>
+          </div>
+        ))}
+        {!data.temasRedacao.length && <span style={{ fontSize: 13, color: "#94A3B8" }}>Nenhum tema cadastrado.</span>}
+
+        {showTemaForm && (
+          <form onSubmit={submitTema} style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{editingTemaId ? "Editar tema" : "Novo tema"}</span>
+            <div className="admin-form-row">
+              <div className="admin-eval-field"><label>Titulo</label><input onChange={(e) => setTemaForm((c) => ({ ...c, titulo: e.target.value }))} required value={temaForm.titulo} /></div>
+              <div className="admin-eval-field"><label>Ordem</label><input min={0} onChange={(e) => setTemaForm((c) => ({ ...c, ordem: e.target.value }))} type="number" value={temaForm.ordem} /></div>
+              <div className="admin-eval-field"><label>Ativo</label><select className="select-field" onChange={(e) => setTemaForm((c) => ({ ...c, ativo: e.target.value === "true" }))} value={String(temaForm.ativo)}><option value="true">Sim</option><option value="false">Nao</option></select></div>
+            </div>
+            <div className="admin-eval-field"><label>Descricao</label><textarea className="text-area" onChange={(e) => setTemaForm((c) => ({ ...c, descricao: e.target.value }))} style={{ minHeight: 60 }} value={temaForm.descricao} /></div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingTemaId ? "Salvar" : "Criar"}</button>
+              <button className="admin-pub-btn-preview" onClick={() => { setShowTemaForm(false); setEditingTemaId(null); }} type="button">Cancelar</button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Danger zone */}
+      <div className="admin-form-card" style={{ borderColor: "#FECACA" }}>
+        <h2 className="admin-form-card-title" style={{ color: "#DC2626" }}>Zona de risco</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>A exclusao do edital remove permanentemente todas as inscricoes, cronogramas e publicacoes vinculadas.</p>
+        {!confirmDelete ? (
+          <button className="admin-pub-btn-preview" onClick={() => setConfirmDelete(true)} style={{ color: "#DC2626", borderColor: "#FECACA" }} type="button">Excluir edital</button>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <PageFeedback type="error" title="Confirmar exclusao" description="Esta acao e irreversivel. Deseja realmente excluir este edital?" />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="admin-pub-btn-publish" disabled={busy} onClick={() => wrap(async () => { await deleteAdminEdital(editalId!, token!); router.replace("/admin/editais"); })} style={{ background: "#DC2626" }} type="button">Confirmar exclusao</button>
+              <button className="admin-pub-btn-preview" onClick={() => setConfirmDelete(false)} type="button">Cancelar</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
