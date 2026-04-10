@@ -11,9 +11,11 @@ import type {
   EditalResumo,
   EditalWithRelations,
   LinhaPesquisaResumo,
+  TemaRedacaoResumo,
   UpsertCronogramaInput,
   UpsertEditalInput,
   UpsertLinhaPesquisaInput,
+  UpsertTemaRedacaoInput,
 } from "./edital.types.js";
 import { conflict, notFound } from "../../lib/http-errors.js";
 
@@ -73,8 +75,26 @@ function mapCronograma(cronograma: EditalWithRelations["cronogramas"][number], n
   };
 }
 
+function mapTemaRedacao(tema: EditalWithRelations["temasRedacao"][number]): TemaRedacaoResumo {
+  return {
+    id: tema.id,
+    titulo: tema.titulo,
+    descricao: tema.descricao,
+    ordem: tema.ordem,
+    ativo: tema.ativo,
+  };
+}
+
 function sortCronogramas(a: { inicioEm: Date }, b: { inicioEm: Date }) {
   return a.inicioEm.getTime() - b.inicioEm.getTime();
+}
+
+function sortTemasRedacao(a: { ordem: number; titulo: string }, b: { ordem: number; titulo: string }) {
+  if (a.ordem !== b.ordem) {
+    return a.ordem - b.ordem;
+  }
+
+  return a.titulo.localeCompare(b.titulo, "pt-BR");
 }
 
 function mapEditalResumo(edital: EditalWithRelations, now: Date): EditalResumo {
@@ -114,6 +134,7 @@ export async function listEditais(filters: EditalListFilters): Promise<EditalLis
       include: {
         cronogramas: true,
         linhasPesquisa: true,
+        temasRedacao: true,
       },
       orderBy: [{ ano: "desc" }, { publicadoEm: "desc" }, { criadoEm: "desc" }],
       skip,
@@ -139,6 +160,7 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
     include: {
       cronogramas: true,
       linhasPesquisa: true,
+      temasRedacao: true,
     },
   });
 
@@ -152,11 +174,34 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
   return {
     ...resumo,
     cronogramas: [...edital.cronogramas].sort(sortCronogramas).map((item) => mapCronograma(item, now)),
+    temasRedacao: edital.temasRedacao.filter((item) => item.ativo).sort(sortTemasRedacao).map(mapTemaRedacao),
+    temasRedacaoConfigurados: edital.temasRedacao.length > 0,
   };
 }
 
 export async function getAdminEditalById(editalId: string): Promise<EditalDetalhe | null> {
-  return await getEditalById(editalId);
+  const edital = await prisma.edital.findUnique({
+    where: { id: editalId },
+    include: {
+      cronogramas: true,
+      linhasPesquisa: true,
+      temasRedacao: true,
+    },
+  });
+
+  if (!edital) {
+    return null;
+  }
+
+  const now = new Date();
+  const resumo = mapEditalResumo(edital, now);
+
+  return {
+    ...resumo,
+    cronogramas: [...edital.cronogramas].sort(sortCronogramas).map((item) => mapCronograma(item, now)),
+    temasRedacao: [...edital.temasRedacao].sort(sortTemasRedacao).map(mapTemaRedacao),
+    temasRedacaoConfigurados: edital.temasRedacao.length > 0,
+  };
 }
 
 function resolvePublicadoEm(input: UpsertEditalInput) {
@@ -315,4 +360,115 @@ export async function deleteCronograma(cronogramaId: string) {
   }
 
   await prisma.cronogramaEdital.delete({ where: { id: cronogramaId } });
+}
+
+async function assertNoActiveTemaRedacaoDuplicado(input: { editalId: string; titulo: string; ignoreId?: string; ativo: boolean }) {
+  if (!input.ativo) {
+    return;
+  }
+
+  const existente = await prisma.temaRedacaoEdital.findFirst({
+    where: {
+      editalId: input.editalId,
+      ativo: true,
+      titulo: {
+        equals: input.titulo.trim(),
+        mode: "insensitive",
+      },
+      ...(input.ignoreId ? { id: { not: input.ignoreId } } : {}),
+    },
+  });
+
+  if (existente) {
+    throw conflict("Ja existe um tema de redacao ativo com este titulo neste edital.", "TEMA_REDACAO_DUPLICADO");
+  }
+}
+
+export async function createTemaRedacao(editalId: string, input: UpsertTemaRedacaoInput) {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId } });
+
+  if (!edital) {
+    throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
+  }
+
+  await assertNoActiveTemaRedacaoDuplicado({
+    editalId,
+    titulo: input.titulo,
+    ativo: input.ativo ?? true,
+  });
+
+  return await prisma.temaRedacaoEdital.create({
+    data: {
+      editalId,
+      titulo: input.titulo,
+      descricao: input.descricao,
+      ordem: input.ordem ?? 0,
+      ativo: input.ativo ?? true,
+    },
+  });
+}
+
+export async function updateTemaRedacao(temaId: string, input: UpsertTemaRedacaoInput) {
+  const tema = await prisma.temaRedacaoEdital.findUnique({ where: { id: temaId } });
+
+  if (!tema) {
+    throw notFound("Tema de redacao nao encontrado.", "TEMA_REDACAO_NAO_ENCONTRADO");
+  }
+
+  await assertNoActiveTemaRedacaoDuplicado({
+    editalId: tema.editalId,
+    titulo: input.titulo,
+    ignoreId: tema.id,
+    ativo: input.ativo ?? tema.ativo,
+  });
+
+  return await prisma.temaRedacaoEdital.update({
+    where: { id: temaId },
+    data: {
+      titulo: input.titulo,
+      descricao: input.descricao,
+      ordem: input.ordem ?? 0,
+      ativo: input.ativo ?? tema.ativo,
+    },
+  });
+}
+
+export async function deleteTemaRedacao(temaId: string) {
+  const tema = await prisma.temaRedacaoEdital.findUnique({
+    where: { id: temaId },
+    include: {
+      inscricoes: {
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (!tema) {
+    throw notFound("Tema de redacao nao encontrado.", "TEMA_REDACAO_NAO_ENCONTRADO");
+  }
+
+  const inscricaoLegada = await prisma.inscricao.findFirst({
+    where: {
+      temaRedacaoEditalId: null,
+      temaRedacao: {
+        equals: tema.titulo.trim(),
+        mode: "insensitive",
+      },
+      participacaoEdital: {
+        editalId: tema.editalId,
+      },
+    },
+    select: { id: true },
+  });
+
+  if (tema.inscricoes.length > 0 || inscricaoLegada) {
+    await prisma.temaRedacaoEdital.update({
+      where: { id: temaId },
+      data: { ativo: false },
+    });
+    return;
+  }
+
+  await prisma.temaRedacaoEdital.delete({ where: { id: temaId } });
 }

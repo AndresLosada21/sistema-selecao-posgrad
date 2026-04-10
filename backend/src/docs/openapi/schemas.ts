@@ -264,6 +264,16 @@ export const LinhaPesquisaResumoSchema = z
   })
   .openapi("LinhaPesquisaResumo");
 
+export const TemaRedacaoResumoSchema = z
+  .object({
+    id: z.string(),
+    titulo: z.string(),
+    descricao: z.string().nullable(),
+    ordem: z.number().int(),
+    ativo: z.boolean(),
+  })
+  .openapi("TemaRedacaoResumo");
+
 export const EditalResumoSchema = z
   .object({
     id: z.string(),
@@ -284,6 +294,7 @@ export const EditalResumoSchema = z
 
 export const EditalDetalheSchema = EditalResumoSchema.extend({
   cronogramas: z.array(EditalFaseResumoSchema),
+  temasRedacao: z.array(TemaRedacaoResumoSchema),
 }).openapi("EditalDetalhe");
 
 export const PedidoIsencaoCriadoSchema = z
@@ -357,6 +368,7 @@ export const InscricaoModelSchema = z
     id: z.string(),
     participacaoEditalId: z.string(),
     linhaPesquisaId: z.string().nullable(),
+    temaRedacaoEditalId: z.string().nullable(),
     modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia),
     status: z.nativeEnum(StatusInscricao),
     statusPagamento: z.nativeEnum(StatusPagamentoInscricao),
@@ -387,6 +399,7 @@ export const InscricaoResumoSchema = z
     id: z.string(),
     status: z.nativeEnum(StatusInscricao),
     statusPagamento: z.nativeEnum(StatusPagamentoInscricao),
+    temaRedacaoEditalId: z.string().nullable(),
     temaRedacao: z.string().nullable(),
     versaoSubmissao: z.number().int(),
     anexoIvGeradoUrl: z.string(),
@@ -916,6 +929,7 @@ export const CandidateDashboardItemSchema = z
         status: z.nativeEnum(StatusInscricao),
         statusPagamento: z.nativeEnum(StatusPagamentoInscricao),
         linhaPesquisa: LinhaPesquisaCurtaSchema,
+        temaRedacaoEditalId: z.string().nullable(),
         temaRedacao: z.string().nullable(),
         resumoCurriculo: z.string().nullable(),
         redacaoTexto: z.string().nullable(),
@@ -1044,6 +1058,7 @@ export const SaveDraftRequestSchema = saveDraftSchema.openapi("SaveDraftRequest"
   example: {
     linhaPesquisaId: "clinha123",
     modalidadeConcorrencia: "AMPLA_CONCORRENCIA",
+    temaRedacaoEditalId: "ctema123",
     temaRedacao: "Controle e automacao aplicada a sistemas energeticos",
     resumoCurriculo: "Engenheiro eletricista com experiencia em sistemas de controle.",
     redacaoTexto: "Texto da redacao com no minimo 500 caracteres no uso real.",
@@ -1235,6 +1250,22 @@ export const RecalcularClassificacaoRequestSchema = recalcularClassificacaoSchem
   },
 });
 
+export const UpsertTemaRedacaoRequestSchema = z
+  .object({
+    titulo: z.string().min(5),
+    descricao: z.string().min(5).optional(),
+    ordem: z.number().int().min(0).optional(),
+    ativo: z.boolean().optional(),
+  })
+  .openapi("UpsertTemaRedacaoRequest", {
+    example: {
+      titulo: "Controle e automacao aplicada a sistemas energeticos",
+      descricao: "Tema orientador para a proposta de pesquisa do certame.",
+      ordem: 0,
+      ativo: true,
+    },
+  });
+
 export const ListEditaisQuerySchema = z
   .object({
     cursoNivel: z.nativeEnum(CursoNivel).optional(),
@@ -1267,6 +1298,12 @@ export const InscricaoIdParamSchema = z
     inscricaoId: z.string().min(1),
   })
   .openapi("InscricaoIdParam");
+
+export const TemaRedacaoIdParamSchema = z
+  .object({
+    temaId: z.string().min(1),
+  })
+  .openapi("TemaRedacaoIdParam");
 
 export const RecursoIdParamSchema = z
   .object({

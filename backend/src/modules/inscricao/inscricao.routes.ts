@@ -46,6 +46,7 @@ inscricaoRouter.put("/v1/editais/:editalId/inscricao/rascunho", requireAuth, asy
     usuarioId: request.auth!.userId,
     linhaPesquisaId: parsedBody.data.linhaPesquisaId as string,
     modalidadeConcorrencia: parsedBody.data.modalidadeConcorrencia,
+    temaRedacaoEditalId: parsedBody.data.temaRedacaoEditalId as string | undefined,
     temaRedacao: parsedBody.data.temaRedacao as string | undefined,
     resumoCurriculo: parsedBody.data.resumoCurriculo as string | undefined,
     redacaoTexto: parsedBody.data.redacaoTexto as string | undefined,

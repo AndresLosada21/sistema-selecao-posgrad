@@ -70,6 +70,12 @@ export type AdminInscricaoHomologacao = {
     versaoSubmissaoFinal: number | null;
     submissaoSnapshotFinal: Record<string, unknown> | null;
   } | null;
+  edicaoHomologacao: {
+    podeEditarPreliminar: boolean;
+    bloqueioPreliminar: string | null;
+    podeEditarFinal: boolean;
+    bloqueioFinal: string | null;
+  };
 };
 
 export type AdminInscricoesHomologacaoResponse = {

@@ -3,6 +3,7 @@ import type {
   LinhaPesquisa,
   Prisma,
   StatusEdital,
+  TemaRedacaoEdital,
   TipoCronogramaEdital,
 } from "@prisma/client";
 
@@ -26,6 +27,7 @@ export type EditalWithRelations = Prisma.EditalGetPayload<{
   include: {
     cronogramas: true;
     linhasPesquisa: true;
+    temasRedacao: true;
   };
 }>;
 
@@ -48,6 +50,11 @@ export type LinhaPesquisaResumo = Pick<
   totalVagas: number;
 };
 
+export type TemaRedacaoResumo = Pick<
+  TemaRedacaoEdital,
+  "id" | "titulo" | "descricao" | "ordem" | "ativo"
+>;
+
 export type EditalResumo = {
   id: string;
   numero: string;
@@ -66,6 +73,8 @@ export type EditalResumo = {
 
 export type EditalDetalhe = EditalResumo & {
   cronogramas: EditalFaseResumo[];
+  temasRedacao: TemaRedacaoResumo[];
+  temasRedacaoConfigurados: boolean;
 };
 
 export type UpsertEditalInput = {
@@ -93,4 +102,11 @@ export type UpsertCronogramaInput = {
   descricao?: string;
   inicioEm: string;
   fimEm: string;
+};
+
+export type UpsertTemaRedacaoInput = {
+  titulo: string;
+  descricao?: string;
+  ordem?: number;
+  ativo?: boolean;
 };

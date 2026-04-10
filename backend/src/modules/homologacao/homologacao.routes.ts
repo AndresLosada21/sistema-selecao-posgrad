@@ -86,6 +86,7 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/preliminar"
     parsedBody.data.homologada as boolean,
     parsedBody.data.parecer as string,
     parsedBody.data.motivos as HomologacaoMotivo[],
+    request.auth!.userId,
   );
 
   if ("error" in result) {
@@ -119,7 +120,8 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/confirmacao-reserva", r
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    return response.status(404).json(notFound(errorCode, errorCode));
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result.inscricao);
@@ -171,6 +173,7 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/final", req
     parsedBody.data.homologada as boolean,
     parsedBody.data.parecer as string,
     parsedBody.data.motivos as HomologacaoMotivo[],
+    request.auth!.userId,
   );
 
   if ("error" in result) {

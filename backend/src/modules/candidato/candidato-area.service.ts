@@ -161,6 +161,7 @@ export async function getCandidateDashboard(usuarioId: string) {
           status: participacao.inscricao.status,
           statusPagamento: participacao.inscricao.statusPagamento,
           modalidadeConcorrencia: participacao.inscricao.modalidadeConcorrencia,
+          temaRedacaoEditalId: participacao.inscricao.temaRedacaoEditalId,
           linhaPesquisa: participacao.inscricao.linhaPesquisa
             ? {
                 id: participacao.inscricao.linhaPesquisa.id,

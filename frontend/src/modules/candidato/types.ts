@@ -38,6 +38,7 @@ export type CandidateDashboardResponse = {
       status: string;
       statusPagamento: string;
       modalidadeConcorrencia?: string;
+      temaRedacaoEditalId?: string | null;
       linhaPesquisa: { id: string; nome: string } | null;
       temaRedacao: string | null;
       resumoCurriculo: string | null;

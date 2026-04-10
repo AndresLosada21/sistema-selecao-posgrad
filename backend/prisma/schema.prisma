@@ -279,6 +279,7 @@ model Edital {
   criadoPor             Usuario?               @relation("EditalCriadoPor", fields: [criadoPorId], references: [id], onDelete: SetNull)
   cronogramas           CronogramaEdital[]
   linhasPesquisa        LinhaPesquisa[]
+  temasRedacao          TemaRedacaoEdital[]
   escoposAvaliacao      AvaliadorEscopo[]
   participacoes         ParticipacaoEdital[]
   publicacoesOficiais   PublicacaoOficial[]
@@ -317,6 +318,21 @@ model LinhaPesquisa {
   escoposAvaliacao       AvaliadorEscopo[]
 
   @@unique([editalId, nome])
+}
+
+model TemaRedacaoEdital {
+  id            String      @id @default(cuid())
+  editalId      String
+  titulo        String
+  descricao     String?
+  ordem         Int         @default(0)
+  ativo         Boolean     @default(true)
+  criadoEm      DateTime    @default(now())
+  atualizadoEm  DateTime    @updatedAt
+  edital        Edital      @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  inscricoes    Inscricao[]
+
+  @@index([editalId, ativo, ordem])
 }
 
 model ParticipacaoEdital {
@@ -360,6 +376,7 @@ model Inscricao {
   id                          String                   @id @default(cuid())
   participacaoEditalId        String                   @unique
   linhaPesquisaId             String?
+  temaRedacaoEditalId         String?
   modalidadeConcorrencia      ModalidadeConcorrencia   @default(AMPLA_CONCORRENCIA)
   confirmacaoAcoesAfirmativas StatusConfirmacaoReserva @default(NAO_SE_APLICA)
   confirmacaoPcd              StatusConfirmacaoReserva @default(NAO_SE_APLICA)
@@ -387,6 +404,7 @@ model Inscricao {
   atualizadoEm                DateTime                 @updatedAt
   participacaoEdital          ParticipacaoEdital       @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
   linhaPesquisa               LinhaPesquisa?           @relation(fields: [linhaPesquisaId], references: [id], onDelete: SetNull)
+  temaRedacaoEdital           TemaRedacaoEdital?       @relation(fields: [temaRedacaoEditalId], references: [id], onDelete: SetNull)
   documentos                  DocumentoInscricao[]
   homologacao                 HomologacaoInscricao?
   avaliacaoEtapa1             AvaliacaoEtapa1?

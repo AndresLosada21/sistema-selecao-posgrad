@@ -8,9 +8,11 @@ import {
   createCronograma,
   createEdital,
   createLinhaPesquisa,
+  createTemaRedacao,
   deleteCronograma,
   deleteEdital,
   deleteLinhaPesquisa,
+  deleteTemaRedacao,
   getAdminEditalById,
   getEditalById,
   listAdminEditais,
@@ -18,15 +20,18 @@ import {
   updateCronograma,
   updateEdital,
   updateLinhaPesquisa,
+  updateTemaRedacao,
 } from "./edital.service.js";
 import {
   cronogramaParamsSchema,
   editalParamsSchema,
   linhaPesquisaParamsSchema,
   listEditaisQuerySchema,
+  temaRedacaoParamsSchema,
   upsertCronogramaSchema,
   upsertEditalSchema,
   upsertLinhaPesquisaSchema,
+  upsertTemaRedacaoSchema,
 } from "./edital.schemas.js";
 
 export const editalRouter = Router();
@@ -262,6 +267,64 @@ editalRouter.delete("/v1/admin/cronogramas/:cronogramaId", requireAuth, requireR
     return response.status(204).send();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Nao foi possivel excluir o cronograma.";
+    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+  }
+});
+
+editalRouter.post("/v1/admin/editais/:editalId/temas-redacao", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+  const parsedBody = upsertTemaRedacaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para criar tema de redacao.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const tema = await createTemaRedacao(parsedParams.data.editalId, parsedBody.data);
+    return response.status(201).json(tema);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Nao foi possivel criar o tema de redacao.";
+    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+  }
+});
+
+editalRouter.put("/v1/admin/temas-redacao/:temaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = temaRedacaoParamsSchema.safeParse(request.params);
+  const parsedBody = upsertTemaRedacaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do tema de redacao invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para atualizar tema de redacao.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const tema = await updateTemaRedacao(parsedParams.data.temaId, parsedBody.data);
+    return response.status(200).json(tema);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar o tema de redacao.";
+    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+  }
+});
+
+editalRouter.delete("/v1/admin/temas-redacao/:temaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = temaRedacaoParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do tema de redacao invalido.", parsedParams.error.flatten()));
+  }
+
+  try {
+    await deleteTemaRedacao(parsedParams.data.temaId);
+    return response.status(204).send();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Nao foi possivel excluir o tema de redacao.";
     return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
   }
 });

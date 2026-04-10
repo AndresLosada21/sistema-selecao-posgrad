@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload, downloadAuthenticatedFile } from "@/lib/files/download";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { ApiError, getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import type { StatusConfirmacaoReserva, StatusPagamentoInscricao } from "@/lib/enums";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -18,6 +18,7 @@ import {
   atualizarStatusPagamentoHomologacao,
   atualizarConfirmacaoReserva, baixarAnexoIvAdmin, baixarAnexoIvFlattenAdmin,
   getPacoteDocumentalAdmin, getInscricaoHomologacaoAdmin, listFundamentosHomologacao,
+  regenerarPacoteDocumentalAdmin,
   registrarHomologacaoFinal, registrarHomologacaoPreliminar,
 } from "@/modules/admin-homologacao/api";
 import type { AdminInscricaoHomologacao, HomologacaoFundamento } from "@/modules/admin-homologacao/types";
@@ -67,6 +68,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     setSelectedMotivo(f.items[0]?.codigo ?? "");
     setPrelimParecer(found.homologacao?.parecerPreliminar ?? "");
     setFinalParecer(found.homologacao?.parecerFinal ?? "");
+    setPrelimHomologada(found.homologacao?.statusPreliminar !== "NAO_HOMOLOGADA_PRELIMINAR");
+    setFinalHomologada(found.homologacao?.statusFinal !== "NAO_HOMOLOGADA_FINAL");
     setMotivosPrelim(found.homologacao?.motivosPreliminar ?? []);
     setMotivosFinal(found.homologacao?.motivosFinal ?? []);
     setConfirmAA(found.confirmacaoAcoesAfirmativas as StatusConfirmacaoReserva);
@@ -102,8 +105,27 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   async function handleDownloadPacote() {
     if (!session.token || !item) return;
     setDownloadingPacote(true);
+    setMessage(null);
     try {
-      const pacoteAtual = pacote ?? (await getPacoteDocumentalAdmin(item.id, session.token)).pacoteDocumental;
+      let pacoteAtual = pacote;
+
+      if (!pacoteAtual) {
+        try {
+          pacoteAtual = (await getPacoteDocumentalAdmin(item.id, session.token)).pacoteDocumental;
+        } catch (error) {
+          if (error instanceof ApiError && error.code === "PACOTE_DOCUMENTAL_NAO_GERADO") {
+            pacoteAtual = await regenerarPacoteDocumentalAdmin(item.id, session.token);
+            setMessage({
+              type: "success",
+              title: "Pacote documental gerado",
+              description: "O pacote nao existia e foi gerado automaticamente antes do download.",
+            });
+          } else {
+            throw error;
+          }
+        }
+      }
+
       setPacote(pacoteAtual);
       await downloadAuthenticatedFile(pacoteAtual.urlArquivo, session.token, pacoteAtual.nomeArquivo ?? "pacote-documental.pdf");
     }
@@ -168,6 +190,12 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   const homolog = item.homologacao;
   const hasPrelim = !!homolog?.statusPreliminar;
   const hasFinal = !!homolog?.statusFinal;
+  const confirmacaoAcoesOptions = item.modalidadeConcorrencia === "ACOES_AFIRMATIVAS"
+    ? confirmacaoOptions.filter((value) => value !== "NAO_SE_APLICA")
+    : ["NAO_SE_APLICA"] as const;
+  const confirmacaoPcdOptions = item.modalidadeConcorrencia === "PCD"
+    ? confirmacaoOptions.filter((value) => value !== "NAO_SE_APLICA")
+    : ["NAO_SE_APLICA"] as const;
   const comprovantePagamento = item.documentos.find((doc) => doc.tipo === "COMPROVANTE_PAGAMENTO");
   const pagamentoManualDisponivel = item.statusPagamento !== "DISPENSADO";
   const pagamentoAction = !pagamentoManualDisponivel || !comprovantePagamento
@@ -287,18 +315,21 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <h3 className="admin-form-card-title">Decisao de homologacao</h3>
           {hasPrelim ? <StatusBadge variant={getStatusVariant(homolog?.statusPreliminar ?? "")}>{getStatusLabel(homolog?.statusPreliminar ?? "")}</StatusBadge> : null}
         </div>
+        {!item.edicaoHomologacao.podeEditarPreliminar && item.edicaoHomologacao.bloqueioPreliminar ? (
+          <PageFeedback type="warning" title="Edicao preliminar bloqueada" description={item.edicaoHomologacao.bloqueioPreliminar} />
+        ) : null}
         <form onSubmit={handlePrelim} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="admin-form-row">
             <div className="wiz-field">
               <label className="wiz-field-label">Resultado *</label>
-              <select value={prelimHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setPrelimHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+              <select disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setPrelimHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                 <option value="HOMOLOGADA">Homologada</option>
                 <option value="INDEFERIDA">Indeferida</option>
               </select>
             </div>
             <div className="wiz-field" style={{ flex: 2 }}>
               <label className="wiz-field-label">Parecer</label>
-              <textarea value={prelimParecer} onChange={(e) => setPrelimParecer(e.target.value)} placeholder="Documentacao completa e regular..." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              <textarea disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimParecer} onChange={(e) => setPrelimParecer(e.target.value)} placeholder="Documentacao completa e regular..." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
             </div>
           </div>
           {/* Motivos */}
@@ -316,13 +347,13 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
             <div className="wiz-field" style={{ flex: 1 }}>
               <label className="wiz-field-label">Adicionar fundamento</label>
-              <select value={selectedMotivo} onChange={(e) => setSelectedMotivo(e.target.value)} style={{ height: 36, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 10px", fontSize: 12 }}>
+              <select disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={selectedMotivo} onChange={(e) => setSelectedMotivo(e.target.value)} style={{ height: 36, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 10px", fontSize: 12 }}>
                 {fundamentos.map((f) => <option key={f.codigo} value={f.codigo}>{f.codigo} · {f.titulo}</option>)}
               </select>
             </div>
-            <button type="button" onClick={() => addMotivo("prelim")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
+            <button type="button" disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} onClick={() => addMotivo("prelim")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
           </div>
-          <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 220 }}>
+          <button type="submit" disabled={busy || !item.edicaoHomologacao.podeEditarPreliminar} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 220 }}>
             {busy ? "Registrando..." : "Registrar homologacao"}
           </button>
         </form>
@@ -334,11 +365,14 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <h3 className="admin-form-card-title">Decisao final de homologacao</h3>
           {hasFinal ? <StatusBadge variant={getStatusVariant(homolog?.statusFinal ?? "")}>{getStatusLabel(homolog?.statusFinal ?? "")}</StatusBadge> : null}
         </div>
+        {!item.edicaoHomologacao.podeEditarFinal && item.edicaoHomologacao.bloqueioFinal ? (
+          <PageFeedback type="warning" title="Edicao final bloqueada" description={item.edicaoHomologacao.bloqueioFinal} />
+        ) : null}
         <form onSubmit={handleFinal} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="admin-form-row">
             <div className="wiz-field">
               <label className="wiz-field-label">Resultado *</label>
-              <select value={finalHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setFinalHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+              <select disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setFinalHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                 <option value="">Selecione o resultado final</option>
                 <option value="HOMOLOGADA">Homologada</option>
                 <option value="INDEFERIDA">Indeferida</option>
@@ -346,7 +380,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field" style={{ flex: 2 }}>
               <label className="wiz-field-label">Parecer</label>
-              <textarea value={finalParecer} onChange={(e) => setFinalParecer(e.target.value)} placeholder="Parecer da homologacao final..." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              <textarea disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalParecer} onChange={(e) => setFinalParecer(e.target.value)} placeholder="Parecer da homologacao final..." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
             </div>
           </div>
           {motivosFinal.length > 0 ? (
@@ -363,13 +397,13 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
             <div className="wiz-field" style={{ flex: 1 }}>
               <label className="wiz-field-label">Adicionar fundamento</label>
-              <select value={selectedMotivo} onChange={(e) => setSelectedMotivo(e.target.value)} style={{ height: 36, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 10px", fontSize: 12 }}>
+              <select disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={selectedMotivo} onChange={(e) => setSelectedMotivo(e.target.value)} style={{ height: 36, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 10px", fontSize: 12 }}>
                 {fundamentos.map((f) => <option key={f.codigo} value={f.codigo}>{f.codigo} · {f.titulo}</option>)}
               </select>
             </div>
-            <button type="button" onClick={() => addMotivo("final")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
+            <button type="button" disabled={!item.edicaoHomologacao.podeEditarFinal || busy} onClick={() => addMotivo("final")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
           </div>
-          <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 240 }}>
+          <button type="submit" disabled={busy || !item.edicaoHomologacao.podeEditarFinal} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 240 }}>
             {busy ? "Registrando..." : "Registrar homologacao final"}
           </button>
         </form>
@@ -383,16 +417,16 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             <div className="admin-form-row">
               <div className="wiz-field">
                 <label className="wiz-field-label">Acoes afirmativas</label>
-                <select value={confirmAA} onChange={(e) => setConfirmAA(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
-                  {confirmacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
-                </select>
-              </div>
-              <div className="wiz-field">
-                <label className="wiz-field-label">PCD</label>
-                <select value={confirmPCD} onChange={(e) => setConfirmPCD(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
-                  {confirmacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
-                </select>
-              </div>
+                  <select disabled={item.modalidadeConcorrencia !== "ACOES_AFIRMATIVAS"} value={confirmAA} onChange={(e) => setConfirmAA(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  {confirmacaoAcoesOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                  </select>
+                </div>
+                <div className="wiz-field">
+                  <label className="wiz-field-label">PCD</label>
+                  <select disabled={item.modalidadeConcorrencia !== "PCD"} value={confirmPCD} onChange={(e) => setConfirmPCD(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  {confirmacaoPcdOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                  </select>
+                </div>
             </div>
             <button type="submit" disabled={busy} style={{ alignSelf: "flex-start", padding: "10px 20px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: "pointer", color: "#334155" }}>
               {busy ? "Atualizando..." : "Atualizar confirmacao"}
