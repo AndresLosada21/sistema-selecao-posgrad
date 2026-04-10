@@ -11,7 +11,7 @@ import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { cursoNivelOptions, statusEditalOptions, type CursoNivel, type StatusEdital } from "@/lib/enums";
-import { createAdminEdital, listAdminEditais } from "@/modules/admin-edital/api";
+import { createAdminEdital, createTemaRedacaoAdmin, listAdminEditais } from "@/modules/admin-edital/api";
 import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
 
 const iconPlus = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
@@ -27,7 +27,9 @@ export default function AdminEditaisPage() {
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO" as CursoNivel, status: "RASCUNHO" as StatusEdital, publicadoEm: "" });
+  const [form, setForm] = useState({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO" as CursoNivel, status: "RASCUNHO" as StatusEdital });
+  const [temaForm, setTemaForm] = useState({ titulo: "", descricao: "" });
+  const [temasRedacao, setTemasRedacao] = useState<Array<{ id: string; titulo: string; descricao: string; ordem: number }>>([]);
 
   const load = useCallback(async () => {
     if (!session.token) return;
@@ -53,9 +55,17 @@ export default function AdminEditaisPage() {
     if (!session.token) return;
     setBusy(true); setMessage(null);
     try {
-      await createAdminEdital({ numero: form.numero, titulo: form.titulo, descricao: form.descricao || undefined, ano: Number(form.ano), semestre: form.semestre ? Number(form.semestre) : undefined, cursoNivel: form.cursoNivel, status: form.status, publicadoEm: form.publicadoEm || undefined }, session.token);
+      const created = await createAdminEdital({ numero: form.numero, titulo: form.titulo, descricao: form.descricao || undefined, ano: Number(form.ano), semestre: form.semestre ? Number(form.semestre) : undefined, cursoNivel: form.cursoNivel, status: form.status }, session.token) as { id?: string };
+      if (!created.id) {
+        throw new Error("Nao foi possivel identificar o edital criado para vincular os temas de redacao.");
+      }
+      for (const tema of temasRedacao) {
+        await createTemaRedacaoAdmin(created.id, { titulo: tema.titulo, descricao: tema.descricao || undefined, ordem: tema.ordem, ativo: true }, session.token);
+      }
       await load();
-      setForm({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO", publicadoEm: "" });
+      setForm({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO" });
+      setTemaForm({ titulo: "", descricao: "" });
+      setTemasRedacao([]);
       setShowForm(false);
       setMessage({ type: "success", text: "Edital criado com sucesso." });
     } catch (error) {
@@ -66,6 +76,25 @@ export default function AdminEditaisPage() {
 
   if (status === "loading") return <LoadingState title="Carregando editais" description="Consultando editais administrativos." />;
   if (status === "error") return <ErrorState title="Falha ao carregar editais" description={message?.text} />;
+
+  function addTemaRedacaoInicial() {
+    if (!temaForm.titulo.trim()) {
+      setMessage({ type: "error", text: "Informe o titulo do tema de redacao antes de adicionar." });
+      return;
+    }
+
+    setTemasRedacao((current) => [
+      ...current,
+      {
+        id: `${Date.now()}-${current.length}`,
+        titulo: temaForm.titulo.trim(),
+        descricao: temaForm.descricao.trim(),
+        ordem: current.length,
+      },
+    ]);
+    setTemaForm({ titulo: "", descricao: "" });
+    setMessage(null);
+  }
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 
@@ -100,7 +129,34 @@ export default function AdminEditaisPage() {
               <div className="wiz-field"><label className="wiz-field-label">Curso</label><select value={form.cursoNivel} onChange={(e) => setForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))}>{cursoNivelOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
               <div className="wiz-field"><label className="wiz-field-label">Status</label><select value={form.status} onChange={(e) => setForm((c) => ({ ...c, status: e.target.value as StatusEdital }))}>{statusEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
             </div>
-            <div className="wiz-field" style={{ maxWidth: 300 }}><label className="wiz-field-label">Publicado em</label><input type="datetime-local" value={form.publicadoEm} onChange={(e) => setForm((c) => ({ ...c, publicadoEm: e.target.value }))} /></div>
+            <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 14, color: "#1E293B" }}>Temas de redacao iniciais</h4>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748B" }}>Cadastre os temas que ficarao disponiveis em dropdown para o candidato.</p>
+              </div>
+              <div className="admin-form-row">
+                <div className="wiz-field"><label className="wiz-field-label">Titulo do tema</label><input value={temaForm.titulo} onChange={(e) => setTemaForm((current) => ({ ...current, titulo: e.target.value }))} /></div>
+                <div className="wiz-field"><label className="wiz-field-label">Descricao</label><input value={temaForm.descricao} onChange={(e) => setTemaForm((current) => ({ ...current, descricao: e.target.value }))} /></div>
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button type="button" className="admin-page-cta" onClick={addTemaRedacaoInicial}>Adicionar tema</button>
+                <span style={{ fontSize: 12, color: "#64748B", alignSelf: "center" }}>{temasRedacao.length} tema(s) preparado(s)</span>
+              </div>
+              {temasRedacao.length ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {temasRedacao.map((tema, index) => (
+                    <div key={tema.id} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <strong style={{ display: "block", fontSize: 13, color: "#1E293B" }}>{index + 1}. {tema.titulo}</strong>
+                        <span style={{ display: "block", fontSize: 12, color: "#64748B" }}>{tema.descricao || "Sem descricao adicional."}</span>
+                      </div>
+                      <button type="button" onClick={() => setTemasRedacao((current) => current.filter((item) => item.id !== tema.id).map((item, itemIndex) => ({ ...item, ordem: itemIndex })))} style={{ border: "1px solid #CBD5E1", background: "#fff", borderRadius: 6, padding: "8px 12px", cursor: "pointer" }}>Remover</button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="wiz-info-box" style={{ marginTop: -4 }}><span>Quando o edital for criado ou atualizado com status `PUBLICADO` ou `EM_ANDAMENTO`, o sistema define `Publicado em` automaticamente.</span></div>
             <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start" }}>{busy ? "Criando..." : "Criar edital"}</button>
           </form>
         </div>

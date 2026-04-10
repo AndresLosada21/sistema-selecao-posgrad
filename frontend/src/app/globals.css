@@ -879,17 +879,16 @@ textarea {
    funcione corretamente em wiz-body. */
 .candidate-main:has(.wiz-shell) {
   padding: 0;
-  /* Converte de flex item sem altura definida para container com altura fixa */
-  height: calc(100vh - var(--topbar-height));
-  min-height: unset;
-  overflow: hidden;
+  min-height: calc(100vh - var(--topbar-height));
+  height: auto;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
 .candidate-main-inner:has(.wiz-shell) {
   max-width: none;
   flex: 1;
-  min-height: 0;   /* override min-height: auto do grid */
+  min-height: unset;
   display: flex;
   flex-direction: column;
 }
@@ -897,8 +896,8 @@ textarea {
 .wiz-shell {
   display: flex; flex-direction: column;
   flex: 1;
-  min-height: 0;   /* necessário para que flex: 1 resulte em altura definida */
-  overflow: hidden;
+  min-height: calc(100vh - var(--topbar-height));
+  overflow: visible;
 }
 
 .wiz-step-bar {
@@ -941,11 +940,11 @@ textarea {
 }
 
 .wiz-body {
-  flex: 1;
-  min-height: 0;   /* FIX CRÍTICO: sem isso flex: 1 mantém min-height: auto e overflow-y: auto nunca aciona */
+  flex: 1 1 auto;
+  min-height: auto;
   background: #F8FAFC;
   display: flex; flex-direction: column; align-items: center;
-  padding: 32px 40px 96px; gap: 24px; overflow-y: auto;
+  padding: 32px 40px 32px; gap: 24px; overflow-y: visible;
 }
 
 .wiz-card {

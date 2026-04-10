@@ -12,6 +12,13 @@ export type AdminEditalPayload = {
   publicadoEm?: string;
 };
 
+export type AdminTemaRedacaoPayload = {
+  titulo: string;
+  descricao?: string;
+  ordem?: number;
+  ativo?: boolean;
+};
+
 export type AdminLinhaPesquisaPayload = {
   nome: string;
   descricao?: string;

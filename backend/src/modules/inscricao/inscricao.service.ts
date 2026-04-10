@@ -34,6 +34,7 @@ type SaveDraftInput = {
   usuarioId: string;
   linhaPesquisaId: string;
   modalidadeConcorrencia: ModalidadeConcorrencia;
+  temaRedacaoEditalId?: string;
   temaRedacao?: string;
   resumoCurriculo?: string;
   redacaoTexto?: string;
@@ -154,7 +155,11 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
     include: {
       participacaoEdital: {
         include: {
-          edital: true,
+          edital: {
+            include: {
+              temasRedacao: true,
+            },
+          },
           pedidoIsencao: true,
           usuario: true,
         },
@@ -174,7 +179,11 @@ async function getInscricaoById(inscricaoId: string) {
       participacaoEdital: {
         include: {
           usuario: true,
-          edital: true,
+          edital: {
+            include: {
+              temasRedacao: true,
+            },
+          },
           pedidoIsencao: true,
         },
       },
@@ -215,6 +224,81 @@ function asRecord(value: unknown) {
 
 function asString(value: unknown) {
   return typeof value === "string" ? value : null;
+}
+
+function normalizeOptionalString(value: string | null | undefined) {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function resolveTemaRedacaoSelection(input: {
+  temasEdital: Array<{ id: string; titulo: string; ativo: boolean }>;
+  temaRedacaoEditalId?: string;
+  temaRedacao?: string;
+  temaRedacaoAtualId?: string | null;
+  temaRedacaoAtual?: string | null;
+  required: boolean;
+  allowLegacySelection: boolean;
+}) {
+  const temasAtivos = input.temasEdital.filter((item) => item.ativo);
+  const temaId = normalizeOptionalString(input.temaRedacaoEditalId);
+
+  if (temaId) {
+    const temaSelecionado = input.temasEdital.find((item) => item.id === temaId);
+
+    if (!temaSelecionado || (!temaSelecionado.ativo && temaSelecionado.id !== input.temaRedacaoAtualId)) {
+      return { error: "TEMA_REDACAO_INVALIDO" as const };
+    }
+
+    return {
+      temaRedacaoEditalId: temaSelecionado.id,
+      temaRedacao: temaSelecionado.titulo,
+    };
+  }
+
+  const temaManual = normalizeOptionalString(input.temaRedacao);
+
+  if (temaManual) {
+    const temasCorrespondentes = temasAtivos.filter((item) => item.titulo.trim().toLowerCase() === temaManual.toLowerCase());
+    const temaCorrespondente = temasCorrespondentes.length === 1 ? temasCorrespondentes[0] : null;
+
+    if (temaCorrespondente) {
+      return {
+        temaRedacaoEditalId: temaCorrespondente.id,
+        temaRedacao: temaCorrespondente.titulo,
+      };
+    }
+  }
+
+  const temaLegadoAtual = normalizeOptionalString(input.temaRedacaoAtual);
+  const podePreservarTemaLegado = Boolean(input.allowLegacySelection && temasAtivos.length > 0 && temaLegadoAtual && !input.temaRedacaoAtualId);
+
+  if (podePreservarTemaLegado && (!temaManual || temaManual.toLowerCase() === temaLegadoAtual!.toLowerCase())) {
+    return {
+      temaRedacaoEditalId: null,
+      temaRedacao: input.temaRedacaoAtual ?? null,
+    };
+  }
+
+  if (temaManual) {
+    if (input.temasEdital.length > 0) {
+      return { error: "TEMA_REDACAO_OBRIGATORIO" as const };
+    }
+
+    return {
+      temaRedacaoEditalId: null,
+      temaRedacao: temaManual,
+    };
+  }
+
+  if (input.required && input.temasEdital.length > 0 && !input.temaRedacaoAtualId && !temaLegadoAtual) {
+    return { error: "TEMA_REDACAO_OBRIGATORIO" as const };
+  }
+
+  return {
+    temaRedacaoEditalId: input.temaRedacaoAtualId ?? null,
+    temaRedacao: input.temaRedacaoAtual ?? null,
+  };
 }
 
 function asNumber(value: unknown) {
@@ -546,6 +630,7 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
     where: { id: input.editalId },
     include: {
       linhasPesquisa: true,
+      temasRedacao: true,
     },
   });
 
@@ -591,6 +676,19 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
   }
 
   const fichaInscricao = mergeFichaInscricao(parseFichaInscricao(existente?.dadosFormulario), input.fichaInscricao);
+  const temaRedacaoSelection = resolveTemaRedacaoSelection({
+    temasEdital: edital.temasRedacao.map((tema) => ({ id: tema.id, titulo: tema.titulo, ativo: tema.ativo })),
+    temaRedacaoEditalId: input.temaRedacaoEditalId,
+    temaRedacao: input.temaRedacao,
+    temaRedacaoAtualId: existente?.temaRedacaoEditalId,
+    temaRedacaoAtual: existente?.temaRedacao,
+    required: false,
+    allowLegacySelection: true,
+  });
+
+  if ("error" in temaRedacaoSelection) {
+    return { error: temaRedacaoSelection.error };
+  }
 
   const inscricao = await prisma.inscricao.upsert({
     where: {
@@ -598,8 +696,9 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
     },
     update: {
       linhaPesquisaId: input.linhaPesquisaId,
+      temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
       modalidadeConcorrencia: input.modalidadeConcorrencia,
-      temaRedacao: input.temaRedacao,
+      temaRedacao: temaRedacaoSelection.temaRedacao,
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
       dadosFormulario: toInputJsonOrDbNull(fichaInscricao),
@@ -608,8 +707,9 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
     create: {
       participacaoEditalId: participacao.id,
       linhaPesquisaId: input.linhaPesquisaId,
+      temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
       modalidadeConcorrencia: input.modalidadeConcorrencia,
-      temaRedacao: input.temaRedacao,
+      temaRedacao: temaRedacaoSelection.temaRedacao,
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
       dadosFormulario: toInputJsonOrDbNull(fichaInscricao),
@@ -697,16 +797,34 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
 
   const pagamentoDispensado = inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL";
   const fichaInscricao = parseFichaInscricao(inscricao.dadosFormulario);
+  const temaRedacaoSelection = resolveTemaRedacaoSelection({
+    temasEdital: inscricao.participacaoEdital.edital.temasRedacao.map((tema) => ({ id: tema.id, titulo: tema.titulo, ativo: tema.ativo })),
+    temaRedacaoEditalId: inscricao.temaRedacaoEditalId ?? undefined,
+    temaRedacao: inscricao.temaRedacao ?? undefined,
+    temaRedacaoAtualId: inscricao.temaRedacaoEditalId,
+    temaRedacaoAtual: inscricao.temaRedacao,
+    required: true,
+    allowLegacySelection: false,
+  });
+
+  if ("error" in temaRedacaoSelection) {
+    return {
+      error: "INSCRICAO_INCOMPLETA" as const,
+      details: ["tema da redacao"],
+      checklist: [],
+    };
+  }
+
   const validation = validateInscricaoForSubmission({
     modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
     fichaInscricao,
-    temaRedacao: inscricao.temaRedacao,
+    temaRedacao: temaRedacaoSelection.temaRedacao,
     redacaoTexto: inscricao.redacaoTexto,
     documentos: inscricao.documentos,
     pagamentoDispensado,
   });
 
-  if (!validation.ok || !fichaInscricao || !inscricao.temaRedacao || !inscricao.redacaoTexto) {
+  if (!validation.ok || !fichaInscricao || !temaRedacaoSelection.temaRedacao || !inscricao.redacaoTexto) {
     return {
       error: "INSCRICAO_INCOMPLETA" as const,
       details: validation.errors,
@@ -733,7 +851,7 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
       linhaPesquisaNome: inscricao.linhaPesquisa?.nome ?? null,
     },
     fichaInscricao,
-    temaRedacao: inscricao.temaRedacao,
+    temaRedacao: temaRedacaoSelection.temaRedacao,
     redacaoTexto: inscricao.redacaoTexto,
     checklist: validation.checklist,
     documentos: inscricao.documentos,
@@ -757,7 +875,7 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
       urlArquivo: documento.urlArquivo,
     })),
     redacao: {
-      tema: inscricao.temaRedacao,
+      tema: temaRedacaoSelection.temaRedacao,
       caracteres: submissaoSnapshot.redacao.caracteres,
     },
     submissaoSnapshot: submissaoSnapshot as Prisma.JsonValue,
@@ -770,6 +888,8 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
       status: StatusInscricao.SUBMETIDA,
       submetidaEm: submittedAt,
       statusPagamento,
+      temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
+      temaRedacao: temaRedacaoSelection.temaRedacao,
       submissaoSnapshot: submissaoSnapshot as Prisma.InputJsonValue,
       versaoSubmissao,
       ...pacoteDocumentalData,
@@ -990,6 +1110,7 @@ export async function listInscricoesDoUsuario(usuarioId: string) {
     id: inscricao.id,
     status: inscricao.status,
     statusPagamento: inscricao.statusPagamento,
+    temaRedacaoEditalId: inscricao.temaRedacaoEditalId,
     temaRedacao: inscricao.temaRedacao,
     versaoSubmissao: inscricao.versaoSubmissao,
     anexoIvGeradoUrl: inscricao.anexoIvGeradoUrl ?? buildCandidateAnexoIvUrl(inscricao.id),

@@ -147,6 +147,30 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
       .send({ homologada: true, parecer: "Homologacao preliminar deferida.", motivos: [] });
     assert.equal(homologacaoPreliminar.status, 200);
 
+    const revisaoHomologacaoPreliminar = await request(app)
+      .put(`/v1/admin/inscricoes/${inscricaoId}/homologacao/preliminar`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        homologada: false,
+        parecer: "Homologacao preliminar revisada para indeferimento.",
+        motivos: [
+          {
+            codigo: "FORMULARIO_NAO_DIGITAL",
+            itemEdital: "3.5.12",
+            titulo: "Formulario fora do padrao digital",
+            descricao: "Formulario obrigatorio nao foi preenchido digitalmente.",
+            sanavel: true,
+          },
+        ],
+      });
+    assert.equal(revisaoHomologacaoPreliminar.status, 200);
+
+    const restauracaoHomologacaoPreliminar = await request(app)
+      .put(`/v1/admin/inscricoes/${inscricaoId}/homologacao/preliminar`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ homologada: true, parecer: "Homologacao preliminar deferida novamente.", motivos: [] });
+    assert.equal(restauracaoHomologacaoPreliminar.status, 200);
+
     const recurso = await request(app)
       .post("/v1/candidato/recursos")
       .set("Authorization", `Bearer ${candidatoToken}`)

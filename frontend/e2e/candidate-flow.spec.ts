@@ -61,6 +61,18 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
   expect(editalResponse.ok()).toBeTruthy();
   const edital = await editalResponse.json();
 
+  const temaResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/temas-redacao`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: {
+      titulo: "Controle e automacao aplicada a sistemas energeticos",
+      descricao: "Tema tecnico padrao do fluxo E2E do candidato.",
+      ordem: 0,
+      ativo: true,
+    },
+  });
+
+  expect(temaResponse.ok()).toBeTruthy();
+
   const linhaResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/linhas`, {
     headers: { Authorization: `Bearer ${adminToken}` },
     data: {
@@ -141,7 +153,7 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   await page.goto(`/candidato/editais/${editalId}/inscricao`);
   await expect(page).toHaveURL(new RegExp(`/candidato/editais/${editalId}/inscricao$`), { timeout: 20_000 });
 
-  await page.getByLabel("Tema da redacao").fill("Controle e automacao aplicada a sistemas energeticos");
+  await page.locator("div", { hasText: "Tema da Redacao" }).locator("select").first().selectOption({ label: "Controle e automacao aplicada a sistemas energeticos" });
   await page.getByLabel("Resumo do curriculo").fill("Experiencia em pesquisa, extensao e desenvolvimento de sistemas embarcados.");
   await page.getByRole("textbox", { name: /^Redacao/ }).fill("A".repeat(600));
 

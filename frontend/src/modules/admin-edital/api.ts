@@ -6,6 +6,7 @@ import type {
   AdminEditalPayload,
   AdminEditaisResponse,
   AdminLinhaPesquisaPayload,
+  AdminTemaRedacaoPayload,
 } from "./types";
 
 export function listAdminEditais(token: string, filters?: { page?: number; pageSize?: number; q?: string }) {
@@ -77,4 +78,16 @@ export function updateCronogramaAdmin(cronogramaId: string, payload: AdminCronog
 
 export function deleteCronogramaAdmin(cronogramaId: string, token: string) {
   return apiDelete<void>(`/v1/admin/cronogramas/${cronogramaId}`, token);
+}
+
+export function createTemaRedacaoAdmin(editalId: string, payload: AdminTemaRedacaoPayload, token: string) {
+  return apiPost<Record<string, unknown>>(`/v1/admin/editais/${editalId}/temas-redacao`, payload, token);
+}
+
+export function updateTemaRedacaoAdmin(temaId: string, payload: AdminTemaRedacaoPayload, token: string) {
+  return apiPut<Record<string, unknown>>(`/v1/admin/temas-redacao/${temaId}`, payload, token);
+}
+
+export function deleteTemaRedacaoAdmin(temaId: string, token: string) {
+  return apiDelete<void>(`/v1/admin/temas-redacao/${temaId}`, token);
 }

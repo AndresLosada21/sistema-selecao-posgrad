@@ -42,6 +42,10 @@ export const cronogramaParamsSchema = z.object({
   cronogramaId: z.string().min(1),
 });
 
+export const temaRedacaoParamsSchema = z.object({
+  temaId: z.string().min(1),
+});
+
 const optionalIsoDate = z
   .string()
   .datetime()
@@ -85,3 +89,10 @@ export const upsertCronogramaSchema = z
       });
     }
   });
+
+export const upsertTemaRedacaoSchema = z.object({
+  titulo: z.string().trim().min(5),
+  descricao: z.string().trim().min(5).optional(),
+  ordem: z.number().int().min(0).default(0),
+  ativo: z.boolean().optional(),
+});

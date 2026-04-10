@@ -120,7 +120,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         </p>
       </div>
 
-      <form className={formClass} onSubmit={handleSubmit}>
+      <form id="auth-form-id" className={formClass} onSubmit={handleSubmit}>
         {!isLogin ? (
           <label className="auth-field">
             <span className="auth-field-label">Nome completo *</span>
@@ -137,7 +137,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           <span className="auth-field-label">Senha {!isLogin ? "*" : ""}</span>
           <div className="auth-input-wrapper">
             <input className="auth-input auth-input--with-toggle" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); }} required type={showPassword ? "text" : "password"} value={senha} placeholder="••••••••" />
-            <button className="auth-toggle-password" type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>
+            <button className="auth-toggle-password" type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Ocultar caracteres" : "Mostrar caracteres"}>
               {showPassword ? iconEye : iconEyeOff}
             </button>
           </div>
@@ -157,11 +157,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         ) : null}
       </form>
 
-      <button className="auth-submit" disabled={status === "loading"} type="submit" form="auth-form-id" onClick={(e) => {
-        e.preventDefault();
-        const form = (e.target as HTMLElement).closest(".auth-card")?.querySelector("form");
-        if (form) form.requestSubmit();
-      }}>
+      <button className="auth-submit" disabled={status === "loading"} type="submit" form="auth-form-id">
         {status === "loading" ? "Processando..." : isLogin ? "Entrar" : "Criar conta"}
       </button>
 

@@ -55,6 +55,10 @@ export function getPacoteDocumentalAdmin(inscricaoId: string, token: string) {
   return apiGet<AdminPacoteDocumentalResponse>(`/v1/admin/inscricoes/${inscricaoId}/pacote-documental`, token);
 }
 
+export function regenerarPacoteDocumentalAdmin(inscricaoId: string, token: string) {
+  return apiPost<AdminPacoteDocumentalResponse["pacoteDocumental"]>(`/v1/admin/inscricoes/${inscricaoId}/pacote-documental/regenerar`, undefined, token);
+}
+
 export function registrarPacoteDocumentalAdmin(
   inscricaoId: string,
   payload: { urlArquivo: string; nomeArquivo: string; mimeType?: string; tamanhoBytes?: number },

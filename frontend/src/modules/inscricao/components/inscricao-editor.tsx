@@ -47,11 +47,17 @@ type SubmissionChecklistViewItem = {
   pdfValido: boolean;
 };
 
+type RequiredDocumentRuleView = {
+  tipo: string;
+  label: string;
+};
+
 type FieldErrors = Record<string, string>;
 
 type InscricaoEditorState = {
   linhaPesquisaId: string;
   modalidadeConcorrencia: string;
+  temaRedacaoEditalId: string;
   temaRedacao: string;
   resumoCurriculo: string;
   redacaoTexto: string;
@@ -239,33 +245,39 @@ function isEstrangeiro(ficha: InscricaoEditorState["fichaInscricao"]) {
   return nacionalidade.length > 0 && !isBrasileiro(ficha);
 }
 
-function getRequiredDocumentTypes(input: {
+function getRequiredDocumentRules(input: {
   ficha: InscricaoEditorState["fichaInscricao"];
   modalidadeConcorrencia: string;
   pagamentoDispensado: boolean;
 }) {
-  const required = ["ANEXO_IV", "ANEXO_V", "DIPLOMA", "HISTORICO", "CURRICULO"];
+  const required: RequiredDocumentRuleView[] = [
+    { tipo: "ANEXO_IV", label: "Anexo IV assinado" },
+    { tipo: "ANEXO_V", label: "Declaracao de titulos" },
+    { tipo: "DIPLOMA", label: "Diploma ou declaracao de conclusao/finalista" },
+    { tipo: "HISTORICO", label: "Historico escolar de graduacao" },
+    { tipo: "CURRICULO", label: "Curriculo Lattes com documentacao comprobatoria" },
+  ];
 
   if (isEstrangeiro(input.ficha) || hasText(input.ficha.passaporte)) {
-    required.push("RNE_PASSAPORTE");
+    required.push({ tipo: "RNE_PASSAPORTE", label: "RNE ou passaporte" });
   } else {
-    required.push("DOCUMENTO_IDENTIFICACAO");
+    required.push({ tipo: "DOCUMENTO_IDENTIFICACAO", label: "Documento de identidade com foto" });
   }
 
   if (!input.pagamentoDispensado) {
-    required.push("COMPROVANTE_PAGAMENTO");
+    required.push({ tipo: "COMPROVANTE_PAGAMENTO", label: "Comprovante de pagamento" });
   }
 
   if (input.ficha.pessoaComDeficiencia) {
-    required.push("LAUDO_PCD");
+    required.push({ tipo: "LAUDO_PCD", label: "Laudo medico PCD" });
   }
 
   if (input.ficha.concorreAcoesAfirmativas || input.modalidadeConcorrencia === "ACOES_AFIRMATIVAS") {
-    required.push("ANEXO_VIII_AUTODECLARACAO");
+    required.push({ tipo: "ANEXO_VIII_AUTODECLARACAO", label: "Autodeclaracao e ciencia da gravacao de imagem" });
   }
 
   if (input.ficha.racaCor === "INDIGENA" || input.ficha.racaCor === "QUILOMBOLA") {
-    required.push("COMPROVANTE_ETNICO");
+    required.push({ tipo: "COMPROVANTE_ETNICO", label: "Comprovante etnico ou comunitario" });
   }
 
   return required;
@@ -276,6 +288,8 @@ function getStepFieldErrors(input: {
   state: InscricaoEditorState;
   documentos: Array<{ tipo: string; nomeArquivo?: string }>;
   pagamentoDispensado: boolean;
+  editalTemasRedacao: EditalDetalhe["temasRedacao"];
+  temasRedacaoConfigurados: boolean;
 }) {
   const errors: FieldErrors = {};
   const ficha = input.state.fichaInscricao;
@@ -414,8 +428,14 @@ function getStepFieldErrors(input: {
   }
 
   if (input.step === 2) {
-    if (!hasText(input.state.temaRedacao)) {
+    if (!input.temasRedacaoConfigurados && !hasText(input.state.temaRedacao)) {
       errors.temaRedacao = "Informe o tema da redacao.";
+    } else if (input.temasRedacaoConfigurados && input.editalTemasRedacao.length === 0 && !hasText(input.state.temaRedacaoEditalId)) {
+      errors.temaRedacao = "Este edital nao possui temas ativos disponiveis no momento. Contate a administracao.";
+    } else if (input.editalTemasRedacao.length > 0 && !hasText(input.state.temaRedacaoEditalId)) {
+      errors.temaRedacao = "Selecione um dos temas atuais do edital para continuar.";
+    } else if (!hasText(input.state.temaRedacao)) {
+      errors.temaRedacao = "Selecione o tema da redacao.";
     }
     const redacaoLength = input.state.redacaoTexto.trim().length;
     if (redacaoLength < 500 || redacaoLength > 1500) {
@@ -424,16 +444,16 @@ function getStepFieldErrors(input: {
   }
 
   if (input.step === 3) {
-    const requiredTypes = getRequiredDocumentTypes({
+    const requiredRules = getRequiredDocumentRules({
       ficha,
       modalidadeConcorrencia: input.state.modalidadeConcorrencia,
       pagamentoDispensado: input.pagamentoDispensado,
     });
     const docsByType = new Set(input.documentos.map((doc) => doc.tipo));
 
-    for (const type of requiredTypes) {
-      if (!docsByType.has(type)) {
-        errors[`documento:${type}`] = `${getStatusLabel(type)} e obrigatorio para prosseguir.`;
+    for (const rule of requiredRules) {
+      if (!docsByType.has(rule.tipo)) {
+        errors[`documento:${rule.tipo}`] = `${rule.label} e obrigatorio para prosseguir.`;
       }
     }
   }
@@ -445,6 +465,8 @@ function getMaxReachedStep(input: {
   state: InscricaoEditorState;
   documentos: Array<{ tipo: string; nomeArquivo?: string }>;
   pagamentoDispensado: boolean;
+  editalTemasRedacao: EditalDetalhe["temasRedacao"];
+  temasRedacaoConfigurados: boolean;
 }) {
   let maxReached = 0;
 
@@ -454,6 +476,8 @@ function getMaxReachedStep(input: {
       state: input.state,
       documentos: input.documentos,
       pagamentoDispensado: input.pagamentoDispensado,
+      editalTemasRedacao: input.editalTemasRedacao,
+      temasRedacaoConfigurados: input.temasRedacaoConfigurados,
     });
 
     if (Object.keys(errors).length > 0) {
@@ -485,9 +509,13 @@ function buildInitialState(
     return saved?.trim() ? saved : (accountValue ?? "");
   }
 
+  const temaRedacaoAtualNormalizado = inscricao?.temaRedacao?.trim().toLowerCase() ?? "";
+  const temasComTituloCorrespondente = edital.temasRedacao.filter((tema) => tema.titulo.trim().toLowerCase() === temaRedacaoAtualNormalizado);
+
   return {
     linhaPesquisaId: inscricao?.linhaPesquisa?.id ?? edital.linhasPesquisa[0]?.id ?? "",
     modalidadeConcorrencia: inscricao?.modalidadeConcorrencia ?? "AMPLA_CONCORRENCIA",
+    temaRedacaoEditalId: inscricao?.temaRedacaoEditalId ?? (temasComTituloCorrespondente.length === 1 ? temasComTituloCorrespondente[0].id : ""),
     temaRedacao: inscricao?.temaRedacao ?? "",
     resumoCurriculo: inscricao?.resumoCurriculo ?? "",
     redacaoTexto: inscricao?.redacaoTexto ?? "",
@@ -610,13 +638,16 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [docFormFilename, setDocFormFilename] = useState("");
   const [docFormMime, setDocFormMime] = useState("application/pdf");
   const fileRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const lastSavedDraftRef = useRef<string | null>(null);
   const hasMountedAutosaveRef = useRef(false);
 
   const anexoIvDocumento = useMemo(() => documentos.find((d) => d.tipo === "ANEXO_IV") ?? null, [documentos]);
+  const requiredDocumentRules = useMemo(() => getRequiredDocumentRules({ ficha: formState.fichaInscricao, modalidadeConcorrencia: formState.modalidadeConcorrencia, pagamentoDispensado }), [formState.fichaInscricao, formState.modalidadeConcorrencia, pagamentoDispensado]);
+  const pendingRequiredDocumentTypes = useMemo(() => requiredDocumentRules.filter((rule) => rule.tipo !== "ANEXO_IV" && !documentos.some((documento) => documento.tipo === rule.tipo)).map((rule) => rule.tipo), [documentos, requiredDocumentRules]);
   const redacaoLength = formState.redacaoTexto.length;
   const cursoLabel = edital.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
-  const maxReachedStep = useMemo(() => getMaxReachedStep({ state: formState, documentos, pagamentoDispensado }), [documentos, formState, pagamentoDispensado]);
+  const maxReachedStep = useMemo(() => getMaxReachedStep({ state: formState, documentos, pagamentoDispensado, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados }), [documentos, edital.temasRedacao, edital.temasRedacaoConfigurados, formState, pagamentoDispensado]);
 
   function resetMessage() { setMessage(null); setChecklist([]); }
   function handleUnauthorized(error: unknown) { if (isUnauthorizedError(error)) { session.signOut(); return true; } return false; }
@@ -675,8 +706,22 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     }
   }
 
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
+  useEffect(() => {
+    if (docFormNome.trim()) {
+      return;
+    }
+
+    const label = requiredDocumentRules.find((rule) => rule.tipo === docFormTipo)?.label ?? getStatusLabel(docFormTipo);
+    setDocFormNome(label);
+  }, [docFormNome, docFormTipo, requiredDocumentRules]);
+
   async function validateAndGoNext() {
-    const errors = getStepFieldErrors({ step, state: formState, documentos, pagamentoDispensado });
+    const errors = getStepFieldErrors({ step, state: formState, documentos, pagamentoDispensado, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados });
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -684,7 +729,11 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       return;
     }
 
-    await handleSaveDraft();
+    const saved = await handleSaveDraft();
+    if (!saved) {
+      return;
+    }
+
     setStep((current) => Math.min(current + 1, 4));
   }
 
@@ -693,6 +742,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const currentDraftPayload = useMemo(() => sanitizePayload({
     linhaPesquisaId: formState.linhaPesquisaId,
     modalidadeConcorrencia: formState.modalidadeConcorrencia as ModalidadeConcorrencia,
+    temaRedacaoEditalId: formState.temaRedacaoEditalId || undefined,
     temaRedacao: formState.temaRedacao || undefined,
     resumoCurriculo: formState.resumoCurriculo || undefined,
     redacaoTexto: formState.redacaoTexto || undefined,
@@ -700,7 +750,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   }), [formState]);
 
   async function handleSaveDraft(options?: { silent?: boolean }) {
-    if (!session.token) return;
+    if (!session.token) return false;
     setSavingDraft(true);
     setAutosaveState("saving");
     if (!options?.silent) {
@@ -718,12 +768,14 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       if (!options?.silent) {
         setMessage({ title: "Rascunho salvo", description: "Os dados da inscricao foram salvos com sucesso." });
       }
+      return true;
     } catch (error) {
       if (handleUnauthorized(error)) return;
       setAutosaveState("error");
       if (!options?.silent) {
         setMessage({ title: "Falha ao salvar rascunho", description: getErrorMessage(error), type: "error" });
       }
+      return false;
     } finally { setSavingDraft(false); }
   }
 
@@ -871,13 +923,14 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         </div>
       ) : null}
 
-      <div className="wiz-body">
+      <div className="wiz-body" ref={bodyRef}>
         {step === 0 && <Step1DadosPessoais formState={formState} setFormState={setFormState} updateFicha={updateFicha} fieldErrors={fieldErrors} onCepBlur={handleCepBlur} cepLookupMessage={cepLookupMessage} />}
         {step === 1 && <Step2DadosAcademicos formState={formState} setFormState={setFormState} edital={edital} cursoLabel={cursoLabel} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} />}
-        {step === 2 && <Step3Redacao formState={formState} setFormState={setFormState} redacaoLength={redacaoLength} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} />}
+        {step === 2 && <Step3Redacao edital={edital} formState={formState} setFormState={setFormState} redacaoLength={redacaoLength} fieldErrors={fieldErrors} setFieldErrors={setFieldErrors} />}
         {step === 3 && (
           <Step4Documentos
             inscricaoId={inscricaoId} documentos={documentos} anexoIvDocumento={anexoIvDocumento}
+            requiredDocumentRules={requiredDocumentRules}
             downloading={downloading} uploadingAnexoIv={uploadingAnexoIv} uploadingDocumento={uploadingDocumento}
             onDownloadAnexoIv={handleDownloadAnexoIv} onUploadAnexoIv={handleAnexoIvUpload}
             onDocFileSelect={handleDocumentoFileSelect} onAddDocumento={handleAddDocumento}
@@ -1395,11 +1448,48 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
    Step 3 — Redacao
    ================================================================ */
 
-function Step3Redacao({ formState, setFormState, redacaoLength, fieldErrors, setFieldErrors }: {
-  formState: InscricaoEditorState; setFormState: React.Dispatch<React.SetStateAction<InscricaoEditorState>>; redacaoLength: number; fieldErrors: FieldErrors; setFieldErrors: React.Dispatch<React.SetStateAction<FieldErrors>>;
+function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErrors, setFieldErrors }: {
+  edital: EditalDetalhe;
+  formState: InscricaoEditorState;
+  setFormState: React.Dispatch<React.SetStateAction<InscricaoEditorState>>;
+  redacaoLength: number;
+  fieldErrors: FieldErrors;
+  setFieldErrors: React.Dispatch<React.SetStateAction<FieldErrors>>;
 }) {
   const pct = Math.min((redacaoLength / 1500) * 100, 100);
   const withinRange = redacaoLength === 0 || (redacaoLength >= 500 && redacaoLength <= 1500);
+  const legacyTemaSelecionado = Boolean(formState.temaRedacao && !formState.temaRedacaoEditalId);
+  const temaSelecionado = edital.temasRedacao.find((tema) => tema.id === formState.temaRedacaoEditalId) ?? null;
+  const temaOptions = useMemo(() => {
+    if (!legacyTemaSelecionado && temaSelecionado) {
+      return edital.temasRedacao;
+    }
+
+    if (!legacyTemaSelecionado && formState.temaRedacaoEditalId && formState.temaRedacao) {
+      return [
+        {
+          id: formState.temaRedacaoEditalId,
+          titulo: `${formState.temaRedacao} (inativo)`,
+          descricao: null,
+          ordem: Number.MAX_SAFE_INTEGER,
+          ativo: false,
+        },
+        ...edital.temasRedacao,
+      ];
+    }
+
+    return [
+      {
+        id: "__legacy__",
+        titulo: `${formState.temaRedacao} (legado)`,
+        descricao: null,
+        ordem: Number.MAX_SAFE_INTEGER,
+        ativo: false,
+      },
+      ...edital.temasRedacao,
+    ];
+  }, [edital.temasRedacao, formState.temaRedacao, formState.temaRedacaoEditalId, legacyTemaSelecionado, temaSelecionado]);
+  const temaSelectValue = legacyTemaSelecionado ? "__legacy__" : formState.temaRedacaoEditalId;
 
   return (
     <>
@@ -1419,7 +1509,7 @@ function Step3Redacao({ formState, setFormState, redacaoLength, fieldErrors, set
       <div style={{ width: 760, maxWidth: "100%", background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", overflow: "hidden" }}>
         <div style={{ padding: "24px 28px 20px" }}>
           <h2 className="wiz-card-title">Redacao — Proposta de Pesquisa</h2>
-          <p style={{ fontSize: 13, color: "#94A3B8", margin: "4px 0 0" }}>Edital {formState.temaRedacao ? "" : "092/2025"} · {formState.temaRedacao ? "Tema definido" : "Mestrado em Engenharia Eletrica"}</p>
+          <p style={{ fontSize: 13, color: "#94A3B8", margin: "4px 0 0" }}>{edital.temasRedacaoConfigurados ? (edital.temasRedacao.length ? "Selecione um dos temas cadastrados pela administracao para este edital." : "Este edital possui cadastro de temas, mas nenhum esta ativo no momento.") : "Este edital ainda nao possui temas cadastrados. Informe manualmente o tema da sua proposta."}</p>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 
@@ -1428,12 +1518,59 @@ function Step3Redacao({ formState, setFormState, redacaoLength, fieldErrors, set
             <label className="wiz-field-label" style={{ fontSize: 13, fontWeight: 600 }}>Tema da Redacao</label>
             <span style={{ fontSize: 10, fontWeight: 600, color: "#000", background: "#FEF2F2", borderRadius: 4, padding: "2px 6px" }}>Obrigatorio</span>
           </div>
-          <input style={{ height: 44, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13 }}
-            value={formState.temaRedacao} onChange={(e) => { setFieldErrors((current) => { const next = { ...current }; delete next.temaRedacao; return next; }); setFormState((s) => ({ ...s, temaRedacao: e.target.value })); }}
-            placeholder="Descreva o tema central da sua proposta de pesquisa"
-          />
+          {edital.temasRedacao.length ? (
+            <select
+              style={{ height: 44, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13 }}
+              value={temaSelectValue}
+              onChange={(e) => {
+                if (e.target.value === "__legacy__") {
+                  return;
+                }
+
+                const tema = temaOptions.find((item) => item.id === e.target.value) ?? null;
+                setFieldErrors((current) => {
+                  const next = { ...current };
+                  delete next.temaRedacao;
+                  return next;
+                });
+                setFormState((s) => ({
+                  ...s,
+                  temaRedacaoEditalId: e.target.value,
+                  temaRedacao: tema?.titulo ?? "",
+                }));
+              }}
+              disabled={!temaOptions.length}
+            >
+              <option value="">{temaOptions.length ? "Selecione o tema" : "Nenhum tema disponivel"}</option>
+              {temaOptions.map((tema) => <option key={tema.id} value={tema.id}>{tema.titulo}{tema.ativo ? "" : " (inativo)"}</option>)}
+            </select>
+          ) : !edital.temasRedacaoConfigurados ? (
+            <input
+              style={{ height: 44, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13 }}
+              value={formState.temaRedacao}
+              onChange={(e) => {
+                setFieldErrors((current) => {
+                  const next = { ...current };
+                  delete next.temaRedacao;
+                  return next;
+                });
+                setFormState((s) => ({ ...s, temaRedacaoEditalId: "", temaRedacao: e.target.value }));
+              }}
+              placeholder="Descreva o tema central da sua proposta"
+            />
+          ) : (
+            <input
+              style={{ height: 44, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13 }}
+              value={formState.temaRedacao}
+              disabled
+              readOnly
+              placeholder="Nenhum tema ativo disponivel"
+            />
+          )}
           <FieldError message={fieldErrors.temaRedacao} />
-          <span className="wiz-field-hint">Descreva o tema central da sua proposta de pesquisa</span>
+          <span className="wiz-field-hint">{edital.temasRedacao.length ? "O tema e definido pela administracao do edital." : edital.temasRedacaoConfigurados ? "A administracao precisa reativar ao menos um tema para novas escolhas." : "Fallback temporario enquanto o edital nao tiver temas cadastrados."}</span>
+          {legacyTemaSelecionado ? <span className="wiz-field-hint">Este rascunho ainda referencia um tema legado. Selecione um dos temas atuais do edital para continuar.</span> : null}
+          {temaSelecionado?.descricao ? <span className="wiz-field-hint">{temaSelecionado.descricao}</span> : null}
         </div>
 
         <div style={{ height: 1, background: "#F1F5F9" }} />
@@ -1495,14 +1632,19 @@ function Step3Redacao({ formState, setFormState, redacaoLength, fieldErrors, set
    Step 4 — Documentos
    ================================================================ */
 
-function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, downloading, uploadingAnexoIv, uploadingDocumento, onDownloadAnexoIv, onUploadAnexoIv, onDocFileSelect, onAddDocumento, docFormTipo, setDocFormTipo, docFormNome, setDocFormNome, docFormUrl, docFormFilename, fileRef, fieldErrors }: {
+function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDocumentRules, downloading, uploadingAnexoIv, uploadingDocumento, onDownloadAnexoIv, onUploadAnexoIv, onDocFileSelect, onAddDocumento, docFormTipo, setDocFormTipo, docFormNome, setDocFormNome, docFormUrl, docFormFilename, fileRef, fieldErrors }: {
   inscricaoId: string | null; documentos: Array<{ id: string; tipo: string; nome: string; nomeArquivo?: string }>; anexoIvDocumento: { id: string; tipo: string; nome: string; nomeArquivo?: string } | null;
+  requiredDocumentRules: RequiredDocumentRuleView[];
   downloading: boolean; uploadingAnexoIv: boolean; uploadingDocumento: boolean;
   onDownloadAnexoIv: () => void; onUploadAnexoIv: (f: File) => void; onDocFileSelect: (f: File) => void; onAddDocumento: (e: FormEvent) => void;
   docFormTipo: string; setDocFormTipo: (v: string) => void; docFormNome: string; setDocFormNome: (v: string) => void;
   docFormUrl: string; docFormFilename: string; fileRef: React.RefObject<HTMLInputElement | null>; fieldErrors: FieldErrors;
 }) {
   const docsSemAnexoIv = documentos.filter((d) => d.tipo !== "ANEXO_IV");
+  const requiredRulesWithoutAnexoIv = requiredDocumentRules.filter((rule) => rule.tipo !== "ANEXO_IV");
+  const totalObrigatorios = requiredDocumentRules.length;
+  const obrigatoriosEnviados = requiredDocumentRules.filter((rule) => rule.tipo === "ANEXO_IV" ? Boolean(anexoIvDocumento) : documentos.some((doc) => doc.tipo === rule.tipo)).length;
+  const completionRatio = totalObrigatorios > 0 ? Math.min((obrigatoriosEnviados / totalObrigatorios) * 100, 100) : 0;
 
   return (
     <>
@@ -1543,6 +1685,31 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, downloadin
           <span className="wiz-annex-hint">O PDF ja contem seus dados preenchidos nas etapas anteriores</span>
         </div>
 
+        <div style={{ borderTop: "1px solid #F1F5F9", padding: "20px 28px", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: "#334155", margin: 0 }}>Checklist dinamico de obrigatorios</h3>
+              <p style={{ fontSize: 12, color: "#64748B", margin: "4px 0 0" }}>Os documentos obrigatorios mudam conforme sua modalidade, nacionalidade, pagamento e declaracoes da ficha.</p>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{obrigatoriosEnviados}/{totalObrigatorios} obrigatorios prontos</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {requiredDocumentRules.map((rule) => {
+              const documento = rule.tipo === "ANEXO_IV" ? anexoIvDocumento : documentos.find((doc) => doc.tipo === rule.tipo);
+              const presente = Boolean(documento);
+              return (
+                <div key={rule.tipo} style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", background: presente ? "#F0FDF4" : "#FFF7ED" }}>
+                  <div className={`wiz-doc-icon ${presente ? "wiz-doc-icon--green" : "wiz-doc-icon--amber"}`}>{presente ? svgCircleCheck("#22C55E") : svgTriangleAlert("#F59E0B")}</div>
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                    <strong style={{ fontSize: 13, color: "#1E293B" }}>{rule.label}</strong>
+                    <span style={{ fontSize: 12, color: presente ? "#166534" : "#9A3412" }}>{presente ? `Registrado: ${documento?.nomeArquivo ?? getStatusLabel(rule.tipo)}` : "Pendente para esta inscricao."}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Document list */}
         <div style={{ padding: "8px 0" }}>
           {docsSemAnexoIv.length > 0 ? docsSemAnexoIv.map((doc) => (
@@ -1568,7 +1735,14 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, downloadin
               <div className="wiz-field">
                 <label className="wiz-field-label">Tipo</label>
                 <select value={docFormTipo} onChange={(e) => setDocFormTipo(e.target.value)}>
-                  {documentoTipoOptionsSemAnexoIv.map((t) => <option key={t} value={t}>{getStatusLabel(t)}</option>)}
+                  {requiredRulesWithoutAnexoIv.length ? (
+                    <optgroup label="Obrigatorios para esta inscricao">
+                      {requiredRulesWithoutAnexoIv.map((rule) => <option key={rule.tipo} value={rule.tipo}>{rule.label}</option>)}
+                    </optgroup>
+                  ) : null}
+                  <optgroup label="Outros tipos aceitos">
+                    {documentoTipoOptionsSemAnexoIv.filter((tipo) => !requiredRulesWithoutAnexoIv.some((rule) => rule.tipo === tipo)).map((t) => <option key={t} value={t}>{getStatusLabel(t)}</option>)}
+                  </optgroup>
                 </select>
               </div>
               <div className="wiz-field">
@@ -1594,11 +1768,11 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, downloadin
           </div>
         ) : null}
         <div className="wiz-progress-label">
-          <strong>Documentos enviados</strong>
-          <span>{documentos.length} registrado(s)</span>
+          <strong>Obrigatorios enviados</strong>
+          <span>{obrigatoriosEnviados} de {totalObrigatorios}</span>
         </div>
         <div className="wiz-progress-track">
-          <div className="wiz-progress-fill" style={{ width: `${Math.min((documentos.length / 7) * 100, 100)}%` }} />
+          <div className="wiz-progress-fill" style={{ width: `${completionRatio}%` }} />
         </div>
       </div>
     </>

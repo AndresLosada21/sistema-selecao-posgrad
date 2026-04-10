@@ -29,6 +29,14 @@ export type EditaisResponse = {
   items: EditalListItem[];
 };
 
+export type EditalTemaRedacao = {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  ordem: number;
+  ativo: boolean;
+};
+
 export type EditalDetalhe = EditalListItem & {
   cronogramas: Array<{
     id: string;
@@ -41,4 +49,6 @@ export type EditalDetalhe = EditalListItem & {
     futura: boolean;
     encerrada: boolean;
   }>;
+  temasRedacao: EditalTemaRedacao[];
+  temasRedacaoConfigurados: boolean;
 };

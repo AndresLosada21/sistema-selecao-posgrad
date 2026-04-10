@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { toInputJsonOrDbNull } from "../../lib/serialization.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
+import { buildPrivateUploadUrl } from "../upload/upload.service.js";
 import {
   buildMotivoPublicacaoHomologacao,
   getFinalHomologacaoStatus,
@@ -16,14 +17,40 @@ import {
   type HomologacaoMotivo,
 } from "./homologacao.rules.js";
 
+function normalizeDocumentoUrlArquivo(urlArquivo: string) {
+  const match = urlArquivo.match(/^private:\/\/uploads\/([^/]+)\/([^/]+)$/i);
+
+  if (!match) {
+    return urlArquivo;
+  }
+
+  const [, ownerId, filename] = match;
+  return buildPrivateUploadUrl(ownerId, filename);
+}
+
 function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
   include: {
     participacaoEdital: { include: { usuario: true; edital: true } };
     linhaPesquisa: true;
     documentos: true;
     homologacao: true;
+    avaliacaoEtapa1: true;
+    avaliacaoEtapa2: true;
+    etapaPoliticasAfirmativas: true;
   };
 }>) {
+  const bloqueioPreliminar = getPreliminaryEditBlockReason({
+    submetidaEm: inscricao.submetidaEm,
+    status: inscricao.status,
+    statusFinal: inscricao.homologacao?.statusFinal,
+  });
+  const bloqueioFinal = getFinalEditBlockReason({
+    submetidaEm: inscricao.submetidaEm,
+    status: inscricao.status,
+    statusPreliminar: inscricao.homologacao?.statusPreliminar,
+    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas),
+  });
+
   return {
     id: inscricao.id,
     status: inscricao.status,
@@ -53,7 +80,7 @@ function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
       tipo: documento.tipo,
       nome: documento.nome,
       nomeArquivo: documento.nomeArquivo,
-      urlArquivo: documento.urlArquivo,
+      urlArquivo: normalizeDocumentoUrlArquivo(documento.urlArquivo),
       statusValidacao: documento.statusValidacao,
       observacaoValidacao: documento.observacaoValidacao,
       obrigatorio: documento.obrigatorio,
@@ -84,6 +111,12 @@ function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
           submissaoSnapshotFinal: inscricao.homologacao.submissaoSnapshotFinal,
         }
       : null,
+    edicaoHomologacao: {
+      podeEditarPreliminar: bloqueioPreliminar === null,
+      bloqueioPreliminar,
+      podeEditarFinal: bloqueioFinal === null,
+      bloqueioFinal,
+    },
   };
 }
 
@@ -109,6 +142,9 @@ export async function listInscricoesParaHomologacao(input: { editalId?: string; 
         linhaPesquisa: true,
         documentos: true,
         homologacao: true,
+        avaliacaoEtapa1: true,
+        avaliacaoEtapa2: true,
+        etapaPoliticasAfirmativas: true,
       },
       orderBy: {
         criadoEm: "desc",
@@ -135,6 +171,9 @@ export async function getInscricaoHomologacaoById(inscricaoId: string) {
       linhaPesquisa: true,
       documentos: true,
       homologacao: true,
+      avaliacaoEtapa1: true,
+      avaliacaoEtapa2: true,
+      etapaPoliticasAfirmativas: true,
     },
   });
 
@@ -170,6 +209,10 @@ export async function atualizarConfirmacaoReserva(
   } = {};
 
   if (input.confirmacaoAcoesAfirmativas !== undefined) {
+    if (inscricao.modalidadeConcorrencia === "ACOES_AFIRMATIVAS" && input.confirmacaoAcoesAfirmativas === StatusConfirmacaoReserva.NAO_SE_APLICA) {
+      return { error: "CONFIRMACAO_RESERVA_INVALIDA" as const };
+    }
+
     data.confirmacaoAcoesAfirmativas =
       inscricao.modalidadeConcorrencia === "ACOES_AFIRMATIVAS"
         ? input.confirmacaoAcoesAfirmativas
@@ -177,6 +220,10 @@ export async function atualizarConfirmacaoReserva(
   }
 
   if (input.confirmacaoPcd !== undefined) {
+    if (inscricao.modalidadeConcorrencia === "PCD" && input.confirmacaoPcd === StatusConfirmacaoReserva.NAO_SE_APLICA) {
+      return { error: "CONFIRMACAO_RESERVA_INVALIDA" as const };
+    }
+
     data.confirmacaoPcd =
       inscricao.modalidadeConcorrencia === "PCD"
         ? input.confirmacaoPcd
@@ -262,22 +309,90 @@ function isHomologavel(status: StatusInscricao) {
   return status === StatusInscricao.SUBMETIDA || status === StatusInscricao.EM_ANALISE_DOCUMENTAL;
 }
 
+function canEditPreliminaryHomologacao(status: StatusInscricao) {
+  return isHomologavel(status)
+    || status === StatusInscricao.HOMOLOGADA_PRELIMINAR
+    || status === StatusInscricao.NAO_HOMOLOGADA_PRELIMINAR;
+}
+
+function canEditFinalHomologacao(status: StatusInscricao) {
+  return status === StatusInscricao.HOMOLOGADA_PRELIMINAR
+    || status === StatusInscricao.NAO_HOMOLOGADA_PRELIMINAR
+    || status === StatusInscricao.APTA_ETAPA_1
+    || status === StatusInscricao.NAO_HOMOLOGADA_FINAL;
+}
+
+function getPreliminaryEditBlockReason(input: {
+  submetidaEm: Date | null;
+  status: StatusInscricao;
+  statusFinal: StatusInscricao | null | undefined;
+}) {
+  if (!input.submetidaEm) {
+    return "Inscricao ainda nao submetida.";
+  }
+
+  if (!canEditPreliminaryHomologacao(input.status)) {
+    return "A homologacao preliminar nao pode mais ser alterada neste status da inscricao.";
+  }
+
+  if (input.statusFinal) {
+    return "A homologacao preliminar fica bloqueada apos o registro da decisao final.";
+  }
+
+  return null;
+}
+
+function getFinalEditBlockReason(input: {
+  submetidaEm: Date | null;
+  status: StatusInscricao;
+  statusPreliminar: StatusInscricao | null | undefined;
+  hasEtapaPosterior: boolean;
+}) {
+  if (!input.submetidaEm) {
+    return "Inscricao ainda nao submetida.";
+  }
+
+  if (!input.statusPreliminar) {
+    return "Registre primeiro a homologacao preliminar.";
+  }
+
+  if (!canEditFinalHomologacao(input.status)) {
+    return "A homologacao final nao pode mais ser alterada neste status da inscricao.";
+  }
+
+  if (input.hasEtapaPosterior) {
+    return "A homologacao final esta bloqueada porque ja existem etapas posteriores registradas para esta inscricao.";
+  }
+
+  return null;
+}
+
 export async function registrarHomologacaoPreliminar(
   inscricaoId: string,
   homologada: boolean,
   parecer: string,
   motivos: HomologacaoMotivo[],
+  actorUserId?: string,
 ) {
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
+    include: {
+      homologacao: true,
+    },
   });
 
   if (!inscricao) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  if (!inscricao.submetidaEm || !isHomologavel(inscricao.status)) {
-    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  const bloqueioPreliminar = getPreliminaryEditBlockReason({
+    submetidaEm: inscricao.submetidaEm,
+    status: inscricao.status,
+    statusFinal: inscricao.homologacao?.statusFinal,
+  });
+
+  if (bloqueioPreliminar) {
+    return { error: inscricao.homologacao?.statusFinal ? "HOMOLOGACAO_FINAL_JA_REGISTRADA" as const : "INSCRICAO_NAO_SUBMETIDA" as const };
   }
 
   const decision = validateHomologacaoDecision({ homologada, motivos });
@@ -287,6 +402,9 @@ export async function registrarHomologacaoPreliminar(
   }
 
   const nextStatus = getPreliminaryHomologacaoStatus(homologada);
+  const statusPreliminarAnterior = inscricao.homologacao?.statusPreliminar ?? null;
+  const parecerPreliminarAnterior = inscricao.homologacao?.parecerPreliminar ?? null;
+  const motivosPreliminarAnteriores = parseHomologacaoMotivos(inscricao.homologacao?.motivosPreliminar);
 
   const homologacao = await prisma.$transaction(async (tx) => {
     const upserted = await tx.homologacaoInscricao.upsert({
@@ -318,6 +436,23 @@ export async function registrarHomologacaoPreliminar(
     return upserted;
   });
 
+  await recordAuditEvent({
+    entidade: "INSCRICAO",
+    entidadeId: inscricaoId,
+    acao: statusPreliminarAnterior ? "HOMOLOGACAO_PRELIMINAR_ATUALIZADA" : "HOMOLOGACAO_PRELIMINAR_REGISTRADA",
+    descricao: `Homologacao preliminar ${statusPreliminarAnterior ? "atualizada" : "registrada"} para ${nextStatus}.`,
+    payload: {
+      statusAnterior: statusPreliminarAnterior,
+      statusAtual: nextStatus,
+      parecerAnterior: parecerPreliminarAnterior,
+      parecerAtual: parecer,
+      motivosAnteriores: motivosPreliminarAnteriores,
+      motivosAtuais: decision.motivos,
+      versaoSubmissao: inscricao.versaoSubmissao,
+    },
+    criadoPorId: actorUserId,
+  });
+
   return { homologacao };
 }
 
@@ -326,11 +461,15 @@ export async function registrarHomologacaoFinal(
   homologada: boolean,
   parecer: string,
   motivos: HomologacaoMotivo[],
+  actorUserId?: string,
 ) {
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
     include: {
       homologacao: true,
+      avaliacaoEtapa1: true,
+      avaliacaoEtapa2: true,
+      etapaPoliticasAfirmativas: true,
     },
   });
 
@@ -338,12 +477,23 @@ export async function registrarHomologacaoFinal(
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  if (!inscricao.submetidaEm || !isHomologavel(inscricao.status) && inscricao.status !== StatusInscricao.HOMOLOGADA_PRELIMINAR && inscricao.status !== StatusInscricao.NAO_HOMOLOGADA_PRELIMINAR) {
-    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
-  }
+  const bloqueioFinal = getFinalEditBlockReason({
+    submetidaEm: inscricao.submetidaEm,
+    status: inscricao.status,
+    statusPreliminar: inscricao.homologacao?.statusPreliminar,
+    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas),
+  });
 
-  if (!inscricao.homologacao?.statusPreliminar) {
-    return { error: "HOMOLOGACAO_PRELIMINAR_OBRIGATORIA" as const };
+  if (bloqueioFinal) {
+    if (!inscricao.homologacao?.statusPreliminar) {
+      return { error: "HOMOLOGACAO_PRELIMINAR_OBRIGATORIA" as const };
+    }
+
+    if (inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas) {
+      return { error: "HOMOLOGACAO_FINAL_BLOQUEADA_POR_ETAPA_POSTERIOR" as const };
+    }
+
+    return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
   }
 
   const decision = validateHomologacaoDecision({ homologada, motivos });
@@ -354,6 +504,9 @@ export async function registrarHomologacaoFinal(
 
   const nextStatus = getFinalHomologacaoStatus(homologada);
   const nextInscricaoStatus = getInscricaoStatusAfterFinalHomologacao(nextStatus);
+  const statusFinalAnterior = inscricao.homologacao?.statusFinal ?? null;
+  const parecerFinalAnterior = inscricao.homologacao?.parecerFinal ?? null;
+  const motivosFinalAnteriores = parseHomologacaoMotivos(inscricao.homologacao?.motivosFinal);
 
   const homologacao = await prisma.$transaction(async (tx) => {
     const updated = await tx.homologacaoInscricao.update({
@@ -374,6 +527,23 @@ export async function registrarHomologacaoFinal(
     });
 
     return updated;
+  });
+
+  await recordAuditEvent({
+    entidade: "INSCRICAO",
+    entidadeId: inscricaoId,
+    acao: statusFinalAnterior ? "HOMOLOGACAO_FINAL_ATUALIZADA" : "HOMOLOGACAO_FINAL_REGISTRADA",
+    descricao: `Homologacao final ${statusFinalAnterior ? "atualizada" : "registrada"} para ${nextStatus}.`,
+    payload: {
+      statusAnterior: statusFinalAnterior,
+      statusAtual: nextStatus,
+      parecerAnterior: parecerFinalAnterior,
+      parecerAtual: parecer,
+      motivosAnteriores: motivosFinalAnteriores,
+      motivosAtuais: decision.motivos,
+      versaoSubmissao: inscricao.versaoSubmissao,
+    },
+    criadoPorId: actorUserId,
   });
 
   return { homologacao };

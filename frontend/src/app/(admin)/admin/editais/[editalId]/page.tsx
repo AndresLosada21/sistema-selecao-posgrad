@@ -9,19 +9,23 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { SectionCard } from "@/components/shared/section-card";
 import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
+import { isoToDatetimeLocalInput } from "@/lib/datetime-local";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { cursoNivelOptions, statusEditalOptions, tipoCronogramaEditalOptions, type CursoNivel, type StatusEdital, type TipoCronogramaEdital } from "@/lib/enums";
 import {
   createCronogramaAdmin,
   createLinhaPesquisaAdmin,
+  createTemaRedacaoAdmin,
   deleteCronogramaAdmin,
   deleteLinhaPesquisaAdmin,
   deleteAdminEdital,
+  deleteTemaRedacaoAdmin,
   getAdminEditalById,
   updateCronogramaAdmin,
   updateAdminEdital,
   updateLinhaPesquisaAdmin,
+  updateTemaRedacaoAdmin,
 } from "@/modules/admin-edital/api";
 import type { AdminEditalDetalhe } from "@/modules/admin-edital/types";
 
@@ -57,6 +61,8 @@ export default function AdminEditalDetailPage({ params }: Props) {
     inicioEm: string;
     fimEm: string;
   }>({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" });
+  const [editingTemaId, setEditingTemaId] = useState<string | null>(null);
+  const [temaForm, setTemaForm] = useState({ titulo: "", descricao: "", ordem: "0", ativo: true });
 
   useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setEditalId(resolved.editalId); }); return () => { cancelled = true; }; }, [params]);
 
@@ -72,7 +78,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       semestre: String(response.semestre ?? 1),
       cursoNivel: response.cursoNivel as CursoNivel,
       status: response.status as StatusEdital,
-      publicadoEm: response.publicadoEm ?? "",
+        publicadoEm: isoToDatetimeLocalInput(response.publicadoEm),
     });
   }, [editalId, token]);
 
@@ -103,7 +109,6 @@ export default function AdminEditalDetailPage({ params }: Props) {
         semestre: editalForm.semestre ? Number(editalForm.semestre) : undefined,
         cursoNivel: editalForm.cursoNivel,
         status: editalForm.status,
-        publicadoEm: editalForm.publicadoEm || undefined,
       }, token);
       await load();
       setMessage({ type: "success", text: "Edital atualizado." });
@@ -254,6 +259,63 @@ export default function AdminEditalDetailPage({ params }: Props) {
     finally { setBusy(false); }
   }
 
+  async function submitTema(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token || !editalId) return;
+    setBusy(true); setMessage(null);
+    try {
+      const payload = {
+        titulo: temaForm.titulo,
+        descricao: temaForm.descricao || undefined,
+        ordem: Number(temaForm.ordem || 0),
+        ativo: temaForm.ativo,
+      };
+
+      if (editingTemaId) {
+        await updateTemaRedacaoAdmin(editingTemaId, payload, token);
+      } else {
+        await createTemaRedacaoAdmin(editalId, payload, token);
+      }
+
+      setEditingTemaId(null);
+      setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true });
+      await load();
+      setMessage({ type: "success", text: editingTemaId ? "Tema de redacao atualizado." : "Tema de redacao criado." });
+    } catch (error) {
+      if (isUnauthorizedError(error)) { signOut(); return; }
+      setMessage({ type: "error", text: getErrorMessage(error) });
+    } finally { setBusy(false); }
+  }
+
+  function handleEditTema(id: string) {
+    const tema = data?.temasRedacao.find((item) => item.id === id);
+    if (!tema) return;
+
+    setEditingTemaId(id);
+    setTemaForm({
+      titulo: tema.titulo,
+      descricao: tema.descricao ?? "",
+      ordem: String(tema.ordem),
+      ativo: tema.ativo,
+    });
+  }
+
+  async function handleDeleteTema(id: string) {
+    if (!token) return;
+    setBusy(true); setMessage(null);
+    try {
+      await deleteTemaRedacaoAdmin(id, token);
+      if (editingTemaId === id) {
+        setEditingTemaId(null);
+        setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true });
+      }
+      await load();
+      setMessage({ type: "success", text: "Tema de redacao removido ou inativado." });
+    }
+    catch (error) { if (isUnauthorizedError(error)) { signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    finally { setBusy(false); }
+  }
+
   if (status === "loading") return <LoadingState title="Carregando edital admin" description="Consultando detalhe do edital para manutencao." />;
   if (status === "error") return <ErrorState title="Falha ao carregar edital" description={message?.text} />;
   if (!data) return <EmptyState title="Edital indisponivel" description="O edital nao esta mais disponivel para manutencao nesta rota." />;
@@ -270,7 +332,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
           <label className="field-block"><span>Semestre</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, semestre: e.target.value }))} value={editalForm.semestre}><option value="1">1</option><option value="2">2</option></select></label>
           <label className="field-block"><span>Curso</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))} value={editalForm.cursoNivel}>{cursoNivelOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
           <label className="field-block"><span>Status</span><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, status: e.target.value as StatusEdital }))} value={editalForm.status}>{statusEditalOptions.map((option) => <option key={option} value={option}>{getStatusLabel(option)}</option>)}</select></label>
-          <label className="field-block"><span>Publicado em (opcional)</span><input onChange={(e) => setEditalForm((c) => ({ ...c, publicadoEm: e.target.value }))} type="datetime-local" value={editalForm.publicadoEm} /></label>
+          <div className="field-block"><span>Publicado em</span><div className="eval-display">{editalForm.publicadoEm || "Definido automaticamente pelo sistema ao publicar"}</div></div>
           <ActionButton disabled={busy} loading={busy} type="submit">Salvar edital</ActionButton>
           <ActionButton disabled={busy} onClick={handleDeleteEdital} type="button" variant="ghost">Excluir edital</ActionButton>
         </form>
@@ -303,6 +365,20 @@ export default function AdminEditalDetailPage({ params }: Props) {
         </form>
         <div className="content-list">
           {data.cronogramas.map((cronograma) => <article className="content-item" key={cronograma.id}><strong>{cronograma.titulo}</strong><small>{cronograma.tipo}</small><small>{cronograma.inicioEm} {'->'} {cronograma.fimEm}</small><div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleEditCronograma(cronograma.id)} size="sm" type="button" variant="secondary">Editar</ActionButton><ActionButton disabled={busy} onClick={() => handleDeleteCronograma(cronograma.id)} size="sm" type="button" variant="ghost">Excluir</ActionButton></div></article>)}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Temas de redacao" description="Temas exibidos em dropdown para o candidato durante a inscricao.">
+        <form className="form-grid" onSubmit={submitTema}>
+          <label className="field-block"><span>Titulo do tema</span><input onChange={(e) => setTemaForm((c) => ({ ...c, titulo: e.target.value }))} required value={temaForm.titulo} /></label>
+          <label className="field-block"><span>Descricao</span><textarea className="text-area" onChange={(e) => setTemaForm((c) => ({ ...c, descricao: e.target.value }))} value={temaForm.descricao} /></label>
+          <label className="field-block"><span>Ordem</span><input min="0" onChange={(e) => setTemaForm((c) => ({ ...c, ordem: e.target.value }))} required type="number" value={temaForm.ordem} /></label>
+          <label className="field-block"><span>Ativo</span><select className="select-field" onChange={(e) => setTemaForm((c) => ({ ...c, ativo: e.target.value === "true" }))} value={String(temaForm.ativo)}><option value="true">Sim</option><option value="false">Nao</option></select></label>
+          <ActionButton disabled={busy} loading={busy} type="submit">{editingTemaId ? "Salvar tema" : "Adicionar tema"}</ActionButton>
+          {editingTemaId ? <ActionButton disabled={busy} onClick={() => { setEditingTemaId(null); setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true }); }} type="button" variant="ghost">Cancelar edicao</ActionButton> : null}
+        </form>
+        <div className="content-list">
+          {data.temasRedacao.map((tema) => <article className="content-item" key={tema.id}><strong>{tema.titulo}</strong><small>{tema.descricao ?? "Sem descricao adicional."}</small><small>Ordem: {tema.ordem} · {tema.ativo ? "Ativo" : "Inativo"}</small><div className="content-item-links"><ActionButton disabled={busy} onClick={() => handleEditTema(tema.id)} size="sm" type="button" variant="secondary">Editar</ActionButton><ActionButton disabled={busy} onClick={() => handleDeleteTema(tema.id)} size="sm" type="button" variant="ghost">Remover/Inativar</ActionButton></div></article>)}
         </div>
       </SectionCard>
     </div>

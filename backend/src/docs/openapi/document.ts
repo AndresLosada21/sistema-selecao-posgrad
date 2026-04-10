@@ -74,8 +74,11 @@ import {
   ResultadoEtapa1RequestSchema,
   ResultadoEtapa2RequestSchema,
   SaveDraftRequestSchema,
+  TemaRedacaoIdParamSchema,
+  TemaRedacaoResumoSchema,
   TooManyRequestsResponseSchema,
   UnauthorizedResponseSchema,
+  UpsertTemaRedacaoRequestSchema,
   ValidationErrorResponseSchema,
   DocumentoInscricaoModelSchema,
   AvaliacaoEtapa1ModelSchema,
@@ -234,6 +237,68 @@ registry.registerPath({
     200: { description: "Edital encontrado.", content: jsonContent(EditalDetalheSchema) },
     400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/temas-redacao",
+  tags: ["Editais"],
+  operationId: "createTemaRedacao",
+  summary: "Cria tema de redacao para edital",
+  description: withAuthDescription("Cria um tema de redacao para ser exibido como opcao de dropdown no fluxo de inscricao."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(UpsertTemaRedacaoRequestSchema) },
+  }),
+  responses: {
+    201: { description: "Tema criado.", content: jsonContent(TemaRedacaoResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Conflito ao criar tema.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/temas-redacao/{temaId}",
+  tags: ["Editais"],
+  operationId: "updateTemaRedacao",
+  summary: "Atualiza tema de redacao",
+  description: withAuthDescription("Atualiza tema de redacao cadastrado para um edital."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: TemaRedacaoIdParamSchema,
+    body: { required: true, content: jsonContent(UpsertTemaRedacaoRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Tema atualizado.", content: jsonContent(TemaRedacaoResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Tema nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Conflito ao atualizar tema.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/v1/admin/temas-redacao/{temaId}",
+  tags: ["Editais"],
+  operationId: "deleteTemaRedacao",
+  summary: "Remove ou inativa tema de redacao",
+  description: withAuthDescription("Remove o tema quando nao houver inscricoes vinculadas; caso contrario, inativa o tema para preservar historico."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: TemaRedacaoIdParamSchema }),
+  responses: {
+    204: { description: "Tema removido ou inativado." },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Tema nao encontrado.", content: jsonContent(MessageResponseSchema) },
   },
 });
 

@@ -75,6 +75,19 @@ async function createEditalWithWindows(input: {
           },
         ],
       },
+      temasRedacao: {
+        create: [
+          {
+            titulo: "Controle e automacao aplicada a sistemas energeticos",
+            descricao: "Tema tecnico padrao do fluxo E2E.",
+            ordem: 0,
+            ativo: true,
+          },
+        ],
+      },
+    },
+    include: {
+      temasRedacao: true,
     },
   });
 }
@@ -120,6 +133,8 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
 
     const edital = await createEditalWithWindows({ suffix, adminId: admin.id, inscricaoAberta: true, isencaoAberta: true });
     editalId = edital.id;
+    const temaId = edital.temasRedacao[0]?.id;
+    assert.ok(temaId);
 
     const linha = await prisma.linhaPesquisa.create({
       data: {
@@ -163,6 +178,7 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
       .send({
         linhaPesquisaId: linhaId,
         modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+        temaRedacaoEditalId: temaId,
         temaRedacao: "Controle e automacao aplicada a sistemas energeticos",
         resumoCurriculo: "Experiencia em pesquisa e desenvolvimento na area.",
         redacaoTexto: "A".repeat(600),
@@ -366,6 +382,8 @@ test("fluxos do candidato rejeitam duplicidade, janela fechada e submissao incom
 
     const openEdital = await createEditalWithWindows({ suffix: `open-${suffix}`, adminId: admin.id, inscricaoAberta: true, isencaoAberta: false });
     openEditalId = openEdital.id;
+    const openTemaId = openEdital.temasRedacao[0]?.id;
+    assert.ok(openTemaId);
 
     const openLinha = await prisma.linhaPesquisa.create({
       data: {
@@ -384,6 +402,7 @@ test("fluxos do candidato rejeitam duplicidade, janela fechada e submissao incom
       .send({
         linhaPesquisaId: openLinhaId,
         modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+        temaRedacaoEditalId: openTemaId,
       });
     assert.equal(incompleteDraft.status, 200);
 
