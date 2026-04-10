@@ -874,13 +874,30 @@ textarea {
 
 /* -- Inscription Wizard (Pencil DS) -- */
 
-/* Wizard needs to break out of candidate-main-inner max-width and candidate-main padding */
-.candidate-main-inner:has(.wiz-shell) { max-width: none; }
-.candidate-main:has(.wiz-shell) { padding: 0; overflow: hidden; }
+/* Wizard needs to break out of candidate-main-inner max-width and candidate-main padding.
+   A cadeia de altura deve ser DEFINIDA (não min-height) para que overflow-y: auto
+   funcione corretamente em wiz-body. */
+.candidate-main:has(.wiz-shell) {
+  padding: 0;
+  /* Converte de flex item sem altura definida para container com altura fixa */
+  height: calc(100vh - var(--topbar-height));
+  min-height: unset;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.candidate-main-inner:has(.wiz-shell) {
+  max-width: none;
+  flex: 1;
+  min-height: 0;   /* override min-height: auto do grid */
+  display: flex;
+  flex-direction: column;
+}
 
 .wiz-shell {
   display: flex; flex-direction: column;
-  height: calc(100vh - 64px);
+  flex: 1;
+  min-height: 0;   /* necessário para que flex: 1 resulte em altura definida */
   overflow: hidden;
 }
 
@@ -890,6 +907,9 @@ textarea {
   border-bottom: 1px solid #E2E8F0; flex-shrink: 0;
 }
 .wiz-step { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
+.wiz-step-button { background: transparent; border: none; padding: 0; }
+.wiz-step-button:disabled { cursor: default; opacity: 1; }
+.wiz-step-button--enabled { cursor: pointer; }
 .wiz-step-circle {
   width: 32px; height: 32px; border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
@@ -906,8 +926,24 @@ textarea {
 .wiz-step-connector--done { background: #10B981; }
 .wiz-step-connector--future { background: #E2E8F0; }
 
+.wiz-notice {
+  /* Fora do scroll: nao empurra o conteudo do body */
+  flex-shrink: 0;
+  padding: 12px 40px 0;
+  display: flex; justify-content: center;
+  background: #F8FAFC;
+  animation: wiz-notice-in 180ms ease;
+}
+.wiz-notice > * { width: 760px; max-width: 100%; }
+@keyframes wiz-notice-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .wiz-body {
-  flex: 1; background: #F8FAFC;
+  flex: 1;
+  min-height: 0;   /* FIX CRÍTICO: sem isso flex: 1 mantém min-height: auto e overflow-y: auto nunca aciona */
+  background: #F8FAFC;
   display: flex; flex-direction: column; align-items: center;
   padding: 32px 40px 96px; gap: 24px; overflow-y: auto;
 }
@@ -928,6 +964,8 @@ textarea {
   padding: 0 12px; font-size: 14px; color: #1E293B;
   background: #fff; outline: none; transition: border-color 0.15s;
 }
+.wiz-field-error { font-size: 12px; color: #B91C1C; }
+.wiz-field input[aria-invalid="true"], .wiz-field select[aria-invalid="true"], .wiz-field textarea[aria-invalid="true"] { border-color: #F87171; box-shadow: 0 0 0 3px rgba(248,113,113,0.12); }
 .wiz-field input:focus, .wiz-field select:focus, .wiz-field textarea:focus {
   border-color: #2563EB; border-width: 1.5px;
 }
@@ -1087,6 +1125,8 @@ textarea {
 .wiz-progress-label span { font-weight: 500; color: #64748B; }
 .wiz-progress-track { height: 6px; border-radius: 99px; background: #F1F5F9; overflow: hidden; }
 .wiz-progress-fill { height: 100%; border-radius: 99px; background: #2563EB; transition: width 0.3s; }
+.wiz-document-errors { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.wiz-document-error-item { font-size: 12px; color: #991B1B; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px; }
 
 /* -- Review step -- */
 .wiz-review-card {
@@ -1176,6 +1216,7 @@ textarea {
   .wiz-shell { height: auto; min-height: calc(100vh - 64px); }
   .wiz-card { width: 100%; padding: 24px; }
   .wiz-body { padding: 24px 16px 80px; }
+  .wiz-notice { padding: 8px 16px 0; }
   .wiz-footer { padding: 0 16px; }
   .wiz-field-row { flex-direction: column; }
   .wiz-review-grid { grid-template-columns: 1fr; }
