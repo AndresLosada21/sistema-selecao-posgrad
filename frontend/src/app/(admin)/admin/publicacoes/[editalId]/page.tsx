@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { StructuredPreview } from "@/components/shared/structured-preview";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
@@ -22,7 +21,8 @@ import type { PublicacoesResponse } from "@/modules/publicacao/types";
 type Props = { params: Promise<{ editalId: string }> };
 
 const PAGE_SIZE = 20;
-const genericPublicacaoOptions = tipoPublicacaoOficialOptions.filter((value) => ["EDITAL", "RETIFICACAO", "COMUNICADO"].includes(value));
+const SPECIALIZED_TYPES = new Set(["HOMOLOGACAO_PRELIMINAR", "HOMOLOGACAO_FINAL", "CLASSIFICACAO_PRELIMINAR", "CLASSIFICACAO_FINAL", "POLITICAS_AFIRMATIVAS_PRELIMINAR", "POLITICAS_AFIRMATIVAS_FINAL"]);
+const genericPublicacaoOptions = tipoPublicacaoOficialOptions.filter((value) => !SPECIALIZED_TYPES.has(value));
 
 type PubType = "homologacao" | "classificacao" | "politicas";
 
@@ -305,13 +305,86 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Preview area */}
+      {/* Preview area — renderizacao dedicada em vez de StructuredPreview generico */}
       {previewLabel && (
-        <div className="admin-form-card">
-          <h2 className="admin-form-card-title">{previewLabel}</h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Dados consolidados retornados pelo backend. Revise antes de publicar.</p>
-          {preview ? <StructuredPreview data={preview} /> : <EmptyState title="Preview vazio" description="O backend retornou um preview sem dados." />}
-          <button className="admin-pub-btn-preview" onClick={() => { setPreview(null); setPreviewLabel(null); }} type="button">Fechar preview</button>
+        <div className="admin-form-card" style={{ gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h2 className="admin-form-card-title" style={{ flex: 1 }}>{previewLabel}</h2>
+            <button className="admin-pub-btn-preview" onClick={() => { setPreview(null); setPreviewLabel(null); }} type="button">Fechar</button>
+          </div>
+
+          {preview ? (
+            <>
+              {/* Metadados do preview */}
+              {(preview.tituloSugerido ?? preview.tipo ?? preview.fase ?? preview.geradoEm) ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B" }}>
+                  {preview.tituloSugerido ? <span><strong>Titulo:</strong> {String(preview.tituloSugerido)}</span> : null}
+                  {preview.tipo ? <span><strong>Tipo:</strong> {getStatusLabel(String(preview.tipo))}</span> : null}
+                  {preview.fase ? <span><strong>Fase:</strong> {String(preview.fase)}</span> : null}
+                  {preview.geradoEm ? <span><strong>Gerado em:</strong> {formatIsoDate(String(preview.geradoEm))}</span> : null}
+                </div>
+              ) : null}
+
+              {/* Resumo */}
+              {preview.resumo && typeof preview.resumo === "object" && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, padding: "12px 16px", background: "#F8FAFC", borderRadius: 6, fontSize: 13, color: "#334155" }}>
+                  {Object.entries(preview.resumo as Record<string, unknown>).map(([k, v]) => (
+                    <span key={k}><strong>{getStatusLabel(k)}:</strong> {String(v ?? "—")}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Itens (tabela se presente) */}
+              {Array.isArray(preview.itens) && preview.itens.length > 0 ? (
+                <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 6 }}>
+                  <table className="admin-homologacao-table" style={{ minWidth: 600 }}>
+                    <thead>
+                      <tr>
+                        {Object.keys((preview.itens as Record<string, unknown>[])[0]).filter((k) => k !== "id" && k !== "inscricaoId" && k !== "editalId").slice(0, 8).map((col) => (
+                          <th key={col} style={{ fontSize: 11 }}>{getStatusLabel(col)}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(preview.itens as Record<string, unknown>[]).map((item, idx) => {
+                        const cols = Object.keys(item).filter((k) => k !== "id" && k !== "inscricaoId" && k !== "editalId").slice(0, 8);
+                        return (
+                          <tr key={typeof item.id === "string" ? item.id : idx}>
+                            {cols.map((col) => {
+                              const val = item[col];
+                              const display = val === null || val === undefined ? "—"
+                                : typeof val === "boolean" ? (val ? "Sim" : "Nao")
+                                : typeof val === "object" ? JSON.stringify(val)
+                                : String(val);
+                              return <td key={col} style={{ fontSize: 12, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{display}</td>;
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+
+              {/* Versionamento */}
+              {preview.versionamento && typeof preview.versionamento === "object" && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B" }}>
+                  {Object.entries(preview.versionamento as Record<string, unknown>).map(([k, v]) => (
+                    <span key={k}><strong>{getStatusLabel(k)}:</strong> {String(v ?? "—")}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Fallback: JSON scrollavel para dados nao estruturados */}
+              {!preview.itens && !preview.resumo && (
+                <pre style={{ maxHeight: 300, overflow: "auto", padding: 16, background: "#F8FAFC", borderRadius: 6, fontSize: 12, color: "#334155", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {JSON.stringify(preview, null, 2)}
+                </pre>
+              )}
+            </>
+          ) : (
+            <EmptyState title="Preview vazio" description="O backend retornou um preview sem dados." />
+          )}
         </div>
       )}
 
@@ -352,9 +425,13 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                     </td>
                     <td className="admin-homologacao-table-muted">{formatIsoDate(item.publicadoEm)}</td>
                     <td className="admin-homologacao-table-center">
-                      <Link className="admin-homologacao-table-link" href={resolveApiUrl(item.arquivoUrl)} rel="noreferrer" target="_blank">
-                        PDF
-                      </Link>
+                      {item.arquivoUrl ? (
+                        <Link className="admin-homologacao-table-link" href={resolveApiUrl(item.arquivoUrl)} rel="noreferrer" target="_blank">
+                          PDF
+                        </Link>
+                      ) : (
+                        <span style={{ color: "#94A3B8" }}>—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -369,7 +446,10 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <span>Mostrando {history?.total ? ((page - 1) * PAGE_SIZE) + 1 : 0}–{Math.min(page * PAGE_SIZE, history?.total ?? 0)} de {history?.total ?? 0} publicacoes</span>
           <div className="admin-pagination-controls">
             <button className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">&lsaquo;</button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+              return start + i;
+            }).filter((p) => p >= 1 && p <= totalPages).map((p) => (
               <button className={`admin-pagination-btn${p === page ? " admin-pagination-btn--active" : ""}`} key={p} onClick={() => setPage(p)} type="button">{p}</button>
             ))}
             <button className="admin-pagination-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} type="button">&rsaquo;</button>
