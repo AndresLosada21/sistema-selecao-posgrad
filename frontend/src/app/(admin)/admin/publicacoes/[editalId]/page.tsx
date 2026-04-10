@@ -24,6 +24,44 @@ const PAGE_SIZE = 20;
 const SPECIALIZED_TYPES = new Set(["HOMOLOGACAO_PRELIMINAR", "HOMOLOGACAO_FINAL", "CLASSIFICACAO_PRELIMINAR", "CLASSIFICACAO_FINAL", "POLITICAS_AFIRMATIVAS_PRELIMINAR", "POLITICAS_AFIRMATIVAS_FINAL"]);
 const genericPublicacaoOptions = tipoPublicacaoOficialOptions.filter((value) => !SPECIALIZED_TYPES.has(value));
 
+/** Transforma camelCase em label legivel: "linhaPesquisa" → "Linha pesquisa" */
+function camelToLabel(key: string): string {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
+}
+
+const HIDDEN_PREVIEW_COLS = new Set(["id", "inscricaoId", "editalId", "candidatoId", "linhaPesquisaId"]);
+
+/** Extrai valor legivel de um campo de preview. Objetos aninhados retornam o campo mais relevante. */
+function extractDisplayValue(val: unknown): string {
+  if (val === null || val === undefined) return "—";
+  if (typeof val === "boolean") return val ? "Sim" : "Nao";
+  if (typeof val === "number") return String(val);
+  if (typeof val === "string") {
+    // Se parece status/enum (SNAKE_CASE), tenta getStatusLabel
+    if (/^[A-Z][A-Z_0-9]+$/.test(val)) return getStatusLabel(val);
+    return val;
+  }
+  if (Array.isArray(val)) {
+    if (val.length === 0) return "—";
+    return val.map((item) => extractDisplayValue(item)).join(", ");
+  }
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    // Prioridade: campos de nome legivel
+    for (const k of ["nomeCompleto", "nome", "titulo", "label", "descricao", "numero"]) {
+      if (typeof obj[k] === "string") return obj[k] as string;
+    }
+    // Fallback: primeiro campo string
+    for (const v of Object.values(obj)) {
+      if (typeof v === "string" && v.length > 0 && v.length < 100) return v;
+    }
+    return JSON.stringify(val);
+  }
+  return String(val);
+}
+
+const HIDDEN_VERSION_KEYS = new Set(["republicacaoDeId"]);
+
 type PubType = "homologacao" | "classificacao" | "politicas";
 
 async function loadAllPublicacoesPages(editalId: string, token: string) {
@@ -335,43 +373,46 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
               )}
 
               {/* Itens (tabela se presente) */}
-              {Array.isArray(preview.itens) && preview.itens.length > 0 ? (
-                <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 6 }}>
-                  <table className="admin-homologacao-table" style={{ minWidth: 600 }}>
-                    <thead>
-                      <tr>
-                        {Object.keys((preview.itens as Record<string, unknown>[])[0]).filter((k) => k !== "id" && k !== "inscricaoId" && k !== "editalId").slice(0, 8).map((col) => (
-                          <th key={col} style={{ fontSize: 11 }}>{getStatusLabel(col)}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(preview.itens as Record<string, unknown>[]).map((item, idx) => {
-                        const cols = Object.keys(item).filter((k) => k !== "id" && k !== "inscricaoId" && k !== "editalId").slice(0, 8);
-                        return (
+              {Array.isArray(preview.itens) && preview.itens.length > 0 ? (() => {
+                const itens = preview.itens as Record<string, unknown>[];
+                const cols = Object.keys(itens[0]).filter((k) => !HIDDEN_PREVIEW_COLS.has(k)).slice(0, 10);
+                return (
+                  <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 6 }}>
+                    <table className="admin-homologacao-table" style={{ minWidth: 600 }}>
+                      <thead>
+                        <tr>
+                          {cols.map((col) => (
+                            <th key={col} style={{ fontSize: 11 }}>{camelToLabel(col)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itens.map((item, idx) => (
                           <tr key={typeof item.id === "string" ? item.id : idx}>
-                            {cols.map((col) => {
-                              const val = item[col];
-                              const display = val === null || val === undefined ? "—"
-                                : typeof val === "boolean" ? (val ? "Sim" : "Nao")
-                                : typeof val === "object" ? JSON.stringify(val)
-                                : String(val);
-                              return <td key={col} style={{ fontSize: 12, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{display}</td>;
-                            })}
+                            {cols.map((col) => (
+                              <td key={col} style={{ fontSize: 12, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={extractDisplayValue(item[col])}>
+                                {extractDisplayValue(item[col])}
+                              </td>
+                            ))}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ padding: "8px 16px", fontSize: 11, color: "#94A3B8", borderTop: "1px solid #F1F5F9" }}>
+                      {itens.length} {itens.length === 1 ? "item" : "itens"} no preview
+                    </div>
+                  </div>
+                );
+              })() : null}
 
               {/* Versionamento */}
               {preview.versionamento && typeof preview.versionamento === "object" && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B" }}>
-                  {Object.entries(preview.versionamento as Record<string, unknown>).map(([k, v]) => (
-                    <span key={k}><strong>{getStatusLabel(k)}:</strong> {String(v ?? "—")}</span>
-                  ))}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B", padding: "8px 0" }}>
+                  {Object.entries(preview.versionamento as Record<string, unknown>)
+                    .filter(([k]) => !HIDDEN_VERSION_KEYS.has(k))
+                    .map(([k, v]) => (
+                      <span key={k}><strong>{camelToLabel(k)}:</strong> {extractDisplayValue(v)}</span>
+                    ))}
                 </div>
               )}
 
