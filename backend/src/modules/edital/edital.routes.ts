@@ -71,7 +71,7 @@ editalRouter.get("/v1/editais/:editalId", async (request, response) => {
 
   const edital = await getEditalById(parsedParams.data.editalId);
 
-  if (!edital || !["PUBLICADO", "EM_ANDAMENTO"].includes(edital.status)) {
+  if (!edital || !publicEditalStatuses.includes(edital.status)) {
     return response.status(404).json(notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO"));
   }
 

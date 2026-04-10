@@ -1,4 +1,4 @@
-import { FaseRecurso, StatusClassificacaoFinal } from "@prisma/client";
+import { FaseRecurso, FaseHomologacaoRecurso, StatusClassificacaoFinal } from "@prisma/client";
 
 import { buildMemoriaCalculoEtapa2, calcularNotaNormalizadaEtapa2, type GlosaEtapa2 } from "../etapa2/etapa2.rules.js";
 
@@ -117,4 +117,50 @@ export function rebuildEtapa2AuditTrailAfterRecurso(input: {
     }),
     glosas,
   };
+}
+
+export function resolveFaseHomologacaoReferencia(input: {
+  statusPreliminar?: unknown;
+  statusFinal?: unknown;
+}) {
+  return input.statusFinal ? FaseHomologacaoRecurso.FINAL : FaseHomologacaoRecurso.PRELIMINAR;
+}
+
+export function resolveRecursoEfeitoPraticoResumo(input: {
+  fase: FaseRecurso;
+  status: string;
+  impactoResultado: boolean;
+  faseHomologacaoReferencia?: FaseHomologacaoRecurso | null;
+}) {
+  if (input.status !== "DEFERIDO") {
+    return input.status === "INDEFERIDO"
+      ? "Recurso indeferido sem alteracao do resultado vigente."
+      : "Recurso ainda sem decisao administrativa final.";
+  }
+
+  if (!input.impactoResultado) {
+    return "Recurso deferido sem alteracao do resultado derivado desta fase.";
+  }
+
+  if (input.fase === FaseRecurso.HOMOLOGACAO) {
+    return `Recurso deferido com impacto na homologacao ${input.faseHomologacaoReferencia === FaseHomologacaoRecurso.FINAL ? "final" : "preliminar"}.`;
+  }
+
+  if (input.fase === FaseRecurso.ETAPA_1) {
+    return "Recurso deferido com atualizacao do resultado da Etapa 1.";
+  }
+
+  if (input.fase === FaseRecurso.ETAPA_2) {
+    return "Recurso deferido com recalculo do resultado da Etapa 2 e da classificacao derivada.";
+  }
+
+  if (input.fase === FaseRecurso.POLITICAS_AFIRMATIVAS) {
+    return "Recurso deferido com atualizacao da etapa de politicas afirmativas e reprocessamento derivado.";
+  }
+
+  if (input.fase === FaseRecurso.CLASSIFICACAO) {
+    return "Recurso deferido com impacto na classificacao final publicada.";
+  }
+
+  return "Recurso deferido com atualizacao do resultado da fase afetada.";
 }

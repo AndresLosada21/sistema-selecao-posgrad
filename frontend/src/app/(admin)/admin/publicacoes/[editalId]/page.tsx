@@ -22,6 +22,7 @@ import type { PublicacoesResponse } from "@/modules/publicacao/types";
 type Props = { params: Promise<{ editalId: string }> };
 
 const PAGE_SIZE = 20;
+const genericPublicacaoOptions = tipoPublicacaoOficialOptions.filter((value) => ["EDITAL", "RETIFICACAO", "COMUNICADO"].includes(value));
 
 type PubType = "homologacao" | "classificacao" | "politicas";
 
@@ -186,9 +187,9 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
   const totalPages = history ? Math.max(1, Math.ceil(history.total / PAGE_SIZE)) : 1;
 
-  const latestHomPub = history?.items.find((i) => i.tipo.includes("HOMOLOGACAO"));
-  const latestClassPub = history?.items.find((i) => i.tipo.includes("CLASSIFICACAO"));
-  const latestPolPub = history?.items.find((i) => i.tipo.includes("POLITICAS"));
+  const latestHomPub = history?.items.find((i) => i.tipo.startsWith("HOMOLOGACAO") && i.isVersaoAtualDoTipo);
+  const latestClassPub = history?.items.find((i) => i.tipo.startsWith("CLASSIFICACAO") && i.isVersaoAtualDoTipo);
+  const latestPolPub = history?.items.find((i) => i.tipo.startsWith("POLITICAS_AFIRMATIVAS") && i.isVersaoAtualDoTipo);
 
   if (pageStatus === "loading") return <LoadingState title="Carregando publicacoes" description="Consultando o historico do edital." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar publicacoes" description={feedback?.text} />;
@@ -339,12 +340,15 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                     <td className="admin-homologacao-table-muted">{getStatusLabel(item.tipo)}</td>
                     <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>
                       {item.versao}
+                      {item.isVersaoAtualDoTipo && (
+                        <StatusBadge variant="info" shape="tag">Vigente</StatusBadge>
+                      )}
                       {item.versaoFinal && (
                         <StatusBadge variant="success" shape="tag">Final</StatusBadge>
                       )}
                     </td>
                     <td style={{ textAlign: "center", color: item.republicacaoDeId ? "#B45309" : "#94A3B8", fontWeight: item.republicacaoDeId ? 600 : 500 }}>
-                      {item.republicacaoDeId ? "Sim" : "Nao"}
+                      {item.republicacaoDaVersao ? `v${item.republicacaoDaVersao}` : "Nao"}
                     </td>
                     <td className="admin-homologacao-table-muted">{formatIsoDate(item.publicadoEm)}</td>
                     <td className="admin-homologacao-table-center">
@@ -382,7 +386,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <div className="admin-eval-field">
             <label>Tipo *</label>
             <select className="select-field" onChange={(e) => setTipoGenerico(e.target.value as TipoPublicacaoOficial)} value={tipoGenerico}>
-              {tipoPublicacaoOficialOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+              {genericPublicacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
             </select>
           </div>
           <div className="admin-eval-field">

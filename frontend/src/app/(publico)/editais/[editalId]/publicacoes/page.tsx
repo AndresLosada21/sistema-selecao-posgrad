@@ -56,6 +56,9 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
                   <div className="pub-item-title-row">
                     <span className="pub-item-title">{publicacao.titulo}</span>
                     <StatusBadge variant={getStatusVariant(publicacao.tipo)}>{getStatusLabel(publicacao.tipo)}</StatusBadge>
+                    {publicacao.isVersaoAtualDoTipo ? (
+                      <StatusBadge variant="info">Vigente</StatusBadge>
+                    ) : null}
                     {publicacao.versaoFinal ? (
                       <StatusBadge variant="success">Versao final</StatusBadge>
                     ) : null}
@@ -64,7 +67,7 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
                   <div className="pub-item-meta">
                     <span>Versao: {publicacao.versao}</span>
                     <span>Publicado em: {formatIsoDate(publicacao.publicadoEm)}</span>
-                    {publicacao.versao > 1 ? <em>Republicacao</em> : null}
+                    {publicacao.republicacaoDaVersao ? <em>Republicacao da v{publicacao.republicacaoDaVersao}</em> : null}
                   </div>
                 </div>
                 <Link className="pub-pdf-btn" href={resolveApiUrl(publicacao.arquivoUrl)} rel="noreferrer" target="_blank">

@@ -1,5 +1,6 @@
 import {
   FaseRecurso,
+  FaseHomologacaoRecurso,
   Prisma,
   ResultadoPoliticasAfirmativas,
   TipoPublicacaoOficial,
@@ -11,17 +12,30 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
-import { recalcularClassificacao } from "../classificacao/classificacao.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
-import { getInscricaoStatusAfterFinalHomologacao, normalizeFinalHomologacaoStatus } from "../homologacao/homologacao.rules.js";
+import { buildHomologacaoResumoVigente, getFinalHomologacaoStatus, getInscricaoStatusAfterFinalHomologacao, getPreliminaryHomologacaoStatus } from "../homologacao/homologacao.rules.js";
+import { recalcularNotasEtapa2PorEdital } from "../etapa2/etapa2.service.js";
 import { registrarResultadoFinalPoliticasAfirmativas } from "../politicas-afirmativas/politicas-afirmativas.service.js";
-import { createClassificacaoPublicacao, createHomologacaoPublicacao, createPoliticasAfirmativasPublicacao } from "../publicacao/publicacao.service.js";
+import { createHomologacaoPublicacao } from "../publicacao/publicacao.service.js";
+import { reprocessarClassificacaoEPublicacoesDerivadas } from "../publicacao/publicacao-derived-effects.service.js";
 import {
   rebuildEtapa1AuditSnapshotAfterRecurso,
-  rebuildEtapa2AuditTrailAfterRecurso,
-  resolveClassificacaoPublicacaoAtual,
+  resolveFaseHomologacaoReferencia,
+  resolveRecursoEfeitoPraticoResumo,
   shouldReprocessClassificacaoAfterRecurso,
 } from "./recurso.rules.js";
+
+function buildMotivosRecursoHomologacao(decisao: string, homologada: boolean) {
+  return homologada
+    ? []
+    : [{
+        codigo: "DECISAO_RECURSAL",
+        itemEdital: "RECURSO_ADMINISTRATIVO",
+        titulo: "Indeferimento mantido apos recurso administrativo",
+        descricao: decisao,
+        sanavel: false,
+      }];
+}
 
 function getRecursoWindowType(fase: FaseRecurso) {
   switch (fase) {
@@ -72,7 +86,7 @@ function hasPreliminaryResult(participacao: NonNullable<Awaited<ReturnType<typeo
         participacao.pedidoIsencao?.status === StatusIsencao.INDEFERIDA_PRELIMINAR
       );
     case FaseRecurso.HOMOLOGACAO:
-      return participacao.inscricao?.homologacao?.statusPreliminar !== null && participacao.inscricao?.homologacao?.statusPreliminar !== undefined;
+      return Boolean(participacao.inscricao?.homologacao?.statusPreliminar) && !participacao.inscricao?.homologacao?.statusFinal;
     case FaseRecurso.ETAPA_1:
       return participacao.inscricao?.avaliacaoEtapa1?.status === StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA;
     case FaseRecurso.ETAPA_2:
@@ -110,11 +124,7 @@ export async function createRecurso(input: {
   if (input.fase === FaseRecurso.ETAPA_1) {
     const avaliacaoEtapa1 = participacao.inscricao?.avaliacaoEtapa1;
 
-    if (!avaliacaoEtapa1?.espelhoSolicitadoEm) {
-      return { error: "ESPELHO_ETAPA_1_NAO_SOLICITADO" as const };
-    }
-
-    if (!avaliacaoEtapa1.espelhoLiberadoEm) {
+    if (!avaliacaoEtapa1?.espelhoLiberadoEm) {
       return { error: "ESPELHO_ETAPA_1_NAO_LIBERADO" as const };
     }
   }
@@ -122,11 +132,7 @@ export async function createRecurso(input: {
   if (input.fase === FaseRecurso.ETAPA_2) {
     const avaliacaoEtapa2 = participacao.inscricao?.avaliacaoEtapa2;
 
-    if (!avaliacaoEtapa2?.espelhoSolicitadoEm) {
-      return { error: "ESPELHO_ETAPA_2_NAO_SOLICITADO" as const };
-    }
-
-    if (!avaliacaoEtapa2.espelhoLiberadoEm) {
+    if (!avaliacaoEtapa2?.espelhoLiberadoEm) {
       return { error: "ESPELHO_ETAPA_2_NAO_LIBERADO" as const };
     }
   }
@@ -150,6 +156,9 @@ export async function createRecurso(input: {
       participacaoEditalId: participacao.id,
       criadoPorId: input.usuarioId,
       fase: input.fase,
+      faseHomologacaoReferencia: input.fase === FaseRecurso.HOMOLOGACAO
+        ? FaseHomologacaoRecurso.PRELIMINAR
+        : undefined,
       fundamentacao: input.fundamentacao,
       anexoUrl: input.anexoUrl,
       status: StatusRecurso.ABERTO,
@@ -179,11 +188,18 @@ export async function listRecursosDoUsuario(usuarioId: string) {
   return recursos.map((recurso) => ({
     id: recurso.id,
     fase: recurso.fase,
+    faseHomologacaoReferencia: recurso.faseHomologacaoReferencia,
     status: recurso.status,
     fundamentacao: recurso.fundamentacao,
     anexoUrl: recurso.anexoUrl,
     decisao: recurso.decisao,
     impactoResultado: recurso.impactoResultado,
+    efeitoPraticoResumo: resolveRecursoEfeitoPraticoResumo({
+      fase: recurso.fase,
+      status: recurso.status,
+      impactoResultado: recurso.impactoResultado,
+      faseHomologacaoReferencia: recurso.faseHomologacaoReferencia,
+    }),
     respondidoEm: recurso.respondidoEm?.toISOString() ?? null,
     edital: {
       id: recurso.participacaoEdital.edital.id,
@@ -197,11 +213,16 @@ export async function listRecursosDoUsuario(usuarioId: string) {
 type RecursoAdminWithRelations = Prisma.RecursoGetPayload<{
   include: {
     criadoPor: true;
-    participacaoEdital: {
-      include: {
-        edital: true;
+      participacaoEdital: {
+        include: {
+          edital: true;
+          inscricao: {
+            include: {
+              homologacao: true;
+            };
+          };
+        };
       };
-    };
   };
 }>;
 
@@ -214,6 +235,25 @@ function mapAdminRecurso(recurso: RecursoAdminWithRelations) {
     anexoUrl: recurso.anexoUrl,
     decisao: recurso.decisao,
     impactoResultado: recurso.impactoResultado,
+    faseHomologacaoReferencia: recurso.faseHomologacaoReferencia,
+    efeitoPraticoResumo: resolveRecursoEfeitoPraticoResumo({
+      fase: recurso.fase,
+      status: recurso.status,
+      impactoResultado: recurso.impactoResultado,
+      faseHomologacaoReferencia: recurso.faseHomologacaoReferencia,
+    }),
+    contextoHomologacao: recurso.participacaoEdital.inscricao?.homologacao
+      ? buildHomologacaoResumoVigente({
+          statusPreliminar: recurso.participacaoEdital.inscricao.homologacao.statusPreliminar,
+          motivosPreliminar: recurso.participacaoEdital.inscricao.homologacao.motivosPreliminar,
+          parecerPreliminar: recurso.participacaoEdital.inscricao.homologacao.parecerPreliminar,
+          publicadoPreliminarEm: recurso.participacaoEdital.inscricao.homologacao.publicadoPreliminarEm,
+          statusFinal: recurso.participacaoEdital.inscricao.homologacao.statusFinal,
+          motivosFinal: recurso.participacaoEdital.inscricao.homologacao.motivosFinal,
+          parecerFinal: recurso.participacaoEdital.inscricao.homologacao.parecerFinal,
+          publicadoFinalEm: recurso.participacaoEdital.inscricao.homologacao.publicadoFinalEm,
+        })
+      : null,
     candidato: {
       id: recurso.criadoPor.id,
       nomeCompleto: recurso.criadoPor.nomeCompleto,
@@ -249,6 +289,11 @@ export async function listRecursosAdmin(filters: { editalId?: string; fase?: Fas
         participacaoEdital: {
           include: {
             edital: true,
+            inscricao: {
+              include: {
+                homologacao: true,
+              },
+            },
           },
         },
       },
@@ -270,6 +315,11 @@ export async function getRecursoAdminById(recursoId: string) {
       participacaoEdital: {
         include: {
           edital: true,
+          inscricao: {
+            include: {
+              homologacao: true,
+            },
+          },
         },
       },
     },
@@ -288,6 +338,7 @@ export async function decidirRecurso(
     impactoResultado: boolean;
     novoStatusIsencao?: StatusIsencao;
     novoStatusInscricao?: StatusInscricao;
+    novoResultadoHomologacao?: "HOMOLOGADA" | "NAO_HOMOLOGADA";
     novaNotaEtapa1?: number;
     novoEspelhoEtapa1?: string;
     novaPontuacaoBrutaEtapa2?: number;
@@ -323,113 +374,36 @@ export async function decidirRecurso(
 
   const editalId = recursoAtual.participacaoEdital.editalId;
 
-  async function reprocessClassificacaoDerivada() {
-    if (!shouldReprocessClassificacaoAfterRecurso(recursoAtual.fase)) {
-      return;
+  if (input.deferido && input.impactoResultado) {
+    if (recursoAtual.fase === FaseRecurso.ISENCAO && !input.novoStatusIsencao) {
+      return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
     }
 
-    const classificacoesAtuais = await prisma.classificacaoFinal.findMany({
-      where: {
-        participacaoEdital: {
-          editalId,
-        },
-      },
-      select: {
-        status: true,
-      },
-    });
-
-    const faseAtualClassificacao = resolveClassificacaoPublicacaoAtual(
-      classificacoesAtuais.map((classificacao) => classificacao.status),
-    );
-
-    if (!faseAtualClassificacao) {
-      return;
+    if (recursoAtual.fase === FaseRecurso.HOMOLOGACAO && !input.novoResultadoHomologacao) {
+      return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
     }
 
-    await recalcularClassificacao(editalId, faseAtualClassificacao);
+    if (recursoAtual.fase === FaseRecurso.ETAPA_1 && input.novaNotaEtapa1 === undefined) {
+      return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
+    }
 
-    const publicacaoClassificacaoExistente = await prisma.publicacaoOficial.findFirst({
-      where: {
-        editalId,
-        tipo:
-          faseAtualClassificacao === "PRELIMINAR"
-            ? TipoPublicacaoOficial.CLASSIFICACAO_PRELIMINAR
-            : TipoPublicacaoOficial.CLASSIFICACAO_FINAL,
-      },
-      orderBy: {
-        publicadoEm: "desc",
-      },
-      select: {
-        id: true,
-      },
-    });
+    if (recursoAtual.fase === FaseRecurso.ETAPA_2 && input.novaPontuacaoBrutaEtapa2 === undefined) {
+      return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
+    }
 
-    if (publicacaoClassificacaoExistente) {
-      await createClassificacaoPublicacao({
-        editalId,
-        criadoPorId: input.decididoPorId,
-        fase: faseAtualClassificacao,
-        descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
-      });
+    if (recursoAtual.fase === FaseRecurso.POLITICAS_AFIRMATIVAS && (!input.novoResultadoFinalPoliticasAfirmativas || !input.novoParecerFinalPoliticasAfirmativas)) {
+      return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
+    }
+
+    if (recursoAtual.fase === FaseRecurso.CLASSIFICACAO) {
+      return { error: "DECISAO_RECURSAL_CLASSIFICACAO_NAO_SUPORTADA" as const };
     }
   }
 
-  async function republicarHomologacaoFinalSeNecessario() {
-    if (recursoAtual.fase !== FaseRecurso.HOMOLOGACAO) {
-      return;
-    }
-
-    const publicacaoHomologacaoFinalExistente = await prisma.publicacaoOficial.findFirst({
-      where: {
-        editalId,
-        tipo: TipoPublicacaoOficial.HOMOLOGACAO_FINAL,
-      },
-      orderBy: {
-        publicadoEm: "desc",
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (publicacaoHomologacaoFinalExistente) {
-      await createHomologacaoPublicacao({
-        editalId,
-        criadoPorId: input.decididoPorId,
-        fase: "FINAL",
-        descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
-      });
-    }
-  }
-
-  async function republicarPoliticasAfirmativasFinalSeNecessario() {
-    if (recursoAtual.fase !== FaseRecurso.POLITICAS_AFIRMATIVAS) {
-      return;
-    }
-
-    const publicacaoExistente = await prisma.publicacaoOficial.findFirst({
-      where: {
-        editalId,
-        tipo: TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_FINAL,
-      },
-      orderBy: {
-        publicadoEm: "desc",
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (publicacaoExistente) {
-      await createPoliticasAfirmativasPublicacao({
-        editalId,
-        criadoPorId: input.decididoPorId,
-        fase: "FINAL",
-        descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
-      });
-    }
-  }
+  let republicarHomologacaoFase: "PRELIMINAR" | "FINAL" | null = null;
+  let reprocessarClassificacaoDerivada = false;
+  let recalcularEtapa2DoEdital = false;
+  let aplicarResultadoFinalPoliticas = false;
 
   const updated = await prisma.$transaction(async (tx) => {
     if (input.deferido && input.impactoResultado) {
@@ -447,22 +421,51 @@ export async function decidirRecurso(
           }
           break;
         case FaseRecurso.HOMOLOGACAO:
-          if (recurso.participacaoEdital.inscricao && recurso.participacaoEdital.inscricao.homologacao && input.novoStatusInscricao) {
-            const nextHomologacaoStatus = normalizeFinalHomologacaoStatus(input.novoStatusInscricao);
-            const nextInscricaoStatus = getInscricaoStatusAfterFinalHomologacao(nextHomologacaoStatus);
+          if (recurso.participacaoEdital.inscricao && recurso.participacaoEdital.inscricao.homologacao && input.novoResultadoHomologacao) {
+            const homologada = input.novoResultadoHomologacao === "HOMOLOGADA";
+            const faseHomologacaoReferencia = recursoAtual.faseHomologacaoReferencia ?? FaseHomologacaoRecurso.PRELIMINAR;
+            republicarHomologacaoFase = faseHomologacaoReferencia === FaseHomologacaoRecurso.FINAL ? "FINAL" : "PRELIMINAR";
+            const motivos = buildMotivosRecursoHomologacao(input.decisao, homologada);
 
-            await tx.homologacaoInscricao.update({
-              where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
-              data: {
-                statusFinal: nextHomologacaoStatus,
-                parecerFinal: input.decisao,
-                publicadoFinalEm: new Date(),
-              },
-            });
-            await tx.inscricao.update({
-              where: { id: recurso.participacaoEdital.inscricao.id },
-              data: { status: nextInscricaoStatus },
-            });
+            if (faseHomologacaoReferencia === FaseHomologacaoRecurso.FINAL) {
+              const nextHomologacaoStatus = getFinalHomologacaoStatus(homologada);
+              const nextInscricaoStatus = getInscricaoStatusAfterFinalHomologacao(nextHomologacaoStatus);
+
+              await tx.homologacaoInscricao.update({
+                where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
+                data: {
+                  statusFinal: nextHomologacaoStatus,
+                  motivosFinal: motivos as Prisma.InputJsonValue,
+                  parecerFinal: input.decisao,
+                  submissaoSnapshotFinal: recurso.participacaoEdital.inscricao.submissaoSnapshot as Prisma.InputJsonValue,
+                  versaoSubmissaoFinal: recurso.participacaoEdital.inscricao.versaoSubmissao,
+                  publicadoFinalEm: new Date(),
+                },
+              });
+              await tx.inscricao.update({
+                where: { id: recurso.participacaoEdital.inscricao.id },
+                data: { status: nextInscricaoStatus },
+              });
+            } else {
+              const nextHomologacaoStatus = getPreliminaryHomologacaoStatus(homologada);
+
+              await tx.homologacaoInscricao.update({
+                where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
+                data: {
+                  statusPreliminar: nextHomologacaoStatus,
+                  motivosPreliminar: motivos as Prisma.InputJsonValue,
+                  parecerPreliminar: input.decisao,
+                  submissaoSnapshotPreliminar: recurso.participacaoEdital.inscricao.submissaoSnapshot as Prisma.InputJsonValue,
+                  versaoSubmissaoPreliminar: recurso.participacaoEdital.inscricao.versaoSubmissao,
+                  publicadoPreliminarEm: new Date(),
+                },
+              });
+              await tx.inscricao.update({
+                where: { id: recurso.participacaoEdital.inscricao.id },
+                data: { status: nextHomologacaoStatus },
+              });
+            }
+            reprocessarClassificacaoDerivada = shouldReprocessClassificacaoAfterRecurso(recursoAtual.fase);
           }
           break;
         case FaseRecurso.ETAPA_1:
@@ -491,6 +494,7 @@ export async function decidirRecurso(
                 status: input.novaNotaEtapa1 >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1,
               },
             });
+            reprocessarClassificacaoDerivada = true;
           }
           break;
         case FaseRecurso.ETAPA_2:
@@ -498,22 +502,10 @@ export async function decidirRecurso(
             recurso.participacaoEdital.inscricao?.avaliacaoEtapa2 &&
             input.novaPontuacaoBrutaEtapa2 !== undefined
           ) {
-            const avaliacaoAtual = recurso.participacaoEdital.inscricao.avaliacaoEtapa2;
-            const etapa2AuditTrail = rebuildEtapa2AuditTrailAfterRecurso({
-              pontuacaoItensAtual: avaliacaoAtual.pontuacaoItens,
-              pontuacaoBrutaAtual: Number(avaliacaoAtual.pontuacaoBruta ?? 0),
-              novaPontuacaoBruta: input.novaPontuacaoBrutaEtapa2,
-              memoriaCalculoAtual: avaliacaoAtual.memoriaCalculo,
-              glosasAtuais: avaliacaoAtual.glosas,
-            });
-
             await tx.avaliacaoEtapa2.update({
               where: { inscricaoId: recurso.participacaoEdital.inscricao.id },
               data: {
-                pontuacaoBruta: etapa2AuditTrail.pontuacaoBruta,
-                notaNormalizada: etapa2AuditTrail.notaNormalizada,
-                memoriaCalculo: etapa2AuditTrail.memoriaCalculo as Prisma.InputJsonValue,
-                glosas: etapa2AuditTrail.glosas as unknown as Prisma.InputJsonValue,
+                pontuacaoBruta: Math.max(0, input.novaPontuacaoBrutaEtapa2),
                 espelhoCorrecao: input.novoEspelhoEtapa2 ?? input.decisao,
                 status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
                 resultadoFinalEm: new Date(),
@@ -523,22 +515,15 @@ export async function decidirRecurso(
               where: { id: recurso.participacaoEdital.inscricao.id },
               data: { status: StatusInscricao.CLASSIFICACAO_PRELIMINAR },
             });
+            recalcularEtapa2DoEdital = true;
+            reprocessarClassificacaoDerivada = true;
           }
           break;
         case FaseRecurso.CLASSIFICACAO:
           break;
         case FaseRecurso.POLITICAS_AFIRMATIVAS:
-          if (
-            recurso.participacaoEdital.inscricao?.etapaPoliticasAfirmativas &&
-            input.novoResultadoFinalPoliticasAfirmativas &&
-            input.novoParecerFinalPoliticasAfirmativas
-          ) {
-            await registrarResultadoFinalPoliticasAfirmativas({
-              inscricaoId: recurso.participacaoEdital.inscricao.id,
-              registradoPorId: input.decididoPorId,
-              resultado: input.novoResultadoFinalPoliticasAfirmativas,
-              parecer: input.novoParecerFinalPoliticasAfirmativas,
-            });
+          if (recurso.participacaoEdital.inscricao?.etapaPoliticasAfirmativas) {
+            aplicarResultadoFinalPoliticas = true;
           }
           break;
       }
@@ -558,9 +543,46 @@ export async function decidirRecurso(
   // Republicacoes e reprocessamento de classificacao rodam fora da transacao
   // porque envolvem geracao de PDFs e snapshots que nao devem bloquear o commit principal.
   if (input.deferido && input.impactoResultado) {
-    await republicarHomologacaoFinalSeNecessario();
-    await republicarPoliticasAfirmativasFinalSeNecessario();
-    await reprocessClassificacaoDerivada();
+    if (aplicarResultadoFinalPoliticas && recursoAtual.participacaoEdital.inscricao && input.novoResultadoFinalPoliticasAfirmativas && input.novoParecerFinalPoliticasAfirmativas) {
+      await registrarResultadoFinalPoliticasAfirmativas({
+        inscricaoId: recursoAtual.participacaoEdital.inscricao.id,
+        registradoPorId: input.decididoPorId,
+        resultado: input.novoResultadoFinalPoliticasAfirmativas,
+        parecer: input.novoParecerFinalPoliticasAfirmativas,
+      });
+    }
+
+    if (republicarHomologacaoFase) {
+      const tipoPublicacao = republicarHomologacaoFase === "FINAL" ? TipoPublicacaoOficial.HOMOLOGACAO_FINAL : TipoPublicacaoOficial.HOMOLOGACAO_PRELIMINAR;
+      const publicacaoHomologacaoExistente = await prisma.publicacaoOficial.findFirst({
+        where: {
+          editalId,
+          tipo: tipoPublicacao,
+        },
+        select: { id: true },
+      });
+
+      if (publicacaoHomologacaoExistente) {
+        await createHomologacaoPublicacao({
+          editalId,
+          criadoPorId: input.decididoPorId,
+          fase: republicarHomologacaoFase,
+          descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
+        });
+      }
+    }
+
+    if (recalcularEtapa2DoEdital) {
+      await recalcularNotasEtapa2PorEdital(editalId, StatusAvaliacaoEtapa.FINAL_PUBLICADA);
+    }
+
+    if (reprocessarClassificacaoDerivada) {
+      await reprocessarClassificacaoEPublicacoesDerivadas({
+        editalId,
+        criadoPorId: input.decididoPorId,
+        descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
+      });
+    }
   }
 
   return { recurso: updated };

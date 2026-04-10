@@ -3,6 +3,20 @@ export type CandidateDashboardResponse = {
   items: Array<{
     id: string;
     statusParticipacao: string;
+    acompanhamento?: {
+      faseAtual: string;
+      situacaoAtual: string;
+      etapaBloqueio: string | null;
+      motivoResumo: string | null;
+      proximoPasso: string | null;
+    };
+    elegibilidade?: {
+      podeEditarInscricao: boolean;
+      podeVerEspelhoEtapa1: boolean;
+      podeVerEspelhoEtapa2: boolean;
+      fasesRecursoElegiveis: string[];
+      podeVerPublicacoes: boolean;
+    };
     edital: {
       id: string;
       numero: string;
@@ -76,6 +90,15 @@ export type CandidateDashboardResponse = {
         motivosFinal?: Array<Record<string, unknown>>;
         parecerFinal: string | null;
         publicadoFinalEm?: string | null;
+        vigente?: {
+          faseVigente: "PRELIMINAR" | "FINAL" | null;
+          statusVigente: string | null;
+          situacaoVigente: string | null;
+          motivosVigentes: Array<Record<string, unknown>>;
+          motivoResumoVigente: string | null;
+          parecerVigente: string | null;
+          publicadoEmVigente: string | null;
+        };
       } | null;
       etapa1: {
         nota: number | null;
@@ -137,32 +160,42 @@ export type CandidateDashboardResponse = {
     } | null;
     publicacoesDestaque: Array<{
       id: string;
+      editalId?: string;
+      republicacaoDeId?: string | null;
+      republicacaoDaVersao?: number | null;
+      isVersaoAtualDoTipo?: boolean;
       tipo: string;
       titulo: string;
       descricao: string | null;
       arquivoUrl: string;
       versao: number;
+      versaoFinal?: boolean;
       publicadoEm: string | null;
     }>;
     publicacoes: Array<{
       id: string;
       editalId?: string;
       republicacaoDeId?: string | null;
+      republicacaoDaVersao?: number | null;
+      isVersaoAtualDoTipo?: boolean;
       tipo: string;
       titulo: string;
       descricao: string | null;
       arquivoUrl: string;
       versao: number;
+      versaoFinal?: boolean;
       publicadoEm: string | null;
     }>;
     recursos: Array<{
       id: string;
       fase: string;
+      faseHomologacaoReferencia?: "PRELIMINAR" | "FINAL" | null;
       status: string;
       fundamentacao?: string;
       anexoUrl?: string | null;
       decisao?: string | null;
       impactoResultado?: boolean;
+      efeitoPraticoResumo?: string;
       criadoEm?: string;
       respondidoEm?: string | null;
     }>;

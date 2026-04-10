@@ -15,7 +15,7 @@ export function calcularNotaNormalizadaEtapa2(input: { pontuacaoBruta: number; m
     return 0;
   }
 
-  return roundTo2((pontuacaoBruta / input.maiorPontuacaoBruta) * 10);
+  return Math.min(10, roundTo2((pontuacaoBruta / input.maiorPontuacaoBruta) * 10));
 }
 
 export function buildMemoriaCalculoEtapa2(input: {

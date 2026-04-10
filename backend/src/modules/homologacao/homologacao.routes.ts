@@ -116,7 +116,7 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/confirmacao-reserva", r
   const result = await atualizarConfirmacaoReserva(parsedParams.data.inscricaoId, {
     confirmacaoAcoesAfirmativas: parsedBody.data.confirmacaoAcoesAfirmativas,
     confirmacaoPcd: parsedBody.data.confirmacaoPcd,
-  });
+  }, request.auth!.userId);
 
   if ("error" in result) {
     const errorCode = result.error as string;

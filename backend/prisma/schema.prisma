@@ -151,6 +151,11 @@ enum FaseRecurso {
   POLITICAS_AFIRMATIVAS
 }
 
+enum FaseHomologacaoRecurso {
+  PRELIMINAR
+  FINAL
+}
+
 enum StatusAvaliacaoEtapa {
   PENDENTE
   EM_AVALIACAO
@@ -495,6 +500,7 @@ model Recurso {
   participacaoEditalId   String
   criadoPorId            String
   fase                   FaseRecurso
+  faseHomologacaoReferencia FaseHomologacaoRecurso?
   status                 StatusRecurso  @default(ABERTO)
   fundamentacao          String
   anexoUrl               String?

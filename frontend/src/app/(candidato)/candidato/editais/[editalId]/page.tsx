@@ -138,13 +138,14 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
   }
 
   const cursoLabel = item.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado";
+  const homologacaoVigente = inscricao?.homologacao?.vigente ?? null;
 
   /* Status cards data */
   const inscricaoHub = inscricao ? resolveHubValue(inscricao.status) : { text: "Sem inscricao", color: "neutral" as HubColor };
   const cards: Array<{ label: string; text: string; color: HubColor; badge?: { text: string } | null }> = [
     { label: "Isencao", ...resolveHubValue(item.isencao?.status ?? "NAO_SOLICITADA") },
     { label: "Inscricao", ...inscricaoHub, badge: inscricao?.status === "RASCUNHO" ? { text: "Rascunho" } : null },
-    { label: "Homologacao", ...resolveHubValue(inscricao?.homologacao?.statusFinal ?? null) },
+    { label: "Homologacao", ...resolveHubValue(homologacaoVigente?.statusVigente ?? null) },
     { label: "Etapa 1", ...resolveHubValue(inscricao?.etapa1?.status ?? null) },
     { label: "Etapa 2", ...resolveHubValue(inscricao?.etapa2?.status ?? null) },
     { label: "Classificacao", ...resolveHubValue(item.classificacao?.status ?? null) },
@@ -192,6 +193,17 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
         })}
       </div>
 
+      {item.acompanhamento ? (
+        <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className="hub-status-label">Situacao operacional</span>
+          <strong style={{ fontSize: 14, color: "#0F172A" }}>{getStatusLabel(item.acompanhamento.faseAtual)}</strong>
+          <span className="hub-status-value">{getStatusLabel(item.acompanhamento.situacaoAtual)}</span>
+          {item.acompanhamento.etapaBloqueio ? <span style={{ fontSize: 12, color: "#B45309" }}>Etapa de bloqueio/indeferimento: {getStatusLabel(item.acompanhamento.etapaBloqueio)}</span> : null}
+          {item.acompanhamento.motivoResumo ? <span style={{ fontSize: 12, color: "#64748B" }}>{item.acompanhamento.motivoResumo}</span> : null}
+          {item.acompanhamento.proximoPasso ? <span style={{ fontSize: 12, color: "#2563EB" }}>{item.acompanhamento.proximoPasso}</span> : null}
+        </div>
+      ) : null}
+
       {/* Status grid row 2 */}
       <div className="hub-grid">
         {cards.slice(4).map((card) => {
@@ -211,16 +223,49 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
         <Link href={item.isencao ? "/candidato/isencoes" : `/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
           {iconShieldCheck} {item.isencao ? "Ver isencao" : "Solicitar isencao"}
         </Link>
-        <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
-          {iconEye} Ver espelhos
-        </Link>
-        <Link href={`/candidato/recursos?editalId=${item.edital.id}`} className="hub-link">
-          {iconMessageSquare} Interpor recurso
-        </Link>
+        {(item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2) ? (
+          <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
+            {iconEye} Ver espelhos
+          </Link>
+        ) : (
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} Espelhos indisponiveis</span>
+        )}
+        {(item.elegibilidade?.fasesRecursoElegiveis?.length ?? 0) > 0 ? (
+          <Link href={`/candidato/recursos?editalId=${item.edital.id}`} className="hub-link">
+            {iconMessageSquare} Interpor recurso
+          </Link>
+        ) : (
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} Recurso indisponivel</span>
+        )}
         <button type="button" onClick={pacoteDocumentalUrl ? handleDownloadPacote : undefined} disabled={!pacoteDocumentalUrl || downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: pacoteDocumentalUrl ? "pointer" : "default", padding: 0, font: "inherit", opacity: pacoteDocumentalUrl ? 1 : 0.5 }}>
           {iconDownload} {downloadingPacote ? "Baixando..." : "Baixar pacote documental"}
         </button>
       </div>
+
+      {homologacaoVigente ? (
+        <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className="hub-status-label">Homologacao vigente</span>
+          <strong style={{ fontSize: 14, color: "#0F172A" }}>{homologacaoVigente.faseVigente ? `Fase ${homologacaoVigente.faseVigente.toLowerCase()}` : "Sem fase vigente"}</strong>
+          <span className="hub-status-value">{homologacaoVigente.statusVigente ? getStatusLabel(homologacaoVigente.statusVigente) : "Pendente"}</span>
+          {homologacaoVigente.motivoResumoVigente ? <span style={{ fontSize: 12, color: "#64748B" }}>{homologacaoVigente.motivoResumoVigente}</span> : null}
+          {homologacaoVigente.parecerVigente ? <span style={{ fontSize: 12, color: "#334155" }}>{homologacaoVigente.parecerVigente}</span> : null}
+        </div>
+      ) : null}
+
+      {item.publicacoes.length ? (
+        <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span className="hub-status-label">Historico de publicacoes</span>
+          {item.publicacoes.slice(0, 4).map((publicacao) => (
+            <div key={publicacao.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <strong style={{ fontSize: 13, color: "#0F172A" }}>{publicacao.titulo}</strong>
+                <span style={{ fontSize: 12, color: "#64748B" }}>Versao {publicacao.versao}{publicacao.isVersaoAtualDoTipo ? " · vigente" : ""}{publicacao.republicacaoDaVersao ? ` · republica v${publicacao.republicacaoDaVersao}` : ""}</span>
+              </div>
+              <Link href={`/editais/${item.edital.id}/publicacoes`} className="hub-link">Historico</Link>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {message ? (
         <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>

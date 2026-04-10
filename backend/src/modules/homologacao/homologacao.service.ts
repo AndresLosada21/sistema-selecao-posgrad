@@ -5,6 +5,7 @@ import { toInputJsonOrDbNull } from "../../lib/serialization.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
 import { buildPrivateUploadUrl } from "../upload/upload.service.js";
+import { reprocessarClassificacaoEPublicacoesDerivadas } from "../publicacao/publicacao-derived-effects.service.js";
 import {
   buildMotivoPublicacaoHomologacao,
   getFinalHomologacaoStatus,
@@ -194,6 +195,7 @@ export async function atualizarConfirmacaoReserva(
     confirmacaoAcoesAfirmativas?: StatusConfirmacaoReserva;
     confirmacaoPcd?: StatusConfirmacaoReserva;
   },
+  actorUserId?: string,
 ) {
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
@@ -234,6 +236,26 @@ export async function atualizarConfirmacaoReserva(
     where: { id: inscricaoId },
     data,
   });
+
+  const houveMudancaMaterial = (
+    (input.confirmacaoAcoesAfirmativas !== undefined && updated.confirmacaoAcoesAfirmativas !== inscricao.confirmacaoAcoesAfirmativas)
+    || (input.confirmacaoPcd !== undefined && updated.confirmacaoPcd !== inscricao.confirmacaoPcd)
+  );
+
+  if (houveMudancaMaterial) {
+    const participacao = await prisma.participacaoEdital.findUnique({
+      where: { id: inscricao.participacaoEditalId },
+      select: { editalId: true },
+    });
+
+    if (participacao && actorUserId) {
+      await reprocessarClassificacaoEPublicacoesDerivadas({
+        editalId: participacao.editalId,
+        criadoPorId: actorUserId,
+        descricao: "Republicacao administrativa apos atualizacao direta de confirmacao de reserva.",
+      });
+    }
+  }
 
   return {
     inscricao: {
