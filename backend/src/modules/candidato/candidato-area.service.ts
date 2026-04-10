@@ -199,6 +199,8 @@ function resolveElegibilidade(participacao: CandidateParticipacao, publicacoes: 
 
   return {
     podeEditarInscricao: !inscricao || inscricao.status === StatusInscricao.RASCUNHO || inscricao.status === StatusInscricao.SUBMETIDA,
+    podeSolicitarEspelhoEtapa1: Boolean(inscricao?.avaliacaoEtapa1 && inscricao.avaliacaoEtapa1.status === "PRELIMINAR_PUBLICADA" && !inscricao.avaliacaoEtapa1.espelhoLiberadoEm),
+    podeSolicitarEspelhoEtapa2: Boolean(inscricao?.avaliacaoEtapa2 && inscricao.avaliacaoEtapa2.status === "PRELIMINAR_PUBLICADA" && !inscricao.avaliacaoEtapa2.espelhoLiberadoEm),
     podeVerEspelhoEtapa1: Boolean(inscricao?.avaliacaoEtapa1?.espelhoLiberadoEm),
     podeVerEspelhoEtapa2: Boolean(inscricao?.avaliacaoEtapa2?.espelhoLiberadoEm),
     fasesRecursoElegiveis,

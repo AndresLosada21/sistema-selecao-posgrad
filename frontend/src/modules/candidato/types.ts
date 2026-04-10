@@ -12,6 +12,8 @@ export type CandidateDashboardResponse = {
     };
     elegibilidade?: {
       podeEditarInscricao: boolean;
+      podeSolicitarEspelhoEtapa1: boolean;
+      podeSolicitarEspelhoEtapa2: boolean;
       podeVerEspelhoEtapa1: boolean;
       podeVerEspelhoEtapa2: boolean;
       fasesRecursoElegiveis: string[];

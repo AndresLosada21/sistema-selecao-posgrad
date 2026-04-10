@@ -80,6 +80,9 @@ const iconFileText = (color: string) => (
 const iconMessageSquare = (color: string) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
 );
+const iconEye = (color: string) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></svg>
+);
 const iconChevronRight = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
 );
@@ -272,6 +275,24 @@ export default function CandidateDashboardPage() {
             </div>
             {iconDownloadTrailing}
           </button>
+          {(active.elegibilidade?.podeSolicitarEspelhoEtapa1 || active.elegibilidade?.podeSolicitarEspelhoEtapa2 || active.elegibilidade?.podeVerEspelhoEtapa1 || active.elegibilidade?.podeVerEspelhoEtapa2) ? (
+            <Link href={`/candidato/editais/${active.edital.id}/espelhos`} className="dash-qa-card">
+              <div className="dash-qa-icon dash-qa-icon--violet">{iconEye("#8B5CF6")}</div>
+              <div className="dash-qa-text">
+                <strong>Espelhos</strong>
+                <span>{active.elegibilidade?.podeVerEspelhoEtapa1 || active.elegibilidade?.podeVerEspelhoEtapa2 ? "Consultar espelhos liberados" : "Solicitar espelho das etapas preliminares"}</span>
+              </div>
+              {iconChevronRight}
+            </Link>
+          ) : (
+            <div className="dash-qa-card" style={{ opacity: 0.7 }}>
+              <div className="dash-qa-icon dash-qa-icon--violet">{iconEye("#8B5CF6")}</div>
+              <div className="dash-qa-text">
+                <strong>Espelhos indisponiveis</strong>
+                <span>Nenhum espelho pode ser solicitado ou visualizado no momento.</span>
+              </div>
+            </div>
+          )}
           {active.elegibilidade?.fasesRecursoElegiveis?.length ? (
             <Link href={`/candidato/recursos?editalId=${active.edital.id}`} className="dash-qa-card">
               <div className="dash-qa-icon dash-qa-icon--amber">{iconMessageSquare("#F59E0B")}</div>

@@ -7,6 +7,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
+import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { statusIsencaoOptions, type StatusIsencao } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
@@ -46,7 +47,15 @@ export default function AdminRecursoDetailPage({ params }: Props) {
     setItem(found);
     setDeferido(found.status === "DEFERIDO");
     setDecisao(found.decisao ?? "");
-    setImpactoResultado(found.impactoResultado);
+    setImpactoResultado(found.status === "DEFERIDO" && found.fase !== "CLASSIFICACAO" ? found.impactoResultado : false);
+    setNovoStatusIsencao("");
+    setNovoResultadoHomologacao("");
+    setNovaNotaEtapa1("");
+    setNovoEspelhoEtapa1("");
+    setNovaPontuacaoBrutaEtapa2("");
+    setNovoEspelhoEtapa2("");
+    setNovoResultadoPoliticas("");
+    setNovoParecerPoliticas("");
   }, [recursoId, token]);
 
   useAbortableEffect(async (signal) => {
@@ -79,6 +88,18 @@ export default function AdminRecursoDetailPage({ params }: Props) {
     } finally { setBusy(false); }
   }
 
+  async function handleDownloadAnexo() {
+    if (!token || !item?.anexoUrl) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await downloadAuthenticatedFile(item.anexoUrl, token, `recurso-${item.id}-anexo.pdf`);
+    } catch (e) {
+      if (isUnauthorizedError(e)) { signOut(); return; }
+      setFeedback({ type: "error", text: getErrorMessage(e) });
+    } finally { setBusy(false); }
+  }
+
   if (pageStatus === "loading") return <LoadingState title="Carregando recurso" description="Consultando o recurso." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar" description={feedback?.text} />;
   if (!item) return <EmptyState title="Recurso nao encontrado" description="Recurso nao localizado." />;
@@ -86,6 +107,9 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const isEtapa1 = item.fase === "ETAPA_1";
   const isEtapa2 = item.fase === "ETAPA_2";
   const isHomologacao = item.fase === "HOMOLOGACAO";
+  const isIsencao = item.fase === "ISENCAO";
+  const isPoliticas = item.fase === "POLITICAS_AFIRMATIVAS";
+  const isClassificacao = item.fase === "CLASSIFICACAO";
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -114,9 +138,12 @@ export default function AdminRecursoDetailPage({ params }: Props) {
           {item.fundamentacao || "Sem fundamentacao registrada."}
         </div>
         {item.anexoUrl && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#2563EB" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#2563EB", flexWrap: "wrap" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
             <span>Anexo do candidato vinculado</span>
+            <button type="button" onClick={handleDownloadAnexo} disabled={busy} style={{ border: "none", background: "none", color: "#2563EB", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+              {busy ? "Baixando..." : "Baixar anexo"}
+            </button>
           </div>
         )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B" }}>
@@ -140,20 +167,33 @@ export default function AdminRecursoDetailPage({ params }: Props) {
           </div>
           <div className="admin-eval-field">
             <label>Impacto no resultado?</label>
-            <select className="select-field" onChange={(e) => setImpactoResultado(e.target.value === "sim")} value={impactoResultado ? "sim" : "nao"}>
+            <select className="select-field" disabled={!deferido || isClassificacao} onChange={(e) => setImpactoResultado(e.target.value === "sim")} value={impactoResultado ? "sim" : "nao"}>
               <option value="nao">Nao</option>
               <option value="sim">Sim — reprocessar</option>
             </select>
           </div>
         </div>
 
+        {isClassificacao ? (
+          <PageFeedback type="warning" title="Classificacao" description="Esta tela ainda nao aceita mutacao direta do resultado de classificacao por recurso. O deferimento pode ser registrado sem impacto derivado automatico aqui." />
+        ) : null}
+
         <div className="admin-eval-field">
           <label>Decisao *</label>
           <textarea className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} placeholder="Recurso procedente. Documentacao..." required style={{ minHeight: 72 }} value={decisao} />
         </div>
 
-        {impactoResultado && (
+        {deferido && impactoResultado && (
           <>
+            {isIsencao ? (
+              <div className="admin-eval-field">
+                <label>Novo status da isencao</label>
+                <select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}>
+                  <option value="">Nao alterar</option>
+                  {statusIsencaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                </select>
+              </div>
+            ) : null}
             {isHomologacao && (
               <div className="admin-eval-field">
                 <label>Novo resultado da homologacao</label>
@@ -176,26 +216,21 @@ export default function AdminRecursoDetailPage({ params }: Props) {
                 <div className="admin-eval-field"><label>Novo espelho etapa 2</label><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa2} /></div>
               </div>
             )}
-            <div className="admin-eval-field">
-              <label>Novo status da isencao</label>
-              <select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}>
-                <option value="">Nao alterar</option>
-                {statusIsencaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
-              </select>
-            </div>
-            <div className="admin-form-row">
-              <div className="admin-eval-field">
-                <label>Resultado politicas afirmativas</label>
-                <select className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}>
-                  <option value="">Selecione</option>
-                  {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
-                </select>
+            {isPoliticas ? (
+              <div className="admin-form-row">
+                <div className="admin-eval-field">
+                  <label>Resultado politicas afirmativas</label>
+                  <select className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}>
+                    <option value="">Selecione</option>
+                    {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                  </select>
+                </div>
+                <div className="admin-eval-field">
+                  <label>Parecer politicas afirmativas</label>
+                  <textarea className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} style={{ minHeight: 60 }} value={novoParecerPoliticas} />
+                </div>
               </div>
-              <div className="admin-eval-field">
-                <label>Parecer politicas afirmativas</label>
-                <textarea className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} style={{ minHeight: 60 }} value={novoParecerPoliticas} />
-              </div>
-            </div>
+            ) : null}
           </>
         )}
 

@@ -223,9 +223,9 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
         <Link href={item.isencao ? "/candidato/isencoes" : `/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
           {iconShieldCheck} {item.isencao ? "Ver isencao" : "Solicitar isencao"}
         </Link>
-        {(item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2) ? (
+        {(item.elegibilidade?.podeSolicitarEspelhoEtapa1 || item.elegibilidade?.podeSolicitarEspelhoEtapa2 || item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2) ? (
           <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
-            {iconEye} Ver espelhos
+            {iconEye} {item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2 ? "Ver espelhos" : "Solicitar espelho"}
           </Link>
         ) : (
           <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} Espelhos indisponiveis</span>
