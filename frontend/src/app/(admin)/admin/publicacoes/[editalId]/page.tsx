@@ -60,7 +60,8 @@ function extractDisplayValue(val: unknown): string {
   return String(val);
 }
 
-const HIDDEN_VERSION_KEYS = new Set(["republicacaoDeId"]);
+/** IDs longos exibidos truncados com tooltip do valor completo */
+const ID_LIKE_KEYS = new Set(["republicacaoDeId"]);
 
 type PubType = "homologacao" | "classificacao" | "politicas";
 
@@ -408,11 +409,16 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
               {/* Versionamento */}
               {preview.versionamento && typeof preview.versionamento === "object" && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B", padding: "8px 0" }}>
-                  {Object.entries(preview.versionamento as Record<string, unknown>)
-                    .filter(([k]) => !HIDDEN_VERSION_KEYS.has(k))
-                    .map(([k, v]) => (
-                      <span key={k}><strong>{camelToLabel(k)}:</strong> {extractDisplayValue(v)}</span>
-                    ))}
+                  {Object.entries(preview.versionamento as Record<string, unknown>).map(([k, v]) => {
+                    const isId = ID_LIKE_KEYS.has(k);
+                    const raw = String(v ?? "—");
+                    return (
+                      <span key={k} title={isId ? raw : undefined} style={isId ? { cursor: "help" } : undefined}>
+                        <strong>{camelToLabel(k)}:</strong>{" "}
+                        {isId ? <code style={{ fontSize: 11, background: "#F1F5F9", padding: "1px 4px", borderRadius: 3 }}>{raw.slice(0, 8)}…</code> : extractDisplayValue(v)}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
 
