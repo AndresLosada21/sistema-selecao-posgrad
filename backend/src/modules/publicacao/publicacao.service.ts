@@ -38,11 +38,13 @@ function buildPublicacaoResumo(publicacao: {
   versaoFinal: boolean;
   arquivoUrl: string | null;
   publicadoEm: Date | null;
-}) {
+}, meta?: { republicacaoDaVersao?: number | null; isVersaoAtualDoTipo?: boolean }) {
   return {
     id: publicacao.id,
     editalId: publicacao.editalId,
     republicacaoDeId: publicacao.republicacaoDeId,
+    republicacaoDaVersao: meta?.republicacaoDaVersao ?? null,
+    isVersaoAtualDoTipo: meta?.isVersaoAtualDoTipo ?? false,
     tipo: publicacao.tipo,
     titulo: publicacao.titulo,
     descricao: publicacao.descricao,
@@ -523,7 +525,6 @@ export async function buildPoliticasAfirmativasPublicacaoPreview(editalId: strin
   const itens = etapas.map((etapa) => {
     const resultado = fase === "PRELIMINAR" ? etapa.resultadoPreliminar : etapa.resultadoFinal;
     const parecer = fase === "PRELIMINAR" ? etapa.parecerPreliminar : etapa.parecerFinal;
-    const arquivoRetornoUrl = fase === "PRELIMINAR" ? etapa.arquivoRetornoPreliminarUrl : etapa.arquivoRetornoFinalUrl;
     const resultadoEm = fase === "PRELIMINAR" ? etapa.resultadoPreliminarEm : etapa.resultadoFinalEm;
 
     return {
@@ -540,7 +541,6 @@ export async function buildPoliticasAfirmativasPublicacaoPreview(editalId: strin
       resultado,
       situacaoPublica: getResultadoPoliticasAfirmativasLabel(resultado),
       parecer,
-      arquivoRetornoUrl,
       publicadoEm: resultadoEm?.toISOString() ?? null,
     };
   });
@@ -616,12 +616,24 @@ export async function listPublicacoesByEdital(editalId: string) {
     where: {
       editalId,
     },
-    orderBy: {
-      publicadoEm: "desc",
-    },
+    orderBy: [{ publicadoEm: "desc" }, { versao: "desc" }, { criadoEm: "desc" }],
   });
 
-  return publicacoes.map(buildPublicacaoResumo);
+  const latestVersionByTipo = new Map<string, number>();
+  const versionById = new Map<string, number>();
+
+  for (const publicacao of publicacoes) {
+    versionById.set(publicacao.id, publicacao.versao);
+    const current = latestVersionByTipo.get(publicacao.tipo);
+    if (!current || publicacao.versao > current) {
+      latestVersionByTipo.set(publicacao.tipo, publicacao.versao);
+    }
+  }
+
+  return publicacoes.map((publicacao) => buildPublicacaoResumo(publicacao, {
+    republicacaoDaVersao: publicacao.republicacaoDeId ? (versionById.get(publicacao.republicacaoDeId) ?? null) : null,
+    isVersaoAtualDoTipo: latestVersionByTipo.get(publicacao.tipo) === publicacao.versao,
+  }));
 }
 
 export async function listPublicacoesAdminByEdital(editalId: string, pagination?: { page: number; pageSize: number }) {

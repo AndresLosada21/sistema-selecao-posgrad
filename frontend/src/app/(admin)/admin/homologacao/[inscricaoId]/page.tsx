@@ -35,7 +35,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<AdminInscricaoHomologacao | null>(null);
   const [fundamentos, setFundamentos] = useState<HomologacaoFundamento[]>([]);
-  const [message, setMessage] = useState<{ type: "success" | "error"; title: string; description: string } | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; title: string; description: string } | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState(false);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
@@ -43,9 +43,9 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   const [downloadingPacote, setDownloadingPacote] = useState(false);
 
   // Decision state
-  const [prelimHomologada, setPrelimHomologada] = useState(true);
+  const [prelimResultado, setPrelimResultado] = useState<"" | "HOMOLOGADA" | "INDEFERIDA">("");
   const [prelimParecer, setPrelimParecer] = useState("");
-  const [finalHomologada, setFinalHomologada] = useState(true);
+  const [finalResultado, setFinalResultado] = useState<"" | "HOMOLOGADA" | "INDEFERIDA">("");
   const [finalParecer, setFinalParecer] = useState("");
   const [motivosPrelim, setMotivosPrelim] = useState<HomologacaoFundamento[]>([]);
   const [motivosFinal, setMotivosFinal] = useState<HomologacaoFundamento[]>([]);
@@ -68,8 +68,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     setSelectedMotivo(f.items[0]?.codigo ?? "");
     setPrelimParecer(found.homologacao?.parecerPreliminar ?? "");
     setFinalParecer(found.homologacao?.parecerFinal ?? "");
-    setPrelimHomologada(found.homologacao?.statusPreliminar !== "NAO_HOMOLOGADA_PRELIMINAR");
-    setFinalHomologada(found.homologacao?.statusFinal !== "NAO_HOMOLOGADA_FINAL");
+    setPrelimResultado(found.homologacao?.statusPreliminar === "HOMOLOGADA_PRELIMINAR" ? "HOMOLOGADA" : found.homologacao?.statusPreliminar === "NAO_HOMOLOGADA_PRELIMINAR" ? "INDEFERIDA" : "");
+    setFinalResultado(found.homologacao?.statusFinal === "HOMOLOGADA_FINAL" ? "HOMOLOGADA" : found.homologacao?.statusFinal === "NAO_HOMOLOGADA_FINAL" ? "INDEFERIDA" : "");
     setMotivosPrelim(found.homologacao?.motivosPreliminar ?? []);
     setMotivosFinal(found.homologacao?.motivosFinal ?? []);
     setConfirmAA(found.confirmacaoAcoesAfirmativas as StatusConfirmacaoReserva);
@@ -160,7 +160,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     e.preventDefault();
     if (!session.token || !item) return;
     setBusy(true); setMessage(null);
-    try { await registrarHomologacaoPreliminar(item.id, { homologada: prelimHomologada, parecer: prelimParecer, motivos: motivosPrelim }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao preliminar salva." }); }
+    if (!prelimResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao preliminar." }); setBusy(false); return; }
+    try { await registrarHomologacaoPreliminar(item.id, { homologada: prelimResultado === "HOMOLOGADA", parecer: prelimParecer, motivos: motivosPrelim }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao preliminar salva." }); }
     catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
@@ -169,7 +170,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     e.preventDefault();
     if (!session.token || !item) return;
     setBusy(true); setMessage(null);
-    try { await registrarHomologacaoFinal(item.id, { homologada: finalHomologada, parecer: finalParecer, motivos: motivosFinal }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao final salva." }); }
+    if (!finalResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao final." }); setBusy(false); return; }
+    try { await registrarHomologacaoFinal(item.id, { homologada: finalResultado === "HOMOLOGADA", parecer: finalParecer, motivos: motivosFinal }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao final salva." }); }
     catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
@@ -322,7 +324,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <div className="admin-form-row">
             <div className="wiz-field">
               <label className="wiz-field-label">Resultado *</label>
-              <select disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setPrelimHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+              <select disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimResultado} onChange={(e) => setPrelimResultado(e.target.value as "" | "HOMOLOGADA" | "INDEFERIDA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                <option value="">Selecione o resultado preliminar</option>
                 <option value="HOMOLOGADA">Homologada</option>
                 <option value="INDEFERIDA">Indeferida</option>
               </select>
@@ -372,7 +375,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <div className="admin-form-row">
             <div className="wiz-field">
               <label className="wiz-field-label">Resultado *</label>
-              <select disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalHomologada ? "HOMOLOGADA" : "INDEFERIDA"} onChange={(e) => setFinalHomologada(e.target.value === "HOMOLOGADA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+              <select disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalResultado} onChange={(e) => setFinalResultado(e.target.value as "" | "HOMOLOGADA" | "INDEFERIDA")} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                 <option value="">Selecione o resultado final</option>
                 <option value="HOMOLOGADA">Homologada</option>
                 <option value="INDEFERIDA">Indeferida</option>

@@ -1,5 +1,7 @@
 import { Prisma, StatusInscricao, TipoDocumentoInscricao } from "@prisma/client";
 
+export type FaseHomologacaoResumo = "PRELIMINAR" | "FINAL";
+
 export type HomologacaoMotivo = {
   codigo: string;
   itemEdital: string;
@@ -156,6 +158,54 @@ export function getSituacaoPublicaHomologacao(status: StatusInscricao | null | u
     : status === StatusInscricao.NAO_HOMOLOGADA_PRELIMINAR || status === StatusInscricao.NAO_HOMOLOGADA_FINAL
       ? "INDEFERIDO"
       : null;
+}
+
+export function resolveFaseHomologacaoVigente(input: {
+  statusPreliminar: StatusInscricao | null | undefined;
+  statusFinal: StatusInscricao | null | undefined;
+}): FaseHomologacaoResumo | null {
+  if (input.statusFinal) {
+    return "FINAL";
+  }
+
+  if (input.statusPreliminar) {
+    return "PRELIMINAR";
+  }
+
+  return null;
+}
+
+export function buildHomologacaoResumoVigente(input: {
+  statusPreliminar: StatusInscricao | null | undefined;
+  motivosPreliminar: Prisma.JsonValue | null | undefined;
+  parecerPreliminar: string | null | undefined;
+  publicadoPreliminarEm: Date | null | undefined;
+  statusFinal: StatusInscricao | null | undefined;
+  motivosFinal: Prisma.JsonValue | null | undefined;
+  parecerFinal: string | null | undefined;
+  publicadoFinalEm: Date | null | undefined;
+}) {
+  const faseVigente = resolveFaseHomologacaoVigente({
+    statusPreliminar: input.statusPreliminar,
+    statusFinal: input.statusFinal,
+  });
+
+  const statusVigente = faseVigente === "FINAL" ? input.statusFinal : input.statusPreliminar;
+  const motivosVigentes = parseHomologacaoMotivos(
+    faseVigente === "FINAL" ? input.motivosFinal : input.motivosPreliminar,
+  );
+  const parecerVigente = faseVigente === "FINAL" ? input.parecerFinal : input.parecerPreliminar;
+  const publicadoEmVigente = faseVigente === "FINAL" ? input.publicadoFinalEm : input.publicadoPreliminarEm;
+
+  return {
+    faseVigente,
+    statusVigente: statusVigente ?? null,
+    situacaoVigente: getSituacaoPublicaHomologacao(statusVigente),
+    motivosVigentes,
+    motivoResumoVigente: motivosVigentes[0]?.descricao ?? null,
+    parecerVigente: parecerVigente ?? null,
+    publicadoEmVigente: publicadoEmVigente?.toISOString() ?? null,
+  };
 }
 
 export function buildMotivoPublicacaoHomologacao(motivos: readonly HomologacaoMotivo[]) {

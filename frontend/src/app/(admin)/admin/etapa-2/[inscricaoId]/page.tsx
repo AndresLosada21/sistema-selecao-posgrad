@@ -409,8 +409,8 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input checked={liberarEspelhoFlag} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
-              Liberar espelho junto do resultado
+              <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
+              {publicacao === "FINAL" ? "Espelho liberado automaticamente no resultado final" : "Liberar espelho junto do resultado"}
             </label>
           </div>
         </div>

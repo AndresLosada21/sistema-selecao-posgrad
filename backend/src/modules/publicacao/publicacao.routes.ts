@@ -29,6 +29,7 @@ import { generatePublicacaoPdfBuffer } from "./publicacao-pdf.service.js";
 import { getEditalById as getPublicEditalById } from "../edital/edital.service.js";
 
 export const publicacaoRouter = Router();
+const publicVisibleEditalStatuses = ["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"];
 
 publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/preview", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
   const parsedParams = editalIdParamSchema.safeParse(request.params);
@@ -91,7 +92,7 @@ publicacaoRouter.get("/v1/editais/:editalId/publicacoes", async (request, respon
 
   const edital = await getPublicEditalById(parsedParams.data.editalId);
 
-  if (!edital || !["PUBLICADO", "EM_ANDAMENTO"].includes(edital.status)) {
+  if (!edital || !publicVisibleEditalStatuses.includes(edital.status)) {
     return response.status(404).json(notFound("EDITAL_NAO_ENCONTRADO", "EDITAL_NAO_ENCONTRADO"));
   }
 
@@ -146,7 +147,7 @@ publicacaoRouter.get("/v1/publicacoes/:publicacaoId/arquivo.pdf", async (request
 
   const edital = await getPublicEditalById(result.publicacao.editalId);
 
-  if (!edital || !["PUBLICADO", "EM_ANDAMENTO"].includes(edital.status)) {
+  if (!edital || !publicVisibleEditalStatuses.includes(edital.status)) {
     return response.status(404).json(notFound("PUBLICACAO_NAO_ENCONTRADA", "PUBLICACAO_NAO_ENCONTRADA"));
   }
 

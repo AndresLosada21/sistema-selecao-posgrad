@@ -26,10 +26,36 @@ export const decidirRecursoSchema = z.object({
   impactoResultado: z.boolean().default(false),
   novoStatusIsencao: z.nativeEnum(StatusIsencao).optional(),
   novoStatusInscricao: z.nativeEnum(StatusInscricao).optional(),
+  novoResultadoHomologacao: z.enum(["HOMOLOGADA", "NAO_HOMOLOGADA"]).optional(),
   novaNotaEtapa1: z.number().min(0).max(10).optional(),
   novoEspelhoEtapa1: z.string().trim().min(5).optional(),
   novaPontuacaoBrutaEtapa2: z.number().min(0).optional(),
   novoEspelhoEtapa2: z.string().trim().min(5).optional(),
-  novoResultadoFinalPoliticasAfirmativas: z.nativeEnum(ResultadoPoliticasAfirmativas).optional(),
+  novoResultadoFinalPoliticasAfirmativas: z.nativeEnum(ResultadoPoliticasAfirmativas).refine((value) => value !== ResultadoPoliticasAfirmativas.PENDENTE, {
+    message: "Resultado final de politicas afirmativas nao pode permanecer pendente.",
+  }).optional(),
   novoParecerFinalPoliticasAfirmativas: z.string().trim().min(5).optional(),
+}).superRefine((data, context) => {
+  if (!data.deferido && data.impactoResultado) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["impactoResultado"],
+      message: "Impacto em resultado so pode ser informado em recurso deferido.",
+    });
+  }
+
+  if (data.deferido && data.impactoResultado && ![
+    data.novoStatusIsencao,
+    data.novoStatusInscricao,
+    data.novoResultadoHomologacao,
+    data.novaNotaEtapa1,
+    data.novaPontuacaoBrutaEtapa2,
+    data.novoResultadoFinalPoliticasAfirmativas,
+  ].some((value) => value !== undefined)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["impactoResultado"],
+      message: "Informe ao menos um efeito derivado quando houver impacto em resultado.",
+    });
+  }
 });

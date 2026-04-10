@@ -97,6 +97,7 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
     impactoResultado: payload.impactoResultado,
     novoStatusIsencao: payload.novoStatusIsencao,
     novoStatusInscricao: payload.novoStatusInscricao,
+    novoResultadoHomologacao: payload.novoResultadoHomologacao,
     novaNotaEtapa1: payload.novaNotaEtapa1,
     novoEspelhoEtapa1: payload.novoEspelhoEtapa1,
     novaPontuacaoBrutaEtapa2: payload.novaPontuacaoBrutaEtapa2,
@@ -107,7 +108,8 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    return response.status(404).json(notFound(errorCode, errorCode));
+    const status = result.error === "RECURSO_NAO_ENCONTRADO" ? 404 : 409;
+    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
   }
 
   return response.status(200).json(result.recurso);

@@ -646,6 +646,8 @@ export const PublicacaoResumoSchema = z
     id: z.string(),
     editalId: z.string(),
     republicacaoDeId: z.string().nullable(),
+    republicacaoDaVersao: z.number().int().nullable().optional(),
+    isVersaoAtualDoTipo: z.boolean().optional(),
     tipo: z.nativeEnum(TipoPublicacaoOficial),
     titulo: z.string(),
     descricao: z.string().nullable(),
@@ -890,6 +892,20 @@ export const CandidateDashboardItemSchema = z
   .object({
     id: z.string(),
     statusParticipacao: z.nativeEnum(StatusParticipacaoEdital),
+    acompanhamento: z.object({
+      faseAtual: z.string(),
+      situacaoAtual: z.string(),
+      etapaBloqueio: z.string().nullable(),
+      motivoResumo: z.string().nullable(),
+      proximoPasso: z.string().nullable(),
+    }),
+    elegibilidade: z.object({
+      podeEditarInscricao: z.boolean(),
+      podeVerEspelhoEtapa1: z.boolean(),
+      podeVerEspelhoEtapa2: z.boolean(),
+      fasesRecursoElegiveis: z.array(z.nativeEnum(FaseRecurso)),
+      podeVerPublicacoes: z.boolean(),
+    }),
     edital: z.object({
       id: z.string(),
       numero: z.string(),
@@ -961,6 +977,15 @@ export const CandidateDashboardItemSchema = z
             motivosFinal: z.array(HomologacaoMotivoSchema),
             parecerFinal: z.string().nullable(),
             publicadoFinalEm: isoDate().nullable(),
+            vigente: z.object({
+              faseVigente: z.enum(["PRELIMINAR", "FINAL"]).nullable(),
+              statusVigente: z.nativeEnum(StatusInscricao).nullable(),
+              situacaoVigente: z.string().nullable(),
+              motivosVigentes: z.array(HomologacaoMotivoSchema),
+              motivoResumoVigente: z.string().nullable(),
+              parecerVigente: z.string().nullable(),
+              publicadoEmVigente: isoDate().nullable(),
+            }),
           })
           .nullable(),
         etapa1: z
@@ -1017,11 +1042,13 @@ export const CandidateDashboardItemSchema = z
       z.object({
         id: z.string(),
         fase: z.nativeEnum(FaseRecurso),
+        faseHomologacaoReferencia: z.enum(["PRELIMINAR", "FINAL"]).nullable().optional(),
         status: z.nativeEnum(StatusRecurso),
         fundamentacao: z.string(),
         anexoUrl: z.string().nullable(),
         decisao: z.string().nullable(),
         impactoResultado: z.boolean(),
+        efeitoPraticoResumo: z.string(),
         criadoEm: isoDate(),
         respondidoEm: isoDate().nullable(),
       }),
@@ -1151,16 +1178,16 @@ export const DecidirRecursoRequestSchema = decidirRecursoSchema.openapi("Decidir
     deferido: true,
     decisao: "Recurso deferido apos reanalise documental e reprocessamento do resultado derivado.",
     impactoResultado: true,
-    novoStatusInscricao: "HOMOLOGADA_FINAL",
+    novoResultadoHomologacao: "HOMOLOGADA",
   },
 });
 export const CreatePublicacaoRequestSchema = createPublicacaoSchema.openapi("CreatePublicacaoRequest", {
   example: {
-    tipo: "HOMOLOGACAO_PRELIMINAR",
-    titulo: "Resultado preliminar da homologacao das inscricoes",
-    descricao: "Publicacao oficial da fase preliminar de homologacao.",
+    tipo: "COMUNICADO",
+    titulo: "Comunicado administrativo do processo seletivo",
+    descricao: "Publicacao generica de comunicacao oficial do edital.",
     versaoFinal: false,
-    arquivoUrl: "https://arquivos.exemplo/homologacao-preliminar.pdf",
+    arquivoUrl: "https://arquivos.exemplo/comunicado.pdf",
   },
 });
 export const PreviewHomologacaoPublicacaoQuerySchema = z

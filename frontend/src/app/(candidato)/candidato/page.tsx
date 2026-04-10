@@ -9,6 +9,7 @@ import { ActionButton } from "@/components/shared/action-button";
 import { getStatusVariant, getStatusLabel } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
+import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
@@ -151,24 +152,20 @@ export default function CandidateDashboardPage() {
   const steps = [
     { label: "Isencao", status: active?.isencao?.status ?? null },
     { label: "Inscricao", status: inscricao?.status ?? null },
-    { label: "Homologacao", status: inscricao?.homologacao?.statusFinal ?? null },
+    { label: "Homologacao", status: inscricao?.homologacao?.vigente?.statusVigente ?? inscricao?.homologacao?.statusFinal ?? inscricao?.homologacao?.statusPreliminar ?? null },
     { label: "Etapa 1", status: inscricao?.etapa1?.status ?? null },
     { label: "Etapa 2", status: inscricao?.etapa2?.status ?? null },
   ];
 
   const pubs = active?.publicacoesDestaque ?? [];
+  const anexoIvUrl = active?.inscricao?.anexoIvGeradoUrl ?? null;
 
   const editalLabel = active
     ? `${active.edital.numero} — ${active.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado"} em Engenharia Eletrica`
     : "";
 
-  const phaseLabel = (() => {
-    if (!inscricao) return "Inscricoes";
-    const s = inscricao.status;
-    if (s === "RASCUNHO") return "Inscricoes";
-    if (s === "SUBMETIDA") return "Homologacao";
-    return getStatusLabel(active?.edital.status ?? "");
-  })();
+  const acompanhamento = active?.acompanhamento;
+  const phaseLabel = acompanhamento?.faseAtual ? getStatusLabel(acompanhamento.faseAtual) : getStatusLabel(active?.edital.status ?? "");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -233,6 +230,22 @@ export default function CandidateDashboardPage() {
         </div>
       ) : null}
 
+      {acompanhamento ? (
+        <div className="dash-pub-card">
+          <div className="dash-pub-hdr">
+            <span className="dash-pub-hdr-title">Situacao atual</span>
+          </div>
+          <div className="dash-pub-divider" />
+          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 6 }}>
+            <strong style={{ fontSize: 14, color: "#0F172A" }}>{getStatusLabel(acompanhamento.faseAtual)}</strong>
+            <span style={{ fontSize: 13, color: "#334155" }}>{getStatusLabel(acompanhamento.situacaoAtual)}</span>
+            {acompanhamento.etapaBloqueio ? <span style={{ fontSize: 12, color: "#B45309" }}>Etapa de bloqueio/indeferimento: {getStatusLabel(acompanhamento.etapaBloqueio)}</span> : null}
+            {acompanhamento.motivoResumo ? <span style={{ fontSize: 12, color: "#64748B" }}>{acompanhamento.motivoResumo}</span> : null}
+            {acompanhamento.proximoPasso ? <span style={{ fontSize: 12, color: "#2563EB" }}>{acompanhamento.proximoPasso}</span> : null}
+          </div>
+        </div>
+      ) : null}
+
       {/* Quick actions */}
       <h3 className="dash-section-title">Acoes rapidas</h3>
       {active ? (
@@ -245,22 +258,38 @@ export default function CandidateDashboardPage() {
             </div>
             {iconChevronRight}
           </Link>
-          <Link href={`/candidato/editais/${active.edital.id}/inscricao`} className="dash-qa-card">
+          <button
+            type="button"
+            className="dash-qa-card"
+            style={{ background: "none", border: "none", textAlign: "left", cursor: anexoIvUrl && token ? "pointer" : "default", opacity: anexoIvUrl && token ? 1 : 0.6 }}
+            onClick={() => { if (anexoIvUrl && token) { void downloadAuthenticatedFile(anexoIvUrl, token, "anexo-iv.pdf"); } }}
+            disabled={!anexoIvUrl || !token}
+          >
             <div className="dash-qa-icon dash-qa-icon--blue">{iconFileText("#3B82F6")}</div>
             <div className="dash-qa-text">
               <strong>Baixar Anexo IV</strong>
               <span>Ficha cadastral preenchida (PDF)</span>
             </div>
             {iconDownloadTrailing}
-          </Link>
-          <Link href={`/candidato/recursos?editalId=${active.edital.id}`} className="dash-qa-card">
-            <div className="dash-qa-icon dash-qa-icon--amber">{iconMessageSquare("#F59E0B")}</div>
-            <div className="dash-qa-text">
-              <strong>Recursos</strong>
-              <span>Interpor ou acompanhar recursos</span>
+          </button>
+          {active.elegibilidade?.fasesRecursoElegiveis?.length ? (
+            <Link href={`/candidato/recursos?editalId=${active.edital.id}`} className="dash-qa-card">
+              <div className="dash-qa-icon dash-qa-icon--amber">{iconMessageSquare("#F59E0B")}</div>
+              <div className="dash-qa-text">
+                <strong>Recursos</strong>
+                <span>Fases disponiveis: {active.elegibilidade.fasesRecursoElegiveis.map((fase) => getStatusLabel(fase)).join(", ")}</span>
+              </div>
+              {iconChevronRight}
+            </Link>
+          ) : (
+            <div className="dash-qa-card" style={{ opacity: 0.7 }}>
+              <div className="dash-qa-icon dash-qa-icon--amber">{iconMessageSquare("#F59E0B")}</div>
+              <div className="dash-qa-text">
+                <strong>Recursos indisponiveis</strong>
+                <span>Nenhuma fase esta elegivel para recurso no momento.</span>
+              </div>
             </div>
-            {iconChevronRight}
-          </Link>
+          )}
         </div>
       ) : null}
 

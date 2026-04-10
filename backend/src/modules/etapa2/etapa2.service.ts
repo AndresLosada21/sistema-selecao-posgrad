@@ -2,7 +2,55 @@ import { Prisma, StatusAvaliacaoEtapa, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { buildInscricaoWhereForAvaliador } from "../avaliacao/avaliador-scope.service.js";
+import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
+import { TipoCronogramaEdital } from "@prisma/client";
 import { buildEspelhoEtapa2, buildMemoriaCalculoEtapa2, calcularNotaNormalizadaEtapa2, type GlosaEtapa2 } from "./etapa2.rules.js";
+
+export async function recalcularNotasEtapa2PorEdital(editalId: string, status?: StatusAvaliacaoEtapa) {
+  const avaliacoes = await prisma.avaliacaoEtapa2.findMany({
+    where: {
+      ...(status ? { status } : {}),
+      inscricao: {
+        participacaoEdital: {
+          editalId,
+        },
+      },
+    },
+    include: {
+      inscricao: true,
+    },
+  });
+
+  if (avaliacoes.length === 0) {
+    return [];
+  }
+
+  const maiorPontuacaoBruta = avaliacoes.reduce((max, avaliacao) => Math.max(max, avaliacao.pontuacaoBruta?.toNumber() ?? 0), 0);
+
+  return await prisma.$transaction(
+    avaliacoes.map((avaliacao) => {
+      const pontuacaoBruta = avaliacao.pontuacaoBruta?.toNumber() ?? 0;
+      const notaNormalizada = calcularNotaNormalizadaEtapa2({
+        pontuacaoBruta,
+        maiorPontuacaoBruta,
+      });
+
+      return prisma.avaliacaoEtapa2.update({
+        where: { id: avaliacao.id },
+        data: {
+          notaNormalizada,
+          memoriaCalculo: buildMemoriaCalculoEtapa2({
+            pontuacaoItens: (avaliacao.pontuacaoItens ?? {}) as Record<string, number>,
+            pontuacaoBruta,
+            maiorPontuacaoBruta,
+            notaNormalizada,
+            glosas: (avaliacao.glosas ?? []) as GlosaEtapa2[],
+          }) as Prisma.InputJsonValue,
+        },
+      });
+    }),
+  );
+}
 
 function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
   include: {
@@ -122,6 +170,14 @@ export async function registrarResultadoEtapa2(
 ) {
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
+    include: {
+      avaliacaoEtapa2: true,
+      participacaoEdital: {
+        include: {
+          classificacaoFinal: true,
+        },
+      },
+    },
   });
 
   if (!inscricao) {
@@ -135,6 +191,25 @@ export async function registrarResultadoEtapa2(
 
   if (!allowedStatuses.has(inscricao.status)) {
     return { error: "INSCRICAO_NAO_APTA_ETAPA_2" as const };
+  }
+
+  if (input.publicacao === "PRELIMINAR" && inscricao.avaliacaoEtapa2?.status === StatusAvaliacaoEtapa.FINAL_PUBLICADA) {
+    return { error: "ETAPA_2_FINAL_NAO_PODE_REGREDIR" as const };
+  }
+
+  if (input.publicacao === "PRELIMINAR" && inscricao.participacaoEdital.classificacaoFinal) {
+    return { error: "ETAPA_2_FINAL_JA_PROPAGADA" as const };
+  }
+
+  if (input.publicacao === "PRELIMINAR" && input.liberarEspelho && !inscricao.avaliacaoEtapa2?.espelhoSolicitadoEm) {
+    return { error: "ESPELHO_ETAPA_2_NAO_SOLICITADO" as const };
+  }
+
+  if (input.publicacao === "FINAL") {
+    const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_2);
+    if (recursoWindow.open) {
+      return { error: "RECURSO_ETAPA_2_EM_ABERTO" as const };
+    }
   }
 
   const pontuacaoBruta = Math.max(0, input.pontuacaoBruta);
@@ -156,6 +231,11 @@ export async function registrarResultadoEtapa2(
     input.publicacao === "PRELIMINAR"
       ? StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA
       : StatusAvaliacaoEtapa.FINAL_PUBLICADA;
+  const espelhoLiberadoEm = input.publicacao === "FINAL"
+    ? new Date()
+    : input.liberarEspelho && inscricao.avaliacaoEtapa2?.espelhoSolicitadoEm
+      ? new Date()
+      : null;
 
   const avaliacao = await prisma.avaliacaoEtapa2.upsert({
     where: { inscricaoId },
@@ -166,34 +246,34 @@ export async function registrarResultadoEtapa2(
       memoriaCalculo: memoriaCalculo as Prisma.InputJsonValue,
       glosas: input.glosas as unknown as Prisma.InputJsonValue,
       espelhoCorrecao: input.espelhoCorrecao,
-      espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
+      espelhoLiberadoEm,
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
-      resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
+      resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : null,
     },
     create: {
       inscricaoId,
       pontuacaoItens: input.pontuacaoItens,
-      pontuacaoBruta: input.pontuacaoBruta,
+      pontuacaoBruta,
       notaNormalizada,
       memoriaCalculo: memoriaCalculo as Prisma.InputJsonValue,
       glosas: input.glosas as unknown as Prisma.InputJsonValue,
       espelhoCorrecao: input.espelhoCorrecao,
-      espelhoLiberadoEm: input.liberarEspelho || input.publicacao === "FINAL" ? new Date() : undefined,
+      espelhoLiberadoEm,
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
       resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
     },
   });
 
-  if (input.publicacao === "FINAL") {
-    await prisma.inscricao.update({
-      where: { id: inscricaoId },
-      data: {
-        status: StatusInscricao.CLASSIFICACAO_PRELIMINAR,
-      },
-    });
-  }
+  await recalcularNotasEtapa2PorEdital(inscricao.participacaoEdital.editalId, statusAvaliacao);
+
+  await prisma.inscricao.update({
+    where: { id: inscricaoId },
+    data: {
+      status: input.publicacao === "FINAL" ? StatusInscricao.CLASSIFICACAO_PRELIMINAR : StatusInscricao.APTA_ETAPA_2,
+    },
+  });
 
   return { avaliacao };
 }
@@ -247,6 +327,10 @@ export async function liberarEspelhoEtapa2(inscricaoId: string) {
 
   if (!avaliacao || !avaliacao.espelhoCorrecao) {
     return { error: "ESPELHO_ETAPA_2_INDISPONIVEL" as const };
+  }
+
+  if (!avaliacao.espelhoSolicitadoEm) {
+    return { error: "ESPELHO_ETAPA_2_NAO_SOLICITADO" as const };
   }
 
   const atualizada = await prisma.avaliacaoEtapa2.update({

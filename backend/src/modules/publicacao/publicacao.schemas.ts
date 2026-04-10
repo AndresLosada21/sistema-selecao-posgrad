@@ -2,6 +2,12 @@ import { TipoPublicacaoOficial } from "@prisma/client";
 import { z } from "zod";
 import { internalOrHttpsUrlSchema } from "../../lib/file-url.schemas.js";
 
+const genericPublicacaoTipos = [
+  TipoPublicacaoOficial.EDITAL,
+  TipoPublicacaoOficial.RETIFICACAO,
+  TipoPublicacaoOficial.COMUNICADO,
+] as const;
+
 export const editalIdParamSchema = z.object({
   editalId: z.string().min(1),
 });
@@ -16,7 +22,7 @@ export const listPublicacoesAdminQuerySchema = z.object({
 });
 
 export const createPublicacaoSchema = z.object({
-  tipo: z.nativeEnum(TipoPublicacaoOficial),
+  tipo: z.enum(genericPublicacaoTipos),
   titulo: z.string().trim().min(5),
   descricao: z.string().trim().min(5).optional(),
   versaoFinal: z.boolean().default(false),

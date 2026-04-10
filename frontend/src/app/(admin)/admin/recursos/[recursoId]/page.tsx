@@ -9,7 +9,7 @@ import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
-import { statusInscricaoOptions, statusIsencaoOptions, type StatusInscricao, type StatusIsencao } from "@/lib/enums";
+import { statusIsencaoOptions, type StatusIsencao } from "@/lib/enums";
 import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
 import type { AdminRecursoItem } from "@/modules/admin-recursos/types";
 import { resultadoPoliticasOptions } from "@/modules/admin-operacao/constants";
@@ -31,12 +31,12 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [decisao, setDecisao] = useState("");
   const [impactoResultado, setImpactoResultado] = useState(false);
   const [novoStatusIsencao, setNovoStatusIsencao] = useState<StatusIsencao | "">("");
-  const [novoStatusInscricao, setNovoStatusInscricao] = useState<StatusInscricao | "">("");
+  const [novoResultadoHomologacao, setNovoResultadoHomologacao] = useState<"HOMOLOGADA" | "NAO_HOMOLOGADA" | "">("");
   const [novaNotaEtapa1, setNovaNotaEtapa1] = useState("");
   const [novoEspelhoEtapa1, setNovoEspelhoEtapa1] = useState("");
   const [novaPontuacaoBrutaEtapa2, setNovaPontuacaoBrutaEtapa2] = useState("");
   const [novoEspelhoEtapa2, setNovoEspelhoEtapa2] = useState("");
-  const [novoResultadoPoliticas, setNovoResultadoPoliticas] = useState<(typeof resultadoPoliticasOptions)[number]>(resultadoPoliticasOptions[0]);
+  const [novoResultadoPoliticas, setNovoResultadoPoliticas] = useState<(typeof resultadoPoliticasOptions)[number] | "">("");
   const [novoParecerPoliticas, setNovoParecerPoliticas] = useState("");
 
   useEffect(() => { let cancelled = false; params.then((resolved) => { if (!cancelled) setRecursoId(resolved.recursoId); }); return () => { cancelled = true; }; }, [params]);
@@ -59,6 +59,13 @@ export default function AdminRecursoDetailPage({ params }: Props) {
     }
   }, [loadItem, recursoId, signOut, token]);
 
+  useEffect(() => {
+    if (!item) return;
+    setDeferido(item.status === "DEFERIDO");
+    setDecisao(item.decisao ?? "");
+    setImpactoResultado(item.impactoResultado);
+  }, [item]);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token || !recursoId) return;
@@ -69,7 +76,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         decisao,
         impactoResultado,
         novoStatusIsencao: (novoStatusIsencao || undefined) as StatusIsencao | undefined,
-        novoStatusInscricao: (novoStatusInscricao || undefined) as StatusInscricao | undefined,
+        novoResultadoHomologacao: novoResultadoHomologacao || undefined,
         novaNotaEtapa1: novaNotaEtapa1 ? Number(novaNotaEtapa1) : undefined,
         novoEspelhoEtapa1: novoEspelhoEtapa1 || undefined,
         novaPontuacaoBrutaEtapa2: novaPontuacaoBrutaEtapa2 ? Number(novaPontuacaoBrutaEtapa2) : undefined,
@@ -91,6 +98,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
 
   const isEtapa1 = item.fase === "ETAPA_1";
   const isEtapa2 = item.fase === "ETAPA_2";
+  const isHomologacao = item.fase === "HOMOLOGACAO";
 
   return (
     <div className="stack-layout">
@@ -100,10 +108,13 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         <div className="content-list">
           <small>Status: {getStatusLabel(item.status)}</small>
           <small>Impacto em resultado: {item.impactoResultado ? "sim" : "nao"}</small>
+          {item.faseHomologacaoReferencia ? <small>Fase homologatoria referenciada: {item.faseHomologacaoReferencia}</small> : null}
           <small>Criado em: {formatIsoDate(item.criadoEm)}</small>
           <small>Respondido em: {formatIsoDate(item.respondidoEm)}</small>
           <small>Fundamentacao: {item.fundamentacao}</small>
           <small>Decisao atual: {item.decisao ?? "ainda nao registrada"}</small>
+          {item.efeitoPraticoResumo ? <small>Efeito pratico: {item.efeitoPraticoResumo}</small> : null}
+          {item.contextoHomologacao?.statusVigente ? <small>Homologacao vigente: {item.contextoHomologacao.faseVigente} · {getStatusLabel(item.contextoHomologacao.statusVigente)}</small> : null}
           <small>Anexo: {item.anexoUrl ?? "nao informado"}</small>
         </div>
       </SectionCard>
@@ -114,15 +125,16 @@ export default function AdminRecursoDetailPage({ params }: Props) {
           <label className="field-block"><span>Decisao</span><textarea className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} required value={decisao} /></label>
           {impactoResultado ? (
             <>
+              {isHomologacao ? <PageFeedback type="info" title="Homologacao" description="Ao deferir com impacto, informe o novo resultado homologatorio da fase referenciada pelo recurso." /> : null}
               {isEtapa1 ? <PageFeedback type="info" title="Etapa 1" description="Ao informar a nova nota, o backend recompõe automaticamente o snapshot auditavel da avaliacao final da etapa 1." /> : null}
               {isEtapa2 ? <PageFeedback type="info" title="Etapa 2" description="Informe apenas a nova pontuacao bruta. O backend recalcula automaticamente a nota normalizada e recompõe a memoria de calculo auditavel conforme a formula oficial do edital." /> : null}
               <label className="field-block"><span>Novo status da isencao</span><select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}><option value="">Nao alterar</option>{statusIsencaoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
-              <label className="field-block"><span>Novo status da inscricao</span><select className="select-field" onChange={(e) => setNovoStatusInscricao((e.target.value || "") as StatusInscricao | "")} value={novoStatusInscricao}><option value="">Nao alterar</option>{statusInscricaoOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+              {isHomologacao ? <label className="field-block"><span>Novo resultado da homologacao</span><select className="select-field" onChange={(e) => setNovoResultadoHomologacao((e.target.value || "") as "HOMOLOGADA" | "NAO_HOMOLOGADA" | "")} value={novoResultadoHomologacao}><option value="">Selecione</option><option value="HOMOLOGADA">Homologada</option><option value="NAO_HOMOLOGADA">Nao homologada</option></select></label> : null}
               <label className="field-block"><span>Nova nota etapa 1</span><input min="0" max="10" onChange={(e) => setNovaNotaEtapa1(e.target.value)} step="0.1" type="number" value={novaNotaEtapa1} /></label>
               <label className="field-block"><span>Novo espelho etapa 1</span><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} value={novoEspelhoEtapa1} /></label>
               <label className="field-block"><span>Nova pontuacao bruta etapa 2</span><input min="0" onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step="0.1" type="number" value={novaPontuacaoBrutaEtapa2} /></label>
               <label className="field-block"><span>Novo espelho etapa 2</span><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} value={novoEspelhoEtapa2} /></label>
-              <label className="field-block"><span>Novo resultado final de politicas afirmativas</span><select className="select-field" onChange={(e) => setNovoResultadoPoliticas(e.target.value as (typeof resultadoPoliticasOptions)[number])} value={novoResultadoPoliticas}>{resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
+              <label className="field-block"><span>Novo resultado final de politicas afirmativas</span><select className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}><option value="">Selecione</option>{resultadoPoliticasOptions.filter((value) => value !== "PENDENTE").map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}</select></label>
               <label className="field-block"><span>Novo parecer final de politicas afirmativas</span><textarea className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} value={novoParecerPoliticas} /></label>
             </>
           ) : null}

@@ -3,11 +3,22 @@ import type { ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao } fr
 export type AdminRecursoItem = {
   id: string;
   fase: string;
+  faseHomologacaoReferencia?: "PRELIMINAR" | "FINAL" | null;
   status: string;
   fundamentacao: string;
   anexoUrl: string | null;
   decisao: string | null;
   impactoResultado: boolean;
+  efeitoPraticoResumo?: string;
+  contextoHomologacao?: {
+    faseVigente: "PRELIMINAR" | "FINAL" | null;
+    statusVigente: string | null;
+    situacaoVigente: string | null;
+    motivosVigentes: Array<Record<string, unknown>>;
+    motivoResumoVigente: string | null;
+    parecerVigente: string | null;
+    publicadoEmVigente: string | null;
+  } | null;
   candidato: {
     id: string;
     nomeCompleto: string;
@@ -35,6 +46,7 @@ export type DecisaoRecursoPayload = {
   impactoResultado: boolean;
   novoStatusIsencao?: StatusIsencao;
   novoStatusInscricao?: StatusInscricao;
+  novoResultadoHomologacao?: "HOMOLOGADA" | "NAO_HOMOLOGADA";
   novaNotaEtapa1?: number;
   novoEspelhoEtapa1?: string;
   novaPontuacaoBrutaEtapa2?: number;

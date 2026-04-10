@@ -2,6 +2,8 @@ export type PublicacaoResumo = {
   id: string;
   editalId: string;
   republicacaoDeId: string | null;
+  republicacaoDaVersao?: number | null;
+  isVersaoAtualDoTipo?: boolean;
   tipo: string;
   titulo: string;
   descricao: string | null;

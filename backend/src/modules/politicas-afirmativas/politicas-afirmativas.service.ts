@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { reprocessarClassificacaoEPublicacoesDerivadas } from "../publicacao/publicacao-derived-effects.service.js";
 import {
   resolveConfirmacaoReservaFromResultado,
   resolveStatusOperacaoFromEncaminhamento,
@@ -299,6 +300,11 @@ export async function registrarResultadoFinalPoliticasAfirmativas(input: {
     return { error: "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA" as const };
   }
 
+  const resultadoFinalAnterior = etapa.resultadoFinal;
+  const confirmacaoAnterior = etapa.tipo === TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO
+    ? etapa.inscricao.confirmacaoAcoesAfirmativas
+    : etapa.inscricao.confirmacaoPcd;
+
   const updated = await prisma.etapaPoliticasAfirmativas.update({
     where: { inscricaoId: input.inscricaoId },
     data: {
@@ -320,6 +326,15 @@ export async function registrarResultadoFinalPoliticasAfirmativas(input: {
         ? { confirmacaoAcoesAfirmativas: confirmacao }
         : { confirmacaoPcd: confirmacao },
   });
+
+  if (resultadoFinalAnterior !== input.resultado || confirmacaoAnterior !== confirmacao) {
+    await reprocessarClassificacaoEPublicacoesDerivadas({
+      editalId: etapa.inscricao.participacaoEdital.editalId,
+      criadoPorId: input.registradoPorId,
+      descricao: "Republicacao administrativa apos atualizacao direta de politicas afirmativas.",
+      republicarPoliticasAfirmativasFinal: true,
+    });
+  }
 
   return { etapa: buildPoliticasAfirmativasResumo(updated) };
 }

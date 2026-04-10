@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
@@ -59,6 +59,14 @@ export default function CandidateRecursosPage() {
   useAbortableEffect(async (signal) => { await load(); if (signal.aborted) return; }, [load]);
 
   const editais = useMemo(() => dashboard?.items.map((i) => i.edital) ?? [], [dashboard]);
+  const participacaoSelecionada = useMemo(() => dashboard?.items.find((item) => item.edital.id === formEditalId) ?? null, [dashboard, formEditalId]);
+  const fasesElegiveis = participacaoSelecionada?.elegibilidade?.fasesRecursoElegiveis ?? [];
+
+  useEffect(() => {
+    if (fasesElegiveis.length > 0 && !fasesElegiveis.includes(formFase)) {
+      setFormFase(fasesElegiveis[0]);
+    }
+  }, [fasesElegiveis, formFase]);
 
   async function handleUpload(file: File) {
     if (!session.token) return;
@@ -74,7 +82,7 @@ export default function CandidateRecursosPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!session.token || !formEditalId || !formFundamentacao.trim()) return;
+    if (!session.token || !formEditalId || !formFundamentacao.trim() || !fasesElegiveis.includes(formFase)) return;
     setSubmitting(true); setMessage(null);
     try {
       await createCandidateRecurso(sanitizePayload({
@@ -118,10 +126,11 @@ export default function CandidateRecursosPage() {
             <div className="wiz-field" style={{ flex: 1 }}>
               <label className="wiz-field-label">Fase *</label>
               <select value={formFase} onChange={(e) => setFormFase(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
-                {faseRecursoOptions.map((f) => <option key={f} value={f}>{getStatusLabel(f)}</option>)}
+                {(fasesElegiveis.length ? fasesElegiveis : faseRecursoOptions).map((f) => <option key={f} value={f}>{getStatusLabel(f)}</option>)}
               </select>
             </div>
           </div>
+          {!fasesElegiveis.length ? <div style={{ fontSize: 12, color: "#B45309" }}>Nenhuma fase esta elegivel para recurso no momento para o edital selecionado.</div> : null}
           <div className="wiz-field">
             <label className="wiz-field-label">Fundamentacao *</label>
             <textarea placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => setFormFundamentacao(e.target.value)}
@@ -130,7 +139,7 @@ export default function CandidateRecursosPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <FileField disabled={uploading} hint={formAnexoNome || "Anexo PDF (opcional)"} label="" onFileSelect={handleUpload} />
             <span style={{ flex: 1 }} />
-            <button type="submit" disabled={submitting || !formFundamentacao.trim()} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: submitting ? 0.5 : 1 }}>
+            <button type="submit" disabled={submitting || !formFundamentacao.trim() || !fasesElegiveis.includes(formFase)} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: submitting ? 0.5 : 1 }}>
               {submitting ? "Enviando..." : "Enviar recurso"}
             </button>
           </div>
@@ -161,6 +170,11 @@ export default function CandidateRecursosPage() {
             {rec.decisao ? (
               <div style={{ marginTop: 8, padding: "10px 14px", background: "#F8FAFC", borderRadius: 6, fontSize: 13, color: "#334155" }}>
                 <strong>Decisao:</strong> {rec.decisao}
+              </div>
+            ) : null}
+            {rec.efeitoPraticoResumo ? (
+              <div style={{ marginTop: 8, padding: "10px 14px", background: "#EFF6FF", borderRadius: 6, fontSize: 13, color: "#1D4ED8" }}>
+                <strong>Efeito pratico:</strong> {rec.efeitoPraticoResumo}
               </div>
             ) : null}
             {rec.anexoUrl ? (
