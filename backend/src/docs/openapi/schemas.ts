@@ -901,6 +901,8 @@ export const CandidateDashboardItemSchema = z
     }),
     elegibilidade: z.object({
       podeEditarInscricao: z.boolean(),
+      podeSolicitarEspelhoEtapa1: z.boolean(),
+      podeSolicitarEspelhoEtapa2: z.boolean(),
       podeVerEspelhoEtapa1: z.boolean(),
       podeVerEspelhoEtapa2: z.boolean(),
       fasesRecursoElegiveis: z.array(z.nativeEnum(FaseRecurso)),

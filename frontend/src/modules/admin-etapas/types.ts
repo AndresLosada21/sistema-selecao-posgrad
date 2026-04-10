@@ -1,6 +1,8 @@
 export type Etapa1AdminItem = {
   id: string;
   status: string;
+  redacaoTexto: string | null;
+  temaRedacao: string | null;
   candidato: {
     id: string;
     nomeCompleto: string;

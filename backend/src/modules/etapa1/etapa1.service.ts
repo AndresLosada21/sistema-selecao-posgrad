@@ -35,6 +35,8 @@ function mapEtapa1Inscricao(inscricao: Prisma.InscricaoGetPayload<{
           status: avaliacao.status,
         }
       : null,
+    redacaoTexto: inscricao.redacaoTexto,
+    temaRedacao: inscricao.temaRedacao,
     id: inscricao.id,
     status: inscricao.status,
     candidato: {
@@ -372,15 +374,12 @@ export async function liberarEspelhoEtapa1(inscricaoId: string) {
     return { error: "ESPELHO_ETAPA_1_INDISPONIVEL" as const };
   }
 
-  if (!avaliacao.espelhoSolicitadoEm) {
-    return { error: "ESPELHO_ETAPA_1_NAO_SOLICITADO" as const };
-  }
-
   const avaliacaoAtualizada = await prisma.avaliacaoEtapa1.update({
     where: {
       inscricaoId,
     },
     data: {
+      espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm ?? new Date(),
       espelhoLiberadoEm: new Date(),
     },
   });

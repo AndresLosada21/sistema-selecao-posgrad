@@ -329,13 +329,10 @@ export async function liberarEspelhoEtapa2(inscricaoId: string) {
     return { error: "ESPELHO_ETAPA_2_INDISPONIVEL" as const };
   }
 
-  if (!avaliacao.espelhoSolicitadoEm) {
-    return { error: "ESPELHO_ETAPA_2_NAO_SOLICITADO" as const };
-  }
-
   const atualizada = await prisma.avaliacaoEtapa2.update({
     where: { inscricaoId },
     data: {
+      espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm ?? new Date(),
       espelhoLiberadoEm: new Date(),
     },
   });

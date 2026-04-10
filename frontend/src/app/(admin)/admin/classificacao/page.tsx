@@ -3,29 +3,33 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { PageHeader } from "@/components/layout/page-header";
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
-import { SectionCard } from "@/components/shared/section-card";
 import { useSession } from "@/lib/auth/session-provider";
 
-export default function AdminClassificacaoIndexPage() {
+export default function AdminClassificacaoLauncher() {
   const session = useSession();
-  const [draftEditalId, setDraftEditalId] = useState("");
+  const [editalId, setEditalId] = useState("");
 
   return (
-    <div className="stack-layout">
-      <PageHeader title="Classificação" description="Selecione um edital para abrir o módulo de classificação." />
-
-      <SectionCard title="Abrir classificação" description="Selecione um edital para continuar.">
-        <div className="admin-launcher-select-card">
-          <AdminEditalCombobox allowEmpty={false} emptyLabel="Selecione um edital" label="Edital" onChange={setDraftEditalId} token={session.token ?? ""} value={draftEditalId} />
-          <div className="admin-launcher-form-actions">
-            <Link className="action-btn action-btn--primary action-btn--md" href={draftEditalId.trim() ? `/admin/classificacao/${draftEditalId.trim()}` : "/admin/classificacao"}>
-              Abrir classificacao
-            </Link>
-          </div>
+    <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="admin-page-header">
+        <div className="admin-page-header-left">
+          <h1>Classificacao Final</h1>
+          <p>Selecione o edital para acessar o ranking e operacoes de recalculo.</p>
         </div>
-      </SectionCard>
+      </div>
+
+      <div className="admin-form-card" style={{ maxWidth: 600 }}>
+        <h2 className="admin-form-card-title">Selecionar edital</h2>
+        <AdminEditalCombobox allowEmpty={false} emptyLabel="" label="Edital" onChange={setEditalId} token={session.token ?? ""} value={editalId} />
+        {editalId ? (
+          <Link className="admin-page-cta" href={`/admin/classificacao/${editalId}`} style={{ textDecoration: "none", alignSelf: "flex-start" }}>
+            Abrir classificacao
+          </Link>
+        ) : (
+          <span style={{ fontSize: 13, color: "#94A3B8" }}>Selecione um edital para continuar.</span>
+        )}
+      </div>
     </div>
   );
 }

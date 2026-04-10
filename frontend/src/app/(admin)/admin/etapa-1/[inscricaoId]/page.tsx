@@ -92,7 +92,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
       grafiaGramatica: observacoesSalvas?.grafiaGramatica ?? criterios?.grafiaGramatica?.observacao ?? "",
       geral: observacoesSalvas?.geral ?? "",
     });
-    setTema(found?.avaliacao?.tema ?? "");
+    setTema(found?.avaliacao?.tema ?? found?.temaRedacao ?? "");
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
     setUsoIaComprovado(rubricaSalva?.usoIaComprovado ?? found?.avaliacao?.usoIaComprovado ?? false);
     setFundamentoUsoIa(rubricaSalva?.fundamentoUsoIa ?? found?.avaliacao?.fundamentoUsoIa ?? "");
@@ -121,7 +121,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   }, [rubrica]);
 
   const redacaoText = useMemo(() => {
-    return item?.avaliacao?.textoSubmetido ?? null;
+    return item?.avaliacao?.textoSubmetido ?? item?.redacaoTexto ?? null;
   }, [item]);
 
   const charCount = redacaoText?.length ?? 0;
@@ -148,7 +148,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         return;
       }
       await registrarEtapa1(inscricaoId, {
-        tema: tema || undefined,
+        tema: tema || item?.temaRedacao || undefined,
         rubrica: { ...rubrica, observacoes: normalizeObs(observacoes) },
         usoIaComprovado,
         fundamentoUsoIa: usoIaComprovado ? fundamentoUsoIa : undefined,
@@ -229,7 +229,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         <div className="admin-form-card admin-etapa1-redacao-card">
           <h2 className="admin-form-card-title">Redacao do candidato</h2>
           <div className="admin-redacao-meta">
-            <span>Tema: {tema || item.avaliacao?.tema || "nao informado"}</span>
+            <span>Tema: {tema || item.avaliacao?.tema || item.temaRedacao || "nao informado"}</span>
             <span className="admin-char-badge">{charCount} caracteres</span>
           </div>
           <div className="admin-redacao-box">
@@ -275,8 +275,11 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Tema</label>
-          <input onChange={(e) => setTema(e.target.value)} value={tema} />
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Tema base da avaliacao</label>
+          <div style={{ minHeight: 44, borderRadius: 8, border: "1px solid #C7D2FE", background: "#EEF2FF", padding: "11px 14px", fontSize: 14, fontWeight: 600, color: "#312E81" }}>
+            {tema || item.temaRedacao || "Tema nao informado na inscricao."}
+          </div>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Tema escolhido na inscricao e usado como referencia principal da correcao.</span>
         </div>
 
         {/* Rubrica inputs per criterio */}

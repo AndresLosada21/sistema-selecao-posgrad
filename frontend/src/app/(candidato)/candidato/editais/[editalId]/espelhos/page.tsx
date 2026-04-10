@@ -109,7 +109,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div className="part-header">
         <h1>Espelhos de correcao</h1>
-        <p>{item.edital.numero} — Visualize os espelhos disponiveis das etapas 1 e 2.</p>
+        <p>{item.edital.numero} — Solicite ou visualize os espelhos das etapas 1 e 2 conforme disponibilidade do edital.</p>
       </div>
 
       {message ? <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>{message}</div> : null}
@@ -188,7 +188,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
                   {espelho1.textoSubmetido ? (
                     <details style={{ fontSize: 13, color: "#64748B" }}>
                       <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver texto submetido</summary>
-                      <div style={{ marginTop: 8, padding: 16, background: "#F8FAFC", borderRadius: 6, border: "1px solid #E2E8F0", fontSize: 13, lineHeight: 1.7, color: "#334155", whiteSpace: "pre-wrap" }}>
+                      <div style={{ marginTop: 8, padding: 16, background: "#F8FAFC", borderRadius: 6, border: "1px solid #E2E8F0", fontSize: 13, lineHeight: 1.7, color: "#334155", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word" }}>
                         {espelho1.textoSubmetido}
                       </div>
                     </details>
@@ -209,14 +209,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
             </button>
           ) : e1Available && !etapa1?.espelhoSolicitadoEm ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho para visualizar a correcao da etapa 1.</span>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho ou aguarde liberacao administrativa para visualizar a correcao da etapa 1.</span>
               <button type="button" onClick={() => handleSolicitar("1")} disabled={soliciting === "1"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 {soliciting === "1" ? "Solicitando..." : "Solicitar espelho"}
               </button>
             </div>
           ) : (
             <span style={{ fontSize: 13, color: "#64748B" }}>
-              {etapa1?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao." : "Espelho nao disponivel para esta etapa."}
+                {etapa1?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}
             </span>
           )}
         </div>
@@ -337,14 +337,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
             </button>
           ) : e2Available && !etapa2?.espelhoSolicitadoEm ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho para visualizar a correcao da etapa 2.</span>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho ou aguarde liberacao administrativa para visualizar a correcao da etapa 2.</span>
               <button type="button" onClick={() => handleSolicitar("2")} disabled={soliciting === "2"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 {soliciting === "2" ? "Solicitando..." : "Solicitar espelho"}
               </button>
             </div>
           ) : (
             <span style={{ fontSize: 13, color: "#64748B" }}>
-              {etapa2?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao." : "Espelho nao disponivel para esta etapa."}
+                {etapa2?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}
             </span>
           )}
         </div>
