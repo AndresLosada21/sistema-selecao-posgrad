@@ -137,7 +137,7 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes", requireAuth, req
   const edital = await getPublicEditalById(parsedParams.data.editalId);
 
   if (!edital) {
-    return response.status(404).json(notFound("EDITAL_NAO_ENCONTRADO", "EDITAL_NAO_ENCONTRADO"));
+    return response.status(404).json(notFound(getPublicacaoMessage("EDITAL_NAO_ENCONTRADO"), "EDITAL_NAO_ENCONTRADO"));
   }
 
   const result = await listPublicacoesAdminByEdital(parsedParams.data.editalId, parsedQuery.data);
