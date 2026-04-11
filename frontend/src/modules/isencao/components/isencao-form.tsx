@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFieldError, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
 import { FileField } from "@/components/shared/file-field";
 import { createIsencao } from "@/modules/isencao/api";
@@ -32,6 +32,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
   const [comprovanteNomeArquivo, setComprovanteNomeArquivo] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ justificativa?: string | null; comprovanteUrl?: string | null }>({});
 
   const justificativaValida = inscritoCadUnico || justificativa.trim().length >= 10;
   const comprovanteValido = inscritoCadUnico || Boolean(comprovanteUrl && comprovanteNomeArquivo);
@@ -41,7 +42,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
 
   async function handleComprovanteSelect(file: File) {
     if (!session.token) return;
-    setStatus("loading"); setMessage(null);
+    setStatus("loading"); setMessage(null); setFieldErrors((current) => ({ ...current, comprovanteUrl: null }));
     try {
       const uploaded = await uploadPrivateFile(file, session.token);
       setComprovanteUrl(uploaded.urlArquivo);
@@ -49,14 +50,14 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
       setStatus("idle");
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setStatus("error"); setMessage({ type: "error", text: getErrorMessage(error) });
+      setStatus("error"); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!session.token) return;
-    setStatus("loading"); setMessage(null);
+    setStatus("loading"); setMessage(null); setFieldErrors({});
     try {
       await createIsencao(editalId, sanitizePayload({
         cursoNivel,
@@ -71,7 +72,11 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
       redirectTimeoutRef.current = setTimeout(() => router.replace(`/candidato/editais/${editalId}`), 900);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setStatus("error"); setMessage({ type: "error", text: getErrorMessage(error) });
+      setFieldErrors({
+        justificativa: getFirstFieldError(error, "justificativa"),
+        comprovanteUrl: getFirstFieldError(error, "comprovanteUrl"),
+      });
+      setStatus("error"); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     }
   }
 
@@ -132,6 +137,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
                   style={{ minHeight: 80, borderRadius: 6, border: "1px solid #CBD5E1", padding: "12px 14px", fontSize: 14, resize: "vertical" }}
                   placeholder="Justifique o pedido de isencao (minimo 10 caracteres)"
                 />
+                {fieldErrors.justificativa ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.justificativa}</span> : null}
               </div>
               <div className="wiz-field">
                 <label className="wiz-field-label">Comprovante (PDF) *</label>
@@ -141,6 +147,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
                   label=""
                   onFileSelect={handleComprovanteSelect}
                 />
+                {fieldErrors.comprovanteUrl ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.comprovanteUrl}</span> : null}
               </div>
             </>
           ) : null}

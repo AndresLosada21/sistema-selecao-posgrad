@@ -40,6 +40,40 @@ export function getErrorMessage(error: unknown) {
   return "Falha inesperada na requisicao.";
 }
 
+export function getApiValidationMap(error: unknown) {
+  if (!(error instanceof ApiError)) {
+    return {} as Record<string, string[]>;
+  }
+
+  return {
+    ...(error.payload.errors?.fieldErrors ?? {}),
+    ...(error.payload.paramsErrors?.fieldErrors ?? {}),
+    ...(error.payload.queryErrors?.fieldErrors ?? {}),
+    ...(error.payload.bodyErrors?.fieldErrors ?? {}),
+  };
+}
+
+export function getFirstFieldError(error: unknown, field: string) {
+  const map = getApiValidationMap(error);
+  const value = map[field];
+  return Array.isArray(value) && value.length > 0 ? value[0] : null;
+}
+
+export function getFirstFormError(error: unknown) {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+
+  const candidates = [
+    ...(error.payload.errors?.formErrors ?? []),
+    ...(error.payload.paramsErrors?.formErrors ?? []),
+    ...(error.payload.queryErrors?.formErrors ?? []),
+    ...(error.payload.bodyErrors?.formErrors ?? []),
+  ];
+
+  return candidates[0] ?? null;
+}
+
 export function isUnauthorizedError(error: unknown) {
   return error instanceof ApiError && error.status === 401;
 }

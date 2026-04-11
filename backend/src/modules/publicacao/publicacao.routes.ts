@@ -31,6 +31,23 @@ import { getEditalById as getPublicEditalById } from "../edital/edital.service.j
 export const publicacaoRouter = Router();
 const publicVisibleEditalStatuses = ["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"];
 
+function getPublicacaoMessage(errorCode: string) {
+  switch (errorCode) {
+    case "EDITAL_NAO_ENCONTRADO":
+      return "Edital nao encontrado para o fluxo de publicacoes.";
+    case "PUBLICACAO_NAO_ENCONTRADA":
+      return "Publicacao oficial nao encontrada.";
+    case "CLASSIFICACAO_CONTEXTO_INCOMPLETO":
+      return "Nao foi possivel gerar a publicacao porque a classificacao do edital ainda esta incompleta.";
+    case "CLASSIFICACAO_FINAL_JA_CONSOLIDADA":
+      return "Nao e permitido gerar/publicar classificacao preliminar depois que a classificacao final ja foi consolidada.";
+    case "CLASSIFICACAO_ESTADO_MISTO":
+      return "Nao foi possivel gerar a publicacao porque a classificacao do edital esta em estado misto entre preliminar e final.";
+    default:
+      return errorCode;
+  }
+}
+
 publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/preview", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
   const parsedParams = editalIdParamSchema.safeParse(request.params);
   const parsedQuery = previewHomologacaoPublicacaoQuerySchema.safeParse(request.query);
@@ -47,11 +64,12 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/previe
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json(
-      status === 404
-        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
-    );
+      const message = getPublicacaoMessage(errorCode);
+      return response.status(status).json(
+        status === 404
+          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
+      );
   }
 
   return response.status(200).json(result.preview);
@@ -73,11 +91,12 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/classificacao/prev
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json(
-      status === 404
-        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
-    );
+      const message = getPublicacaoMessage(errorCode);
+      return response.status(status).json(
+        status === 404
+          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
+      );
   }
 
   return response.status(200).json(result.preview);
@@ -93,7 +112,7 @@ publicacaoRouter.get("/v1/editais/:editalId/publicacoes", async (request, respon
   const edital = await getPublicEditalById(parsedParams.data.editalId);
 
   if (!edital || !publicVisibleEditalStatuses.includes(edital.status)) {
-    return response.status(404).json(notFound("EDITAL_NAO_ENCONTRADO", "EDITAL_NAO_ENCONTRADO"));
+    return response.status(404).json(notFound(getPublicacaoMessage("EDITAL_NAO_ENCONTRADO"), "EDITAL_NAO_ENCONTRADO"));
   }
 
   const items = await listPublicacoesByEdital(parsedParams.data.editalId);
@@ -142,13 +161,13 @@ publicacaoRouter.get("/v1/publicacoes/:publicacaoId/arquivo.pdf", async (request
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    return response.status(404).json(notFound(errorCode, errorCode));
+      return response.status(404).json(notFound(getPublicacaoMessage(errorCode), errorCode));
   }
 
   const edital = await getPublicEditalById(result.publicacao.editalId);
 
   if (!edital || !publicVisibleEditalStatuses.includes(edital.status)) {
-    return response.status(404).json(notFound("PUBLICACAO_NAO_ENCONTRADA", "PUBLICACAO_NAO_ENCONTRADA"));
+    return response.status(404).json(notFound(getPublicacaoMessage("PUBLICACAO_NAO_ENCONTRADA"), "PUBLICACAO_NAO_ENCONTRADA"));
   }
 
   const pdfBuffer = await generatePublicacaoPdfBuffer({
@@ -194,7 +213,7 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes", requireAuth, re
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    return response.status(404).json(notFound(errorCode, errorCode));
+      return response.status(404).json(notFound(getPublicacaoMessage(errorCode), errorCode));
   }
 
   return response.status(201).json(result.publicacao);
@@ -223,11 +242,12 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/homologacao", req
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json(
-      status === 404
-        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
-    );
+      const message = getPublicacaoMessage(errorCode);
+      return response.status(status).json(
+        status === 404
+          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
+      );
   }
 
   if (!("publicacao" in result)) {
@@ -263,11 +283,12 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/classificacao", r
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-    return response.status(status).json(
-      status === 404
-        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
-    );
+      const message = getPublicacaoMessage(errorCode);
+      return response.status(status).json(
+        status === 404
+          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
+      );
   }
 
   if (!("publicacao" in result)) {

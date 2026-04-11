@@ -1,10 +1,89 @@
-import { Prisma, StatusAvaliacaoEtapa, StatusInscricao } from "@prisma/client";
+import { Prisma, StatusAvaliacaoEtapa, StatusInscricao, StatusRecurso, TipoCronogramaEdital } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { buildInscricaoWhereForAvaliador } from "../avaliacao/avaliador-scope.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
-import { TipoCronogramaEdital } from "@prisma/client";
 import { buildEspelhoEtapa2, buildMemoriaCalculoEtapa2, calcularNotaNormalizadaEtapa2, type GlosaEtapa2 } from "./etapa2.rules.js";
+
+async function hasRecursosPendentesEtapa2(inscricaoId: string) {
+  return (await prisma.recurso.count({
+    where: {
+      fase: "ETAPA_2",
+      status: { in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE] },
+      participacaoEdital: {
+        inscricao: {
+          id: inscricaoId,
+        },
+      },
+    },
+  })) > 0;
+}
+
+async function hasRecursosRegistradosEtapa2(inscricaoId: string) {
+  return (await prisma.recurso.count({
+    where: {
+      fase: "ETAPA_2",
+      status: { in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE, StatusRecurso.DEFERIDO, StatusRecurso.INDEFERIDO] },
+      participacaoEdital: {
+        inscricao: {
+          id: inscricaoId,
+        },
+      },
+    },
+  })) > 0;
+}
+
+async function buildEtapa2EditState(inscricao: Prisma.InscricaoGetPayload<{
+  include: {
+    participacaoEdital: { include: { edital: true; classificacaoFinal: true } };
+    avaliacaoEtapa2: true;
+  };
+}>) {
+  const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_2);
+  const hasRecursosPendentes = await hasRecursosPendentesEtapa2(inscricao.id);
+  const hasRecursosRegistrados = await hasRecursosRegistradosEtapa2(inscricao.id);
+  const avaliacao = inscricao.avaliacaoEtapa2;
+
+  let bloqueioSalvarPreliminar: string | null = null;
+  if (avaliacao?.status === StatusAvaliacaoEtapa.FINAL_PUBLICADA) {
+    bloqueioSalvarPreliminar = "Resultado final da etapa 2 ja publicado.";
+  } else if (inscricao.participacaoEdital.classificacaoFinal) {
+    bloqueioSalvarPreliminar = "A etapa 2 preliminar nao pode mais ser alterada porque a classificacao ja foi registrada.";
+  } else if (avaliacao?.status === StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA && (recursoWindow.open || hasRecursosRegistrados)) {
+    bloqueioSalvarPreliminar = "A etapa 2 preliminar foi bloqueada apos a abertura do fluxo recursal desta fase.";
+  }
+
+  let bloqueioSalvarFinal: string | null = null;
+  if (avaliacao?.status === StatusAvaliacaoEtapa.FINAL_PUBLICADA) {
+    bloqueioSalvarFinal = "Resultado final da etapa 2 ja publicado.";
+  } else if (inscricao.participacaoEdital.classificacaoFinal) {
+    bloqueioSalvarFinal = "A etapa 2 final nao pode mais ser alterada porque a classificacao ja foi registrada.";
+  } else if (!avaliacao || avaliacao.status !== StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
+    bloqueioSalvarFinal = "Publique primeiro o resultado preliminar da etapa 2.";
+  } else if (recursoWindow.open) {
+    bloqueioSalvarFinal = "A janela de recurso da etapa 2 ainda esta aberta.";
+  } else if (hasRecursosPendentes) {
+    bloqueioSalvarFinal = "Ainda existe recurso pendente da etapa 2 sem decisao final.";
+  }
+
+  let bloqueioLiberarEspelho: string | null = null;
+  if (!avaliacao || avaliacao.status !== StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
+    bloqueioLiberarEspelho = "O espelho so pode ser liberado em resultado preliminar publicado.";
+  } else if (avaliacao.espelhoLiberadoEm) {
+    bloqueioLiberarEspelho = "O espelho da etapa 2 ja foi liberado.";
+  } else if (!recursoWindow.open) {
+    bloqueioLiberarEspelho = "A liberacao do espelho so faz sentido com a janela recursal da etapa 2 em curso.";
+  }
+
+  return {
+    podeSalvarPreliminar: bloqueioSalvarPreliminar === null,
+    bloqueioSalvarPreliminar,
+    podeSalvarFinal: bloqueioSalvarFinal === null,
+    bloqueioSalvarFinal,
+    podeLiberarEspelho: bloqueioLiberarEspelho === null,
+    bloqueioLiberarEspelho,
+  };
+}
 
 export async function recalcularNotasEtapa2PorEdital(editalId: string, status?: StatusAvaliacaoEtapa) {
   const avaliacoes = await prisma.avaliacaoEtapa2.findMany({
@@ -58,7 +137,14 @@ function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
     linhaPesquisa: true;
     avaliacaoEtapa2: true;
   };
-}>) {
+}>, edicao?: {
+  podeSalvarPreliminar: boolean;
+  bloqueioSalvarPreliminar: string | null;
+  podeSalvarFinal: boolean;
+  bloqueioSalvarFinal: string | null;
+  podeLiberarEspelho: boolean;
+  bloqueioLiberarEspelho: string | null;
+}) {
   const avaliacao = inscricao.avaliacaoEtapa2;
 
   return {
@@ -93,6 +179,7 @@ function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
           status: avaliacao.status,
         }
       : null,
+    edicao: edicao ?? null,
   };
 }
 
@@ -134,7 +221,7 @@ export async function listInscricoesParaEtapa2(input: { editalId?: string; page:
     prisma.inscricao.count({ where }),
   ]);
 
-  return { items: inscricoes.map(mapEtapa2Inscricao), total };
+  return { items: inscricoes.map((inscricao) => mapEtapa2Inscricao(inscricao)), total };
 }
 
 export async function getInscricaoEtapa2ById(inscricaoId: string) {
@@ -145,6 +232,7 @@ export async function getInscricaoEtapa2ById(inscricaoId: string) {
         include: {
           usuario: true,
           edital: true,
+          classificacaoFinal: true,
         },
       },
       linhaPesquisa: true,
@@ -153,7 +241,8 @@ export async function getInscricaoEtapa2ById(inscricaoId: string) {
   });
 
   if (!inscricao) return null;
-  return mapEtapa2Inscricao(inscricao);
+  const edicao = await buildEtapa2EditState(inscricao);
+  return mapEtapa2Inscricao(inscricao, edicao);
 }
 
 export async function registrarResultadoEtapa2(
@@ -197,18 +286,40 @@ export async function registrarResultadoEtapa2(
     return { error: "ETAPA_2_FINAL_NAO_PODE_REGREDIR" as const };
   }
 
+  if (input.publicacao === "PRELIMINAR" && inscricao.avaliacaoEtapa2?.status === StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
+    const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_2);
+    if (recursoWindow.open || await hasRecursosRegistradosEtapa2(inscricaoId)) {
+      return { error: "ETAPA_2_PRELIMINAR_BLOQUEADA" as const };
+    }
+  }
+
   if (input.publicacao === "PRELIMINAR" && inscricao.participacaoEdital.classificacaoFinal) {
     return { error: "ETAPA_2_FINAL_JA_PROPAGADA" as const };
   }
 
-  if (input.publicacao === "PRELIMINAR" && input.liberarEspelho && !inscricao.avaliacaoEtapa2?.espelhoSolicitadoEm) {
-    return { error: "ESPELHO_ETAPA_2_NAO_SOLICITADO" as const };
-  }
-
   if (input.publicacao === "FINAL") {
+    if (inscricao.participacaoEdital.classificacaoFinal) {
+      return { error: "ETAPA_2_FINAL_JA_PROPAGADA" as const };
+    }
+
+    if (!inscricao.avaliacaoEtapa2 || inscricao.avaliacaoEtapa2.status !== StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
+      return { error: "ETAPA_2_PRELIMINAR_OBRIGATORIA" as const };
+    }
+
     const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_2);
     if (recursoWindow.open) {
       return { error: "RECURSO_ETAPA_2_EM_ABERTO" as const };
+    }
+
+    if (await hasRecursosPendentesEtapa2(inscricaoId)) {
+      return { error: "RECURSO_ETAPA_2_PENDENTE" as const };
+    }
+  }
+
+  if (input.publicacao === "PRELIMINAR" && input.liberarEspelho) {
+    const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_2);
+    if (!recursoWindow.open) {
+      return { error: "JANELA_RECURSO_ETAPA_2_FECHADA" as const };
     }
   }
 
@@ -231,9 +342,12 @@ export async function registrarResultadoEtapa2(
     input.publicacao === "PRELIMINAR"
       ? StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA
       : StatusAvaliacaoEtapa.FINAL_PUBLICADA;
+  const espelhoSolicitadoEm = input.publicacao === "PRELIMINAR" && input.liberarEspelho
+    ? (inscricao.avaliacaoEtapa2?.espelhoSolicitadoEm ?? new Date())
+    : undefined;
   const espelhoLiberadoEm = input.publicacao === "FINAL"
     ? new Date()
-    : input.liberarEspelho && inscricao.avaliacaoEtapa2?.espelhoSolicitadoEm
+    : input.liberarEspelho
       ? new Date()
       : null;
 
@@ -246,6 +360,7 @@ export async function registrarResultadoEtapa2(
       memoriaCalculo: memoriaCalculo as Prisma.InputJsonValue,
       glosas: input.glosas as unknown as Prisma.InputJsonValue,
       espelhoCorrecao: input.espelhoCorrecao,
+      espelhoSolicitadoEm,
       espelhoLiberadoEm,
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
@@ -259,6 +374,7 @@ export async function registrarResultadoEtapa2(
       memoriaCalculo: memoriaCalculo as Prisma.InputJsonValue,
       glosas: input.glosas as unknown as Prisma.InputJsonValue,
       espelhoCorrecao: input.espelhoCorrecao,
+      espelhoSolicitadoEm,
       espelhoLiberadoEm,
       status: statusAvaliacao,
       resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
@@ -288,6 +404,9 @@ export async function solicitarEspelhoEtapa2(inscricaoId: string, usuarioId: str
     },
     include: {
       avaliacaoEtapa2: true,
+      participacaoEdital: {
+        select: { editalId: true },
+      },
     },
   });
 
@@ -299,6 +418,19 @@ export async function solicitarEspelhoEtapa2(inscricaoId: string, usuarioId: str
 
   if (!avaliacao || avaliacao.status !== StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
     return { error: "RESULTADO_PRELIMINAR_ETAPA_2_OBRIGATORIO" as const };
+  }
+
+  if (avaliacao.espelhoSolicitadoEm) {
+    return { error: "ESPELHO_ETAPA_2_JA_SOLICITADO" as const };
+  }
+
+  if (avaliacao.espelhoLiberadoEm) {
+    return { error: "ESPELHO_ETAPA_2_JA_LIBERADO" as const };
+  }
+
+  const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_2);
+  if (!recursoWindow.open) {
+    return { error: "JANELA_RECURSO_ETAPA_2_FECHADA" as const };
   }
 
   const atualizada = await prisma.avaliacaoEtapa2.update({
@@ -316,6 +448,9 @@ export async function liberarEspelhoEtapa2(inscricaoId: string) {
     where: { id: inscricaoId },
     include: {
       avaliacaoEtapa2: true,
+      participacaoEdital: {
+        select: { editalId: true },
+      },
     },
   });
 
@@ -327,6 +462,19 @@ export async function liberarEspelhoEtapa2(inscricaoId: string) {
 
   if (!avaliacao || !avaliacao.espelhoCorrecao) {
     return { error: "ESPELHO_ETAPA_2_INDISPONIVEL" as const };
+  }
+
+  if (avaliacao.status !== StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
+    return { error: "RESULTADO_PRELIMINAR_ETAPA_2_OBRIGATORIO" as const };
+  }
+
+  if (avaliacao.espelhoLiberadoEm) {
+    return { error: "ESPELHO_ETAPA_2_JA_LIBERADO" as const };
+  }
+
+  const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_2);
+  if (!recursoWindow.open) {
+    return { error: "JANELA_RECURSO_ETAPA_2_FECHADA" as const };
   }
 
   const atualizada = await prisma.avaliacaoEtapa2.update({

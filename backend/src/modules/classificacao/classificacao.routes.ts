@@ -47,7 +47,15 @@ classificacaoRouter.post("/v1/admin/editais/:editalId/classificacao/recalcular",
   const result = await recalcularClassificacao(parsedParams.data.editalId, parsedBody.data.publicacao);
 
   if ("error" in result) {
-    return response.status(404).json(notFound(result.error, result.error));
+    if (result.error === "EDITAL_NAO_ENCONTRADO") {
+      return response.status(404).json(notFound(result.error, result.error));
+    }
+
+    if (result.error === "CLASSIFICACAO_FINAL_JA_CONSOLIDADA") {
+      return response.status(409).json(conflict("Nao e permitido recalcular a classificacao preliminar depois que a classificacao final ja foi consolidada para este edital.", result.error));
+    }
+
+    return response.status(409).json(conflict("Nao foi possivel recalcular a classificacao porque ainda existem inscricoes elegiveis com contexto incompleto.", result.error, { details: result.details }));
   }
 
   if (result.total > 0) {

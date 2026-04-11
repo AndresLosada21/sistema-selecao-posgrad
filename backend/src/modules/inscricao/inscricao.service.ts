@@ -17,6 +17,10 @@ import {
   buildPrivateUploadUrl,
   buildStoredUploadName,
   ensureUploadDirForUser,
+  deletePrivateUpload,
+  isPrivateUploadOwnedByUser,
+  parsePrivateUploadUrl,
+  privateUploadExists,
   resolvePrivateUploadPath,
 } from "../upload/upload.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
@@ -160,12 +164,17 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
               temasRedacao: true,
             },
           },
+          classificacaoFinal: true,
           pedidoIsencao: true,
           usuario: true,
         },
       },
       documentos: true,
       linhaPesquisa: true,
+      homologacao: true,
+      avaliacaoEtapa1: true,
+      avaliacaoEtapa2: true,
+      etapaPoliticasAfirmativas: true,
     },
   });
 }
@@ -730,14 +739,42 @@ export async function addDocumentoToInscricao(input: AddDocumentoInput) {
     return { error: "DOCUMENTO_FORA_PADRAO" as const };
   }
 
+  if (!isPrivateUploadOwnedByUser(input.urlArquivo, input.usuarioId)) {
+    return { error: "UPLOAD_SEM_PERMISSAO" as const };
+  }
+
+  const uploadedPrivateFile = parsePrivateUploadUrl(input.urlArquivo);
+  if (!uploadedPrivateFile) {
+    return { error: "UPLOAD_EXTERNO_NAO_PERMITIDO" as const };
+  }
+  if (uploadedPrivateFile && !(await privateUploadExists(uploadedPrivateFile.ownerId, uploadedPrivateFile.filename))) {
+    return { error: "UPLOAD_NAO_ENCONTRADO" as const };
+  }
+
   const inscricao = await getOwnedInscricao(input.inscricaoId, input.usuarioId);
+  const uploadedFile = uploadedPrivateFile;
 
   if (!inscricao) {
+    if (uploadedFile && uploadedFile.ownerId === input.usuarioId) {
+      await deletePrivateUpload(uploadedFile.ownerId, uploadedFile.filename);
+    }
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
   if (inscricao.status !== StatusInscricao.RASCUNHO) {
+    if (uploadedFile && uploadedFile.ownerId === input.usuarioId) {
+      await deletePrivateUpload(uploadedFile.ownerId, uploadedFile.filename);
+    }
     return { error: "INSCRICAO_NAO_EDITAVEL" as const };
+  }
+
+  const windowStatus = await isCronogramaWindowOpen(inscricao.participacaoEdital.edital.id, TipoCronogramaEdital.INSCRICAO);
+
+  if (!windowStatus.open) {
+    if (uploadedFile && uploadedFile.ownerId === input.usuarioId) {
+      await deletePrivateUpload(uploadedFile.ownerId, uploadedFile.filename);
+    }
+    return { error: "JANELA_INSCRICAO_FECHADA" as const };
   }
 
   const documentoExistente = inscricao.documentos.find((documento) => documento.tipo === input.tipo);
@@ -887,6 +924,7 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
     data: {
       status: StatusInscricao.SUBMETIDA,
       submetidaEm: submittedAt,
+      canceladaSubmissaoEm: null,
       statusPagamento,
       temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
       temaRedacao: temaRedacaoSelection.temaRedacao,
@@ -916,13 +954,36 @@ export async function cancelInscricaoSubmission(inscricaoId: string, usuarioId: 
     return { error: "INSCRICAO_NAO_CANCELAVEL" as const };
   }
 
+  if (inscricao.homologacao || inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas || inscricao.participacaoEdital.classificacaoFinal) {
+    return { error: "INSCRICAO_COM_PROCESSAMENTO_POSTERIOR" as const };
+  }
+
+  const pacoteDocumentalPrivateUpload = parsePrivateUploadUrl(inscricao.pacoteDocumentalUrl);
+
   const updated = await prisma.inscricao.update({
     where: { id: inscricao.id },
     data: {
       status: StatusInscricao.RASCUNHO,
+      statusPagamento: inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL"
+        ? StatusPagamentoInscricao.DISPENSADO
+        : StatusPagamentoInscricao.PENDENTE,
+      submetidaEm: null,
       canceladaSubmissaoEm: new Date(),
+      submissaoSnapshot: Prisma.DbNull,
+      pacoteDocumentalUrl: null,
+      pacoteDocumentalNomeArquivo: null,
+      pacoteDocumentalMimeType: null,
+      pacoteDocumentalTamanhoBytes: null,
+      pacoteDocumentalSnapshot: Prisma.DbNull,
+      pacoteDocumentalVersaoSubmissao: null,
+      pacoteDocumentalGeradoEm: null,
+      pacoteDocumentalGeradoPorId: null,
     },
   });
+
+  if (pacoteDocumentalPrivateUpload) {
+    await deletePrivateUpload(pacoteDocumentalPrivateUpload.ownerId, pacoteDocumentalPrivateUpload.filename);
+  }
 
   return { inscricao: updated };
 }
@@ -940,6 +1001,17 @@ export async function registrarPacoteDocumentalConsolidado(input: RegistrarPacot
 
   if (!inscricao.submetidaEm || inscricao.versaoSubmissao <= 0) {
     return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
+
+  const pacotePrivado = parsePrivateUploadUrl(input.urlArquivo);
+  if (pacotePrivado) {
+    if (pacotePrivado.ownerId !== inscricao.participacaoEdital.usuario.id) {
+      return { error: "UPLOAD_SEM_PERMISSAO" as const };
+    }
+
+    if (!(await privateUploadExists(pacotePrivado.ownerId, pacotePrivado.filename))) {
+      return { error: "UPLOAD_NAO_ENCONTRADO" as const };
+    }
   }
 
   const pacoteDocumentalSnapshot = {

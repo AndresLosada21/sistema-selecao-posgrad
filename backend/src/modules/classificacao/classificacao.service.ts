@@ -3,6 +3,75 @@ import { Prisma, StatusClassificacaoFinal, StatusConfirmacaoReserva, StatusInscr
 import { prisma } from "../../lib/prisma.js";
 import { rankClassificacao } from "./classificacao.rules.js";
 
+export async function validarContextoClassificacao(editalId: string, publicacao: "PRELIMINAR" | "FINAL") {
+  const classificacoesAtuais = await prisma.classificacaoFinal.findMany({
+    where: {
+      participacaoEdital: {
+        editalId,
+      },
+    },
+    select: {
+      status: true,
+    },
+  });
+
+  if (publicacao === "PRELIMINAR" && classificacoesAtuais.some((item) => item.status !== StatusClassificacaoFinal.PRELIMINAR)) {
+    return { error: "CLASSIFICACAO_FINAL_JA_CONSOLIDADA" as const };
+  }
+
+  const inscricoesElegiveis = await prisma.inscricao.findMany({
+    where: {
+      participacaoEdital: {
+        editalId,
+      },
+      status: {
+        in: [
+          StatusInscricao.CLASSIFICACAO_PRELIMINAR,
+          StatusInscricao.CLASSIFICACAO_FINAL,
+          StatusInscricao.APROVADA,
+          StatusInscricao.LISTA_DE_ESPERA,
+        ],
+      },
+    },
+    include: {
+      participacaoEdital: {
+        include: {
+          usuario: true,
+        },
+      },
+      avaliacaoEtapa1: true,
+      avaliacaoEtapa2: true,
+      linhaPesquisa: true,
+    },
+  });
+
+  const details = inscricoesElegiveis
+    .map((inscricao) => {
+      const pendencias: string[] = [];
+      if (!inscricao.linhaPesquisa) pendencias.push("linha de pesquisa ausente");
+      if (!inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa1.status !== "FINAL_PUBLICADA" || inscricao.avaliacaoEtapa1.nota == null) pendencias.push("etapa 1 final ausente");
+      if (!inscricao.avaliacaoEtapa2 || inscricao.avaliacaoEtapa2.status !== "FINAL_PUBLICADA" || inscricao.avaliacaoEtapa2.notaNormalizada == null) pendencias.push("etapa 2 final ausente");
+      return pendencias.length > 0
+        ? {
+            inscricaoId: inscricao.id,
+            candidatoId: inscricao.participacaoEdital.usuario.id,
+            nomeCompleto: inscricao.participacaoEdital.usuario.nomeCompleto,
+            pendencias,
+          }
+        : null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
+  if (details.length > 0) {
+    return {
+      error: "CLASSIFICACAO_CONTEXTO_INCOMPLETO" as const,
+      details,
+    };
+  }
+
+  return null;
+}
+
 function parseFichaDataNascimento(value: Prisma.JsonValue | null | undefined) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -29,6 +98,11 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
 
   if (!edital) {
     return { error: "EDITAL_NAO_ENCONTRADO" as const };
+  }
+
+  const validacao = await validarContextoClassificacao(editalId, publicacao);
+  if (validacao) {
+    return validacao;
   }
 
   const inscricoesElegiveis = await prisma.inscricao.findMany({

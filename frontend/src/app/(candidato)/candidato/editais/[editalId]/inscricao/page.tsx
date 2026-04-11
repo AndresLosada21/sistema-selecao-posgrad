@@ -85,5 +85,19 @@ export default function CandidateInscricaoPage({ params }: CandidateInscricaoPag
     );
   }
 
+  if (!dashboardItem.elegibilidade?.podeEditarInscricao && !dashboardItem.elegibilidade?.podeCancelarSubmissao) {
+    return (
+      <div className="stack-layout">
+        <PageFeedback
+          type="warning"
+          title="Edicao da inscricao indisponivel"
+          description={dashboardItem.elegibilidade?.motivoBloqueioInscricao ?? (dashboardItem.elegibilidade?.janelaInscricaoAberta ? "A inscricao atual nao pode mais ser editada nem cancelada para edicao no estado em que se encontra." : "A janela de inscricao deste edital esta encerrada, entao novas edicoes foram bloqueadas.")}
+          action={<Link className="nav-link" href={`/candidato/editais/${dashboardItem.edital.id}`}>Voltar ao acompanhamento do edital</Link>}
+        />
+        <EmptyState title="Editor bloqueado" description="Os dados da inscricao permanecem preservados, mas o formulario nao pode mais ser alterado neste momento." />
+      </div>
+    );
+  }
+
   return <InscricaoEditor dashboardItem={dashboardItem} edital={edital} />;
 }

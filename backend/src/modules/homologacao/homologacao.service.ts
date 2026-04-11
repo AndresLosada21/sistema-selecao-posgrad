@@ -1,11 +1,12 @@
-import { Prisma, StatusConfirmacaoReserva, StatusInscricao, StatusPagamentoInscricao, TipoDocumentoInscricao } from "@prisma/client";
+import { Prisma, StatusConfirmacaoReserva, StatusInscricao, StatusPagamentoInscricao, StatusRecurso, TipoCronogramaEdital, TipoDocumentoInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { toInputJsonOrDbNull } from "../../lib/serialization.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
 import { buildPrivateUploadUrl } from "../upload/upload.service.js";
-import { reprocessarClassificacaoEPublicacoesDerivadas } from "../publicacao/publicacao-derived-effects.service.js";
+import { reprocessarClassificacaoEPublicacoesDerivadas, validarReprocessamentoClassificacaoDerivada } from "../publicacao/publicacao-derived-effects.service.js";
+import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import {
   buildMotivoPublicacaoHomologacao,
   getFinalHomologacaoStatus,
@@ -29,6 +30,80 @@ function normalizeDocumentoUrlArquivo(urlArquivo: string) {
   return buildPrivateUploadUrl(ownerId, filename);
 }
 
+async function hasRecursosPendentesHomologacao(inscricaoId: string) {
+  return (await prisma.recurso.count({
+    where: {
+      fase: "HOMOLOGACAO",
+      status: { in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE] },
+      participacaoEdital: {
+        inscricao: {
+          id: inscricaoId,
+        },
+      },
+    },
+  })) > 0;
+}
+
+async function hasRecursosRegistradosHomologacao(inscricaoId: string) {
+  return (await prisma.recurso.count({
+    where: {
+      fase: "HOMOLOGACAO",
+      status: { in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE, StatusRecurso.DEFERIDO, StatusRecurso.INDEFERIDO] },
+      participacaoEdital: {
+        inscricao: {
+          id: inscricaoId,
+        },
+      },
+    },
+  })) > 0;
+}
+
+async function buildHomologacaoEditState(inscricao: Prisma.InscricaoGetPayload<{
+  include: {
+    participacaoEdital: { include: { edital: true } };
+    homologacao: true;
+    avaliacaoEtapa1: true;
+    avaliacaoEtapa2: true;
+    etapaPoliticasAfirmativas: true;
+  };
+}>) {
+  const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_HOMOLOGACAO);
+  const hasRecursosPendentes = await hasRecursosPendentesHomologacao(inscricao.id);
+  const hasRecursosRegistrados = await hasRecursosRegistradosHomologacao(inscricao.id);
+
+  let bloqueioPreliminar: string | null = getPreliminaryEditBlockReason({
+    submetidaEm: inscricao.submetidaEm,
+    status: inscricao.status,
+    statusFinal: inscricao.homologacao?.statusFinal,
+  });
+
+  if (!bloqueioPreliminar && inscricao.homologacao?.statusPreliminar && (recursoWindow.open || hasRecursosRegistrados)) {
+    bloqueioPreliminar = "A homologacao preliminar foi bloqueada apos a abertura do fluxo recursal da fase.";
+  }
+
+  let bloqueioFinal: string | null = getFinalEditBlockReason({
+    submetidaEm: inscricao.submetidaEm,
+    status: inscricao.status,
+    statusPreliminar: inscricao.homologacao?.statusPreliminar,
+    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas),
+  });
+
+  if (!bloqueioFinal && inscricao.homologacao?.statusFinal) {
+    bloqueioFinal = "A homologacao final ja foi registrada para esta inscricao.";
+  } else if (!bloqueioFinal && recursoWindow.open) {
+    bloqueioFinal = "A janela de recurso da homologacao ainda esta aberta.";
+  } else if (!bloqueioFinal && hasRecursosPendentes) {
+    bloqueioFinal = "Ainda existe recurso de homologacao sem decisao final.";
+  }
+
+  return {
+    podeEditarPreliminar: bloqueioPreliminar === null,
+    bloqueioPreliminar,
+    podeEditarFinal: bloqueioFinal === null,
+    bloqueioFinal,
+  };
+}
+
 function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
   include: {
     participacaoEdital: { include: { usuario: true; edital: true } };
@@ -39,18 +114,12 @@ function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
     avaliacaoEtapa2: true;
     etapaPoliticasAfirmativas: true;
   };
-}>) {
-  const bloqueioPreliminar = getPreliminaryEditBlockReason({
-    submetidaEm: inscricao.submetidaEm,
-    status: inscricao.status,
-    statusFinal: inscricao.homologacao?.statusFinal,
-  });
-  const bloqueioFinal = getFinalEditBlockReason({
-    submetidaEm: inscricao.submetidaEm,
-    status: inscricao.status,
-    statusPreliminar: inscricao.homologacao?.statusPreliminar,
-    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas),
-  });
+}>, edicao?: {
+  podeEditarPreliminar: boolean;
+  bloqueioPreliminar: string | null;
+  podeEditarFinal: boolean;
+  bloqueioFinal: string | null;
+}) {
 
   return {
     id: inscricao.id,
@@ -113,10 +182,10 @@ function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
         }
       : null,
     edicaoHomologacao: {
-      podeEditarPreliminar: bloqueioPreliminar === null,
-      bloqueioPreliminar,
-      podeEditarFinal: bloqueioFinal === null,
-      bloqueioFinal,
+      podeEditarPreliminar: edicao?.podeEditarPreliminar ?? false,
+      bloqueioPreliminar: edicao?.bloqueioPreliminar ?? "Bloqueio nao calculado.",
+      podeEditarFinal: edicao?.podeEditarFinal ?? false,
+      bloqueioFinal: edicao?.bloqueioFinal ?? "Bloqueio nao calculado.",
     },
   };
 }
@@ -156,7 +225,8 @@ export async function listInscricoesParaHomologacao(input: { editalId?: string; 
     prisma.inscricao.count({ where }),
   ]);
 
-  return { items: inscricoes.map(mapInscricaoHomologacao), total };
+  const items = await Promise.all(inscricoes.map(async (inscricao) => mapInscricaoHomologacao(inscricao, await buildHomologacaoEditState(inscricao))));
+  return { items, total };
 }
 
 export async function getInscricaoHomologacaoById(inscricaoId: string) {
@@ -182,7 +252,8 @@ export async function getInscricaoHomologacaoById(inscricaoId: string) {
     return null;
   }
 
-  return mapInscricaoHomologacao(inscricao);
+  const edicao = await buildHomologacaoEditState(inscricao);
+  return mapInscricaoHomologacao(inscricao, edicao);
 }
 
 export function listFundamentosHomologacao() {
@@ -199,10 +270,17 @@ export async function atualizarConfirmacaoReserva(
 ) {
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
+    include: {
+      etapaPoliticasAfirmativas: true,
+    },
   });
 
   if (!inscricao) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (inscricao.etapaPoliticasAfirmativas?.resultadoFinal && inscricao.etapaPoliticasAfirmativas.resultadoFinal !== "PENDENTE") {
+    return { error: "CONFIRMACAO_RESERVA_BLOQUEADA_POR_POLITICAS_FINAIS" as const };
   }
 
   const data: {
@@ -232,29 +310,35 @@ export async function atualizarConfirmacaoReserva(
         : StatusConfirmacaoReserva.NAO_SE_APLICA;
   }
 
+  const houveMudancaMaterialPlanejada = (
+    (data.confirmacaoAcoesAfirmativas !== undefined && data.confirmacaoAcoesAfirmativas !== inscricao.confirmacaoAcoesAfirmativas)
+    || (data.confirmacaoPcd !== undefined && data.confirmacaoPcd !== inscricao.confirmacaoPcd)
+  );
+
+  const participacao = await prisma.participacaoEdital.findUnique({
+    where: { id: inscricao.participacaoEditalId },
+    select: { editalId: true },
+  });
+
+  if (houveMudancaMaterialPlanejada && participacao && actorUserId) {
+    const validacao = await validarReprocessamentoClassificacaoDerivada(participacao.editalId);
+    if ("error" in validacao) {
+      return { error: validacao.error } as const;
+    }
+  }
+
   const updated = await prisma.inscricao.update({
     where: { id: inscricaoId },
     data,
   });
 
-  const houveMudancaMaterial = (
-    (input.confirmacaoAcoesAfirmativas !== undefined && updated.confirmacaoAcoesAfirmativas !== inscricao.confirmacaoAcoesAfirmativas)
-    || (input.confirmacaoPcd !== undefined && updated.confirmacaoPcd !== inscricao.confirmacaoPcd)
-  );
-
-  if (houveMudancaMaterial) {
-    const participacao = await prisma.participacaoEdital.findUnique({
-      where: { id: inscricao.participacaoEditalId },
-      select: { editalId: true },
-    });
-
-    if (participacao && actorUserId) {
+  if (houveMudancaMaterialPlanejada && participacao && actorUserId) {
       await reprocessarClassificacaoEPublicacoesDerivadas({
         editalId: participacao.editalId,
         criadoPorId: actorUserId,
         descricao: "Republicacao administrativa apos atualizacao direta de confirmacao de reserva.",
+        republicarPoliticasAfirmativasFinal: true,
       });
-    }
   }
 
   return {
@@ -400,6 +484,9 @@ export async function registrarHomologacaoPreliminar(
     where: { id: inscricaoId },
     include: {
       homologacao: true,
+      participacaoEdital: {
+        select: { editalId: true },
+      },
     },
   });
 
@@ -415,6 +502,19 @@ export async function registrarHomologacaoPreliminar(
 
   if (bloqueioPreliminar) {
     return { error: inscricao.homologacao?.statusFinal ? "HOMOLOGACAO_FINAL_JA_REGISTRADA" as const : "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
+
+  const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_HOMOLOGACAO);
+  if (inscricao.homologacao?.statusPreliminar && recursoWindow.open) {
+    return { error: "HOMOLOGACAO_PRELIMINAR_BLOQUEADA" as const };
+  }
+
+  if (inscricao.homologacao?.statusPreliminar && await hasRecursosRegistradosHomologacao(inscricaoId)) {
+    return { error: "HOMOLOGACAO_PRELIMINAR_BLOQUEADA" as const };
+  }
+
+  if (await hasRecursosPendentesHomologacao(inscricaoId)) {
+    return { error: "RECURSO_HOMOLOGACAO_PENDENTE" as const };
   }
 
   const decision = validateHomologacaoDecision({ homologada, motivos });
@@ -492,6 +592,9 @@ export async function registrarHomologacaoFinal(
       avaliacaoEtapa1: true,
       avaliacaoEtapa2: true,
       etapaPoliticasAfirmativas: true,
+      participacaoEdital: {
+        select: { editalId: true },
+      },
     },
   });
 
@@ -516,6 +619,20 @@ export async function registrarHomologacaoFinal(
     }
 
     return { error: "INSCRICAO_NAO_SUBMETIDA" as const };
+  }
+
+  if (inscricao.homologacao?.statusFinal) {
+    return { error: "HOMOLOGACAO_FINAL_JA_REGISTRADA" as const };
+  }
+
+  const recursoWindowFinal = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_HOMOLOGACAO);
+
+  if (recursoWindowFinal.open) {
+    return { error: "RECURSO_HOMOLOGACAO_EM_ABERTO" as const };
+  }
+
+  if (await hasRecursosPendentesHomologacao(inscricaoId)) {
+    return { error: "RECURSO_HOMOLOGACAO_PENDENTE" as const };
   }
 
   const decision = validateHomologacaoDecision({ homologada, motivos });

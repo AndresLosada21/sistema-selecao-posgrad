@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CursoNivel, Role, StatusConta, StatusEdital } from "@prisma/client";
+import { CursoNivel, Role, StatusConta, StatusEdital, TipoCronogramaEdital } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
@@ -107,6 +107,84 @@ test("lista publica de editais respeita total paginado e bloqueia rascunhos", as
       await prisma.edital.deleteMany({ where: { id: { in: createdEditais } } });
     }
 
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: admin.id } });
+  }
+});
+
+test("backend bloqueia publicacao de edital sem estrutura minima e cronograma duplicado por tipo", async () => {
+  const suffix = `edital-guard-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  let editalId = "";
+  let linhaId = "";
+  try {
+    const created = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `RASC-${suffix}`,
+        titulo: `Edital ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.RASCUNHO,
+      });
+
+    assert.equal(created.status, 201);
+    editalId = created.body.id;
+
+    const publishWithoutStructure = await request(app)
+      .put(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `RASC-${suffix}`,
+        titulo: `Edital ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.PUBLICADO,
+      });
+
+    assert.equal(publishWithoutStructure.status, 409);
+
+    const linha = await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 1,
+        vagasAcoesAfirmativas: 0,
+        vagasPcd: 0,
+      },
+    });
+    linhaId = linha.id;
+
+    const cronograma1 = await request(app)
+      .post(`/v1/admin/editais/${editalId}/cronogramas`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: TipoCronogramaEdital.INSCRICAO,
+        titulo: "Inscricao",
+        inicioEm: new Date(Date.now() + 60_000).toISOString(),
+        fimEm: new Date(Date.now() + 120_000).toISOString(),
+      });
+    assert.equal(cronograma1.status, 201);
+
+    const cronogramaDuplicado = await request(app)
+      .post(`/v1/admin/editais/${editalId}/cronogramas`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: TipoCronogramaEdital.INSCRICAO,
+        titulo: "Inscricao duplicada",
+        inicioEm: new Date(Date.now() + 180_000).toISOString(),
+        fimEm: new Date(Date.now() + 240_000).toISOString(),
+      });
+    assert.equal(cronogramaDuplicado.status, 409);
+  } finally {
+    if (editalId) await prisma.cronogramaEdital.deleteMany({ where: { editalId } });
+    if (linhaId) await prisma.linhaPesquisa.deleteMany({ where: { id: linhaId } });
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
     await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
     await prisma.usuario.deleteMany({ where: { id: admin.id } });
   }

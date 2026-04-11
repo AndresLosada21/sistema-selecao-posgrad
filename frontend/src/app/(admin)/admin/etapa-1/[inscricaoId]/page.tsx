@@ -7,7 +7,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getEspelhoEtapa1, getEtapa1Item, liberarEspelhoEtapa1, registrarEtapa1 } from "@/modules/admin-etapas/api";
@@ -109,7 +109,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     } catch (error) {
       if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
       setPageStatus("error");
     }
   }, [inscricaoId, loadItem, signOut, token]);
@@ -133,7 +133,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
       setEspelho(r);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     }
   }
 
@@ -157,6 +157,9 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         publicacao,
       }, token);
       await loadItem();
+      if (espelho) {
+        await loadEspelho();
+      }
       setFeedback({ type: "success", text: "Resultado da etapa 1 registrado." });
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
@@ -187,6 +190,10 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const avaliacaoStatus = item.avaliacao?.status ?? "SEM_AVALIACAO";
   const rubricaSnapshot = (item.avaliacao?.rubricaDetalhada as RubricaSnapshot | null) ?? null;
   const notaPersistida = item.avaliacao?.nota ?? rubricaSnapshot?.notaFinal ?? null;
+  const editState = item.edicao;
+  const podeSalvarResultado = publicacao === "FINAL" ? (editState?.podeSalvarFinal ?? true) : (editState?.podeSalvarPreliminar ?? true);
+  const bloqueioResultado = publicacao === "FINAL" ? editState?.bloqueioSalvarFinal : editState?.bloqueioSalvarPreliminar;
+  const podeAlternarPublicacao = Boolean(editState?.podeSalvarPreliminar || editState?.podeSalvarFinal);
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -225,6 +232,10 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         />
       ) : null}
 
+      {!podeSalvarResultado && bloqueioResultado ? (
+        <PageFeedback type="warning" title="Resultado bloqueado" description={bloqueioResultado} />
+      ) : null}
+
       <div className="admin-etapa1-workbench">
         <div className="admin-form-card admin-etapa1-redacao-card">
           <h2 className="admin-form-card-title">Redacao do candidato</h2>
@@ -249,6 +260,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
           <div className="admin-eval-field">
             <label>Uso de IA comprovado?</label>
             <select
+              disabled={!podeSalvarResultado || busy}
               className="select-field"
               onChange={(e) => setUsoIaComprovado(e.target.value === "sim")}
               value={usoIaComprovado ? "sim" : "nao"}
@@ -270,7 +282,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         {usoIaComprovado && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Fundamento do uso de IA</label>
-            <textarea className="text-area" onChange={(e) => setFundamentoUsoIa(e.target.value)} value={fundamentoUsoIa} />
+            <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setFundamentoUsoIa(e.target.value)} value={fundamentoUsoIa} />
           </div>
         )}
 
@@ -288,6 +300,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             <div className="admin-eval-field" style={{ flex: 2 }}>
               <label>{c.label} ({c.peso}%)</label>
               <input
+                disabled={!podeSalvarResultado || busy}
                 max={10}
                 min={0}
                 onChange={(e) => setRubrica((prev) => ({ ...prev, [c.key]: Number(e.target.value) || 0 }))}
@@ -299,6 +312,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             <div className="admin-eval-field" style={{ flex: 3 }}>
               <label>Observacao</label>
               <input
+                disabled={!podeSalvarResultado || busy}
                 onChange={(e) => setObservacoes((prev) => ({ ...prev, [c.key]: e.target.value }))}
                 placeholder="Opcional"
                 value={observacoes[c.key]}
@@ -309,31 +323,31 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Observacao geral</label>
-          <textarea className="text-area" onChange={(e) => setObservacoes((prev) => ({ ...prev, geral: e.target.value }))} value={observacoes.geral} />
+          <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setObservacoes((prev) => ({ ...prev, geral: e.target.value }))} value={observacoes.geral} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
-          <textarea className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} />
+          <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} />
         </div>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Publicacao</label>
-            <select className="select-field" onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}>
+            <select className="select-field" disabled={!podeAlternarPublicacao || busy} onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}>
               <option value="PRELIMINAR">Preliminar</option>
               <option value="FINAL">Final</option>
             </select>
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
+              <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={!podeSalvarResultado || publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
               {publicacao === "FINAL" ? "Espelho liberado automaticamente no resultado final" : "Liberar espelho junto do resultado"}
             </label>
           </div>
         </div>
 
-        <button className="admin-page-cta" disabled={busy} style={{ width: 200 }} type="submit">
+        <button className="admin-page-cta" disabled={busy || !podeSalvarResultado} style={{ width: 200 }} type="submit">
           Salvar avaliacao
         </button>
       </form>
@@ -393,10 +407,13 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
               <span>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "O candidato ainda nao pode visualizar o espelho."}</span>
             </div>
           </div>
-          <button className="admin-page-cta" disabled={busy} onClick={onLiberarEspelho} type="button">
+          <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={onLiberarEspelho} type="button">
             Liberar espelho
           </button>
         </div>
+        {!(editState?.podeLiberarEspelho ?? true) && editState?.bloqueioLiberarEspelho ? (
+          <PageFeedback type="warning" title="Liberacao do espelho bloqueada" description={editState.bloqueioLiberarEspelho} />
+        ) : null}
 
         {espelho && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16, background: "#F8FAFC", borderRadius: 6 }}>

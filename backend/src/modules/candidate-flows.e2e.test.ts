@@ -92,6 +92,16 @@ async function createEditalWithWindows(input: {
   });
 }
 
+async function uploadPrivatePdf(token: string, filename: string) {
+  const response = await request(app)
+    .post("/v1/uploads")
+    .set("Authorization", `Bearer ${token}`)
+    .attach("file", Buffer.from("%PDF-1.4 teste"), { filename, contentType: "application/pdf" });
+
+  assert.equal(response.status, 201);
+  return response.body as { urlArquivo: string; nomeArquivo: string; mimeType: string };
+}
+
 async function registerCandidate(input: { suffix: string; cpf: string }) {
   return request(app)
     .post("/v1/auth/register")
@@ -105,15 +115,17 @@ async function registerCandidate(input: { suffix: string; cpf: string }) {
 }
 
 async function addDocumento(token: string, inscricaoId: string, tipo: TipoDocumentoInscricao) {
+  const uploaded = await uploadPrivatePdf(token, `${tipo.toLowerCase()}.pdf`);
+
   return request(app)
     .post(`/v1/inscricoes/${inscricaoId}/documentos`)
     .set("Authorization", `Bearer ${token}`)
     .send({
       tipo,
       nome: `Documento ${tipo}`,
-      urlArquivo: `https://arquivos.teste/${tipo.toLowerCase()}.pdf`,
-      nomeArquivo: `${tipo.toLowerCase()}.pdf`,
-      mimeType: "application/pdf",
+      urlArquivo: uploaded.urlArquivo,
+      nomeArquivo: uploaded.nomeArquivo,
+      mimeType: uploaded.mimeType,
     });
 }
 
@@ -153,6 +165,8 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
     assert.equal(participacoesVazias.status, 200);
     assert.equal(participacoesVazias.body.total, 0);
 
+    const comprovanteIsencao = await uploadPrivatePdf(token, "isencao.pdf");
+
     const isencaoResponse = await request(app)
       .post(`/v1/editais/${editalId}/isencao`)
       .set("Authorization", `Bearer ${token}`)
@@ -160,11 +174,27 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
         cursoNivel: "MESTRADO",
         inscritoCadUnico: false,
         justificativa: "Solicito isencao por impossibilidade financeira.",
-        comprovanteUrl: "https://arquivos.teste/isencao.pdf",
-        comprovanteNomeArquivo: "isencao.pdf",
+        comprovanteUrl: comprovanteIsencao.urlArquivo,
+        comprovanteNomeArquivo: comprovanteIsencao.nomeArquivo,
       });
 
     assert.equal(isencaoResponse.status, 201);
+
+    const comprovanteDuplicado = await uploadPrivatePdf(token, "isencao-duplicada.pdf");
+
+    const duplicateIsencaoResponse = await request(app)
+      .post(`/v1/editais/${editalId}/isencao`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        cursoNivel: "MESTRADO",
+        inscritoCadUnico: false,
+        justificativa: "Nova tentativa de pedido de isencao no mesmo edital.",
+        comprovanteUrl: comprovanteDuplicado.urlArquivo,
+        comprovanteNomeArquivo: comprovanteDuplicado.nomeArquivo,
+      });
+
+    assert.equal(duplicateIsencaoResponse.status, 409);
+    assert.equal(duplicateIsencaoResponse.body.code, "PEDIDO_ISENCAO_JA_EXISTENTE");
 
     const isencoesList = await request(app)
       .get("/v1/candidato/isencoes")
@@ -356,6 +386,8 @@ test("fluxos do candidato rejeitam duplicidade, janela fechada e submissao incom
     });
     closedLinhaId = closedLinha.id;
 
+    const comprovanteForaJanela = await uploadPrivatePdf(token, "isencao-fechada.pdf");
+
     const closedIsencao = await request(app)
       .post(`/v1/editais/${closedEditalId}/isencao`)
       .set("Authorization", `Bearer ${token}`)
@@ -363,9 +395,9 @@ test("fluxos do candidato rejeitam duplicidade, janela fechada e submissao incom
         cursoNivel: "MESTRADO",
         inscritoCadUnico: false,
         justificativa: "Teste fora da janela.",
-        comprovanteUrl: "https://arquivos.teste/isencao.pdf",
-        comprovanteNomeArquivo: "isencao.pdf",
-    });
+        comprovanteUrl: comprovanteForaJanela.urlArquivo,
+        comprovanteNomeArquivo: comprovanteForaJanela.nomeArquivo,
+      });
     assert.equal(closedIsencao.status, 409);
     assert.equal(closedIsencao.body.code, "JANELA_ISENCAO_FECHADA");
 
@@ -413,7 +445,7 @@ test("fluxos do candidato rejeitam duplicidade, janela fechada e submissao incom
       .set("Authorization", `Bearer ${token}`);
     assert.equal(incompleteSubmit.status, 409);
     assert.equal(incompleteSubmit.body.code, "INSCRICAO_INCOMPLETA");
-    assert.equal(incompleteSubmit.body.message, "INSCRICAO_INCOMPLETA");
+    assert.equal(typeof incompleteSubmit.body.message, "string");
     assert.equal(Array.isArray(incompleteSubmit.body.checklist), true);
 
     await prisma.cronogramaEdital.updateMany({
@@ -423,6 +455,21 @@ test("fluxos do candidato rejeitam duplicidade, janela fechada e submissao incom
         fimEm: new Date(Date.now() - 60_000),
       },
     });
+
+    const documentoForaJanela = await uploadPrivatePdf(token, "anexo-iv-fora-da-janela.pdf");
+
+    const documentoOutsideWindow = await request(app)
+      .post(`/v1/inscricoes/${inscricaoId}/documentos`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        tipo: "ANEXO_IV",
+        nome: "Anexo IV fora da janela",
+        urlArquivo: documentoForaJanela.urlArquivo,
+        nomeArquivo: documentoForaJanela.nomeArquivo,
+        mimeType: "application/pdf",
+      });
+    assert.equal(documentoOutsideWindow.status, 409);
+    assert.equal(documentoOutsideWindow.body.code, "JANELA_INSCRICAO_FECHADA");
 
     await prisma.inscricao.update({
       where: { id: inscricaoId },
@@ -438,7 +485,7 @@ test("fluxos do candidato rejeitam duplicidade, janela fechada e submissao incom
       .set("Authorization", `Bearer ${token}`);
     assert.equal(cancelOutsideWindow.status, 409);
     assert.equal(cancelOutsideWindow.body.code, "JANELA_INSCRICAO_FECHADA");
-    assert.equal(cancelOutsideWindow.body.message, "JANELA_INSCRICAO_FECHADA");
+    assert.equal(typeof cancelOutsideWindow.body.message, "string");
   } finally {
     if (candidateId) {
       const participacoes = await prisma.participacaoEdital.findMany({ where: { usuarioId: candidateId }, select: { id: true } });

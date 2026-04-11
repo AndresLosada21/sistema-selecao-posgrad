@@ -27,6 +27,21 @@ import {
 
 export const politicasAfirmativasRouter = Router();
 
+function getPoliticasMessage(errorCode: string) {
+  switch (errorCode) {
+    case "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA":
+      return "A etapa de politicas afirmativas nao foi encontrada para a inscricao informada.";
+    case "CLASSIFICACAO_CONTEXTO_INCOMPLETO":
+      return "Nao foi possivel atualizar o resultado porque a classificacao derivada do edital ainda esta incompleta.";
+    case "CLASSIFICACAO_ESTADO_MISTO":
+      return "Nao foi possivel atualizar o resultado porque a classificacao derivada do edital esta em estado misto entre preliminar e final.";
+    case "EDITAL_NAO_ENCONTRADO":
+      return "Edital nao encontrado para o fluxo de publicacao de politicas afirmativas.";
+    default:
+      return errorCode;
+  }
+}
+
 politicasAfirmativasRouter.get(
   "/v1/admin/editais/:editalId/politicas-afirmativas",
   requireAuth,
@@ -64,7 +79,7 @@ politicasAfirmativasRouter.get(
 
     if ("error" in result) {
       const errorCode = result.error as string;
-      return response.status(404).json(notFound(errorCode, errorCode));
+      return response.status(404).json(notFound(getPoliticasMessage(errorCode), errorCode));
     }
 
     return response.status(200).json(result.item);
@@ -94,7 +109,7 @@ politicasAfirmativasRouter.put(
 
     if ("error" in result) {
       const errorCode = result.error as string;
-      return response.status(404).json(notFound(errorCode, errorCode));
+      return response.status(409).json(conflict(getPoliticasMessage(errorCode), errorCode));
     }
 
     return response.status(200).json(result.etapa);
@@ -126,7 +141,7 @@ politicasAfirmativasRouter.put(
 
     if ("error" in result) {
       const errorCode = result.error as string;
-      return response.status(404).json(notFound(errorCode, errorCode));
+      return response.status(409).json(conflict(getPoliticasMessage(errorCode), errorCode));
     }
 
     return response.status(200).json(result.etapa);
@@ -158,7 +173,7 @@ politicasAfirmativasRouter.put(
 
     if ("error" in result) {
       const errorCode = result.error as string;
-      return response.status(404).json(notFound(errorCode, errorCode));
+      return response.status(409).json(conflict(getPoliticasMessage(errorCode), errorCode));
     }
 
     return response.status(200).json(result.etapa);
@@ -185,10 +200,11 @@ politicasAfirmativasRouter.get(
     if ("error" in result) {
       const errorCode = result.error as string;
       const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
+      const message = getPoliticasMessage(errorCode);
       return response.status(status).json(
         status === 404
-          ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
       );
     }
 
@@ -220,10 +236,11 @@ politicasAfirmativasRouter.post(
     if ("error" in result) {
       const errorCode = result.error as string;
       const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
+      const message = getPoliticasMessage(errorCode);
       return response.status(status).json(
         status === 404
-          ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
       );
     }
 

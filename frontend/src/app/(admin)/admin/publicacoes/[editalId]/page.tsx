@@ -10,7 +10,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/enums";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getAdminEditalById } from "@/modules/admin-edital/api";
@@ -137,7 +137,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     } catch (error) {
       if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
       setPageStatus("error");
     }
   }, [editalId, reload, signOut, token]);
@@ -159,7 +159,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       setPreviewLabel(`Preview: ${type} · ${fase.toLowerCase()}`);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -182,7 +182,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       await reload();
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -226,9 +226,9 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
   const totalPages = history ? Math.max(1, Math.ceil(history.total / PAGE_SIZE)) : 1;
 
-  const latestHomPub = history?.items.find((i) => i.tipo.startsWith("HOMOLOGACAO") && i.isVersaoAtualDoTipo);
-  const latestClassPub = history?.items.find((i) => i.tipo.startsWith("CLASSIFICACAO") && i.isVersaoAtualDoTipo);
-  const latestPolPub = history?.items.find((i) => i.tipo.startsWith("POLITICAS_AFIRMATIVAS") && i.isVersaoAtualDoTipo);
+  const latestHomPub = history?.items.find((i) => i.tipo === `HOMOLOGACAO_${faseHomologacao}` && i.isVersaoAtualDoTipo);
+  const latestClassPub = history?.items.find((i) => i.tipo === `CLASSIFICACAO_${faseClassificacao}` && i.isVersaoAtualDoTipo);
+  const latestPolPub = history?.items.find((i) => i.tipo === `POLITICAS_AFIRMATIVAS_${fasePoliticas}` && i.isVersaoAtualDoTipo);
 
   if (pageStatus === "loading") return <LoadingState title="Carregando publicacoes" description="Consultando o historico do edital." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar publicacoes" description={feedback?.text} />;
@@ -277,7 +277,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <p className="admin-pub-card-desc">Gere o preview da homologacao preliminar ou final e publique o PDF oficial com snapshot auditavel.</p>
           <div className="admin-pub-card-status">
             <span className={`admin-pub-card-dot ${latestHomPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--yellow"}`} />
-            <span>{latestHomPub ? `Homologacao publicada (v${latestHomPub.versao})` : "Homologacao ainda nao publicada"}</span>
+            <span>{latestHomPub ? `${getStatusLabel(latestHomPub.tipo)} publicada (v${latestHomPub.versao})` : `Nenhuma ${faseHomologacao.toLowerCase()} publicada`}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <select className="select-field" onChange={(e) => setFaseHomologacao(e.target.value as "PRELIMINAR" | "FINAL")} style={{ width: 140 }} value={faseHomologacao}>
@@ -302,7 +302,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <p className="admin-pub-card-desc">Gere o ranking consolidado por linha e modalidade e publique o PDF oficial da classificacao final.</p>
           <div className="admin-pub-card-status">
             <span className={`admin-pub-card-dot ${latestClassPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--yellow"}`} />
-            <span>{latestClassPub ? `Classificacao publicada (v${latestClassPub.versao})` : "Classificacao ainda nao publicada"}</span>
+            <span>{latestClassPub ? `${getStatusLabel(latestClassPub.tipo)} publicada (v${latestClassPub.versao})` : `Nenhuma ${faseClassificacao.toLowerCase()} publicada`}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <select className="select-field" onChange={(e) => setFaseClassificacao(e.target.value as "PRELIMINAR" | "FINAL")} style={{ width: 140 }} value={faseClassificacao}>
@@ -328,7 +328,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <div className="admin-pub-card-status">
             <span className={`admin-pub-card-dot ${latestPolPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--yellow"}`} />
             <span style={!latestPolPub ? { color: "#1E40AF" } : undefined}>
-              {latestPolPub ? `Politicas publicadas (v${latestPolPub.versao})` : "Resultado preliminar disponivel para publicacao."}
+              {latestPolPub ? `${getStatusLabel(latestPolPub.tipo)} publicada (v${latestPolPub.versao})` : `Nenhuma ${fasePoliticas.toLowerCase()} publicada`}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

@@ -20,7 +20,7 @@ import { formatIsoDate } from "@/modules/edital/formatters";
 
 const PENDING_STATUSES = new Set([
   "SEM_RESULTADO", "SEM_PEDIDO", "SEM_INSCRICAO", "SEM_CLASSIFICACAO",
-  "PENDENTE", "NAO_SOLICITADA", "",
+  "PENDENTE", "",
 ]);
 
 const ACTIVE_STATUSES = new Set([
@@ -50,7 +50,12 @@ const STEP_STYLES: Record<StepVariant, { iconColor: string; textClass: string }>
 };
 
 function resolveStepLabel(status: string | null | undefined): string {
+  if (status === "SEM_INSCRICAO") return "Sem inscricao";
+  if (status === "SEM_RESULTADO") return "Sem resultado";
+  if (status === "SEM_CLASSIFICACAO") return "Sem classificacao";
+  if (status === "SEM_PEDIDO") return "Sem pedido";
   if (!status || status.startsWith("SEM_") || PENDING_STATUSES.has(status)) return "Pendente";
+  if (status === "NAO_SOLICITADA") return "Nao solicitada";
   return getStatusLabel(status);
 }
 
@@ -82,6 +87,9 @@ const iconMessageSquare = (color: string) => (
 );
 const iconEye = (color: string) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" /></svg>
+);
+const iconShieldCheck = (color: string) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
 );
 const iconChevronRight = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
@@ -153,15 +161,15 @@ export default function CandidateDashboardPage() {
   const hasInscricao = !!inscricao;
 
   const steps = [
-    { label: "Isencao", status: active?.isencao?.status ?? null },
-    { label: "Inscricao", status: inscricao?.status ?? null },
+    { label: "Isencao", status: active?.isencao?.status ?? "NAO_SOLICITADA" },
+    { label: "Inscricao", status: inscricao?.status ?? "SEM_INSCRICAO" },
     { label: "Homologacao", status: inscricao?.homologacao?.vigente?.statusVigente ?? inscricao?.homologacao?.statusFinal ?? inscricao?.homologacao?.statusPreliminar ?? null },
     { label: "Etapa 1", status: inscricao?.etapa1?.status ?? null },
     { label: "Etapa 2", status: inscricao?.etapa2?.status ?? null },
   ];
 
   const pubs = active?.publicacoesDestaque ?? [];
-  const anexoIvUrl = active?.inscricao?.anexoIvGeradoUrl ?? null;
+  const anexoIvUrl = active?.inscricao?.anexoIvDisponivel ? (active.inscricao.anexoIvGeradoUrl ?? null) : null;
 
   const editalLabel = active
     ? `${active.edital.numero} — ${active.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado"} em Engenharia Eletrica`
@@ -192,11 +200,16 @@ export default function CandidateDashboardPage() {
           <h2>Ola, {session.user?.nomeCompleto?.split(" ")[0] ?? "Candidato"}</h2>
           <p>Acompanhe suas participacoes nos processos seletivos do PPGEE/UFAM.</p>
         </div>
-        {active ? (
+        {active?.elegibilidade?.podeEditarInscricao || active?.elegibilidade?.podeCancelarSubmissao ? (
           <Link href={`/candidato/editais/${active.edital.id}/inscricao`} className="dash-greeting-cta">
             {iconPlus}
-            <span>{hasInscricao ? "Editar inscricao" : "Nova inscricao"}</span>
+            <span>{active?.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissao para editar" : hasInscricao ? "Editar inscricao" : "Nova inscricao"}</span>
           </Link>
+        ) : active ? (
+          <span className="dash-greeting-cta" style={{ opacity: 0.65, cursor: "default" }} title={active.elegibilidade?.motivoBloqueioInscricao ?? undefined}>
+            {iconPlus}
+            <span>{active.elegibilidade?.motivoBloqueioInscricao ?? "Inscricao bloqueada"}</span>
+          </span>
         ) : null}
       </div>
 
@@ -253,14 +266,51 @@ export default function CandidateDashboardPage() {
       <h3 className="dash-section-title">Acoes rapidas</h3>
       {active ? (
         <div className="dash-qa-row">
-          <Link href={`/candidato/editais/${active.edital.id}/inscricao`} className="dash-qa-card">
-            <div className="dash-qa-icon dash-qa-icon--blue">{iconPencil("#2563EB")}</div>
-            <div className="dash-qa-text">
-              <strong>{hasInscricao ? "Editar inscricao" : "Iniciar inscricao"}</strong>
-              <span>Continuar rascunho ou revisar dados</span>
+          {active.elegibilidade?.podeEditarInscricao || active.elegibilidade?.podeCancelarSubmissao ? (
+            <Link href={`/candidato/editais/${active.edital.id}/inscricao`} className="dash-qa-card">
+              <div className="dash-qa-icon dash-qa-icon--blue">{iconPencil("#2563EB")}</div>
+              <div className="dash-qa-text">
+                <strong>{active.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissao para editar" : hasInscricao ? "Editar inscricao" : "Iniciar inscricao"}</strong>
+                <span>{active.elegibilidade?.podeCancelarSubmissao ? "A inscricao foi enviada. Cancele a submissao durante a janela para voltar ao rascunho." : "Continuar rascunho ou revisar dados"}</span>
+              </div>
+              {iconChevronRight}
+            </Link>
+          ) : (
+            <div className="dash-qa-card" style={{ opacity: 0.7 }}>
+              <div className="dash-qa-icon dash-qa-icon--blue">{iconPencil("#2563EB")}</div>
+              <div className="dash-qa-text">
+                <strong>Edicao indisponivel</strong>
+                <span>{active.elegibilidade?.motivoBloqueioInscricao ?? (active.elegibilidade?.janelaInscricaoAberta ? "A inscricao atual nao pode mais ser editada neste status." : "A janela de inscricao deste edital esta encerrada.")}</span>
+              </div>
             </div>
-            {iconChevronRight}
-          </Link>
+          )}
+          {active.isencao ? (
+            <Link href="/candidato/isencoes" className="dash-qa-card">
+              <div className="dash-qa-icon dash-qa-icon--emerald">{iconShieldCheck("#10B981")}</div>
+              <div className="dash-qa-text">
+                <strong>Ver isencao</strong>
+                <span>Consultar status do pedido</span>
+              </div>
+              {iconChevronRight}
+            </Link>
+          ) : active.elegibilidade?.podeCriarIsencao ? (
+            <Link href={`/candidato/editais/${active.edital.id}/isencao/nova`} className="dash-qa-card">
+              <div className="dash-qa-icon dash-qa-icon--emerald">{iconShieldCheck("#10B981")}</div>
+              <div className="dash-qa-text">
+                <strong>Solicitar isencao</strong>
+                <span>Registrar pedido de isencao</span>
+              </div>
+              {iconChevronRight}
+            </Link>
+          ) : (
+            <div className="dash-qa-card" style={{ opacity: 0.7 }}>
+              <div className="dash-qa-icon dash-qa-icon--emerald">{iconShieldCheck("#10B981")}</div>
+              <div className="dash-qa-text">
+                <strong>Isencao indisponivel</strong>
+                <span>{active.elegibilidade?.motivoBloqueioIsencao ?? "Nao ha acao de isencao disponivel para este edital."}</span>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             className="dash-qa-card"
@@ -270,10 +320,10 @@ export default function CandidateDashboardPage() {
           >
             <div className="dash-qa-icon dash-qa-icon--blue">{iconFileText("#3B82F6")}</div>
             <div className="dash-qa-text">
-              <strong>Baixar Anexo IV</strong>
-              <span>Ficha cadastral preenchida (PDF)</span>
+              <strong>{anexoIvUrl ? "Baixar Anexo IV" : "Anexo IV indisponivel"}</strong>
+              <span>{anexoIvUrl ? "Ficha cadastral preenchida (PDF)" : "Preencha e salve a inscricao para gerar o Anexo IV."}</span>
             </div>
-            {iconDownloadTrailing}
+            {anexoIvUrl ? iconDownloadTrailing : null}
           </button>
           {(active.elegibilidade?.podeSolicitarEspelhoEtapa1 || active.elegibilidade?.podeSolicitarEspelhoEtapa2 || active.elegibilidade?.podeVerEspelhoEtapa1 || active.elegibilidade?.podeVerEspelhoEtapa2) ? (
             <Link href={`/candidato/editais/${active.edital.id}/espelhos`} className="dash-qa-card">
@@ -289,7 +339,7 @@ export default function CandidateDashboardPage() {
               <div className="dash-qa-icon dash-qa-icon--violet">{iconEye("#8B5CF6")}</div>
               <div className="dash-qa-text">
                 <strong>Espelhos indisponiveis</strong>
-                <span>Nenhum espelho pode ser solicitado ou visualizado no momento.</span>
+                <span>{active.elegibilidade?.motivoBloqueioEspelhoEtapa1 ?? active.elegibilidade?.motivoBloqueioEspelhoEtapa2 ?? "Nenhum espelho pode ser solicitado ou visualizado no momento."}</span>
               </div>
             </div>
           )}
@@ -307,7 +357,7 @@ export default function CandidateDashboardPage() {
               <div className="dash-qa-icon dash-qa-icon--amber">{iconMessageSquare("#F59E0B")}</div>
               <div className="dash-qa-text">
                 <strong>Recursos indisponiveis</strong>
-                <span>Nenhuma fase esta elegivel para recurso no momento.</span>
+                <span>{active.elegibilidade?.motivoBloqueioRecurso ?? "Nenhuma fase esta elegivel para recurso no momento."}</span>
               </div>
             </div>
           )}
@@ -330,7 +380,7 @@ export default function CandidateDashboardPage() {
             <div className="dash-pub-row">
               <div className="dash-pub-row-text">
                 <span className="dash-pub-row-title">{pub.titulo}</span>
-                <span className="dash-pub-row-meta">{formatIsoDate(pub.publicadoEm ?? null)} · Versao {pub.versao}</span>
+                <span className="dash-pub-row-meta">{formatIsoDate(pub.publicadoEm ?? null)} · Versao {pub.versao}{pub.isVersaoAtualDoTipo ? " · vigente" : ""}{pub.versaoFinal ? " · final" : ""}{pub.republicacaoDaVersao ? ` · republica v${pub.republicacaoDaVersao}` : ""}</span>
               </div>
               <Link href={resolveApiUrl(pub.arquivoUrl)} target="_blank" rel="noreferrer" className="dash-pdf-badge">
                 {iconFileTextSm}

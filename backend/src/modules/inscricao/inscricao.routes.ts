@@ -28,6 +28,29 @@ import { getInscricaoAnexoIvFlattenForAdmin } from "./inscricao-anexo-iv.service
 
 export const inscricaoRouter = Router();
 
+function getInscricaoMessage(errorCode: string) {
+  switch (errorCode) {
+    case "EDITAL_NAO_ENCONTRADO":
+      return "Edital nao encontrado para o fluxo de inscricao.";
+    case "INSCRICAO_NAO_ENCONTRADA":
+      return "Inscricao nao encontrada para o usuario autenticado.";
+    case "INSCRICAO_INCOMPLETA":
+      return "A inscricao ainda possui pendencias e nao pode ser submetida neste momento.";
+    case "INSCRICAO_NAO_SUBMETIDA":
+      return "A inscricao ainda nao foi submetida para esta operacao.";
+    case "INSCRICAO_NAO_CANCELAVEL":
+      return "A inscricao atual nao pode ser cancelada para edicao neste estado.";
+    case "INSCRICAO_COM_PROCESSAMENTO_POSTERIOR":
+      return "A inscricao nao pode mais voltar ao rascunho porque ja possui processamento administrativo posterior.";
+    case "ANEXO_IV_INDISPONIVEL":
+      return "O Anexo IV ainda nao esta disponivel para esta inscricao.";
+    case "PACOTE_DOCUMENTAL_NAO_GERADO":
+      return "O pacote documental ainda nao foi gerado para esta inscricao.";
+    default:
+      return errorCode;
+  }
+}
+
 inscricaoRouter.put("/v1/editais/:editalId/inscricao/rascunho", requireAuth, async (request, response) => {
   const parsedParams = editalIdParamSchema.safeParse(request.params);
 
@@ -56,7 +79,8 @@ inscricaoRouter.put("/v1/editais/:editalId/inscricao/rascunho", requireAuth, asy
   if ("error" in result) {
     const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
     const errorCode = result.error as string;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = getInscricaoMessage(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(200).json(result.inscricao);
@@ -90,6 +114,14 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/documentos", requireAuth, asyn
     const message: string =
       result.error === "DOCUMENTO_FORA_PADRAO"
         ? "Documentos da inscricao devem usar arquivo PDF com URL publica https ou URL privada interna de upload, nome de arquivo .pdf e mimeType application/pdf quando informado."
+        : result.error === "JANELA_INSCRICAO_FECHADA"
+          ? "A janela de inscricao do edital esta encerrada, entao o documento nao pode mais ser alterado."
+        : result.error === "UPLOAD_SEM_PERMISSAO"
+          ? "O arquivo informado nao pertence ao usuario autenticado."
+        : result.error === "UPLOAD_EXTERNO_NAO_PERMITIDO"
+          ? "Documentos da inscricao devem usar arquivo privado gerado pelo upload autenticado do sistema."
+        : result.error === "UPLOAD_NAO_ENCONTRADO"
+          ? "O arquivo privado informado nao foi encontrado no storage do usuario autenticado."
         : String(result.error);
     const errorCode = result.error as string;
     return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
@@ -112,11 +144,11 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/submeter", requireAuth, async 
     const errorCode = result.error as string;
     return response.status(status).json(
       status === 404
-        ? notFound(errorCode, errorCode, {
+        ? notFound(getInscricaoMessage(errorCode), errorCode, {
             details: "details" in result ? result.details : undefined,
             checklist: "checklist" in result ? result.checklist : undefined,
           })
-        : conflict(errorCode, errorCode, {
+        : conflict(getInscricaoMessage(errorCode), errorCode, {
             details: "details" in result ? result.details : undefined,
             checklist: "checklist" in result ? result.checklist : undefined,
           }),
@@ -138,7 +170,12 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/cancelar-submissao", requireAu
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const errorCode = result.error as string;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = result.error === "INSCRICAO_COM_PROCESSAMENTO_POSTERIOR"
+      ? "A submissao nao pode mais ser cancelada porque a inscricao ja possui processamento administrativo posterior."
+      : result.error === "JANELA_INSCRICAO_FECHADA"
+        ? "A janela de inscricao do edital esta encerrada, entao a inscricao nao pode voltar para rascunho."
+        : getInscricaoMessage(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(200).json(result.inscricao);
@@ -165,7 +202,7 @@ inscricaoRouter.get("/v1/inscricoes/:inscricaoId/anexo-iv", requireAuth, async (
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const errorCode = result.error as string;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    return response.status(status).json(status === 404 ? notFound(getInscricaoMessage(errorCode), errorCode) : conflict(getInscricaoMessage(errorCode), errorCode));
   }
 
   response.setHeader("Content-Type", result.contentType);
@@ -185,7 +222,8 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/anexo-iv", requireAuth, r
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const errorCode = result.error as string;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = getInscricaoMessage(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   response.setHeader("Content-Type", result.contentType);
@@ -205,7 +243,8 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/anexo-iv/flatten", requir
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const errorCode = result.error as string;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = getInscricaoMessage(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   response.setHeader("Content-Type", result.contentType);
@@ -238,6 +277,10 @@ inscricaoRouter.post("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requ
     const message: string =
       result.error === "PACOTE_FORA_PADRAO"
         ? "Pacote documental consolidado deve usar arquivo PDF com URL publica https ou URL privada interna de upload, nome de arquivo .pdf e mimeType application/pdf quando informado."
+        : result.error === "UPLOAD_SEM_PERMISSAO"
+          ? "O arquivo privado informado para o pacote documental nao pertence ao candidato desta inscricao."
+          : result.error === "UPLOAD_NAO_ENCONTRADO"
+            ? "O arquivo privado informado para o pacote documental nao foi encontrado no storage do candidato."
         : String(result.error);
     const errorCode = result.error as string;
     return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
@@ -258,7 +301,7 @@ inscricaoRouter.get("/v1/inscricoes/:inscricaoId/pacote-documental", requireAuth
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const errorCode = result.error as string;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    return response.status(status).json(status === 404 ? notFound(getInscricaoMessage(errorCode), errorCode) : conflict(getInscricaoMessage(errorCode), errorCode));
   }
 
   return response.status(200).json(result);
@@ -276,7 +319,7 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requi
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
     const errorCode = result.error as string;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    return response.status(status).json(status === 404 ? notFound(getInscricaoMessage(errorCode), errorCode) : conflict(getInscricaoMessage(errorCode), errorCode));
   }
 
   return response.status(200).json(result);

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { getErrorMessage } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFieldError, getFirstFormError } from "@/lib/http/api-error";
 import { confirmPasswordReset } from "@/modules/auth/api";
 
 type ResetPasswordFormProps = {
@@ -31,16 +31,21 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
   const [senha, setSenha] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ token?: string | null; senha?: string | null }>({});
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setFieldErrors({});
     try {
       await confirmPasswordReset({ token, senha });
       setMessage({ type: "success", text: "Senha redefinida com sucesso. Voce ja pode entrar com a nova credencial." });
       redirectTimeoutRef.current = setTimeout(() => router.replace("/entrar"), 1200);
     } catch (error) {
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setFieldErrors({
+        token: getFirstFieldError(error, "token"),
+        senha: getFirstFieldError(error, "senha"),
+      });
+      setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -68,12 +73,14 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
         <form className="auth-form auth-form--compact" onSubmit={handleSubmit}>
           <label className="auth-field">
             <span className="auth-field-label">Token</span>
-            <textarea className="auth-textarea" onChange={(e) => setToken(e.target.value)} required value={token} />
+            <textarea className="auth-textarea" onChange={(e) => { setToken(e.target.value); setFieldErrors((current) => ({ ...current, token: null })); }} required value={token} />
+            {fieldErrors.token ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.token}</span> : null}
           </label>
 
           <label className="auth-field">
             <span className="auth-field-label">Nova senha</span>
-            <input className="auth-input" minLength={8} onChange={(e) => setSenha(e.target.value)} required type="password" value={senha} />
+            <input className="auth-input" minLength={8} onChange={(e) => { setSenha(e.target.value); setFieldErrors((current) => ({ ...current, senha: null })); }} required type="password" value={senha} />
+            {fieldErrors.senha ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.senha}</span> : null}
           </label>
 
           <button className="auth-submit" disabled={busy} type="submit">

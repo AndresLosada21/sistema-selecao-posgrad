@@ -13,6 +13,7 @@ import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
+import { formatIsoDate } from "@/modules/edital/formatters";
 
 /* ---- icons (Pencil-aligned) ---- */
 
@@ -64,6 +65,9 @@ type HubColor = "success" | "warning" | "error" | "active" | "neutral";
 
 function resolveHubValue(status: string | null | undefined): { text: string; color: HubColor } {
   const s = status ?? "";
+  if (s === "SEM_RESULTADO") return { text: "Sem resultado", color: "neutral" };
+  if (s === "SEM_CLASSIFICACAO") return { text: "Sem classificacao", color: "neutral" };
+  if (s === "SEM_PEDIDO") return { text: "Sem pedido", color: "neutral" };
   if (s === "NAO_SOLICITADA") return { text: "Nao solicitada", color: "neutral" };
   if (!s || PENDING_STATUSES.has(s)) return { text: "Pendente", color: "neutral" };
   if (SUCCESS_STATUSES.has(s)) return { text: getStatusLabel(s), color: "success" };
@@ -139,6 +143,9 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
   const cursoLabel = item.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado";
   const homologacaoVigente = inscricao?.homologacao?.vigente ?? null;
+  const publicacaoClassificacaoFinalVigente = item.publicacoes.find((publicacao) => publicacao.tipo === "CLASSIFICACAO_FINAL" && publicacao.isVersaoAtualDoTipo) ?? null;
+  const publicacaoClassificacaoPreliminarVigente = item.publicacoes.find((publicacao) => publicacao.tipo === "CLASSIFICACAO_PRELIMINAR" && publicacao.isVersaoAtualDoTipo) ?? null;
+  const publicacaoClassificacaoVigente = publicacaoClassificacaoFinalVigente ?? publicacaoClassificacaoPreliminarVigente;
 
   /* Status cards data */
   const inscricaoHub = inscricao ? resolveHubValue(inscricao.status) : { text: "Sem inscricao", color: "neutral" as HubColor };
@@ -162,16 +169,23 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
           <h1>{item.edital.numero}</h1>
           <p>{cursoLabel} em Engenharia Eletrica · Acompanhamento do candidato</p>
         </div>
-        {hasInscricao ? (
-          <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
-            {iconPencil}
-            <span>Editar inscricao</span>
-          </Link>
+        {item.elegibilidade?.podeEditarInscricao || item.elegibilidade?.podeCancelarSubmissao ? (
+          hasInscricao ? (
+            <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
+              {iconPencil}
+              <span>{item.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissao para editar" : "Editar inscricao"}</span>
+            </Link>
+          ) : (
+            <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
+              {iconPencil}
+              <span>Nova inscricao</span>
+            </Link>
+          )
         ) : (
-          <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
+          <span className="hub-cta" style={{ opacity: 0.65, cursor: "default" }} title={item.elegibilidade?.motivoBloqueioInscricao ?? undefined}>
             {iconPencil}
-            <span>Nova inscricao</span>
-          </Link>
+            <span>{item.elegibilidade?.motivoBloqueioInscricao ?? "Inscricao bloqueada"}</span>
+          </span>
         )}
       </div>
 
@@ -220,25 +234,33 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
       {/* Quick links */}
       <div className="hub-links">
-        <Link href={item.isencao ? "/candidato/isencoes" : `/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
-          {iconShieldCheck} {item.isencao ? "Ver isencao" : "Solicitar isencao"}
-        </Link>
+        {item.isencao ? (
+          <Link href="/candidato/isencoes" className="hub-link">
+            {iconShieldCheck} Ver isencao
+          </Link>
+        ) : item.elegibilidade?.podeCriarIsencao ? (
+          <Link href={`/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
+            {iconShieldCheck} Solicitar isencao
+          </Link>
+        ) : (
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconShieldCheck} {item.elegibilidade?.motivoBloqueioIsencao ?? (item.elegibilidade?.janelaIsencaoAberta ? "Isencao indisponivel" : "Janela de isencao encerrada")}</span>
+        )}
         {(item.elegibilidade?.podeSolicitarEspelhoEtapa1 || item.elegibilidade?.podeSolicitarEspelhoEtapa2 || item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2) ? (
           <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
             {iconEye} {item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2 ? "Ver espelhos" : "Solicitar espelho"}
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} Espelhos indisponiveis</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ?? item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ?? "Espelhos indisponiveis"}</span>
         )}
         {(item.elegibilidade?.fasesRecursoElegiveis?.length ?? 0) > 0 ? (
           <Link href={`/candidato/recursos?editalId=${item.edital.id}`} className="hub-link">
             {iconMessageSquare} Interpor recurso
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} Recurso indisponivel</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} {item.elegibilidade?.motivoBloqueioRecurso ?? "Recurso indisponivel"}</span>
         )}
         <button type="button" onClick={pacoteDocumentalUrl ? handleDownloadPacote : undefined} disabled={!pacoteDocumentalUrl || downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: pacoteDocumentalUrl ? "pointer" : "default", padding: 0, font: "inherit", opacity: pacoteDocumentalUrl ? 1 : 0.5 }}>
-          {iconDownload} {downloadingPacote ? "Baixando..." : "Baixar pacote documental"}
+          {iconDownload} {pacoteDocumentalUrl ? (downloadingPacote ? "Baixando..." : "Baixar pacote documental") : "Pacote documental indisponivel"}
         </button>
       </div>
 
@@ -249,6 +271,18 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
           <span className="hub-status-value">{homologacaoVigente.statusVigente ? getStatusLabel(homologacaoVigente.statusVigente) : "Pendente"}</span>
           {homologacaoVigente.motivoResumoVigente ? <span style={{ fontSize: 12, color: "#64748B" }}>{homologacaoVigente.motivoResumoVigente}</span> : null}
           {homologacaoVigente.parecerVigente ? <span style={{ fontSize: 12, color: "#334155" }}>{homologacaoVigente.parecerVigente}</span> : null}
+        </div>
+      ) : null}
+
+      {item.classificacao ? (
+        <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span className="hub-status-label">Classificacao {publicacaoClassificacaoVigente ? "oficial vigente" : "calculada"}</span>
+          <strong style={{ fontSize: 14, color: "#0F172A" }}>{getStatusLabel(item.classificacao.status)}</strong>
+          <span className="hub-status-value">NF: {item.classificacao.notaFinal != null ? item.classificacao.notaFinal.toFixed(2) : "—"}</span>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Posicao geral: {item.classificacao.posicaoGeral ?? "—"} · Posicao na linha: {item.classificacao.posicaoLinha ?? "—"}</span>
+          {item.classificacao.modalidadeConcorrencia ? <span style={{ fontSize: 12, color: "#64748B" }}>Modalidade: {getStatusLabel(item.classificacao.modalidadeConcorrencia)}</span> : null}
+          {publicacaoClassificacaoVigente ? <span style={{ fontSize: 12, color: "#2563EB" }}>{getStatusLabel(publicacaoClassificacaoVigente.tipo)} · versao {publicacaoClassificacaoVigente.versao}{publicacaoClassificacaoVigente.republicacaoDaVersao ? ` · republica v${publicacaoClassificacaoVigente.republicacaoDaVersao}` : ""}</span> : <span style={{ fontSize: 12, color: "#B45309" }}>Classificacao ainda nao publicada oficialmente.</span>}
+          {publicacaoClassificacaoVigente?.publicadoEm ? <span style={{ fontSize: 12, color: "#2563EB" }}>Publicado em: {formatIsoDate(publicacaoClassificacaoVigente.publicadoEm)}</span> : null}
         </div>
       ) : null}
 

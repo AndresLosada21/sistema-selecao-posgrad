@@ -8,10 +8,12 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
+import { listAdminPublicacoesByEdital } from "@/modules/admin-publicacao/api";
 import { listClassificacaoAdmin, recalcularClassificacaoAdmin } from "@/modules/admin-classificacao/api";
 import type { ClassificacaoAdminResponse, ClassificacaoAdminItem } from "@/modules/admin-classificacao/types";
+import type { PublicacaoResumo } from "@/modules/publicacao/types";
 
 type Props = { params: Promise<{ editalId: string }> };
 
@@ -54,6 +56,8 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmRecalc, setConfirmRecalc] = useState<"PRELIMINAR" | "FINAL" | null>(null);
+  const [publicacaoPreliminarVigente, setPublicacaoPreliminarVigente] = useState<PublicacaoResumo | null>(null);
+  const [publicacaoFinalVigente, setPublicacaoFinalVigente] = useState<PublicacaoResumo | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,14 +80,17 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
     if (!token || !editalId) return;
     try {
       const response = await loadData();
+      const publicacoes = await listAdminPublicacoesByEdital(editalId, token, { page: 1, pageSize: 100 });
       if (signal.aborted) return;
       if (!response) return;
       setData(response);
+      setPublicacaoFinalVigente(publicacoes.items.find((item) => item.tipo === "CLASSIFICACAO_FINAL" && item.isVersaoAtualDoTipo) ?? null);
+      setPublicacaoPreliminarVigente(publicacoes.items.find((item) => item.tipo === "CLASSIFICACAO_PRELIMINAR" && item.isVersaoAtualDoTipo) ?? null);
       setPageStatus("ready");
     } catch (error) {
       if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
       setPageStatus("error");
     }
   }, [editalId, loadData, signOut, token]);
@@ -128,6 +135,9 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
       const response = await loadData();
       if (!response) return;
       setData(response);
+      const publicacoes = await listAdminPublicacoesByEdital(editalId, token, { page: 1, pageSize: 100 });
+      setPublicacaoFinalVigente(publicacoes.items.find((item) => item.tipo === "CLASSIFICACAO_FINAL" && item.isVersaoAtualDoTipo) ?? null);
+      setPublicacaoPreliminarVigente(publicacoes.items.find((item) => item.tipo === "CLASSIFICACAO_PRELIMINAR" && item.isVersaoAtualDoTipo) ?? null);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
       setFeedback({ type: "error", text: getErrorMessage(error) });
@@ -139,6 +149,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const editalNumero = data?.items[0]?.edital?.numero ?? editalId ?? "";
+  const publicacaoVigente = publicacaoFinalVigente ?? publicacaoPreliminarVigente;
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -159,6 +170,27 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
           Recalcular final
         </button>
       </div>
+
+      {publicacaoVigente ? (
+        <PageFeedback
+          type="info"
+          title="Publicacao vigente de classificacao"
+          description={`Tipo: ${getStatusLabel(publicacaoVigente.tipo)} · Versao ${publicacaoVigente.versao}${publicacaoVigente.republicacaoDaVersao ? ` · republica v${publicacaoVigente.republicacaoDaVersao}` : ""}${publicacaoVigente.publicadoEm ? ` · publicada em ${publicacaoVigente.publicadoEm}` : ""}`}
+        />
+      ) : null}
+
+      {(publicacaoPreliminarVigente || publicacaoFinalVigente) ? (
+        <div className="admin-summary-cards">
+          <div className="admin-summary-card">
+            <span className="admin-summary-card-label">Preliminar vigente</span>
+            <span className="admin-summary-card-value">{publicacaoPreliminarVigente ? `v${publicacaoPreliminarVigente.versao}` : "—"}</span>
+          </div>
+          <div className="admin-summary-card">
+            <span className="admin-summary-card-label">Final vigente</span>
+            <span className="admin-summary-card-value">{publicacaoFinalVigente ? `v${publicacaoFinalVigente.versao}` : "—"}</span>
+          </div>
+        </div>
+      ) : null}
 
       {/* Confirmation guard for recalculate */}
       {confirmRecalc && (

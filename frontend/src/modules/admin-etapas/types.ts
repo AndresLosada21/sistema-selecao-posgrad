@@ -29,6 +29,14 @@ export type Etapa1AdminItem = {
     espelhoLiberadoEm: string | null;
     status: string;
   } | null;
+  edicao?: {
+    podeSalvarPreliminar: boolean;
+    bloqueioSalvarPreliminar: string | null;
+    podeSalvarFinal: boolean;
+    bloqueioSalvarFinal: string | null;
+    podeLiberarEspelho: boolean;
+    bloqueioLiberarEspelho: string | null;
+  } | null;
 };
 
 export type Etapa1ListResponse = {
@@ -100,6 +108,14 @@ export type Etapa2AdminItem = {
     espelhoSolicitadoEm: string | null;
     espelhoLiberadoEm: string | null;
     status: string;
+  } | null;
+  edicao?: {
+    podeSalvarPreliminar: boolean;
+    bloqueioSalvarPreliminar: string | null;
+    podeSalvarFinal: boolean;
+    bloqueioSalvarFinal: string | null;
+    podeLiberarEspelho: boolean;
+    bloqueioLiberarEspelho: string | null;
   } | null;
 };
 

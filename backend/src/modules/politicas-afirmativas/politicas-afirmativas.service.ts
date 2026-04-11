@@ -8,7 +8,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
-import { reprocessarClassificacaoEPublicacoesDerivadas } from "../publicacao/publicacao-derived-effects.service.js";
+import { reprocessarClassificacaoEPublicacoesDerivadas, validarReprocessamentoClassificacaoDerivada } from "../publicacao/publicacao-derived-effects.service.js";
 import {
   resolveConfirmacaoReservaFromResultado,
   resolveStatusOperacaoFromEncaminhamento,
@@ -301,9 +301,16 @@ export async function registrarResultadoFinalPoliticasAfirmativas(input: {
   }
 
   const resultadoFinalAnterior = etapa.resultadoFinal;
+  const parecerFinalAnterior = etapa.parecerFinal;
+  const arquivoRetornoFinalAnterior = etapa.arquivoRetornoFinalUrl;
   const confirmacaoAnterior = etapa.tipo === TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO
     ? etapa.inscricao.confirmacaoAcoesAfirmativas
     : etapa.inscricao.confirmacaoPcd;
+
+  const validacaoReprocessamento = await validarReprocessamentoClassificacaoDerivada(etapa.inscricao.participacaoEdital.editalId);
+  if (resultadoFinalAnterior !== input.resultado && "error" in validacaoReprocessamento) {
+    return { error: validacaoReprocessamento.error } as const;
+  }
 
   const updated = await prisma.etapaPoliticasAfirmativas.update({
     where: { inscricaoId: input.inscricaoId },
@@ -327,7 +334,12 @@ export async function registrarResultadoFinalPoliticasAfirmativas(input: {
         : { confirmacaoPcd: confirmacao },
   });
 
-  if (resultadoFinalAnterior !== input.resultado || confirmacaoAnterior !== confirmacao) {
+  if (
+    resultadoFinalAnterior !== input.resultado
+    || confirmacaoAnterior !== confirmacao
+    || parecerFinalAnterior !== input.parecer
+    || (arquivoRetornoFinalAnterior ?? null) !== (input.arquivoRetornoUrl ?? null)
+  ) {
     await reprocessarClassificacaoEPublicacoesDerivadas({
       editalId: etapa.inscricao.participacaoEdital.editalId,
       criadoPorId: input.registradoPorId,

@@ -33,6 +33,7 @@ type RubricaCriterio = { notaAtribuida: number; pesoPercentual: number; contribu
 type RubricaDetalhada = {
   criterios?: Record<string, RubricaCriterio>;
   notaFinal?: number;
+  notaCalculadaSemPenalidadeIa?: number;
   situacaoFinal?: string;
   observacoes?: Record<string, string>;
   usoIaComprovado?: boolean;
@@ -70,10 +71,10 @@ export default function CandidateEspelhosPage({ params }: Props) {
   const inscricaoId = item?.inscricao?.id ?? null;
   const etapa1 = item?.inscricao?.etapa1 ?? null;
   const etapa2 = item?.inscricao?.etapa2 ?? null;
-  const e1Available = Boolean(etapa1 && ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"].includes(etapa1.status));
-  const e2Available = Boolean(etapa2 && ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"].includes(etapa2.status));
-  const e1Released = Boolean(etapa1?.espelhoLiberadoEm);
-  const e2Released = Boolean(etapa2?.espelhoLiberadoEm);
+  const e1CanRequest = Boolean(item?.elegibilidade?.podeSolicitarEspelhoEtapa1);
+  const e2CanRequest = Boolean(item?.elegibilidade?.podeSolicitarEspelhoEtapa2);
+  const e1Released = Boolean(item?.elegibilidade?.podeVerEspelhoEtapa1);
+  const e2Released = Boolean(item?.elegibilidade?.podeVerEspelhoEtapa2);
 
   async function handleSolicitar(etapa: "1" | "2") {
     if (!session.token || !inscricaoId) return;
@@ -119,7 +120,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
           {iconFilePen}
           <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 1 — Redacao</span>
-          <StatusBadge variant={e1Released ? "success" : e1Available ? "info" : "neutral"}>
+          <StatusBadge variant={e1Released ? "success" : e1CanRequest ? "info" : "neutral"}>
             {e1Released ? "Disponivel" : etapa1?.espelhoSolicitadoEm ? "Solicitado" : "Nao solicitado"}
           </StatusBadge>
         </div>
@@ -179,8 +180,20 @@ export default function CandidateEspelhosPage({ params }: Props) {
 
                   {/* IA warning */}
                   {rubrica?.usoIaComprovado ? (
-                    <div style={{ background: "#FEF2F2", borderRadius: 6, padding: "10px 14px", fontSize: 12, fontWeight: 500, color: "#991B1B" }}>
-                      Uso de IA comprovado — nota penalizada conforme regras do edital.
+                    <div style={{ background: "#FEF2F2", borderRadius: 6, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#991B1B" }}>
+                        Uso de IA comprovado — nota penalizada conforme regras do edital.
+                      </span>
+                      {rubrica.notaCalculadaSemPenalidadeIa != null ? (
+                        <span style={{ fontSize: 12, color: "#B91C1C" }}>
+                          Nota calculada antes da penalidade: {rubrica.notaCalculadaSemPenalidadeIa}
+                        </span>
+                      ) : null}
+                      {rubrica.fundamentoUsoIa ? (
+                        <div style={{ background: "#FFF5F5", borderRadius: 6, border: "1px solid #FECACA", padding: "10px 12px", fontSize: 12, lineHeight: 1.6, color: "#7F1D1D", whiteSpace: "pre-wrap", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                          <strong>Fundamento:</strong> {rubrica.fundamentoUsoIa}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -207,7 +220,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
             <button type="button" onClick={() => handleVerEspelho("1")} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
               {loadingEspelho ? "Carregando..." : "Ver espelho"}
             </button>
-          ) : e1Available && !etapa1?.espelhoSolicitadoEm ? (
+          ) : e1CanRequest ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho ou aguarde liberacao administrativa para visualizar a correcao da etapa 1.</span>
               <button type="button" onClick={() => handleSolicitar("1")} disabled={soliciting === "1"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
@@ -215,9 +228,11 @@ export default function CandidateEspelhosPage({ params }: Props) {
               </button>
             </div>
           ) : (
-            <span style={{ fontSize: 13, color: "#64748B" }}>
-                {etapa1?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}
-            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#64748B" }}>
+              <span>{etapa1?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}</span>
+              {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ? <span>{item.elegibilidade.motivoBloqueioEspelhoEtapa1}</span> : null}
+              {item.acompanhamento?.proximoPasso ? <span>{item.acompanhamento.proximoPasso}</span> : null}
+            </div>
           )}
         </div>
       </div>
@@ -227,7 +242,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
           {iconAward(e2Released ? "#2563EB" : "#94A3B8")}
           <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 2 — Titulos</span>
-          <StatusBadge variant={e2Released ? "success" : e2Available ? "info" : "neutral"}>
+          <StatusBadge variant={e2Released ? "success" : e2CanRequest ? "info" : "neutral"}>
             {e2Released ? "Disponivel" : etapa2?.espelhoSolicitadoEm ? "Solicitado" : "Nao solicitado"}
           </StatusBadge>
         </div>
@@ -335,7 +350,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
             <button type="button" onClick={() => handleVerEspelho("2")} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
               {loadingEspelho ? "Carregando..." : "Ver espelho"}
             </button>
-          ) : e2Available && !etapa2?.espelhoSolicitadoEm ? (
+          ) : e2CanRequest ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho ou aguarde liberacao administrativa para visualizar a correcao da etapa 2.</span>
               <button type="button" onClick={() => handleSolicitar("2")} disabled={soliciting === "2"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
@@ -343,9 +358,11 @@ export default function CandidateEspelhosPage({ params }: Props) {
               </button>
             </div>
           ) : (
-            <span style={{ fontSize: 13, color: "#64748B" }}>
-                {etapa2?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}
-            </span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#64748B" }}>
+              <span>{etapa2?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}</span>
+              {item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ? <span>{item.elegibilidade.motivoBloqueioEspelhoEtapa2}</span> : null}
+              {item.acompanhamento?.proximoPasso ? <span>{item.acompanhamento.proximoPasso}</span> : null}
+            </div>
           )}
         </div>
       </div>

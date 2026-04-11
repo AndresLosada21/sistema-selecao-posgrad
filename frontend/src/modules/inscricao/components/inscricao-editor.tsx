@@ -648,6 +648,8 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const redacaoLength = formState.redacaoTexto.length;
   const cursoLabel = edital.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
   const maxReachedStep = useMemo(() => getMaxReachedStep({ state: formState, documentos, pagamentoDispensado, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados }), [documentos, edital.temasRedacao, edital.temasRedacaoConfigurados, formState, pagamentoDispensado]);
+  const inscricaoEmRascunho = inscricaoStatus === "RASCUNHO";
+  const podeCancelarParaEditar = inscricaoStatus === "SUBMETIDA";
 
   function resetMessage() { setMessage(null); setChecklist([]); }
   function handleUnauthorized(error: unknown) { if (isUnauthorizedError(error)) { session.signOut(); return true; } return false; }
@@ -712,6 +714,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   }, [step]);
 
   useEffect(() => {
+    if (podeCancelarParaEditar) {
+      setStep(4);
+    }
+  }, [podeCancelarParaEditar]);
+
+  useEffect(() => {
     if (docFormNome.trim()) {
       return;
     }
@@ -751,6 +759,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleSaveDraft(options?: { silent?: boolean }) {
     if (!session.token) return false;
+    if (!inscricaoEmRascunho) {
+      if (!options?.silent) {
+        setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao dentro da janela do edital para voltar ao rascunho antes de editar a inscricao.", type: "warning" });
+      }
+      return false;
+    }
     setSavingDraft(true);
     setAutosaveState("saving");
     if (!options?.silent) {
@@ -805,6 +819,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleDocumentoFileSelect(file: File) {
     if (!session.token) return;
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao para alterar documentos da inscricao.", type: "warning" }); return; }
     setUploadingDocumento(true); resetMessage();
     try {
       const uploaded = await uploadPrivateFile(file, session.token);
@@ -819,6 +834,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleAddDocumento(event: FormEvent) {
     event.preventDefault();
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao para registrar novos documentos.", type: "warning" }); return; }
     if (!session.token || !inscricaoId) { setMessage({ title: "Salve o rascunho primeiro", description: "O rascunho precisa existir para registrar documentos.", type: "warning" }); return; }
     resetMessage();
     try {
@@ -834,6 +850,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleAnexoIvUpload(file: File) {
     if (!session.token) return;
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao para reenviar o Anexo IV assinado.", type: "warning" }); return; }
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setMessage({ title: "Arquivo invalido", description: "O Anexo IV assinado deve ser reenviado em PDF.", type: "error" }); return;
     }
@@ -935,7 +952,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
             onDownloadAnexoIv={handleDownloadAnexoIv} onUploadAnexoIv={handleAnexoIvUpload}
             onDocFileSelect={handleDocumentoFileSelect} onAddDocumento={handleAddDocumento}
             docFormTipo={docFormTipo} setDocFormTipo={setDocFormTipo} docFormNome={docFormNome} setDocFormNome={setDocFormNome}
-            docFormUrl={docFormUrl} docFormFilename={docFormFilename} fileRef={fileRef} fieldErrors={fieldErrors}
+            docFormUrl={docFormUrl} docFormFilename={docFormFilename} fileRef={fileRef} fieldErrors={fieldErrors} allowEdits={inscricaoEmRascunho}
           />
         )}
         {step === 4 && (
@@ -951,23 +968,23 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       {/* Footer */}
       <div className="wiz-footer">
         {step > 0 && <button type="button" className="wiz-btn-back" onClick={goBack}>{svgArrowLeft} Voltar</button>}
-        <button type="button" className="wiz-btn-save" disabled={savingDraft} onClick={() => void handleSaveDraft()}>
+        <button type="button" className="wiz-btn-save" disabled={savingDraft || !inscricaoEmRascunho} onClick={() => void handleSaveDraft()}>
           {svgSave} {savingDraft ? "Salvando..." : "Salvar Rascunho"}
         </button>
         <span className="wiz-footer-spacer" />
         <span className="wiz-auto-save">{svgCloud} {autosaveState === "saving" ? "Salvando automaticamente..." : autosaveState === "saved" ? `Salvo automaticamente${autosaveAt ? ` as ${new Date(autosaveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : autosaveState === "error" ? "Falha no salvamento automatico" : "Salvamento automatico ativo"}</span>
         {step < 4 ? (
-          <button type="button" className="wiz-btn-next" disabled={savingDraft} onClick={goNext}>
+          <button type="button" className="wiz-btn-next" disabled={savingDraft || !inscricaoEmRascunho} onClick={goNext}>
             Proximo: {STEP_LABELS[step + 1]} {svgArrowRight}
           </button>
         ) : (
           <>
-            {inscricaoStatus === "SUBMETIDA" ? (
+            {podeCancelarParaEditar ? (
               <button type="button" className="wiz-btn-cancel-link" disabled={submitting} onClick={handleCancelSubmission}>
                 Cancelar Inscricao
               </button>
             ) : null}
-            <button type="button" className="wiz-btn-submit" disabled={submitting || !allConfirmed || !inscricaoId} onClick={handleSubmit}>
+            <button type="button" className="wiz-btn-submit" disabled={submitting || !allConfirmed || !inscricaoId || !inscricaoEmRascunho} onClick={handleSubmit}>
               {svgSend} {submitting ? "Processando..." : "Submeter Inscricao"}
             </button>
           </>
@@ -1632,13 +1649,13 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
    Step 4 — Documentos
    ================================================================ */
 
-function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDocumentRules, downloading, uploadingAnexoIv, uploadingDocumento, onDownloadAnexoIv, onUploadAnexoIv, onDocFileSelect, onAddDocumento, docFormTipo, setDocFormTipo, docFormNome, setDocFormNome, docFormUrl, docFormFilename, fileRef, fieldErrors }: {
+function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDocumentRules, downloading, uploadingAnexoIv, uploadingDocumento, onDownloadAnexoIv, onUploadAnexoIv, onDocFileSelect, onAddDocumento, docFormTipo, setDocFormTipo, docFormNome, setDocFormNome, docFormUrl, docFormFilename, fileRef, fieldErrors, allowEdits }: {
   inscricaoId: string | null; documentos: Array<{ id: string; tipo: string; nome: string; nomeArquivo?: string }>; anexoIvDocumento: { id: string; tipo: string; nome: string; nomeArquivo?: string } | null;
   requiredDocumentRules: RequiredDocumentRuleView[];
   downloading: boolean; uploadingAnexoIv: boolean; uploadingDocumento: boolean;
   onDownloadAnexoIv: () => void; onUploadAnexoIv: (f: File) => void; onDocFileSelect: (f: File) => void; onAddDocumento: (e: FormEvent) => void;
   docFormTipo: string; setDocFormTipo: (v: string) => void; docFormNome: string; setDocFormNome: (v: string) => void;
-  docFormUrl: string; docFormFilename: string; fileRef: React.RefObject<HTMLInputElement | null>; fieldErrors: FieldErrors;
+  docFormUrl: string; docFormFilename: string; fileRef: React.RefObject<HTMLInputElement | null>; fieldErrors: FieldErrors; allowEdits: boolean;
 }) {
   const docsSemAnexoIv = documentos.filter((d) => d.tipo !== "ANEXO_IV");
   const requiredRulesWithoutAnexoIv = requiredDocumentRules.filter((rule) => rule.tipo !== "ANEXO_IV");
@@ -1676,7 +1693,7 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
             </button>
             <span style={{ flex: 1 }} />
             <FileField
-              disabled={uploadingAnexoIv || !inscricaoId}
+              disabled={!allowEdits || uploadingAnexoIv || !inscricaoId}
               hint={anexoIvDocumento ? `Reenviado: ${anexoIvDocumento.nomeArquivo ?? "Anexo IV assinado"}` : ""}
               label="Enviar Anexo IV assinado (PDF)"
               onFileSelect={onUploadAnexoIv}
@@ -1734,7 +1751,7 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
             <div className="wiz-field-row">
               <div className="wiz-field">
                 <label className="wiz-field-label">Tipo</label>
-                <select value={docFormTipo} onChange={(e) => setDocFormTipo(e.target.value)}>
+                <select disabled={!allowEdits} value={docFormTipo} onChange={(e) => setDocFormTipo(e.target.value)}>
                   {requiredRulesWithoutAnexoIv.length ? (
                     <optgroup label="Obrigatorios para esta inscricao">
                       {requiredRulesWithoutAnexoIv.map((rule) => <option key={rule.tipo} value={rule.tipo}>{rule.label}</option>)}
@@ -1747,11 +1764,11 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
               </div>
               <div className="wiz-field">
                 <label className="wiz-field-label">Nome</label>
-                <input value={docFormNome} onChange={(e) => setDocFormNome(e.target.value)} placeholder="Nome do documento" />
+                <input disabled={!allowEdits} value={docFormNome} onChange={(e) => setDocFormNome(e.target.value)} placeholder="Nome do documento" />
               </div>
             </div>
-            <FileField disabled={uploadingDocumento} hint={docFormFilename ? `Arquivo: ${docFormFilename}` : "Envie o PDF do documento"} label="Arquivo" onFileSelect={onDocFileSelect} />
-            <button type="submit" className="wiz-btn-next" disabled={uploadingDocumento || !docFormUrl} style={{ alignSelf: "flex-start" }}>
+            <FileField disabled={!allowEdits || uploadingDocumento} hint={docFormFilename ? `Arquivo: ${docFormFilename}` : "Envie o PDF do documento"} label="Arquivo" onFileSelect={onDocFileSelect} />
+            <button type="submit" className="wiz-btn-next" disabled={!allowEdits || uploadingDocumento || !docFormUrl} style={{ alignSelf: "flex-start" }}>
               Registrar documento
             </button>
           </form>

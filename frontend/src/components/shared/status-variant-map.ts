@@ -81,6 +81,7 @@ export function getStatusLabel(status: string): string {
     NAO_HOMOLOGADA_PRELIMINAR: "Nao homologada (preliminar)",
     HOMOLOGADA_FINAL: "Homologada",
     NAO_HOMOLOGADA_FINAL: "Nao homologada",
+    NAO_SOLICITADA: "Nao solicitada",
     // Gênero
     MASCULINO: "Masculino",
     FEMININO: "Feminino",

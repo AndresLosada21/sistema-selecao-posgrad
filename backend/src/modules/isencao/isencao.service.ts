@@ -10,6 +10,7 @@ import { prisma } from "../../lib/prisma.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
 import { sendOperationalNotificationSafely } from "../operacao/notification.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
+import { isPrivateUploadOwnedByUser, parsePrivateUploadUrl, privateUploadExists } from "../upload/upload.service.js";
 
 type CreatePedidoIsencaoInput = {
   editalId: string;
@@ -59,6 +60,19 @@ export async function createOrUpdatePedidoIsencao(input: CreatePedidoIsencaoInpu
     },
   });
 
+  const pedidoExistente = await prisma.pedidoIsencao.findUnique({
+    where: {
+      participacaoEditalId: participacao.id,
+    },
+  });
+
+  if (pedidoExistente) {
+    return {
+      error: "PEDIDO_ISENCAO_JA_EXISTENTE" as const,
+      statusAtual: pedidoExistente.status,
+    };
+  }
+
   if (!input.inscritoCadUnico) {
     if (!input.justificativa?.trim()) {
       return { error: "JUSTIFICATIVA_OBRIGATORIA" as const };
@@ -80,34 +94,64 @@ export async function createOrUpdatePedidoIsencao(input: CreatePedidoIsencaoInpu
         nis: input.nis,
         justificativa: input.justificativa,
         comprovanteUrl: input.comprovanteUrl,
-        comprovanteNomeArquivo: input.comprovanteNomeArquivo,
-      };
+      comprovanteNomeArquivo: input.comprovanteNomeArquivo,
+    };
 
-  const pedido = await prisma.pedidoIsencao.upsert({
-    where: {
-      participacaoEditalId: participacao.id,
-    },
-    update: {
-      cursoNivel: input.cursoNivel,
-      inscritoCadUnico: input.inscritoCadUnico,
-      ...payload,
-      status: StatusIsencao.SOLICITADA,
-    },
-    create: {
-      participacaoEditalId: participacao.id,
-      cursoNivel: input.cursoNivel,
-      inscritoCadUnico: input.inscritoCadUnico,
-      ...payload,
-      status: StatusIsencao.SOLICITADA,
-    },
+  if (!input.inscritoCadUnico && payload.comprovanteUrl && !isPrivateUploadOwnedByUser(payload.comprovanteUrl, input.usuarioId)) {
+    return { error: "UPLOAD_SEM_PERMISSAO" as const };
+  }
+
+  const comprovantePrivado = parsePrivateUploadUrl(payload.comprovanteUrl);
+  if (!input.inscritoCadUnico && payload.comprovanteUrl && !comprovantePrivado) {
+    return { error: "UPLOAD_EXTERNO_NAO_PERMITIDO" as const };
+  }
+  if (comprovantePrivado && !(await privateUploadExists(comprovantePrivado.ownerId, comprovantePrivado.filename))) {
+    return { error: "UPLOAD_NAO_ENCONTRADO" as const };
+  }
+
+  let pedido: Prisma.PedidoIsencaoGetPayload<{
     include: {
       participacaoEdital: {
         include: {
-          edital: true,
+          edital: true;
+        };
+      };
+    };
+  }>;
+
+  try {
+    pedido = await prisma.pedidoIsencao.create({
+      data: {
+        participacaoEditalId: participacao.id,
+        cursoNivel: input.cursoNivel,
+        inscritoCadUnico: input.inscritoCadUnico,
+        ...payload,
+        status: StatusIsencao.SOLICITADA,
+      },
+      include: {
+        participacaoEdital: {
+          include: {
+            edital: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const pedidoConcorrente = await prisma.pedidoIsencao.findUnique({
+        where: {
+          participacaoEditalId: participacao.id,
+        },
+      });
+
+      return {
+        error: "PEDIDO_ISENCAO_JA_EXISTENTE" as const,
+        statusAtual: pedidoConcorrente?.status ?? null,
+      };
+    }
+
+    throw error;
+  }
 
   return { pedido };
 }
