@@ -17,7 +17,8 @@ import { buildHomologacaoResumoVigente, getFinalHomologacaoStatus, getInscricaoS
 import { recalcularNotasEtapa2PorEdital } from "../etapa2/etapa2.service.js";
 import { registrarResultadoFinalPoliticasAfirmativas } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { createHomologacaoPublicacao } from "../publicacao/publicacao.service.js";
-import { reprocessarClassificacaoEPublicacoesDerivadas } from "../publicacao/publicacao-derived-effects.service.js";
+import { reprocessarClassificacaoEPublicacoesDerivadas, validarReprocessamentoClassificacaoDerivada } from "../publicacao/publicacao-derived-effects.service.js";
+import { isPrivateUploadOwnedByUser, parsePrivateUploadUrl, privateUploadExists } from "../upload/upload.service.js";
 import {
   rebuildEtapa1AuditSnapshotAfterRecurso,
   resolveFaseHomologacaoReferencia,
@@ -86,7 +87,7 @@ function hasPreliminaryResult(participacao: NonNullable<Awaited<ReturnType<typeo
         participacao.pedidoIsencao?.status === StatusIsencao.INDEFERIDA_PRELIMINAR
       );
     case FaseRecurso.HOMOLOGACAO:
-      return Boolean(participacao.inscricao?.homologacao?.statusPreliminar) && !participacao.inscricao?.homologacao?.statusFinal;
+      return Boolean(participacao.inscricao?.homologacao?.statusFinal || participacao.inscricao?.homologacao?.statusPreliminar);
     case FaseRecurso.ETAPA_1:
       return participacao.inscricao?.avaliacaoEtapa1?.status === StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA;
     case FaseRecurso.ETAPA_2:
@@ -109,6 +110,21 @@ export async function createRecurso(input: {
 
   if (!participacao) {
     return { error: "PARTICIPACAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (input.anexoUrl) {
+    if (!isPrivateUploadOwnedByUser(input.anexoUrl, input.usuarioId)) {
+      return { error: "UPLOAD_SEM_PERMISSAO" as const };
+    }
+
+    const anexoPrivado = parsePrivateUploadUrl(input.anexoUrl);
+    if (!anexoPrivado) {
+      return { error: "UPLOAD_EXTERNO_NAO_PERMITIDO" as const };
+    }
+
+    if (!(await privateUploadExists(anexoPrivado.ownerId, anexoPrivado.filename))) {
+      return { error: "UPLOAD_NAO_ENCONTRADO" as const };
+    }
   }
 
   const windowStatus = await isCronogramaWindowOpen(input.editalId, getRecursoWindowType(input.fase));
@@ -137,12 +153,20 @@ export async function createRecurso(input: {
     }
   }
 
+  const faseHomologacaoReferencia = input.fase === FaseRecurso.HOMOLOGACAO
+    ? resolveFaseHomologacaoReferencia({
+        statusPreliminar: participacao.inscricao?.homologacao?.statusPreliminar,
+        statusFinal: participacao.inscricao?.homologacao?.statusFinal,
+      })
+    : null;
+
   const existing = await prisma.recurso.findFirst({
     where: {
       participacaoEditalId: participacao.id,
       fase: input.fase,
+      ...(input.fase === FaseRecurso.HOMOLOGACAO ? { faseHomologacaoReferencia } : {}),
       status: {
-        in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE, StatusRecurso.DEFERIDO, StatusRecurso.INDEFERIDO, StatusRecurso.RESPONDIDO],
+        in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE, StatusRecurso.DEFERIDO, StatusRecurso.INDEFERIDO],
       },
     },
   });
@@ -157,7 +181,7 @@ export async function createRecurso(input: {
       criadoPorId: input.usuarioId,
       fase: input.fase,
       faseHomologacaoReferencia: input.fase === FaseRecurso.HOMOLOGACAO
-        ? FaseHomologacaoRecurso.PRELIMINAR
+        ? faseHomologacaoReferencia ?? FaseHomologacaoRecurso.PRELIMINAR
         : undefined,
       fundamentacao: input.fundamentacao,
       anexoUrl: input.anexoUrl,
@@ -372,6 +396,10 @@ export async function decidirRecurso(
 
   const recursoAtual = recurso;
 
+  if (recursoAtual.status === StatusRecurso.DEFERIDO || recursoAtual.status === StatusRecurso.INDEFERIDO) {
+    return { error: "RECURSO_JA_DECIDIDO" as const };
+  }
+
   const editalId = recursoAtual.participacaoEdital.editalId;
 
   if (input.deferido && input.impactoResultado) {
@@ -397,6 +425,13 @@ export async function decidirRecurso(
 
     if (recursoAtual.fase === FaseRecurso.CLASSIFICACAO) {
       return { error: "DECISAO_RECURSAL_CLASSIFICACAO_NAO_SUPORTADA" as const };
+    }
+
+    if (shouldReprocessClassificacaoAfterRecurso(recursoAtual.fase)) {
+      const validacaoReprocessamento = await validarReprocessamentoClassificacaoDerivada(editalId);
+      if ("error" in validacaoReprocessamento) {
+        return { error: validacaoReprocessamento.error } as const;
+      }
     }
   }
 

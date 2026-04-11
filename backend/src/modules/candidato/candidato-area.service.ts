@@ -1,4 +1,4 @@
-import { FaseRecurso, Prisma, ResultadoPoliticasAfirmativas, StatusClassificacaoFinal, StatusInscricao, TipoCronogramaEdital } from "@prisma/client";
+import { FaseHomologacaoRecurso, FaseRecurso, Prisma, ResultadoPoliticasAfirmativas, StatusClassificacaoFinal, StatusInscricao, TipoCronogramaEdital } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { toIsoOrNull } from "../../lib/serialization.js";
@@ -170,14 +170,20 @@ function resolveAcompanhamento(participacao: CandidateParticipacao) {
 function resolveElegibilidade(participacao: CandidateParticipacao, publicacoes: PublicacaoDashboardRecord[]) {
   const inscricao = participacao.inscricao;
   const cronogramas = participacao.edital.cronogramas;
+  const janelaInscricaoAberta = isCronogramaAberto(cronogramas, TipoCronogramaEdital.INSCRICAO);
+  const janelaIsencaoAberta = isCronogramaAberto(cronogramas, TipoCronogramaEdital.PEDIDO_ISENCAO);
   const fasesComRecursoJaInterposto = new Set(participacao.recursos.map((recurso) => recurso.fase));
+  const faseHomologacaoVigente = inscricao?.homologacao?.statusFinal ? FaseHomologacaoRecurso.FINAL : inscricao?.homologacao?.statusPreliminar ? FaseHomologacaoRecurso.PRELIMINAR : null;
+  const recursoHomologacaoJaInterpostoNaFaseVigente = faseHomologacaoVigente
+    ? participacao.recursos.some((recurso) => recurso.fase === FaseRecurso.HOMOLOGACAO && recurso.faseHomologacaoReferencia === faseHomologacaoVigente)
+    : false;
   const fasesRecursoElegiveis: string[] = [];
 
   if (participacao.pedidoIsencao && !fasesComRecursoJaInterposto.has(FaseRecurso.ISENCAO) && isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_ISENCAO) && ["DEFERIDA_PRELIMINAR", "INDEFERIDA_PRELIMINAR"].includes(participacao.pedidoIsencao.status)) {
     fasesRecursoElegiveis.push(FaseRecurso.ISENCAO);
   }
 
-  if (inscricao?.homologacao?.statusPreliminar && !inscricao.homologacao.statusFinal && !fasesComRecursoJaInterposto.has(FaseRecurso.HOMOLOGACAO) && isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_HOMOLOGACAO)) {
+  if (faseHomologacaoVigente && !recursoHomologacaoJaInterpostoNaFaseVigente && isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_HOMOLOGACAO)) {
     fasesRecursoElegiveis.push(FaseRecurso.HOMOLOGACAO);
   }
 
@@ -197,14 +203,67 @@ function resolveElegibilidade(participacao: CandidateParticipacao, publicacoes: 
     fasesRecursoElegiveis.push(FaseRecurso.POLITICAS_AFIRMATIVAS);
   }
 
+  const motivoBloqueioInscricao = janelaInscricaoAberta
+    ? inscricao?.status === StatusInscricao.SUBMETIDA
+      ? "A inscricao foi submetida. Cancele a submissao dentro do prazo para voltar ao rascunho."
+      : inscricao && inscricao.status !== StatusInscricao.RASCUNHO
+        ? "A inscricao atual nao pode mais ser editada neste estado do processo."
+        : null
+    : "A janela de inscricao deste edital esta encerrada.";
+
+  const motivoBloqueioIsencao = participacao.pedidoIsencao
+    ? "Ja existe pedido de isencao vinculado a este edital."
+    : !janelaIsencaoAberta
+      ? "A janela de pedido de isencao deste edital esta encerrada."
+      : null;
+
+  const motivoBloqueioEspelhoEtapa1 = !inscricao?.avaliacaoEtapa1
+    ? "A etapa 1 ainda nao possui resultado preliminar publicado."
+    : inscricao.avaliacaoEtapa1.espelhoLiberadoEm
+      ? "O espelho da etapa 1 ja esta liberado para visualizacao."
+      : inscricao.avaliacaoEtapa1.espelhoSolicitadoEm
+        ? "O espelho da etapa 1 ja foi solicitado e aguarda liberacao administrativa."
+        : inscricao.avaliacaoEtapa1.status !== "PRELIMINAR_PUBLICADA"
+          ? "O espelho da etapa 1 so fica disponivel durante o resultado preliminar publicado."
+          : !isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_ETAPA_1)
+            ? "A janela recursal da etapa 1 esta encerrada."
+            : null;
+
+  const motivoBloqueioEspelhoEtapa2 = !inscricao?.avaliacaoEtapa2
+    ? "A etapa 2 ainda nao possui resultado preliminar publicado."
+    : inscricao.avaliacaoEtapa2.espelhoLiberadoEm
+      ? "O espelho da etapa 2 ja esta liberado para visualizacao."
+      : inscricao.avaliacaoEtapa2.espelhoSolicitadoEm
+        ? "O espelho da etapa 2 ja foi solicitado e aguarda liberacao administrativa."
+        : inscricao.avaliacaoEtapa2.status !== "PRELIMINAR_PUBLICADA"
+          ? "O espelho da etapa 2 so fica disponivel durante o resultado preliminar publicado."
+          : !isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_ETAPA_2)
+            ? "A janela recursal da etapa 2 esta encerrada."
+            : null;
+
+  const motivoBloqueioRecurso = fasesRecursoElegiveis.length > 0
+    ? null
+    : participacao.recursos.length > 0
+      ? "Ja existe recurso registrado para as fases atualmente recorriveis deste edital."
+      : "Nenhuma fase esta elegivel para recurso no momento. Aguarde publicacao preliminar, liberacao de espelho ou abertura da janela recursal correspondente.";
+
   return {
-    podeEditarInscricao: !inscricao || inscricao.status === StatusInscricao.RASCUNHO || inscricao.status === StatusInscricao.SUBMETIDA,
-    podeSolicitarEspelhoEtapa1: Boolean(inscricao?.avaliacaoEtapa1 && inscricao.avaliacaoEtapa1.status === "PRELIMINAR_PUBLICADA" && !inscricao.avaliacaoEtapa1.espelhoLiberadoEm),
-    podeSolicitarEspelhoEtapa2: Boolean(inscricao?.avaliacaoEtapa2 && inscricao.avaliacaoEtapa2.status === "PRELIMINAR_PUBLICADA" && !inscricao.avaliacaoEtapa2.espelhoLiberadoEm),
+    janelaInscricaoAberta,
+    janelaIsencaoAberta,
+    podeEditarInscricao: janelaInscricaoAberta && (!inscricao || inscricao.status === StatusInscricao.RASCUNHO),
+    podeCancelarSubmissao: janelaInscricaoAberta && inscricao?.status === StatusInscricao.SUBMETIDA,
+    podeCriarIsencao: janelaIsencaoAberta && !participacao.pedidoIsencao,
+    podeSolicitarEspelhoEtapa1: Boolean(inscricao?.avaliacaoEtapa1 && inscricao.avaliacaoEtapa1.status === "PRELIMINAR_PUBLICADA" && !inscricao.avaliacaoEtapa1.espelhoSolicitadoEm && !inscricao.avaliacaoEtapa1.espelhoLiberadoEm && isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_ETAPA_1)),
+    podeSolicitarEspelhoEtapa2: Boolean(inscricao?.avaliacaoEtapa2 && inscricao.avaliacaoEtapa2.status === "PRELIMINAR_PUBLICADA" && !inscricao.avaliacaoEtapa2.espelhoSolicitadoEm && !inscricao.avaliacaoEtapa2.espelhoLiberadoEm && isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_ETAPA_2)),
     podeVerEspelhoEtapa1: Boolean(inscricao?.avaliacaoEtapa1?.espelhoLiberadoEm),
     podeVerEspelhoEtapa2: Boolean(inscricao?.avaliacaoEtapa2?.espelhoLiberadoEm),
     fasesRecursoElegiveis,
     podeVerPublicacoes: publicacoes.length > 0,
+    motivoBloqueioInscricao,
+    motivoBloqueioIsencao,
+    motivoBloqueioEspelhoEtapa1,
+    motivoBloqueioEspelhoEtapa2,
+    motivoBloqueioRecurso,
   };
 }
 
@@ -329,6 +388,7 @@ export async function getCandidateDashboard(usuarioId: string) {
           redacaoTexto: participacao.inscricao.redacaoTexto,
           dadosFormulario: participacao.inscricao.dadosFormulario,
           anexoIvGeradoUrl: participacao.inscricao.anexoIvGeradoUrl ?? buildCandidateAnexoIvUrl(participacao.inscricao.id),
+          anexoIvDisponivel: Boolean(participacao.inscricao.dadosFormulario),
           submissaoSnapshot: participacao.inscricao.submissaoSnapshot,
           versaoSubmissao: participacao.inscricao.versaoSubmissao,
           submetidaEm: toIsoOrNull(participacao.inscricao.submetidaEm),

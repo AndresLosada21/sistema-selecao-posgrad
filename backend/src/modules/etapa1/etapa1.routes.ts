@@ -23,6 +23,26 @@ import {
 
 export const etapa1Router = Router();
 
+function getEtapa1Message(errorCode: string) {
+  switch (errorCode) {
+    case "INSCRICAO_NAO_ENCONTRADA":
+      return "Inscricao nao encontrada para a etapa 1.";
+    case "RESULTADO_PRELIMINAR_ETAPA_1_OBRIGATORIO":
+    case "RESULTADO_PRELIMINAR_OBRIGATORIO":
+      return "A etapa 1 precisa ter resultado preliminar publicado para esta operacao.";
+    case "ESPELHO_ETAPA_1_JA_SOLICITADO":
+      return "O espelho da etapa 1 ja foi solicitado e aguarda liberacao administrativa.";
+    case "ESPELHO_ETAPA_1_JA_LIBERADO":
+      return "O espelho da etapa 1 ja esta liberado para visualizacao.";
+    case "JANELA_RECURSO_ETAPA_1_FECHADA":
+      return "A solicitacao ou liberacao do espelho da etapa 1 so fica disponivel durante a janela recursal da fase.";
+    case "ESPELHO_ETAPA_1_INDISPONIVEL":
+      return "O espelho da etapa 1 ainda nao esta disponivel para esta inscricao.";
+    default:
+      return errorCode;
+  }
+}
+
 etapa1Router.get("/v1/admin/etapa-1/inscricoes", requireAuth, requireAnyRole([Role.ADMIN, Role.AVALIADOR]), async (request, response) => {
   const parsedQuery = listEtapa1QuerySchema.safeParse(request.query);
 
@@ -94,7 +114,8 @@ etapa1Router.put("/v1/admin/etapa-1/inscricoes/:inscricaoId/resultado", requireA
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = getEtapa1Message(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(200).json(result.avaliacao);
@@ -112,7 +133,8 @@ etapa1Router.post("/v1/inscricoes/:inscricaoId/etapa-1/espelho/solicitar", requi
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = getEtapa1Message(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(200).json(result.avaliacao);
@@ -160,7 +182,8 @@ etapa1Router.get("/v1/inscricoes/:inscricaoId/etapa-1/espelho", requireAuth, asy
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = getEtapa1Message(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(200).json(result.espelho);

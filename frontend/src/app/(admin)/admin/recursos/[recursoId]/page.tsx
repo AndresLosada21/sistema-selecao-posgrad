@@ -9,7 +9,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { statusIsencaoOptions, type StatusIsencao } from "@/lib/enums";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
@@ -84,7 +84,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
       setFeedback({ type: "success", text: "Decisao registrada." });
     } catch (e) {
       if (isUnauthorizedError(e)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(e) });
+      setFeedback({ type: "error", text: getFirstFormError(e) ?? getErrorMessage(e) });
     } finally { setBusy(false); }
   }
 
@@ -110,6 +110,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const isIsencao = item.fase === "ISENCAO";
   const isPoliticas = item.fase === "POLITICAS_AFIRMATIVAS";
   const isClassificacao = item.fase === "CLASSIFICACAO";
+  const recursoJaDecidido = item.status === "DEFERIDO" || item.status === "INDEFERIDO";
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -119,6 +120,14 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         <h1>Recurso — {getStatusLabel(item.fase)}</h1>
         <p>{item.candidato.nomeCompleto} &middot; Edital {item.edital.numero}</p>
       </div>
+
+      {isHomologacao ? (
+        <PageFeedback
+          type="info"
+          title={`Recurso de homologacao ${item.faseHomologacaoReferencia?.toLowerCase() ?? ""}`}
+          description={item.contextoHomologacao?.statusVigente ? `Estado homologatorio vigente: ${getStatusLabel(item.contextoHomologacao.statusVigente)}.` : "Sem contexto homologatorio vigente carregado."}
+        />
+      ) : null}
 
       {/* Impact warning */}
       {item.impactoResultado && (
@@ -157,17 +166,18 @@ export default function AdminRecursoDetailPage({ params }: Props) {
       {/* Decisao form */}
       <form className="admin-form-card" onSubmit={onSubmit}>
         <h2 className="admin-form-card-title">Decisao administrativa</h2>
+        {recursoJaDecidido ? <PageFeedback type="warning" title="Recurso ja decidido" description="Este recurso ja possui decisao final registrada. A tela permanece em modo somente leitura ate que exista um fluxo explicito de revisao." /> : null}
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Resultado *</label>
-            <select className="select-field" onChange={(e) => setDeferido(e.target.value === "DEFERIDO")} value={deferido ? "DEFERIDO" : "INDEFERIDO"}>
+            <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setDeferido(e.target.value === "DEFERIDO")} value={deferido ? "DEFERIDO" : "INDEFERIDO"}>
               <option value="DEFERIDO">Deferido</option>
               <option value="INDEFERIDO">Indeferido</option>
             </select>
           </div>
           <div className="admin-eval-field">
             <label>Impacto no resultado?</label>
-            <select className="select-field" disabled={!deferido || isClassificacao} onChange={(e) => setImpactoResultado(e.target.value === "sim")} value={impactoResultado ? "sim" : "nao"}>
+            <select className="select-field" disabled={recursoJaDecidido || !deferido || isClassificacao} onChange={(e) => setImpactoResultado(e.target.value === "sim")} value={impactoResultado ? "sim" : "nao"}>
               <option value="nao">Nao</option>
               <option value="sim">Sim — reprocessar</option>
             </select>
@@ -180,7 +190,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
 
         <div className="admin-eval-field">
           <label>Decisao *</label>
-          <textarea className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} placeholder="Recurso procedente. Documentacao..." required style={{ minHeight: 72 }} value={decisao} />
+          <textarea disabled={recursoJaDecidido || busy} className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} placeholder="Recurso procedente. Documentacao..." required style={{ minHeight: 72 }} value={decisao} />
         </div>
 
         {deferido && impactoResultado && (
@@ -188,7 +198,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
             {isIsencao ? (
               <div className="admin-eval-field">
                 <label>Novo status da isencao</label>
-                <select className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}>
+                <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}>
                   <option value="">Nao alterar</option>
                   {statusIsencaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                 </select>
@@ -197,7 +207,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
             {isHomologacao && (
               <div className="admin-eval-field">
                 <label>Novo resultado da homologacao</label>
-                <select className="select-field" onChange={(e) => setNovoResultadoHomologacao((e.target.value || "") as "HOMOLOGADA" | "NAO_HOMOLOGADA" | "")} value={novoResultadoHomologacao}>
+                <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovoResultadoHomologacao((e.target.value || "") as "HOMOLOGADA" | "NAO_HOMOLOGADA" | "")} value={novoResultadoHomologacao}>
                   <option value="">Selecione</option>
                   <option value="HOMOLOGADA">Homologada</option>
                   <option value="NAO_HOMOLOGADA">Nao homologada</option>
@@ -206,35 +216,35 @@ export default function AdminRecursoDetailPage({ params }: Props) {
             )}
             {isEtapa1 && (
               <div className="admin-form-row">
-                <div className="admin-eval-field"><label>Nova nota etapa 1</label><input max={10} min={0} onChange={(e) => setNovaNotaEtapa1(e.target.value)} step={0.1} type="number" value={novaNotaEtapa1} /></div>
-                <div className="admin-eval-field"><label>Novo espelho etapa 1</label><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa1} /></div>
+                <div className="admin-eval-field"><label>Nova nota etapa 1</label><input disabled={recursoJaDecidido || busy} max={10} min={0} onChange={(e) => setNovaNotaEtapa1(e.target.value)} step={0.1} type="number" value={novaNotaEtapa1} /></div>
+                <div className="admin-eval-field"><label>Novo espelho etapa 1</label><textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa1} /></div>
               </div>
             )}
             {isEtapa2 && (
               <div className="admin-form-row">
-                <div className="admin-eval-field"><label>Nova pontuacao bruta etapa 2</label><input min={0} onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step={0.1} type="number" value={novaPontuacaoBrutaEtapa2} /></div>
-                <div className="admin-eval-field"><label>Novo espelho etapa 2</label><textarea className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa2} /></div>
+                <div className="admin-eval-field"><label>Nova pontuacao bruta etapa 2</label><input disabled={recursoJaDecidido || busy} min={0} onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step={0.1} type="number" value={novaPontuacaoBrutaEtapa2} /></div>
+                <div className="admin-eval-field"><label>Novo espelho etapa 2</label><textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa2} /></div>
               </div>
             )}
             {isPoliticas ? (
               <div className="admin-form-row">
                 <div className="admin-eval-field">
                   <label>Resultado politicas afirmativas</label>
-                  <select className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}>
+                  <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}>
                     <option value="">Selecione</option>
                     {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                   </select>
                 </div>
                 <div className="admin-eval-field">
                   <label>Parecer politicas afirmativas</label>
-                  <textarea className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} style={{ minHeight: 60 }} value={novoParecerPoliticas} />
+                  <textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} style={{ minHeight: 60 }} value={novoParecerPoliticas} />
                 </div>
               </div>
             ) : null}
           </>
         )}
 
-        <button className="admin-page-cta" disabled={busy} style={{ width: 200 }} type="submit">
+        <button className="admin-page-cta" disabled={busy || recursoJaDecidido} style={{ width: 200 }} type="submit">
           Registrar decisao
         </button>
       </form>

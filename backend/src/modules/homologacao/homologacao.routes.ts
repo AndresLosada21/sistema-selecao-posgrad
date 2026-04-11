@@ -25,6 +25,31 @@ import {
 
 export const homologacaoRouter = Router();
 
+function getHomologacaoMessage(errorCode: string) {
+  switch (errorCode) {
+    case "INSCRICAO_NAO_ENCONTRADA":
+      return "Inscricao nao encontrada para o fluxo de homologacao.";
+    case "INSCRICAO_NAO_SUBMETIDA":
+      return "A inscricao precisa estar submetida para registrar homologacao.";
+    case "HOMOLOGACAO_PRELIMINAR_BLOQUEADA":
+      return "A homologacao preliminar foi bloqueada porque o fluxo recursal desta fase ja se iniciou.";
+    case "HOMOLOGACAO_PRELIMINAR_OBRIGATORIA":
+      return "Registre primeiro a homologacao preliminar antes da homologacao final.";
+    case "HOMOLOGACAO_FINAL_JA_REGISTRADA":
+      return "A homologacao final ja foi registrada para esta inscricao.";
+    case "RECURSO_HOMOLOGACAO_EM_ABERTO":
+      return "A homologacao final so pode ser registrada apos o encerramento da janela de recurso da homologacao.";
+    case "RECURSO_HOMOLOGACAO_PENDENTE":
+      return "Ainda existe recurso de homologacao pendente de decisao final.";
+    case "HOMOLOGACAO_FINAL_BLOQUEADA_POR_ETAPA_POSTERIOR":
+      return "A homologacao final nao pode mais ser alterada porque ja existem etapas posteriores registradas para esta inscricao.";
+    case "HOMOLOGACAO_INVALIDA":
+      return "A decisao de homologacao informada e invalida para o contexto atual.";
+    default:
+      return errorCode;
+  }
+}
+
 homologacaoRouter.get("/v1/admin/homologacao/fundamentos", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
   const items = listFundamentosHomologacao();
 
@@ -64,7 +89,7 @@ homologacaoRouter.get("/v1/admin/inscricoes/:inscricaoId", requireAuth, requireR
 
   const item = await getInscricaoHomologacaoById(parsedParams.data.inscricaoId);
   if (!item) {
-    return response.status(404).json(notFound("INSCRICAO_NAO_ENCONTRADA", "INSCRICAO_NAO_ENCONTRADA"));
+    return response.status(404).json(notFound("Inscricao nao encontrada para o fluxo de homologacao.", "INSCRICAO_NAO_ENCONTRADA"));
   }
 
   return response.status(200).json(item);
@@ -92,10 +117,11 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/preliminar"
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    const message = getHomologacaoMessage(errorCode);
     return response.status(status).json(
       status === 404
-        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+        ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
     );
   }
 
@@ -121,7 +147,10 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/confirmacao-reserva", r
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
-    return response.status(status).json(status === 404 ? notFound(errorCode, errorCode) : conflict(errorCode, errorCode));
+    const message = result.error === "CONFIRMACAO_RESERVA_BLOQUEADA_POR_POLITICAS_FINAIS"
+      ? "A confirmacao de reserva nao pode mais ser alterada porque a etapa de politicas afirmativas ja possui resultado final registrado."
+      : errorCode;
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
   return response.status(200).json(result.inscricao);
@@ -147,10 +176,11 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/pagamento", requireAuth
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    const message = getHomologacaoMessage(errorCode);
     return response.status(status).json(
       status === 404
-        ? notFound(errorCode, errorCode)
-        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+        ? notFound(message, errorCode)
+        : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
     );
   }
 
@@ -179,10 +209,11 @@ homologacaoRouter.put("/v1/admin/inscricoes/:inscricaoId/homologacao/final", req
   if ("error" in result) {
     const errorCode = result.error as string;
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    const message = getHomologacaoMessage(errorCode);
     return response.status(status).json(
       status === 404
-        ? notFound(errorCode, errorCode, { details: "details" in result ? result.details : undefined })
-        : conflict(errorCode, errorCode, { details: "details" in result ? result.details : undefined }),
+        ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
+        : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
     );
   }
 

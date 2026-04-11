@@ -7,7 +7,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getEspelhoEtapa2, getEtapa2Item, liberarEspelhoEtapa2, registrarEtapa2 } from "@/modules/admin-etapas/api";
@@ -57,6 +57,8 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     setPontuacaoBruta(found?.avaliacao?.pontuacaoBruta ?? 0);
     setMaiorPontuacaoBruta(Math.max(found?.avaliacao?.pontuacaoBruta ?? 10, 10));
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
+    setPublicacao(found?.avaliacao?.status === "FINAL_PUBLICADA" ? "FINAL" : "PRELIMINAR");
+    setLiberarEspelhoFlag(Boolean(found?.avaliacao?.espelhoLiberadoEm));
     setGlosasDraft(
       (found?.avaliacao?.glosas ?? []).map((g) => ({
         id: uid(),
@@ -76,7 +78,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     } catch (error) {
       if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
       setPageStatus("error");
     }
   }, [loadItem, inscricaoId, signOut, token]);
@@ -96,7 +98,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       setEspelho(r);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     }
   }
 
@@ -126,6 +128,9 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       }
       await registrarEtapa2(inscricaoId, { pontuacaoItens, pontuacaoBruta, maiorPontuacaoBruta, glosas, espelhoCorrecao, liberarEspelho: liberarEspelhoFlag, publicacao }, token);
       await loadItem();
+      if (espelho) {
+        await loadEspelho();
+      }
       setFeedback({ type: "success", text: "Resultado da etapa 2 registrado." });
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
@@ -153,6 +158,9 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   if (!item) return <EmptyState title="Inscricao nao encontrada" description="Inscricao nao localizada na fila da etapa 2." />;
 
   const espelhoLiberado = !!item.avaliacao?.espelhoLiberadoEm;
+  const editState = item.edicao;
+  const podeSalvarResultado = publicacao === "FINAL" ? (editState?.podeSalvarFinal ?? true) : (editState?.podeSalvarPreliminar ?? true);
+  const bloqueioResultado = publicacao === "FINAL" ? editState?.bloqueioSalvarFinal : editState?.bloqueioSalvarPreliminar;
 
   function updateItem(index: number, field: keyof ItemDraft, value: string) {
     setItensDraft((cur) => cur.map((entry, i) => i === index ? { ...entry, [field]: value } : entry));
@@ -204,13 +212,17 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             description="A tabela soma um total liquido diferente da pontuacao bruta informada. Revise a digitacao ou use o atalho para aplicar o total calculado."
           />
         ) : null}
-        {referenciaMenorQueBruta ? (
+      {referenciaMenorQueBruta ? (
           <PageFeedback
             type="warning"
             title="Maior pontuacao de referencia menor que a pontuacao do candidato"
             description="A referencia usada para normalizacao ficou menor que a pontuacao bruta informada. Ajuste a referencia para evitar nota acima de 10."
           />
-        ) : null}
+      ) : null}
+
+      {!podeSalvarResultado && bloqueioResultado ? (
+        <PageFeedback type="warning" title="Resultado bloqueado" description={bloqueioResultado} />
+      ) : null}
       </div>
 
       {/* Itens de pontuacao */}
@@ -239,16 +251,18 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
               return (
                 <tr key={entry.id}>
                   <td>
-                    <input
-                      onChange={(e) => updateItem(index, "chave", e.target.value)}
+                      <input
+                        disabled={!podeSalvarResultado || busy}
+                        onChange={(e) => updateItem(index, "chave", e.target.value)}
                       placeholder="Nome do item"
                       style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, fontWeight: 500, color: "#1E293B" }}
                       value={entry.chave}
                     />
                   </td>
                   <td className="pont-valor">
-                    <input
-                      min={0}
+                      <input
+                        disabled={!podeSalvarResultado || busy}
+                        min={0}
                       onChange={(e) => updateItem(index, "valor", e.target.value)}
                       step={0.1}
                       style={{ width: 60, textAlign: "center", border: "none", background: "transparent", fontWeight: 700 }}
@@ -287,6 +301,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         <button
           className="admin-pagination-btn"
           onClick={() => setItensDraft((cur) => [...cur, { id: uid(), chave: "", valor: "0" }])}
+          disabled={!podeSalvarResultado || busy}
           style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
           type="button"
         >
@@ -300,16 +315,17 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             {glosasDraft.map((g, index) => (
               <div className="admin-form-row" key={g.id}>
                 <div className="admin-eval-field">
-                  <input onChange={(e) => updateGlosa(index, "item", e.target.value)} placeholder="Item glosado" value={g.item} />
+                  <input disabled={!podeSalvarResultado || busy} onChange={(e) => updateGlosa(index, "item", e.target.value)} placeholder="Item glosado" value={g.item} />
                 </div>
                 <div className="admin-eval-field" style={{ flex: 2 }}>
-                  <input onChange={(e) => updateGlosa(index, "descricao", e.target.value)} placeholder="Descricao da glosa" value={g.descricao} />
+                  <input disabled={!podeSalvarResultado || busy} onChange={(e) => updateGlosa(index, "descricao", e.target.value)} placeholder="Descricao da glosa" value={g.descricao} />
                 </div>
                 <div className="admin-eval-field" style={{ maxWidth: 100 }}>
-                  <input min={0} onChange={(e) => updateGlosa(index, "pontosGlosados", e.target.value)} step={0.1} type="number" value={g.pontosGlosados} />
+                  <input disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => updateGlosa(index, "pontosGlosados", e.target.value)} step={0.1} type="number" value={g.pontosGlosados} />
                 </div>
                 <button
                   onClick={() => setGlosasDraft((cur) => cur.filter((_, i) => i !== index))}
+                  disabled={!podeSalvarResultado || busy}
                   style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 16, alignSelf: "center" }}
                   type="button"
                 >
@@ -323,6 +339,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         <button
           className="admin-pagination-btn"
           onClick={() => setGlosasDraft((cur) => [...cur, { id: uid(), item: "", descricao: "", pontosGlosados: "0" }])}
+          disabled={!podeSalvarResultado || busy}
           style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
           type="button"
         >
@@ -333,11 +350,11 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Pontuacao bruta</label>
-            <input min={0} onChange={(e) => setPontuacaoBruta(Number(e.target.value) || 0)} type="number" value={pontuacaoBruta} />
+            <input disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => setPontuacaoBruta(Number(e.target.value) || 0)} type="number" value={pontuacaoBruta} />
           </div>
           <div className="admin-eval-field">
             <label>Maior pontuacao bruta</label>
-            <input min={0.1} onChange={(e) => setMaiorPontuacaoBruta(Number(e.target.value) || 0)} step={0.1} type="number" value={maiorPontuacaoBruta} />
+            <input disabled={!podeSalvarResultado || busy} min={0.1} onChange={(e) => setMaiorPontuacaoBruta(Number(e.target.value) || 0)} step={0.1} type="number" value={maiorPontuacaoBruta} />
           </div>
         </div>
 
@@ -346,6 +363,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             <button
               className="admin-pagination-btn"
               onClick={() => setPontuacaoBruta(Number(totalLiquido.toFixed(2)))}
+              disabled={!podeSalvarResultado || busy}
               style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
               type="button"
             >
@@ -364,6 +382,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
             <button
               className="admin-pagination-btn"
               onClick={() => setMaiorPontuacaoBruta(Math.max(pontuacaoBruta, Number(totalLiquido.toFixed(2)), 0.1))}
+              disabled={!podeSalvarResultado || busy}
               style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
               type="button"
             >
@@ -396,26 +415,26 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
-          <textarea className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} />
+          <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} />
         </div>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Publicacao</label>
-            <select className="select-field" onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}>
+            <select className="select-field" disabled={busy} onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}>
               <option value="PRELIMINAR">Preliminar</option>
               <option value="FINAL">Final</option>
             </select>
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
+              <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={!podeSalvarResultado || publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
               {publicacao === "FINAL" ? "Espelho liberado automaticamente no resultado final" : "Liberar espelho junto do resultado"}
             </label>
           </div>
         </div>
 
-        <button className="admin-page-cta" disabled={busy} style={{ width: 200 }} type="submit">
+        <button className="admin-page-cta" disabled={busy || !podeSalvarResultado} style={{ width: 200 }} type="submit">
           Salvar avaliacao
         </button>
       </form>
@@ -435,10 +454,13 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
               <span>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "O candidato ainda nao pode visualizar o espelho."}</span>
             </div>
           </div>
-          <button className="admin-page-cta" disabled={busy} onClick={onLiberarEspelho} type="button">
+          <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={onLiberarEspelho} type="button">
             Liberar espelho
           </button>
         </div>
+        {!(editState?.podeLiberarEspelho ?? true) && editState?.bloqueioLiberarEspelho ? (
+          <PageFeedback type="warning" title="Liberacao do espelho bloqueada" description={editState.bloqueioLiberarEspelho} />
+        ) : null}
 
         {espelho && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16, background: "#F8FAFC", borderRadius: 6 }}>

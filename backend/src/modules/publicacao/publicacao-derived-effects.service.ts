@@ -1,31 +1,33 @@
 import { StatusClassificacaoFinal, TipoPublicacaoOficial } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
-import { recalcularClassificacao } from "../classificacao/classificacao.service.js";
+import { recalcularClassificacao, validarContextoClassificacao } from "../classificacao/classificacao.service.js";
 import { createClassificacaoPublicacao, createPoliticasAfirmativasPublicacao } from "./publicacao.service.js";
 
 function resolveClassificacaoFaseAtual(statuses: StatusClassificacaoFinal[]) {
-  if (statuses.some((status) => status === StatusClassificacaoFinal.PRELIMINAR)) {
+  const hasPreliminar = statuses.some((status) => status === StatusClassificacaoFinal.PRELIMINAR);
+  const hasFinal = statuses.some((status) => status === StatusClassificacaoFinal.APROVADO || status === StatusClassificacaoFinal.LISTA_DE_ESPERA || status === StatusClassificacaoFinal.ELIMINADO || status === StatusClassificacaoFinal.FINAL);
+
+  if (hasPreliminar && hasFinal) {
+    return "MISTA" as const;
+  }
+
+  if (hasPreliminar) {
     return "PRELIMINAR" as const;
   }
 
-  if (statuses.some((status) => status === StatusClassificacaoFinal.APROVADO || status === StatusClassificacaoFinal.LISTA_DE_ESPERA || status === StatusClassificacaoFinal.ELIMINADO || status === StatusClassificacaoFinal.FINAL)) {
+  if (hasFinal) {
     return "FINAL" as const;
   }
 
   return null;
 }
 
-export async function reprocessarClassificacaoEPublicacoesDerivadas(input: {
-  editalId: string;
-  criadoPorId: string;
-  descricao: string;
-  republicarPoliticasAfirmativasFinal?: boolean;
-}) {
+export async function validarReprocessamentoClassificacaoDerivada(editalId: string) {
   const classificacoesAtuais = await prisma.classificacaoFinal.findMany({
     where: {
       participacaoEdital: {
-        editalId: input.editalId,
+        editalId,
       },
     },
     select: {
@@ -35,38 +37,66 @@ export async function reprocessarClassificacaoEPublicacoesDerivadas(input: {
 
   const faseAtualClassificacao = resolveClassificacaoFaseAtual(classificacoesAtuais.map((classificacao) => classificacao.status));
 
-  if (!faseAtualClassificacao) {
-    return {
-      classificacaoRecalculada: false,
-      publicacaoClassificacaoRegerada: false,
-      publicacaoPoliticasRegerada: false,
-    };
+  if (faseAtualClassificacao === "MISTA") {
+    return { error: "CLASSIFICACAO_ESTADO_MISTO" as const };
   }
 
-  await recalcularClassificacao(input.editalId, faseAtualClassificacao);
+  if (!faseAtualClassificacao) {
+    return { faseAtualClassificacao: null };
+  }
 
-  const tipoClassificacao = faseAtualClassificacao === "PRELIMINAR"
-    ? TipoPublicacaoOficial.CLASSIFICACAO_PRELIMINAR
-    : TipoPublicacaoOficial.CLASSIFICACAO_FINAL;
+  const validacao = await validarContextoClassificacao(editalId, faseAtualClassificacao);
+  if (validacao) {
+    return validacao;
+  }
 
-  const publicacaoClassificacaoExistente = await prisma.publicacaoOficial.findFirst({
-    where: {
-      editalId: input.editalId,
-      tipo: tipoClassificacao,
-    },
-    select: { id: true },
-  });
+  return { faseAtualClassificacao };
+}
 
-  if (publicacaoClassificacaoExistente) {
-    const publicacaoClassificacao = await createClassificacaoPublicacao({
-      editalId: input.editalId,
-      criadoPorId: input.criadoPorId,
-      fase: faseAtualClassificacao,
-      descricao: input.descricao,
+export async function reprocessarClassificacaoEPublicacoesDerivadas(input: {
+  editalId: string;
+  criadoPorId: string;
+  descricao: string;
+  republicarPoliticasAfirmativasFinal?: boolean;
+}) {
+  const validacao = await validarReprocessamentoClassificacaoDerivada(input.editalId);
+  if ("error" in validacao) {
+    throw new Error(validacao.error);
+  }
+
+  const faseAtualClassificacao = validacao.faseAtualClassificacao;
+
+  let publicacaoClassificacaoExistente: { id: string } | null = null;
+
+  if (faseAtualClassificacao) {
+    const recalculo = await recalcularClassificacao(input.editalId, faseAtualClassificacao);
+    if ("error" in recalculo) {
+      throw new Error(recalculo.error);
+    }
+
+    const tipoClassificacao = faseAtualClassificacao === "PRELIMINAR"
+      ? TipoPublicacaoOficial.CLASSIFICACAO_PRELIMINAR
+      : TipoPublicacaoOficial.CLASSIFICACAO_FINAL;
+
+    publicacaoClassificacaoExistente = await prisma.publicacaoOficial.findFirst({
+      where: {
+        editalId: input.editalId,
+        tipo: tipoClassificacao,
+      },
+      select: { id: true },
     });
 
-    if (!("publicacao" in publicacaoClassificacao)) {
-      throw new Error((publicacaoClassificacao.error as string) ?? "FALHA_REPUBLICACAO_CLASSIFICACAO");
+    if (publicacaoClassificacaoExistente) {
+      const publicacaoClassificacao = await createClassificacaoPublicacao({
+        editalId: input.editalId,
+        criadoPorId: input.criadoPorId,
+        fase: faseAtualClassificacao,
+        descricao: input.descricao,
+      });
+
+      if (!("publicacao" in publicacaoClassificacao)) {
+        throw new Error((publicacaoClassificacao.error as string) ?? "FALHA_REPUBLICACAO_CLASSIFICACAO");
+      }
     }
   }
 
@@ -96,7 +126,7 @@ export async function reprocessarClassificacaoEPublicacoesDerivadas(input: {
   }
 
   return {
-    classificacaoRecalculada: true,
+    classificacaoRecalculada: Boolean(faseAtualClassificacao),
     publicacaoClassificacaoRegerada: Boolean(publicacaoClassificacaoExistente),
     publicacaoPoliticasRegerada,
   };

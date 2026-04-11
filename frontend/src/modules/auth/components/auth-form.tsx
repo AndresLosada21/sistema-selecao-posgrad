@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { ErrorState } from "@/components/shared/page-states";
 import { resolveAuthRedirectPath } from "@/lib/auth/next-path";
-import { getErrorMessage } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFieldError, getFirstFormError } from "@/lib/http/api-error";
 import { useSession } from "@/lib/auth/session-provider";
 import { login, register } from "@/modules/auth/api";
 
@@ -51,6 +51,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
   const resetStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -81,6 +82,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
     event.preventDefault();
     setStatus("loading");
     setMessage(null);
+    setFieldErrors({});
 
     try {
       const response =
@@ -92,7 +94,14 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
       router.replace(resolveAuthRedirectPath(nextPath));
     } catch (error) {
       setStatus("error");
-      setMessage(getErrorMessage(error));
+      setFieldErrors({
+        nomeCompleto: getFirstFieldError(error, "nomeCompleto"),
+        email: getFirstFieldError(error, "email"),
+        senha: getFirstFieldError(error, "senha"),
+        telefone: getFirstFieldError(error, "telefone"),
+        cpf: getFirstFieldError(error, "cpf"),
+      });
+      setMessage(getFirstFormError(error) ?? getErrorMessage(error));
     } finally {
       if (resetStatusTimeoutRef.current) {
         clearTimeout(resetStatusTimeoutRef.current);
@@ -124,34 +133,39 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         {!isLogin ? (
           <label className="auth-field">
             <span className="auth-field-label">Nome completo *</span>
-            <input className="auth-input" autoComplete="name" onChange={(e) => { setNomeCompleto(e.target.value); setMessage(null); setStatus("idle"); }} required value={nomeCompleto} />
+            <input className="auth-input" autoComplete="name" onChange={(e) => { setNomeCompleto(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, nomeCompleto: null })); }} required value={nomeCompleto} />
+            {fieldErrors.nomeCompleto ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.nomeCompleto}</span> : null}
           </label>
         ) : null}
 
         <label className="auth-field">
           <span className="auth-field-label">E-mail {!isLogin ? "*" : ""}</span>
-          <input className="auth-input" autoComplete="email" onChange={(e) => { setEmail(e.target.value); setMessage(null); setStatus("idle"); }} required type="email" value={email} placeholder={isLogin ? "candidato@email.com" : "maria.pereira@email.com"} />
+          <input className="auth-input" autoComplete="email" onChange={(e) => { setEmail(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, email: null })); }} required type="email" value={email} placeholder={isLogin ? "candidato@email.com" : "maria.pereira@email.com"} />
+          {fieldErrors.email ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.email}</span> : null}
         </label>
 
         <label className="auth-field">
           <span className="auth-field-label">Senha {!isLogin ? "*" : ""}</span>
           <div className="auth-input-wrapper">
-            <input className="auth-input auth-input--with-toggle" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); }} required type={showPassword ? "text" : "password"} value={senha} placeholder="••••••••" />
+            <input className="auth-input auth-input--with-toggle" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, senha: null })); }} required type={showPassword ? "text" : "password"} value={senha} placeholder="••••••••" />
             <button className="auth-toggle-password" type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Ocultar caracteres" : "Mostrar caracteres"}>
               {showPassword ? iconEye : iconEyeOff}
             </button>
           </div>
+          {fieldErrors.senha ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.senha}</span> : null}
         </label>
 
         {!isLogin ? (
           <div className="auth-row">
             <label className="auth-field">
               <span className="auth-field-label">Telefone</span>
-              <input className="auth-input" autoComplete="tel" onChange={(e) => { setTelefone(e.target.value); setMessage(null); setStatus("idle"); }} value={telefone} placeholder="(92) 99123-4567" />
+              <input className="auth-input" autoComplete="tel" onChange={(e) => { setTelefone(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, telefone: null })); }} value={telefone} placeholder="(92) 99123-4567" />
+              {fieldErrors.telefone ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.telefone}</span> : null}
             </label>
             <label className="auth-field">
               <span className="auth-field-label">CPF</span>
-              <input className="auth-input" autoComplete="off" inputMode="numeric" onChange={(e) => { setCpf(e.target.value); setMessage(null); setStatus("idle"); }} value={cpf} placeholder="000.000.000-00" />
+              <input className="auth-input" autoComplete="off" inputMode="numeric" onChange={(e) => { setCpf(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, cpf: null })); }} value={cpf} placeholder="000.000.000-00" />
+              {fieldErrors.cpf ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.cpf}</span> : null}
             </label>
           </div>
         ) : null}

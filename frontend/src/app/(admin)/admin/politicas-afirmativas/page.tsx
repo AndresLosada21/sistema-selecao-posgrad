@@ -89,7 +89,7 @@ export default function AdminPoliticasPage() {
                       <td style={{ textAlign: "center" }}>
                         {resultado
                           ? <span style={{ fontWeight: 600, color: resultado === "DEFERIDA" ? "#065F46" : "#991B1B" }}>{getStatusLabel(resultado)}</span>
-                          : <span style={{ color: "#94A3B8" }}>Pendente</span>}
+                          : <span style={{ color: "#94A3B8" }}>{item.statusOperacao === "RESULTADO_PRELIMINAR_REGISTRADO" ? "Aguardando resultado final" : "Aguardando devolutiva da comissao"}</span>}
                       </td>
                       <td className="admin-homologacao-table-center">
                         <Link className="admin-homologacao-table-link" href={`/admin/politicas-afirmativas/${item.inscricao?.id ?? item.id}?editalId=${filter}`}>Abrir</Link>

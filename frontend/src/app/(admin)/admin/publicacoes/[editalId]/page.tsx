@@ -6,12 +6,11 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { StructuredPreview } from "@/components/shared/structured-preview";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/enums";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getAdminEditalById } from "@/modules/admin-edital/api";
@@ -22,7 +21,47 @@ import type { PublicacoesResponse } from "@/modules/publicacao/types";
 type Props = { params: Promise<{ editalId: string }> };
 
 const PAGE_SIZE = 20;
-const genericPublicacaoOptions = tipoPublicacaoOficialOptions.filter((value) => ["EDITAL", "RETIFICACAO", "COMUNICADO"].includes(value));
+const SPECIALIZED_TYPES = new Set(["HOMOLOGACAO_PRELIMINAR", "HOMOLOGACAO_FINAL", "CLASSIFICACAO_PRELIMINAR", "CLASSIFICACAO_FINAL", "POLITICAS_AFIRMATIVAS_PRELIMINAR", "POLITICAS_AFIRMATIVAS_FINAL"]);
+const genericPublicacaoOptions = tipoPublicacaoOficialOptions.filter((value) => !SPECIALIZED_TYPES.has(value));
+
+/** Transforma camelCase em label legivel: "linhaPesquisa" → "Linha pesquisa" */
+function camelToLabel(key: string): string {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
+}
+
+const HIDDEN_PREVIEW_COLS = new Set(["id", "inscricaoId", "editalId", "candidatoId", "linhaPesquisaId"]);
+
+/** Extrai valor legivel de um campo de preview. Objetos aninhados retornam o campo mais relevante. */
+function extractDisplayValue(val: unknown): string {
+  if (val === null || val === undefined) return "—";
+  if (typeof val === "boolean") return val ? "Sim" : "Nao";
+  if (typeof val === "number") return String(val);
+  if (typeof val === "string") {
+    // Se parece status/enum (SNAKE_CASE), tenta getStatusLabel
+    if (/^[A-Z][A-Z_0-9]+$/.test(val)) return getStatusLabel(val);
+    return val;
+  }
+  if (Array.isArray(val)) {
+    if (val.length === 0) return "—";
+    return val.map((item) => extractDisplayValue(item)).join(", ");
+  }
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    // Prioridade: campos de nome legivel
+    for (const k of ["nomeCompleto", "nome", "titulo", "label", "descricao", "numero"]) {
+      if (typeof obj[k] === "string") return obj[k] as string;
+    }
+    // Fallback: primeiro campo string
+    for (const v of Object.values(obj)) {
+      if (typeof v === "string" && v.length > 0 && v.length < 100) return v;
+    }
+    return JSON.stringify(val);
+  }
+  return String(val);
+}
+
+/** IDs longos exibidos truncados com tooltip do valor completo */
+const ID_LIKE_KEYS = new Set(["republicacaoDeId"]);
 
 type PubType = "homologacao" | "classificacao" | "politicas";
 
@@ -98,7 +137,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     } catch (error) {
       if (signal.aborted) return;
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
       setPageStatus("error");
     }
   }, [editalId, reload, signOut, token]);
@@ -120,7 +159,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       setPreviewLabel(`Preview: ${type} · ${fase.toLowerCase()}`);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -143,7 +182,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       await reload();
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -187,9 +226,9 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
   const totalPages = history ? Math.max(1, Math.ceil(history.total / PAGE_SIZE)) : 1;
 
-  const latestHomPub = history?.items.find((i) => i.tipo.startsWith("HOMOLOGACAO") && i.isVersaoAtualDoTipo);
-  const latestClassPub = history?.items.find((i) => i.tipo.startsWith("CLASSIFICACAO") && i.isVersaoAtualDoTipo);
-  const latestPolPub = history?.items.find((i) => i.tipo.startsWith("POLITICAS_AFIRMATIVAS") && i.isVersaoAtualDoTipo);
+  const latestHomPub = history?.items.find((i) => i.tipo === `HOMOLOGACAO_${faseHomologacao}` && i.isVersaoAtualDoTipo);
+  const latestClassPub = history?.items.find((i) => i.tipo === `CLASSIFICACAO_${faseClassificacao}` && i.isVersaoAtualDoTipo);
+  const latestPolPub = history?.items.find((i) => i.tipo === `POLITICAS_AFIRMATIVAS_${fasePoliticas}` && i.isVersaoAtualDoTipo);
 
   if (pageStatus === "loading") return <LoadingState title="Carregando publicacoes" description="Consultando o historico do edital." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar publicacoes" description={feedback?.text} />;
@@ -238,7 +277,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <p className="admin-pub-card-desc">Gere o preview da homologacao preliminar ou final e publique o PDF oficial com snapshot auditavel.</p>
           <div className="admin-pub-card-status">
             <span className={`admin-pub-card-dot ${latestHomPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--yellow"}`} />
-            <span>{latestHomPub ? `Homologacao publicada (v${latestHomPub.versao})` : "Homologacao ainda nao publicada"}</span>
+            <span>{latestHomPub ? `${getStatusLabel(latestHomPub.tipo)} publicada (v${latestHomPub.versao})` : `Nenhuma ${faseHomologacao.toLowerCase()} publicada`}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <select className="select-field" onChange={(e) => setFaseHomologacao(e.target.value as "PRELIMINAR" | "FINAL")} style={{ width: 140 }} value={faseHomologacao}>
@@ -263,7 +302,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <p className="admin-pub-card-desc">Gere o ranking consolidado por linha e modalidade e publique o PDF oficial da classificacao final.</p>
           <div className="admin-pub-card-status">
             <span className={`admin-pub-card-dot ${latestClassPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--yellow"}`} />
-            <span>{latestClassPub ? `Classificacao publicada (v${latestClassPub.versao})` : "Classificacao ainda nao publicada"}</span>
+            <span>{latestClassPub ? `${getStatusLabel(latestClassPub.tipo)} publicada (v${latestClassPub.versao})` : `Nenhuma ${faseClassificacao.toLowerCase()} publicada`}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <select className="select-field" onChange={(e) => setFaseClassificacao(e.target.value as "PRELIMINAR" | "FINAL")} style={{ width: 140 }} value={faseClassificacao}>
@@ -289,7 +328,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <div className="admin-pub-card-status">
             <span className={`admin-pub-card-dot ${latestPolPub ? "admin-pub-card-dot--green" : "admin-pub-card-dot--yellow"}`} />
             <span style={!latestPolPub ? { color: "#1E40AF" } : undefined}>
-              {latestPolPub ? `Politicas publicadas (v${latestPolPub.versao})` : "Resultado preliminar disponivel para publicacao."}
+              {latestPolPub ? `${getStatusLabel(latestPolPub.tipo)} publicada (v${latestPolPub.versao})` : `Nenhuma ${fasePoliticas.toLowerCase()} publicada`}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -305,13 +344,94 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Preview area */}
+      {/* Preview area — renderizacao dedicada em vez de StructuredPreview generico */}
       {previewLabel && (
-        <div className="admin-form-card">
-          <h2 className="admin-form-card-title">{previewLabel}</h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Dados consolidados retornados pelo backend. Revise antes de publicar.</p>
-          {preview ? <StructuredPreview data={preview} /> : <EmptyState title="Preview vazio" description="O backend retornou um preview sem dados." />}
-          <button className="admin-pub-btn-preview" onClick={() => { setPreview(null); setPreviewLabel(null); }} type="button">Fechar preview</button>
+        <div className="admin-form-card" style={{ gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h2 className="admin-form-card-title" style={{ flex: 1 }}>{previewLabel}</h2>
+            <button className="admin-pub-btn-preview" onClick={() => { setPreview(null); setPreviewLabel(null); }} type="button">Fechar</button>
+          </div>
+
+          {preview ? (
+            <>
+              {/* Metadados do preview */}
+              {(preview.tituloSugerido ?? preview.tipo ?? preview.fase ?? preview.geradoEm) ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B" }}>
+                  {preview.tituloSugerido ? <span><strong>Titulo:</strong> {String(preview.tituloSugerido)}</span> : null}
+                  {preview.tipo ? <span><strong>Tipo:</strong> {getStatusLabel(String(preview.tipo))}</span> : null}
+                  {preview.fase ? <span><strong>Fase:</strong> {String(preview.fase)}</span> : null}
+                  {preview.geradoEm ? <span><strong>Gerado em:</strong> {formatIsoDate(String(preview.geradoEm))}</span> : null}
+                </div>
+              ) : null}
+
+              {/* Resumo */}
+              {preview.resumo && typeof preview.resumo === "object" && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, padding: "12px 16px", background: "#F8FAFC", borderRadius: 6, fontSize: 13, color: "#334155" }}>
+                  {Object.entries(preview.resumo as Record<string, unknown>).map(([k, v]) => (
+                    <span key={k}><strong>{getStatusLabel(k)}:</strong> {String(v ?? "—")}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Itens (tabela se presente) */}
+              {Array.isArray(preview.itens) && preview.itens.length > 0 ? (() => {
+                const itens = preview.itens as Record<string, unknown>[];
+                const cols = Object.keys(itens[0]).filter((k) => !HIDDEN_PREVIEW_COLS.has(k)).slice(0, 10);
+                return (
+                  <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 6 }}>
+                    <table className="admin-homologacao-table" style={{ minWidth: 600 }}>
+                      <thead>
+                        <tr>
+                          {cols.map((col) => (
+                            <th key={col} style={{ fontSize: 11 }}>{camelToLabel(col)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itens.map((item, idx) => (
+                          <tr key={typeof item.id === "string" ? item.id : idx}>
+                            {cols.map((col) => (
+                              <td key={col} style={{ fontSize: 12, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={extractDisplayValue(item[col])}>
+                                {extractDisplayValue(item[col])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ padding: "8px 16px", fontSize: 11, color: "#94A3B8", borderTop: "1px solid #F1F5F9" }}>
+                      {itens.length} {itens.length === 1 ? "item" : "itens"} no preview
+                    </div>
+                  </div>
+                );
+              })() : null}
+
+              {/* Versionamento */}
+              {preview.versionamento && typeof preview.versionamento === "object" && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B", padding: "8px 0" }}>
+                  {Object.entries(preview.versionamento as Record<string, unknown>).map(([k, v]) => {
+                    const isId = ID_LIKE_KEYS.has(k);
+                    const raw = String(v ?? "—");
+                    return (
+                      <span key={k} title={isId ? raw : undefined} style={isId ? { cursor: "help" } : undefined}>
+                        <strong>{camelToLabel(k)}:</strong>{" "}
+                        {isId ? <code style={{ fontSize: 11, background: "#F1F5F9", padding: "1px 4px", borderRadius: 3 }}>{raw.slice(0, 8)}…</code> : extractDisplayValue(v)}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Fallback: JSON scrollavel para dados nao estruturados */}
+              {!preview.itens && !preview.resumo && (
+                <pre style={{ maxHeight: 300, overflow: "auto", padding: 16, background: "#F8FAFC", borderRadius: 6, fontSize: 12, color: "#334155", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {JSON.stringify(preview, null, 2)}
+                </pre>
+              )}
+            </>
+          ) : (
+            <EmptyState title="Preview vazio" description="O backend retornou um preview sem dados." />
+          )}
         </div>
       )}
 
@@ -352,9 +472,13 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                     </td>
                     <td className="admin-homologacao-table-muted">{formatIsoDate(item.publicadoEm)}</td>
                     <td className="admin-homologacao-table-center">
-                      <Link className="admin-homologacao-table-link" href={resolveApiUrl(item.arquivoUrl)} rel="noreferrer" target="_blank">
-                        PDF
-                      </Link>
+                      {item.arquivoUrl ? (
+                        <Link className="admin-homologacao-table-link" href={resolveApiUrl(item.arquivoUrl)} rel="noreferrer" target="_blank">
+                          PDF
+                        </Link>
+                      ) : (
+                        <span style={{ color: "#94A3B8" }}>—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -369,7 +493,10 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <span>Mostrando {history?.total ? ((page - 1) * PAGE_SIZE) + 1 : 0}–{Math.min(page * PAGE_SIZE, history?.total ?? 0)} de {history?.total ?? 0} publicacoes</span>
           <div className="admin-pagination-controls">
             <button className="admin-pagination-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">&lsaquo;</button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+              return start + i;
+            }).filter((p) => p >= 1 && p <= totalPages).map((p) => (
               <button className={`admin-pagination-btn${p === page ? " admin-pagination-btn--active" : ""}`} key={p} onClick={() => setPage(p)} type="button">{p}</button>
             ))}
             <button className="admin-pagination-btn" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} type="button">&rsaquo;</button>

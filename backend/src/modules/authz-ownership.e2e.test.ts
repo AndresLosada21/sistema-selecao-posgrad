@@ -214,7 +214,7 @@ test("candidate nao acessa recursos de ownership alheio e admin routes retornam 
 
     assert.equal(candidateAnexoForbidden.status, 404);
     assert.equal(candidateAnexoForbidden.body.code, "INSCRICAO_NAO_ENCONTRADA");
-    assert.equal(candidateAnexoForbidden.body.message, "INSCRICAO_NAO_ENCONTRADA");
+    assert.equal(typeof candidateAnexoForbidden.body.message, "string");
 
     const candidatePacoteForbidden = await request(app)
       .get(`/v1/inscricoes/${context.inscricaoBId}/pacote-documental`)
@@ -222,7 +222,7 @@ test("candidate nao acessa recursos de ownership alheio e admin routes retornam 
 
     assert.equal(candidatePacoteForbidden.status, 404);
     assert.equal(candidatePacoteForbidden.body.code, "INSCRICAO_NAO_ENCONTRADA");
-    assert.equal(candidatePacoteForbidden.body.message, "INSCRICAO_NAO_ENCONTRADA");
+    assert.equal(typeof candidatePacoteForbidden.body.message, "string");
 
     const etapa1EspelhoForbidden = await request(app)
       .get(`/v1/inscricoes/${context.inscricaoBId}/etapa-1/espelho`)
@@ -230,7 +230,7 @@ test("candidate nao acessa recursos de ownership alheio e admin routes retornam 
 
     assert.equal(etapa1EspelhoForbidden.status, 404);
     assert.equal(etapa1EspelhoForbidden.body.code, "INSCRICAO_NAO_ENCONTRADA");
-    assert.equal(etapa1EspelhoForbidden.body.message, "INSCRICAO_NAO_ENCONTRADA");
+    assert.equal(typeof etapa1EspelhoForbidden.body.message, "string");
 
     const etapa2EspelhoForbidden = await request(app)
       .get(`/v1/inscricoes/${context.inscricaoBId}/etapa-2/espelho`)
@@ -238,7 +238,7 @@ test("candidate nao acessa recursos de ownership alheio e admin routes retornam 
 
     assert.equal(etapa2EspelhoForbidden.status, 404);
     assert.equal(etapa2EspelhoForbidden.body.code, "INSCRICAO_NAO_ENCONTRADA");
-    assert.equal(etapa2EspelhoForbidden.body.message, "INSCRICAO_NAO_ENCONTRADA");
+    assert.equal(typeof etapa2EspelhoForbidden.body.message, "string");
 
     const ownAnexo = await request(app)
       .get(`/v1/inscricoes/${context.inscricaoBId}/anexo-iv`)

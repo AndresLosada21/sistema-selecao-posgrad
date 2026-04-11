@@ -94,6 +94,20 @@ export default function NewIsencaoPage({ params }: NewIsencaoPageProps) {
     );
   }
 
+  if (!item.elegibilidade?.podeCriarIsencao) {
+    return (
+      <div className="stack-layout">
+        <PageFeedback
+          type="warning"
+          title="Pedido de isencao indisponivel"
+          description={item.elegibilidade?.motivoBloqueioIsencao ?? (item.elegibilidade?.janelaIsencaoAberta ? "Nao ha mais criacao de pedido de isencao disponivel para este edital neste momento." : "A janela de pedido de isencao deste edital esta encerrada.")}
+          action={<Link className="nav-link" href={`/candidato/editais/${item.edital.id}`}>Voltar ao acompanhamento</Link>}
+        />
+        <EmptyState title="Formulario bloqueado" description="Quando a janela operacional estiver encerrada ou o fluxo nao permitir nova solicitacao, o sistema bloqueia a criacao de novos pedidos de isencao." />
+      </div>
+    );
+  }
+
   return (
     <IsencaoForm cursoNivel={item.edital.cursoNivel as "MESTRADO" | "DOUTORADO"} editalId={item.edital.id} editalNumero={item.edital.numero} />
   );

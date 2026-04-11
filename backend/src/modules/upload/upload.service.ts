@@ -1,4 +1,4 @@
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, unlink } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -76,8 +76,51 @@ export function resolvePrivateUploadPath(ownerId: string, filename: string) {
   return path.join(getUploadsRootDir(), "private", ownerId, filename);
 }
 
+export function parsePrivateUploadUrl(url: string | null | undefined) {
+  if (!url) {
+    return null;
+  }
+
+  const match = url.match(/^\/v1\/uploads\/private\/([^/]+)\/([^/]+)$/i);
+  if (!match) {
+    return null;
+  }
+
+  return assertSafePrivateUploadParams(match[1], match[2]);
+}
+
+export function isPrivateUploadOwnedByUser(url: string | null | undefined, userId: string) {
+  const parsed = parsePrivateUploadUrl(url);
+  return !parsed || parsed.ownerId === userId;
+}
+
 export async function statPrivateUpload(ownerId: string, filename: string) {
   return await stat(resolvePrivateUploadPath(ownerId, filename));
+}
+
+export async function privateUploadExists(ownerId: string, filename: string) {
+  try {
+    await statPrivateUpload(ownerId, filename);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+export async function deletePrivateUpload(ownerId: string, filename: string) {
+  try {
+    await unlink(resolvePrivateUploadPath(ownerId, filename));
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code;
+    if (code !== "ENOENT") {
+      throw error;
+    }
+  }
 }
 
 export function createPrivateUploadReadStream(ownerId: string, filename: string) {
@@ -85,7 +128,7 @@ export function createPrivateUploadReadStream(ownerId: string, filename: string)
 }
 
 export function canReadPrivateUpload(requesterId: string, ownerId: string, perfis: Role[]) {
-  return requesterId === ownerId || perfis.includes(Role.ADMIN) || perfis.includes(Role.AVALIADOR);
+  return requesterId === ownerId || perfis.includes(Role.ADMIN);
 }
 
 export function getMaxUploadSizeBytes() {

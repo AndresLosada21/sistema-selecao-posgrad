@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-s
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFieldError, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -39,6 +39,7 @@ export default function CandidateRecursosPage() {
   const [formFundamentacao, setFormFundamentacao] = useState("");
   const [formAnexoUrl, setFormAnexoUrl] = useState("");
   const [formAnexoNome, setFormAnexoNome] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ fase?: string | null; fundamentacao?: string | null; anexoUrl?: string | null }>({});
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -70,20 +71,20 @@ export default function CandidateRecursosPage() {
 
   async function handleUpload(file: File) {
     if (!session.token) return;
-    setUploading(true); setMessage(null);
+    setUploading(true); setMessage(null); setFieldErrors((current) => ({ ...current, anexoUrl: null }));
     try {
       const uploaded = await uploadPrivateFile(file, session.token);
       setFormAnexoUrl(uploaded.urlArquivo); setFormAnexoNome(uploaded.nomeArquivo);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage(getErrorMessage(error));
+      setMessage(getFirstFormError(error) ?? getErrorMessage(error));
     } finally { setUploading(false); }
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session.token || !formEditalId || !formFundamentacao.trim() || !fasesElegiveis.includes(formFase)) return;
-    setSubmitting(true); setMessage(null);
+    setSubmitting(true); setMessage(null); setFieldErrors({});
     try {
       await createCandidateRecurso(sanitizePayload({
         editalId: formEditalId,
@@ -92,12 +93,21 @@ export default function CandidateRecursosPage() {
         anexoUrl: formAnexoUrl || undefined,
       }), session.token);
       setFormFundamentacao(""); setFormAnexoUrl(""); setFormAnexoNome("");
-      const r = await listCandidateRecursos(session.token);
-      setRecursos(r);
+      const [dashboardAtualizado, recursosAtualizados] = await Promise.all([
+        getCandidateDashboard(session.token),
+        listCandidateRecursos(session.token),
+      ]);
+      setDashboard(dashboardAtualizado);
+      setRecursos(recursosAtualizados);
       setMessage(null);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage(getErrorMessage(error));
+      setFieldErrors({
+        fase: getFirstFieldError(error, "fase"),
+        fundamentacao: getFirstFieldError(error, "fundamentacao"),
+        anexoUrl: getFirstFieldError(error, "anexoUrl"),
+      });
+      setMessage(getFirstFormError(error) ?? getErrorMessage(error));
     } finally { setSubmitting(false); }
   }
 
@@ -125,19 +135,28 @@ export default function CandidateRecursosPage() {
             </div>
             <div className="wiz-field" style={{ flex: 1 }}>
               <label className="wiz-field-label">Fase *</label>
-              <select value={formFase} onChange={(e) => setFormFase(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
-                {(fasesElegiveis.length ? fasesElegiveis : faseRecursoOptions).map((f) => <option key={f} value={f}>{getStatusLabel(f)}</option>)}
+              <select disabled={!fasesElegiveis.length} value={formFase} onChange={(e) => { setFormFase(e.target.value); setFieldErrors((current) => ({ ...current, fase: null })); }} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                {fasesElegiveis.length ? fasesElegiveis.map((f) => <option key={f} value={f}>{getStatusLabel(f)}</option>) : <option value="">Nenhuma fase elegivel</option>}
               </select>
+              {fieldErrors.fase ? <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 4 }}>{fieldErrors.fase}</div> : null}
             </div>
           </div>
-          {!fasesElegiveis.length ? <div style={{ fontSize: 12, color: "#B45309" }}>Nenhuma fase esta elegivel para recurso no momento para o edital selecionado.</div> : null}
+          {!fasesElegiveis.length ? (
+            <div style={{ fontSize: 12, color: "#B45309", display: "flex", flexDirection: "column", gap: 4 }}>
+              <span>Nenhuma fase esta elegivel para recurso no momento para o edital selecionado.</span>
+              {participacaoSelecionada?.acompanhamento?.motivoResumo ? <span>{participacaoSelecionada.acompanhamento.motivoResumo}</span> : null}
+              {participacaoSelecionada?.acompanhamento?.proximoPasso ? <span>{participacaoSelecionada.acompanhamento.proximoPasso}</span> : null}
+            </div>
+          ) : null}
           <div className="wiz-field">
             <label className="wiz-field-label">Fundamentacao *</label>
-            <textarea placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => setFormFundamentacao(e.target.value)}
+            <textarea placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => { setFormFundamentacao(e.target.value); setFieldErrors((current) => ({ ...current, fundamentacao: null })); }}
               style={{ height: 100, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+            {fieldErrors.fundamentacao ? <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 4 }}>{fieldErrors.fundamentacao}</div> : null}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <FileField disabled={uploading} hint={formAnexoNome || "Anexo PDF (opcional)"} label="" onFileSelect={handleUpload} />
+            {fieldErrors.anexoUrl ? <div style={{ fontSize: 12, color: "#B91C1C" }}>{fieldErrors.anexoUrl}</div> : null}
             <span style={{ flex: 1 }} />
             <button type="submit" disabled={submitting || !formFundamentacao.trim() || !fasesElegiveis.includes(formFase)} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: submitting ? 0.5 : 1 }}>
               {submitting ? "Enviando..." : "Enviar recurso"}
@@ -158,7 +177,9 @@ export default function CandidateRecursosPage() {
         ) : items.map((rec) => (
           <div key={rec.id} style={{ padding: "14px 24px", borderBottom: "1px solid #F1F5F9" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>Recurso — {getStatusLabel(rec.fase)}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>
+                Recurso — {getStatusLabel(rec.fase)}{rec.fase === "HOMOLOGACAO" && rec.faseHomologacaoReferencia ? ` (${rec.faseHomologacaoReferencia.toLowerCase()})` : ""}
+              </span>
               <StatusBadge variant={getStatusVariant(rec.status)}>{getStatusLabel(rec.status)}</StatusBadge>
             </div>
             <p style={{ fontSize: 13, color: "#64748B", margin: "4px 0 0" }}>{rec.fundamentacao}</p>

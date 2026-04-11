@@ -64,6 +64,30 @@ isencaoRouter.post("/v1/editais/:editalId/isencao", requireAuth, async (request,
       return response.status(400).json(conflict("Curso informado diverge do curso do edital.", result.error));
     }
 
+    if (result.error === "JUSTIFICATIVA_OBRIGATORIA") {
+      return response.status(400).json(conflict("Informe a justificativa do pedido quando nao houver CadUnico.", result.error));
+    }
+
+    if (result.error === "COMPROVANTE_OBRIGATORIO") {
+      return response.status(400).json(conflict("Envie o comprovante em PDF quando nao houver CadUnico.", result.error));
+    }
+
+    if (result.error === "PEDIDO_ISENCAO_JA_EXISTENTE") {
+      return response.status(409).json(conflict("Ja existe pedido de isencao vinculado a este edital. Utilize o acompanhamento ou o fluxo recursal adequado.", result.error, { statusAtual: result.statusAtual }));
+    }
+
+    if (result.error === "UPLOAD_SEM_PERMISSAO") {
+      return response.status(409).json(conflict("O comprovante informado nao pertence ao usuario autenticado.", result.error));
+    }
+
+    if (result.error === "UPLOAD_EXTERNO_NAO_PERMITIDO") {
+      return response.status(409).json(conflict("O comprovante do pedido de isencao deve usar arquivo privado gerado pelo upload autenticado do sistema.", result.error));
+    }
+
+    if (result.error === "UPLOAD_NAO_ENCONTRADO") {
+      return response.status(409).json(conflict("O comprovante privado informado nao foi encontrado no storage do usuario autenticado.", result.error));
+    }
+
     return response.status(409).json(conflict("Pedido de isencao fora da janela permitida.", result.error, { reason: result.reason }));
   }
 

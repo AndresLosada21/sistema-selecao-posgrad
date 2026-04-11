@@ -11,13 +11,22 @@ export type CandidateDashboardResponse = {
       proximoPasso: string | null;
     };
     elegibilidade?: {
+      janelaInscricaoAberta: boolean;
+      janelaIsencaoAberta: boolean;
       podeEditarInscricao: boolean;
+      podeCancelarSubmissao: boolean;
+      podeCriarIsencao: boolean;
       podeSolicitarEspelhoEtapa1: boolean;
       podeSolicitarEspelhoEtapa2: boolean;
       podeVerEspelhoEtapa1: boolean;
       podeVerEspelhoEtapa2: boolean;
       fasesRecursoElegiveis: string[];
       podeVerPublicacoes: boolean;
+      motivoBloqueioInscricao: string | null;
+      motivoBloqueioIsencao: string | null;
+      motivoBloqueioEspelhoEtapa1: string | null;
+      motivoBloqueioEspelhoEtapa2: string | null;
+      motivoBloqueioRecurso: string | null;
     };
     edital: {
       id: string;
@@ -61,6 +70,7 @@ export type CandidateDashboardResponse = {
         redacaoTexto: string | null;
         dadosFormulario: Record<string, unknown> | null;
         anexoIvGeradoUrl?: string;
+        anexoIvDisponivel?: boolean;
         submissaoSnapshot?: Record<string, unknown> | null;
       versaoSubmissao?: number;
       submetidaEm?: string | null;

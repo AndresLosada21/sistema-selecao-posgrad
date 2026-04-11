@@ -163,13 +163,8 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
           },
         ],
       });
-    assert.equal(revisaoHomologacaoPreliminar.status, 200);
-
-    const restauracaoHomologacaoPreliminar = await request(app)
-      .put(`/v1/admin/inscricoes/${inscricaoId}/homologacao/preliminar`)
-      .set("Authorization", `Bearer ${adminToken}`)
-      .send({ homologada: true, parecer: "Homologacao preliminar deferida novamente.", motivos: [] });
-    assert.equal(restauracaoHomologacaoPreliminar.status, 200);
+    assert.equal(revisaoHomologacaoPreliminar.status, 409);
+    assert.equal(revisaoHomologacaoPreliminar.body.code, "HOMOLOGACAO_PRELIMINAR_BLOQUEADA");
 
     const recurso = await request(app)
       .post("/v1/candidato/recursos")
@@ -197,6 +192,17 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
         impactoResultado: false,
       });
     assert.equal(decisaoRecurso.status, 200);
+
+    await prisma.cronogramaEdital.updateMany({
+      where: {
+        editalId,
+        tipo: "RECURSO_HOMOLOGACAO",
+      },
+      data: {
+        inicioEm: new Date(Date.now() - 120_000),
+        fimEm: new Date(Date.now() - 60_000),
+      },
+    });
 
     const homologacaoFinal = await request(app)
       .put(`/v1/admin/inscricoes/${inscricaoId}/homologacao/final`)
@@ -253,6 +259,31 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
       .set("Authorization", `Bearer ${adminToken}`);
     assert.equal(etapa2List.status, 200);
     assert.equal(etapa2List.body.total, 1);
+
+    const etapa2Preliminar = await request(app)
+      .put(`/v1/admin/etapa-2/inscricoes/${inscricaoId}/resultado`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        pontuacaoItens: { titulo: 10 },
+        pontuacaoBruta: 10,
+        maiorPontuacaoBruta: 10,
+        glosas: [],
+        espelhoCorrecao: "Espelho preliminar da etapa 2.",
+        liberarEspelho: false,
+        publicacao: "PRELIMINAR",
+      });
+    assert.equal(etapa2Preliminar.status, 200);
+
+    await prisma.cronogramaEdital.updateMany({
+      where: {
+        editalId,
+        tipo: "RECURSO_ETAPA_2",
+      },
+      data: {
+        inicioEm: new Date(Date.now() - 120_000),
+        fimEm: new Date(Date.now() - 60_000),
+      },
+    });
 
     const etapa2Final = await request(app)
       .put(`/v1/admin/etapa-2/inscricoes/${inscricaoId}/resultado`)

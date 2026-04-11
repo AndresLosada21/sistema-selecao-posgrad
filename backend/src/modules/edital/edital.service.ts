@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TipoCronogramaEdital } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { toIsoOrNull } from "../../lib/serialization.js";
@@ -216,7 +216,95 @@ function resolvePublicadoEm(input: UpsertEditalInput) {
   return null;
 }
 
+async function assertNoCronogramaTipoDuplicado(input: { editalId: string; tipo: string; ignoreId?: string }) {
+  const existente = await prisma.cronogramaEdital.findFirst({
+    where: {
+      editalId: input.editalId,
+      tipo: input.tipo as never,
+      ...(input.ignoreId ? { id: { not: input.ignoreId } } : {}),
+    },
+  });
+
+  if (existente) {
+    throw conflict("Ja existe cronograma deste tipo para o edital informado.", "CRONOGRAMA_TIPO_DUPLICADO");
+  }
+}
+
+async function assertEditalEstruturaMinimaParaPublicacao(editalId: string) {
+  const [linhasCount, cronogramas] = await prisma.$transaction([
+    prisma.linhaPesquisa.count({ where: { editalId } }),
+    prisma.cronogramaEdital.findMany({ where: { editalId }, select: { tipo: true, inicioEm: true, fimEm: true } }),
+  ]);
+
+  if (linhasCount === 0) {
+    throw conflict("Nao e permitido publicar edital sem ao menos uma linha de pesquisa cadastrada.", "EDITAL_SEM_LINHAS_PESQUISA");
+  }
+
+  if (cronogramas.length === 0) {
+    throw conflict("Nao e permitido publicar edital sem cronogramas cadastrados.", "EDITAL_SEM_CRONOGRAMA");
+  }
+
+  if (!cronogramas.some((cronograma) => cronograma.tipo === "INSCRICAO")) {
+    throw conflict("Nao e permitido publicar edital sem janela de inscricao cadastrada.", "EDITAL_SEM_JANELA_INSCRICAO");
+  }
+
+  const tipos = new Set<string>();
+  for (const cronograma of cronogramas) {
+    if (tipos.has(cronograma.tipo)) {
+      throw conflict("Nao e permitido publicar edital com cronogramas duplicados por tipo.", "EDITAL_COM_CRONOGRAMA_DUPLICADO");
+    }
+    tipos.add(cronograma.tipo);
+  }
+
+  const dependencies: Array<{ tipo: TipoCronogramaEdital; dependeDe: TipoCronogramaEdital }> = [
+    { tipo: "RECURSO_HOMOLOGACAO", dependeDe: "HOMOLOGACAO_PRELIMINAR" },
+    { tipo: "RECURSO_ETAPA_1", dependeDe: "ETAPA_1" },
+    { tipo: "RECURSO_ETAPA_2", dependeDe: "ETAPA_2" },
+    { tipo: "RECURSO_CLASSIFICACAO", dependeDe: "CLASSIFICACAO_PRELIMINAR" },
+  ];
+
+  for (const dependency of dependencies) {
+    if (tipos.has(dependency.tipo) && !tipos.has(dependency.dependeDe)) {
+      throw conflict(`Nao e permitido cadastrar ${dependency.tipo} sem a fase base ${dependency.dependeDe}.`, "EDITAL_CRONOGRAMA_SEM_FASE_BASE");
+    }
+  }
+
+  const cronogramaByTipo = new Map(cronogramas.map((cronograma) => [cronograma.tipo, cronograma]));
+  for (const dependency of dependencies) {
+    const faseBase = cronogramaByTipo.get(dependency.dependeDe);
+    const faseRecurso = cronogramaByTipo.get(dependency.tipo);
+
+    if (faseBase && faseRecurso && faseBase.fimEm > faseRecurso.inicioEm) {
+      throw conflict(`Nao e permitido abrir ${dependency.tipo} antes do encerramento de ${dependency.dependeDe}.`, "EDITAL_CRONOGRAMA_SEQUENCIA_INVALIDA");
+    }
+  }
+}
+
+async function assertEditalPodeReceberMutacaoEstrutural(editalId: string) {
+  const edital = await prisma.edital.findUnique({
+    where: { id: editalId },
+    include: {
+      participacoes: { select: { id: true }, take: 1 },
+      publicacoesOficiais: { select: { id: true }, take: 1 },
+    },
+  });
+
+  if (!edital) {
+    throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
+  }
+
+  if (["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"].includes(edital.status) && (edital.participacoes.length > 0 || edital.publicacoesOficiais.length > 0)) {
+    throw conflict("Nao e permitido alterar estrutura de linhas ou cronogramas em edital ja operacionalizado. Use retificacao/publicacao apropriada.", "EDITAL_ESTRUTURA_BLOQUEADA");
+  }
+
+  return edital;
+}
+
 export async function createEdital(input: UpsertEditalInput, criadoPorId: string) {
+  if (input.status === "PUBLICADO" || input.status === "EM_ANDAMENTO") {
+    throw conflict("Crie o edital primeiro em rascunho e publique apenas depois de cadastrar linhas e cronogramas minimos.", "EDITAL_ESTRUTURA_MINIMA_PENDENTE");
+  }
+
   return await prisma.edital.create({
     data: {
       numero: input.numero,
@@ -237,6 +325,10 @@ export async function updateEdital(editalId: string, input: UpsertEditalInput) {
 
   if (!edital) {
     throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
+  }
+
+  if (input.status === "PUBLICADO" || input.status === "EM_ANDAMENTO") {
+    await assertEditalEstruturaMinimaParaPublicacao(editalId);
   }
 
   return await prisma.edital.update({
@@ -272,6 +364,8 @@ export async function deleteEdital(editalId: string) {
 }
 
 export async function createLinhaPesquisa(editalId: string, input: UpsertLinhaPesquisaInput) {
+  await assertEditalPodeReceberMutacaoEstrutural(editalId);
+
   return await prisma.linhaPesquisa.create({
     data: {
       editalId,
@@ -290,6 +384,8 @@ export async function updateLinhaPesquisa(linhaPesquisaId: string, input: Upsert
   if (!linha) {
     throw notFound("Linha de pesquisa nao encontrada.", "LINHA_PESQUISA_NAO_ENCONTRADA");
   }
+
+  await assertEditalPodeReceberMutacaoEstrutural(linha.editalId);
 
   return await prisma.linhaPesquisa.update({
     where: { id: linhaPesquisaId },
@@ -313,6 +409,8 @@ export async function deleteLinhaPesquisa(linhaPesquisaId: string) {
     throw notFound("Linha de pesquisa nao encontrada.", "LINHA_PESQUISA_NAO_ENCONTRADA");
   }
 
+  await assertEditalPodeReceberMutacaoEstrutural(linha.editalId);
+
   if (linha.inscricoes.length || linha.classificacoesFinais.length) {
     throw conflict("Nao e permitido excluir linha de pesquisa com historico operacional vinculado.", "LINHA_COM_HISTORICO");
   }
@@ -321,6 +419,9 @@ export async function deleteLinhaPesquisa(linhaPesquisaId: string) {
 }
 
 export async function createCronograma(editalId: string, input: UpsertCronogramaInput) {
+  await assertEditalPodeReceberMutacaoEstrutural(editalId);
+  await assertNoCronogramaTipoDuplicado({ editalId, tipo: input.tipo });
+
   return await prisma.cronogramaEdital.create({
     data: {
       editalId,
@@ -340,6 +441,10 @@ export async function updateCronograma(cronogramaId: string, input: UpsertCronog
     throw notFound("Cronograma nao encontrado.", "CRONOGRAMA_NAO_ENCONTRADO");
   }
 
+  await assertEditalPodeReceberMutacaoEstrutural(cronograma.editalId);
+
+  await assertNoCronogramaTipoDuplicado({ editalId: cronograma.editalId, tipo: input.tipo, ignoreId: cronograma.id });
+
   return await prisma.cronogramaEdital.update({
     where: { id: cronogramaId },
     data: {
@@ -358,6 +463,8 @@ export async function deleteCronograma(cronogramaId: string) {
   if (!cronograma) {
     throw notFound("Cronograma nao encontrado.", "CRONOGRAMA_NAO_ENCONTRADO");
   }
+
+  await assertEditalPodeReceberMutacaoEstrutural(cronograma.editalId);
 
   await prisma.cronogramaEdital.delete({ where: { id: cronogramaId } });
 }

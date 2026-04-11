@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload, downloadAuthenticatedFile } from "@/lib/files/download";
-import { ApiError, getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { ApiError, getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import type { StatusConfirmacaoReserva, StatusPagamentoInscricao } from "@/lib/enums";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -162,7 +162,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     setBusy(true); setMessage(null);
     if (!prelimResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao preliminar." }); setBusy(false); return; }
     try { await registrarHomologacaoPreliminar(item.id, { homologada: prelimResultado === "HOMOLOGADA", parecer: prelimParecer, motivos: motivosPrelim }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao preliminar salva." }); }
-    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -172,7 +172,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     setBusy(true); setMessage(null);
     if (!finalResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao final." }); setBusy(false); return; }
     try { await registrarHomologacaoFinal(item.id, { homologada: finalResultado === "HOMOLOGADA", parecer: finalParecer, motivos: motivosFinal }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao final salva." }); }
-    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -181,7 +181,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     if (!session.token || !item) return;
     setBusy(true); setMessage(null);
     try { await atualizarConfirmacaoReserva(item.id, { confirmacaoAcoesAfirmativas: confirmAA, confirmacaoPcd: confirmPCD }, session.token); await loadItem(); setMessage({ type: "success", title: "Confirmacao atualizada", description: "Reservas atualizadas." }); }
-    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getErrorMessage(error) }); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
