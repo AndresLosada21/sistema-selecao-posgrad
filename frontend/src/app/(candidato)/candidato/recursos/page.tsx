@@ -39,6 +39,7 @@ export default function CandidateRecursosPage() {
   const [formFundamentacao, setFormFundamentacao] = useState("");
   const [formAnexoUrl, setFormAnexoUrl] = useState("");
   const [formAnexoNome, setFormAnexoNome] = useState("");
+  const [formTipoPoliticas, setFormTipoPoliticas] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ fase?: string | null; fundamentacao?: string | null; anexoUrl?: string | null }>({});
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -62,12 +63,43 @@ export default function CandidateRecursosPage() {
   const editais = useMemo(() => dashboard?.items.map((i) => i.edital) ?? [], [dashboard]);
   const participacaoSelecionada = useMemo(() => dashboard?.items.find((item) => item.edital.id === formEditalId) ?? null, [dashboard, formEditalId]);
   const fasesElegiveis = participacaoSelecionada?.elegibilidade?.fasesRecursoElegiveis ?? [];
+  const tiposPoliticasElegiveis = useMemo(() => {
+    const tiposJaRecorridos = new Set(
+      (recursos?.items ?? [])
+        .filter((item) => item.edital.id === formEditalId && item.fase === "POLITICAS_AFIRMATIVAS")
+        .map((item) => item.tipoPoliticasAfirmativasReferencia)
+        .filter((tipo): tipo is string => Boolean(tipo)),
+    );
+
+    return participacaoSelecionada?.inscricao?.politicasAfirmativas?.itens
+      ?.filter((item) => item.resultadoPreliminar && item.resultadoPreliminar !== "PENDENTE" && !tiposJaRecorridos.has(item.tipo ?? ""))
+      .map((item) => item.tipo ?? "")
+      .filter(Boolean) ?? [];
+  }, [formEditalId, participacaoSelecionada, recursos?.items]);
 
   useEffect(() => {
     if (fasesElegiveis.length > 0 && !fasesElegiveis.includes(formFase)) {
       setFormFase(fasesElegiveis[0]);
     }
   }, [fasesElegiveis, formFase]);
+
+  useEffect(() => {
+    if (formFase !== "POLITICAS_AFIRMATIVAS") {
+      setFormTipoPoliticas("");
+      return;
+    }
+
+    if (tiposPoliticasElegiveis.length === 1) {
+      setFormTipoPoliticas(tiposPoliticasElegiveis[0]);
+      return;
+    }
+
+    if (formTipoPoliticas && tiposPoliticasElegiveis.includes(formTipoPoliticas)) {
+      return;
+    }
+
+    setFormTipoPoliticas("");
+  }, [formFase, formTipoPoliticas, tiposPoliticasElegiveis]);
 
   async function handleUpload(file: File) {
     if (!session.token) return;
@@ -89,10 +121,11 @@ export default function CandidateRecursosPage() {
       await createCandidateRecurso(sanitizePayload({
         editalId: formEditalId,
         fase: formFase as FaseRecurso,
+        tipoPoliticasAfirmativasReferencia: formFase === "POLITICAS_AFIRMATIVAS" ? (formTipoPoliticas || undefined) : undefined,
         fundamentacao: formFundamentacao,
         anexoUrl: formAnexoUrl || undefined,
       }), session.token);
-      setFormFundamentacao(""); setFormAnexoUrl(""); setFormAnexoNome("");
+      setFormFundamentacao(""); setFormAnexoUrl(""); setFormAnexoNome(""); setFormTipoPoliticas("");
       const [dashboardAtualizado, recursosAtualizados] = await Promise.all([
         getCandidateDashboard(session.token),
         listCandidateRecursos(session.token),
@@ -144,8 +177,18 @@ export default function CandidateRecursosPage() {
           {!fasesElegiveis.length ? (
             <div style={{ fontSize: 12, color: "#B45309", display: "flex", flexDirection: "column", gap: 4 }}>
               <span>Nenhuma fase esta elegivel para recurso no momento para o edital selecionado.</span>
+              {participacaoSelecionada?.elegibilidade?.motivoBloqueioRecurso ? <span>{participacaoSelecionada.elegibilidade.motivoBloqueioRecurso}</span> : null}
               {participacaoSelecionada?.acompanhamento?.motivoResumo ? <span>{participacaoSelecionada.acompanhamento.motivoResumo}</span> : null}
               {participacaoSelecionada?.acompanhamento?.proximoPasso ? <span>{participacaoSelecionada.acompanhamento.proximoPasso}</span> : null}
+            </div>
+          ) : null}
+          {formFase === "POLITICAS_AFIRMATIVAS" && tiposPoliticasElegiveis.length > 1 ? (
+            <div className="wiz-field">
+              <label className="wiz-field-label">Tipo da etapa *</label>
+              <select value={formTipoPoliticas} onChange={(e) => setFormTipoPoliticas(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                <option value="">Selecione o tipo</option>
+                {tiposPoliticasElegiveis.map((tipo) => <option key={tipo} value={tipo}>{tipo === "PCD" ? "PCD" : "Heteroidentificacao"}</option>)}
+              </select>
             </div>
           ) : null}
           <div className="wiz-field">
@@ -158,7 +201,7 @@ export default function CandidateRecursosPage() {
             <FileField disabled={uploading} hint={formAnexoNome || "Anexo PDF (opcional)"} label="" onFileSelect={handleUpload} />
             {fieldErrors.anexoUrl ? <div style={{ fontSize: 12, color: "#B91C1C" }}>{fieldErrors.anexoUrl}</div> : null}
             <span style={{ flex: 1 }} />
-            <button type="submit" disabled={submitting || !formFundamentacao.trim() || !fasesElegiveis.includes(formFase)} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: submitting ? 0.5 : 1 }}>
+            <button type="submit" disabled={submitting || !formFundamentacao.trim() || !fasesElegiveis.includes(formFase) || (formFase === "POLITICAS_AFIRMATIVAS" && tiposPoliticasElegiveis.length > 1 && !formTipoPoliticas)} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", opacity: submitting ? 0.5 : 1 }}>
               {submitting ? "Enviando..." : "Enviar recurso"}
             </button>
           </div>
@@ -178,7 +221,7 @@ export default function CandidateRecursosPage() {
           <div key={rec.id} style={{ padding: "14px 24px", borderBottom: "1px solid #F1F5F9" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>
-                Recurso — {getStatusLabel(rec.fase)}{rec.fase === "HOMOLOGACAO" && rec.faseHomologacaoReferencia ? ` (${rec.faseHomologacaoReferencia.toLowerCase()})` : ""}
+                Recurso — {getStatusLabel(rec.fase)}{rec.fase === "HOMOLOGACAO" && rec.faseHomologacaoReferencia ? ` (${rec.faseHomologacaoReferencia.toLowerCase()})` : ""}{rec.fase === "POLITICAS_AFIRMATIVAS" && rec.tipoPoliticasAfirmativasReferencia ? ` (${rec.tipoPoliticasAfirmativasReferencia === "PCD" ? "PCD" : "heteroidentificacao"})` : ""}
               </span>
               <StatusBadge variant={getStatusVariant(rec.status)}>{getStatusLabel(rec.status)}</StatusBadge>
             </div>

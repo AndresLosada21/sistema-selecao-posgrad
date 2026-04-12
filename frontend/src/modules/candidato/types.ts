@@ -63,6 +63,10 @@ export type CandidateDashboardResponse = {
       status: string;
       statusPagamento: string;
       modalidadeConcorrencia?: string;
+      reservasConcorrencia?: {
+        acoesAfirmativas: boolean;
+        pcd: boolean;
+      };
       temaRedacaoEditalId?: string | null;
       linhaPesquisa: { id: string; nome: string } | null;
       temaRedacao: string | null;
@@ -141,27 +145,33 @@ export type CandidateDashboardResponse = {
         resultadoFinalEm?: string | null;
       } | null;
       politicasAfirmativas: {
-        id?: string;
-        statusOperacao: string;
-        tipo?: string;
-        convocadoEm?: string | null;
-        documentosEncaminhadosEm?: string | null;
-        protocoloEncaminhamento?: string | null;
-        observacaoEncaminhamento?: string | null;
-        resultadoPreliminar?: string | null;
-        parecerPreliminar?: string | null;
-        arquivoRetornoPreliminarUrl?: string | null;
-        resultadoPreliminarEm?: string | null;
-        resultadoFinal: string | null;
-        parecerFinal?: string | null;
-        arquivoRetornoFinalUrl?: string | null;
-        resultadoFinalEm?: string | null;
+        itens: Array<{
+          id?: string;
+          statusOperacao: string;
+          tipo?: string;
+          convocadoEm?: string | null;
+          documentosEncaminhadosEm?: string | null;
+          protocoloEncaminhamento?: string | null;
+          observacaoEncaminhamento?: string | null;
+          resultadoPreliminar?: string | null;
+          parecerPreliminar?: string | null;
+          arquivoRetornoPreliminarUrl?: string | null;
+          resultadoPreliminarEm?: string | null;
+          resultadoFinal: string | null;
+          parecerFinal?: string | null;
+          arquivoRetornoFinalUrl?: string | null;
+          resultadoFinalEm?: string | null;
+        }>;
       } | null;
     } | null;
     classificacao: {
       id?: string;
       status: string;
       modalidadeConcorrencia?: string;
+      reservasConcorrencia?: {
+        acoesAfirmativas: boolean;
+        pcd: boolean;
+      };
       notaEtapa1?: number | null;
       notaEtapa2?: number | null;
       notaFinal: number | null;
@@ -179,6 +189,7 @@ export type CandidateDashboardResponse = {
       tipo: string;
       titulo: string;
       descricao: string | null;
+      origemArquivo?: "MANUAL" | "GERADO";
       arquivoUrl: string;
       versao: number;
       versaoFinal?: boolean;
@@ -193,6 +204,7 @@ export type CandidateDashboardResponse = {
       tipo: string;
       titulo: string;
       descricao: string | null;
+      origemArquivo?: "MANUAL" | "GERADO";
       arquivoUrl: string;
       versao: number;
       versaoFinal?: boolean;
@@ -202,6 +214,7 @@ export type CandidateDashboardResponse = {
       id: string;
       fase: string;
       faseHomologacaoReferencia?: "PRELIMINAR" | "FINAL" | null;
+      tipoPoliticasAfirmativasReferencia?: string | null;
       status: string;
       fundamentacao?: string;
       anexoUrl?: string | null;

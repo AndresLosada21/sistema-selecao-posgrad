@@ -83,7 +83,12 @@ export default function AdminRecursosPage() {
                 <tr key={item.id}>
                   <td className="admin-homologacao-table-primary">{item.candidato?.nomeCompleto ?? "—"}</td>
                   <td className="admin-homologacao-table-muted">{item.edital?.numero ?? "—"}</td>
-                  <td className="admin-homologacao-table-muted">{getStatusLabel(item.fase)}</td>
+                  <td className="admin-homologacao-table-muted">
+                    {getStatusLabel(item.fase)}
+                    {item.fase === "POLITICAS_AFIRMATIVAS" && item.tipoPoliticasAfirmativasReferencia
+                      ? ` · ${item.tipoPoliticasAfirmativasReferencia === "PCD" ? "PCD" : "Heteroidentificacao"}`
+                      : ""}
+                  </td>
                   <td className="admin-homologacao-table-center">
                     <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
                   </td>

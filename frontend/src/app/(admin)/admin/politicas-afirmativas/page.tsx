@@ -49,7 +49,7 @@ export default function AdminPoliticasPage() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Politicas Afirmativas</h1>
-          <p>Encaminhamento e resultado de heteroidentificacao/PCD por edital.</p>
+          <p>Encaminhamento e resultado das reservas de heteroidentificacao e PCD por edital.</p>
         </div>
       </div>
 
@@ -70,7 +70,7 @@ export default function AdminPoliticasPage() {
               <thead>
                 <tr>
                   <th style={{ minWidth: 200 }}>Candidato</th>
-                  <th style={{ minWidth: 160 }}>Modalidade</th>
+                  <th style={{ minWidth: 180 }}>Reserva</th>
                   <th style={{ minWidth: 160, textAlign: "center" }}>Status</th>
                   <th style={{ minWidth: 120, textAlign: "center" }}>Resultado</th>
                   <th style={{ width: 80, textAlign: "center" }}>Acao</th>
@@ -82,7 +82,7 @@ export default function AdminPoliticasPage() {
                   return (
                     <tr key={item.id}>
                       <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
-                      <td className="admin-homologacao-table-muted">{getStatusLabel(item.inscricao?.modalidadeConcorrencia ?? "—")}</td>
+                      <td className="admin-homologacao-table-muted">{item.tipo === "PCD" ? "PCD" : "Acoes afirmativas"}</td>
                       <td className="admin-homologacao-table-center">
                         <StatusBadge variant={getStatusVariant(item.statusOperacao)}>{getStatusLabel(item.statusOperacao)}</StatusBadge>
                       </td>

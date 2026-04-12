@@ -9,6 +9,10 @@ export type PublicacaoResumo = {
   descricao: string | null;
   versao: number;
   versaoFinal: boolean;
+  origemArquivo?: "MANUAL" | "GERADO";
+  arquivoNomeOriginal?: string | null;
+  arquivoMimeType?: string | null;
+  arquivoTamanhoBytes?: number | null;
   arquivoUrl: string;
   publicadoEm: string | null;
 };
@@ -17,5 +21,12 @@ export type PublicacoesResponse = {
   total: number;
   page?: number;
   pageSize?: number;
+  overview?: {
+    totalPublicacoes: number;
+    totalVigentes: number;
+    totalManuais: number;
+    ultimoPublicadoEm: string | null;
+  };
+  vigentesPorTipo?: PublicacaoResumo[];
   items: PublicacaoResumo[];
 };

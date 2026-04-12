@@ -47,7 +47,7 @@ export const fichaInscricaoSchema = z.object({
 
 export const saveDraftSchema = z.object({
   linhaPesquisaId: z.string().min(1),
-  modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia).default("AMPLA_CONCORRENCIA"),
+  modalidadeConcorrencia: z.nativeEnum(ModalidadeConcorrencia).optional(),
   temaRedacaoEditalId: z.string().trim().min(1).optional(),
   temaRedacao: z.string().trim().min(5).optional(),
   resumoCurriculo: z.string().trim().min(10).optional(),

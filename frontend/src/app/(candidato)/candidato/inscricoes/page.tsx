@@ -55,8 +55,11 @@ export default function CandidateInscricoesPage() {
   if (status === "error") return <ErrorState title="Falha ao carregar inscricoes" description={message ?? undefined} />;
   if (!data?.items.length) return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <EmptyState title="Sem inscricoes" description="Nenhuma inscricao foi registrada por esta conta." />
-      <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#2563EB" }}>Ver editais vinculados</Link>
+      <EmptyState title="Sem inscricoes" description="Nenhuma inscricao foi registrada por esta conta. Primeiro entre em um edital publicado; depois o CTA de nova inscricao aparecera no acompanhamento do edital." />
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Escolher edital para iniciar inscricao</Link>
+        <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>Ver participacoes</Link>
+      </div>
     </div>
   );
 

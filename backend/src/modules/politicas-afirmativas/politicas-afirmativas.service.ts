@@ -1,5 +1,4 @@
 import {
-  ModalidadeConcorrencia,
   ResultadoPoliticasAfirmativas,
   StatusConfirmacaoReserva,
   StatusOperacaoPoliticasAfirmativas,
@@ -12,9 +11,10 @@ import { reprocessarClassificacaoEPublicacoesDerivadas, validarReprocessamentoCl
 import {
   resolveConfirmacaoReservaFromResultado,
   resolveStatusOperacaoFromEncaminhamento,
-  resolveTipoEtapaPoliticasAfirmativas,
+  resolveTiposEtapaPoliticasAfirmativas,
 } from "./politicas-afirmativas.rules.js";
 import { toIsoOrNull } from "../../lib/serialization.js";
+import { type ReservasConcorrencia, resolveReservasConcorrencia } from "../inscricao/inscricao.rules.js";
 
 function getRequiredTiposDocumento(tipo: TipoEtapaPoliticasAfirmativas) {
   if (tipo === TipoEtapaPoliticasAfirmativas.PCD) {
@@ -22,6 +22,23 @@ function getRequiredTiposDocumento(tipo: TipoEtapaPoliticasAfirmativas) {
   }
 
   return [TipoDocumentoInscricao.ANEXO_VIII_AUTODECLARACAO, TipoDocumentoInscricao.COMPROVANTE_ETNICO];
+}
+
+function buildInscricaoReservasConcorrencia(inscricao: {
+  dadosFormulario?: unknown;
+  modalidadeConcorrencia?: unknown;
+}) {
+  return resolveReservasConcorrencia({
+    fichaInscricao: inscricao.dadosFormulario as Parameters<typeof resolveReservasConcorrencia>[0]["fichaInscricao"],
+    modalidadeConcorrencia: inscricao.modalidadeConcorrencia as Parameters<typeof resolveReservasConcorrencia>[0]["modalidadeConcorrencia"],
+  });
+}
+
+function buildReservaLabels(reservas: ReservasConcorrencia) {
+  return {
+    acoesAfirmativas: reservas.acoesAfirmativas,
+    pcd: reservas.pcd,
+  };
 }
 
 export function buildPoliticasAfirmativasResumo(etapa: {
@@ -62,54 +79,82 @@ export function buildPoliticasAfirmativasResumo(etapa: {
 
 export async function syncEtapaPoliticasAfirmativasForInscricao(input: {
   inscricaoId: string;
-  modalidadeConcorrencia: ModalidadeConcorrencia;
+  reservas: ReservasConcorrencia;
 }) {
-  const tipo = resolveTipoEtapaPoliticasAfirmativas(input.modalidadeConcorrencia);
+  const tipos = resolveTiposEtapaPoliticasAfirmativas(input.reservas);
 
-  if (!tipo) {
-    await prisma.etapaPoliticasAfirmativas.deleteMany({
-      where: { inscricaoId: input.inscricaoId },
-    });
-
-    await prisma.inscricao.update({
+  await prisma.$transaction(async (tx) => {
+    const inscricaoAtual = await tx.inscricao.findUnique({
       where: { id: input.inscricaoId },
-      data: {
-        confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
-        confirmacaoPcd: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      include: {
+        etapasPoliticasAfirmativas: true,
       },
     });
 
-    return;
-  }
+    if (!inscricaoAtual) {
+      return;
+    }
 
-  await prisma.etapaPoliticasAfirmativas.upsert({
-    where: { inscricaoId: input.inscricaoId },
-    update: {
-      tipo,
-    },
-    create: {
-      inscricaoId: input.inscricaoId,
-      tipo,
-    },
-  });
+    await tx.etapaPoliticasAfirmativas.deleteMany({
+      where: {
+        inscricaoId: input.inscricaoId,
+        ...(tipos.length > 0
+          ? {
+              tipo: {
+                notIn: tipos,
+              },
+            }
+          : {}),
+      },
+    });
 
-  await prisma.inscricao.update({
-    where: { id: input.inscricaoId },
-    data:
-      tipo === TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO
-        ? {
-            confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.PENDENTE,
-            confirmacaoPcd: StatusConfirmacaoReserva.NAO_SE_APLICA,
-          }
-        : {
-            confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
-            confirmacaoPcd: StatusConfirmacaoReserva.PENDENTE,
+    for (const tipo of tipos) {
+      await tx.etapaPoliticasAfirmativas.upsert({
+        where: {
+          inscricaoId_tipo: {
+            inscricaoId: input.inscricaoId,
+            tipo,
           },
+        },
+        update: {},
+        create: {
+          inscricaoId: input.inscricaoId,
+          tipo,
+        },
+      });
+    }
+
+    const etapaAcoes = inscricaoAtual.etapasPoliticasAfirmativas.find((etapa) => etapa.tipo === TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO);
+    const etapaPcd = inscricaoAtual.etapasPoliticasAfirmativas.find((etapa) => etapa.tipo === TipoEtapaPoliticasAfirmativas.PCD);
+    const confirmacaoAcoes = !input.reservas.acoesAfirmativas
+      ? StatusConfirmacaoReserva.NAO_SE_APLICA
+      : etapaAcoes?.resultadoFinal && etapaAcoes.resultadoFinal !== ResultadoPoliticasAfirmativas.PENDENTE
+        ? resolveConfirmacaoReservaFromResultado(etapaAcoes.resultadoFinal)
+        : inscricaoAtual.confirmacaoAcoesAfirmativas !== StatusConfirmacaoReserva.NAO_SE_APLICA
+          ? inscricaoAtual.confirmacaoAcoesAfirmativas
+          : StatusConfirmacaoReserva.PENDENTE;
+    const confirmacaoPcd = !input.reservas.pcd
+      ? StatusConfirmacaoReserva.NAO_SE_APLICA
+      : etapaPcd?.resultadoFinal && etapaPcd.resultadoFinal !== ResultadoPoliticasAfirmativas.PENDENTE
+        ? resolveConfirmacaoReservaFromResultado(etapaPcd.resultadoFinal)
+        : inscricaoAtual.confirmacaoPcd !== StatusConfirmacaoReserva.NAO_SE_APLICA
+          ? inscricaoAtual.confirmacaoPcd
+          : StatusConfirmacaoReserva.PENDENTE;
+
+    await tx.inscricao.update({
+      where: { id: input.inscricaoId },
+      data: {
+        confirmacaoAcoesAfirmativas: confirmacaoAcoes,
+        confirmacaoPcd: confirmacaoPcd,
+      },
+    });
   });
 }
 
-async function getEtapaByInscricaoId(inscricaoId: string) {
-  return prisma.etapaPoliticasAfirmativas.findUnique({
+type PoliticasEtapaWithRelations = Awaited<ReturnType<typeof getEtapasByInscricaoId>>[number];
+
+async function getEtapasByInscricaoId(inscricaoId: string) {
+  return prisma.etapaPoliticasAfirmativas.findMany({
     where: { inscricaoId },
     include: {
       inscricao: {
@@ -125,16 +170,20 @@ async function getEtapaByInscricaoId(inscricaoId: string) {
         },
       },
     },
+    orderBy: { tipo: "asc" },
   });
 }
 
-function toPoliticasEtapaItem(item: NonNullable<Awaited<ReturnType<typeof getEtapaByInscricaoId>>>) {
+function toPoliticasEtapaItem(item: PoliticasEtapaWithRelations) {
+  const reservasConcorrencia = buildInscricaoReservasConcorrencia(item.inscricao);
+
   return {
     ...buildPoliticasAfirmativasResumo(item),
     inscricao: {
       id: item.inscricao.id,
       status: item.inscricao.status,
       modalidadeConcorrencia: item.inscricao.modalidadeConcorrencia,
+      reservasConcorrencia: buildReservaLabels(reservasConcorrencia),
     },
     edital: {
       id: item.inscricao.participacaoEdital.edital.id,
@@ -165,14 +214,40 @@ function toPoliticasEtapaItem(item: NonNullable<Awaited<ReturnType<typeof getEta
 }
 
 export async function getEtapaPoliticasAfirmativasByInscricaoId(inscricaoId: string) {
-  const etapa = await getEtapaByInscricaoId(inscricaoId);
+  const etapas = await getEtapasByInscricaoId(inscricaoId);
 
-  if (!etapa) {
+  if (etapas.length === 0) {
     return { error: "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA" as const };
   }
 
+  const [primeiraEtapa] = etapas;
+
   return {
-    item: toPoliticasEtapaItem(etapa),
+    item: {
+      inscricao: {
+        id: primeiraEtapa.inscricao.id,
+        status: primeiraEtapa.inscricao.status,
+        modalidadeConcorrencia: primeiraEtapa.inscricao.modalidadeConcorrencia,
+        reservasConcorrencia: buildReservaLabels(buildInscricaoReservasConcorrencia(primeiraEtapa.inscricao)),
+      },
+      edital: {
+        id: primeiraEtapa.inscricao.participacaoEdital.edital.id,
+        numero: primeiraEtapa.inscricao.participacaoEdital.edital.numero,
+        titulo: primeiraEtapa.inscricao.participacaoEdital.edital.titulo,
+      },
+      candidato: {
+        id: primeiraEtapa.inscricao.participacaoEdital.usuario.id,
+        nomeCompleto: primeiraEtapa.inscricao.participacaoEdital.usuario.nomeCompleto,
+        email: primeiraEtapa.inscricao.participacaoEdital.usuario.email,
+      },
+      linhaPesquisa: primeiraEtapa.inscricao.linhaPesquisa
+        ? {
+            id: primeiraEtapa.inscricao.linhaPesquisa.id,
+            nome: primeiraEtapa.inscricao.linhaPesquisa.nome,
+          }
+        : null,
+      etapas: etapas.map(toPoliticasEtapaItem),
+    },
   };
 }
 
@@ -225,13 +300,15 @@ export async function listEtapasPoliticasAfirmativasByEdital(editalId: string, p
 
 export async function registrarEncaminhamentoPoliticasAfirmativas(input: {
   inscricaoId: string;
+  tipo: TipoEtapaPoliticasAfirmativas;
   encaminhadoPorId: string;
   convocadoEm?: string;
   documentosEncaminhadosEm?: string;
   protocoloEncaminhamento?: string;
   observacaoEncaminhamento?: string;
 }) {
-  const etapa = await getEtapaByInscricaoId(input.inscricaoId);
+  const etapas = await getEtapasByInscricaoId(input.inscricaoId);
+  const etapa = etapas.find((current) => current.tipo === input.tipo);
 
   if (!etapa) {
     return { error: "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA" as const };
@@ -241,7 +318,12 @@ export async function registrarEncaminhamentoPoliticasAfirmativas(input: {
   const documentosEncaminhadosEm = input.documentosEncaminhadosEm ? new Date(input.documentosEncaminhadosEm) : etapa.documentosEncaminhadosEm;
 
   const updated = await prisma.etapaPoliticasAfirmativas.update({
-    where: { inscricaoId: input.inscricaoId },
+    where: {
+      inscricaoId_tipo: {
+        inscricaoId: input.inscricaoId,
+        tipo: input.tipo,
+      },
+    },
     data: {
       convocadoEm,
       documentosEncaminhadosEm,
@@ -261,19 +343,26 @@ export async function registrarEncaminhamentoPoliticasAfirmativas(input: {
 
 export async function registrarResultadoPreliminarPoliticasAfirmativas(input: {
   inscricaoId: string;
+  tipo: TipoEtapaPoliticasAfirmativas;
   registradoPorId: string;
   resultado: ResultadoPoliticasAfirmativas;
   parecer: string;
   arquivoRetornoUrl?: string;
 }) {
-  const etapa = await getEtapaByInscricaoId(input.inscricaoId);
+  const etapas = await getEtapasByInscricaoId(input.inscricaoId);
+  const etapa = etapas.find((current) => current.tipo === input.tipo);
 
   if (!etapa) {
     return { error: "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA" as const };
   }
 
   const updated = await prisma.etapaPoliticasAfirmativas.update({
-    where: { inscricaoId: input.inscricaoId },
+    where: {
+      inscricaoId_tipo: {
+        inscricaoId: input.inscricaoId,
+        tipo: input.tipo,
+      },
+    },
     data: {
       resultadoPreliminar: input.resultado,
       parecerPreliminar: input.parecer,
@@ -289,12 +378,14 @@ export async function registrarResultadoPreliminarPoliticasAfirmativas(input: {
 
 export async function registrarResultadoFinalPoliticasAfirmativas(input: {
   inscricaoId: string;
+  tipo: TipoEtapaPoliticasAfirmativas;
   registradoPorId: string;
   resultado: ResultadoPoliticasAfirmativas;
   parecer: string;
   arquivoRetornoUrl?: string;
 }) {
-  const etapa = await getEtapaByInscricaoId(input.inscricaoId);
+  const etapas = await getEtapasByInscricaoId(input.inscricaoId);
+  const etapa = etapas.find((current) => current.tipo === input.tipo);
 
   if (!etapa) {
     return { error: "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA" as const };
@@ -312,8 +403,42 @@ export async function registrarResultadoFinalPoliticasAfirmativas(input: {
     return { error: validacaoReprocessamento.error } as const;
   }
 
+  const publicacaoFinalExistente = await prisma.publicacaoOficial.findFirst({
+    where: {
+      editalId: etapa.inscricao.participacaoEdital.editalId,
+      tipo: "POLITICAS_AFIRMATIVAS_FINAL",
+    },
+    select: { id: true },
+  });
+
+  if (publicacaoFinalExistente) {
+    const pendenciasRestantes = await prisma.etapaPoliticasAfirmativas.count({
+      where: {
+        inscricao: {
+          participacaoEdital: {
+            editalId: etapa.inscricao.participacaoEdital.editalId,
+          },
+        },
+        resultadoFinal: ResultadoPoliticasAfirmativas.PENDENTE,
+        NOT: {
+          inscricaoId: input.inscricaoId,
+          tipo: input.tipo,
+        },
+      },
+    });
+
+    if (pendenciasRestantes > 0) {
+      return { error: "POLITICAS_AFIRMATIVAS_INCOMPLETA" as const };
+    }
+  }
+
   const updated = await prisma.etapaPoliticasAfirmativas.update({
-    where: { inscricaoId: input.inscricaoId },
+    where: {
+      inscricaoId_tipo: {
+        inscricaoId: input.inscricaoId,
+        tipo: input.tipo,
+      },
+    },
     data: {
       resultadoFinal: input.resultado,
       parecerFinal: input.parecer,

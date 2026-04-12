@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildUniqueCandidate } from "./helpers/candidate";
-import { waitForAuthenticatedSession } from "./helpers/system";
+import { loginAsAdminViaUi, waitForAuthenticatedSession } from "./helpers/system";
 
 test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   const candidate = buildUniqueCandidate();
@@ -20,7 +20,8 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
   await expect(page.getByText("Nenhuma participacao encontrada")).toBeVisible();
-  await page.getByTitle("Encerrar sessao").click();
+  await expect(page.getByRole("link", { name: "Escolher edital e entrar" })).toBeVisible();
+  await page.evaluate(() => window.localStorage.removeItem("selecao-posgrad-token"));
 
   await page.goto("/entrar");
   await page.getByLabel("E-mail").fill(candidate.email);
@@ -34,6 +35,7 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
   await expect(page.getByText("Nenhuma participacao encontrada")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Escolher edital e entrar" })).toBeVisible();
 });
 
 test("candidato autenticado consegue aderir a um edital pela UI publica", async ({ page }) => {
@@ -57,5 +59,17 @@ test("candidato autenticado consegue aderir a um edital pela UI publica", async 
   await page.getByRole("button", { name: "Entrar neste edital" }).first().click();
 
   await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });
-  await expect(page.getByText("Acompanhamento consolidado do edital", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Acompanhamento do candidato/)).toBeVisible();
+});
+
+test("conta administrativa autenticada tambem consegue aderir a um edital pela UI publica", async ({ page, request }) => {
+  await loginAsAdminViaUi(page, request);
+
+  await page.goto("/editais");
+  const entrarButton = page.getByRole("button", { name: "Entrar neste edital" }).first();
+  await expect(entrarButton).toBeVisible();
+  await expect(page.getByText("Libera inscricao, isencao e acompanhamento neste edital.").first()).toBeVisible();
+  await entrarButton.click();
+
+  await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });
 });

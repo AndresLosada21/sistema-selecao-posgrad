@@ -6,8 +6,33 @@ export function previewHomologacaoPublicacao(editalId: string, fase: "PRELIMINAR
   return apiGet<Record<string, unknown>>(`/v1/admin/editais/${editalId}/publicacoes/homologacao/preview?fase=${fase}`, token);
 }
 
-export function listAdminPublicacoesByEdital(editalId: string, token: string, pagination?: { page: number; pageSize: number }) {
-  const query = pagination ? `?page=${pagination.page}&pageSize=${pagination.pageSize}` : "";
+type AdminPublicacaoListQuery = {
+  page?: number;
+  pageSize?: number;
+  tipo?: TipoPublicacaoOficial;
+  somenteVigentes?: boolean;
+};
+
+export function listAdminPublicacoesByEdital(editalId: string, token: string, pagination?: AdminPublicacaoListQuery) {
+  const queryParams = new URLSearchParams();
+
+  if (pagination?.page) {
+    queryParams.set("page", String(pagination.page));
+  }
+
+  if (pagination?.pageSize) {
+    queryParams.set("pageSize", String(pagination.pageSize));
+  }
+
+  if (pagination?.tipo) {
+    queryParams.set("tipo", pagination.tipo);
+  }
+
+  if (typeof pagination?.somenteVigentes === "boolean") {
+    queryParams.set("somenteVigentes", String(pagination.somenteVigentes));
+  }
+
+  const query = queryParams.size ? `?${queryParams.toString()}` : "";
   return apiGet<PublicacoesResponse>(`/v1/admin/editais/${editalId}/publicacoes${query}`, token);
 }
 
@@ -19,6 +44,7 @@ export function publicarGenerica(
     descricao?: string;
     versaoFinal?: boolean;
     arquivoUrl?: string;
+    arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
     dadosConsolidados?: Record<string, unknown>;
   },
   token: string,

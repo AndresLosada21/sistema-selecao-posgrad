@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { toInputJsonOrDbNull } from "../../lib/serialization.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
 import { buildAdminAnexoIvFlattenUrl, buildAdminAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
+import { resolveReservasConcorrencia } from "../inscricao/inscricao.rules.js";
 import { buildPrivateUploadUrl } from "../upload/upload.service.js";
 import { reprocessarClassificacaoEPublicacoesDerivadas, validarReprocessamentoClassificacaoDerivada } from "../publicacao/publicacao-derived-effects.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
@@ -28,6 +29,44 @@ function normalizeDocumentoUrlArquivo(urlArquivo: string) {
 
   const [, ownerId, filename] = match;
   return buildPrivateUploadUrl(ownerId, filename);
+}
+
+function buildInscricaoReservasConcorrencia(inscricao: {
+  dadosFormulario?: unknown;
+  modalidadeConcorrencia?: unknown;
+  confirmacaoAcoesAfirmativas?: string;
+  confirmacaoPcd?: string;
+  etapasPoliticasAfirmativas?: Array<{ tipo: string }>;
+}) {
+  const base = resolveReservasConcorrencia({
+    fichaInscricao: inscricao.dadosFormulario as Parameters<typeof resolveReservasConcorrencia>[0]["fichaInscricao"],
+    modalidadeConcorrencia: inscricao.modalidadeConcorrencia as Parameters<typeof resolveReservasConcorrencia>[0]["modalidadeConcorrencia"],
+  });
+
+  return {
+    acoesAfirmativas: base.acoesAfirmativas || inscricao.confirmacaoAcoesAfirmativas !== "NAO_SE_APLICA" || Boolean(inscricao.etapasPoliticasAfirmativas?.some((etapa) => etapa.tipo === "HETEROIDENTIFICACAO")),
+    pcd: base.pcd || inscricao.confirmacaoPcd !== "NAO_SE_APLICA" || Boolean(inscricao.etapasPoliticasAfirmativas?.some((etapa) => etapa.tipo === "PCD")),
+  };
+}
+
+function hasPoliticasResultadosFinaisRegistrados(etapas: Array<{ resultadoFinal?: string }>) {
+  return etapas.some((etapa) => etapa.resultadoFinal && etapa.resultadoFinal !== "PENDENTE");
+}
+
+function hasPoliticasProcessamentoPosterior(etapas: Array<{
+  statusOperacao?: string;
+  convocadoEm?: Date | null;
+  documentosEncaminhadosEm?: Date | null;
+  resultadoPreliminar?: string;
+  resultadoFinal?: string;
+}>) {
+  return etapas.some((etapa) => (
+    etapa.statusOperacao && etapa.statusOperacao !== "PENDENTE"
+  ) || Boolean(etapa.convocadoEm) || Boolean(etapa.documentosEncaminhadosEm) || (
+    etapa.resultadoPreliminar && etapa.resultadoPreliminar !== "PENDENTE"
+  ) || (
+    etapa.resultadoFinal && etapa.resultadoFinal !== "PENDENTE"
+  ));
 }
 
 async function hasRecursosPendentesHomologacao(inscricaoId: string) {
@@ -64,7 +103,7 @@ async function buildHomologacaoEditState(inscricao: Prisma.InscricaoGetPayload<{
     homologacao: true;
     avaliacaoEtapa1: true;
     avaliacaoEtapa2: true;
-    etapaPoliticasAfirmativas: true;
+    etapasPoliticasAfirmativas: true;
   };
 }>) {
   const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_HOMOLOGACAO);
@@ -85,7 +124,7 @@ async function buildHomologacaoEditState(inscricao: Prisma.InscricaoGetPayload<{
     submetidaEm: inscricao.submetidaEm,
     status: inscricao.status,
     statusPreliminar: inscricao.homologacao?.statusPreliminar,
-    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas),
+    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || hasPoliticasProcessamentoPosterior(inscricao.etapasPoliticasAfirmativas)),
   });
 
   if (!bloqueioFinal && inscricao.homologacao?.statusFinal) {
@@ -112,7 +151,7 @@ function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
     homologacao: true;
     avaliacaoEtapa1: true;
     avaliacaoEtapa2: true;
-    etapaPoliticasAfirmativas: true;
+    etapasPoliticasAfirmativas: true;
   };
 }>, edicao?: {
   podeEditarPreliminar: boolean;
@@ -121,11 +160,14 @@ function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
   bloqueioFinal: string | null;
 }) {
 
+  const reservasConcorrencia = buildInscricaoReservasConcorrencia(inscricao);
+
   return {
     id: inscricao.id,
     status: inscricao.status,
     statusPagamento: inscricao.statusPagamento,
     modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+    reservasConcorrencia,
     confirmacaoAcoesAfirmativas: inscricao.confirmacaoAcoesAfirmativas,
     confirmacaoPcd: inscricao.confirmacaoPcd,
     candidato: {
@@ -214,7 +256,7 @@ export async function listInscricoesParaHomologacao(input: { editalId?: string; 
         homologacao: true,
         avaliacaoEtapa1: true,
         avaliacaoEtapa2: true,
-        etapaPoliticasAfirmativas: true,
+        etapasPoliticasAfirmativas: true,
       },
       orderBy: {
         criadoEm: "desc",
@@ -244,7 +286,7 @@ export async function getInscricaoHomologacaoById(inscricaoId: string) {
       homologacao: true,
       avaliacaoEtapa1: true,
       avaliacaoEtapa2: true,
-      etapaPoliticasAfirmativas: true,
+      etapasPoliticasAfirmativas: true,
     },
   });
 
@@ -271,7 +313,7 @@ export async function atualizarConfirmacaoReserva(
   const inscricao = await prisma.inscricao.findUnique({
     where: { id: inscricaoId },
     include: {
-      etapaPoliticasAfirmativas: true,
+      etapasPoliticasAfirmativas: true,
     },
   });
 
@@ -279,9 +321,11 @@ export async function atualizarConfirmacaoReserva(
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  if (inscricao.etapaPoliticasAfirmativas?.resultadoFinal && inscricao.etapaPoliticasAfirmativas.resultadoFinal !== "PENDENTE") {
+  if (hasPoliticasResultadosFinaisRegistrados(inscricao.etapasPoliticasAfirmativas)) {
     return { error: "CONFIRMACAO_RESERVA_BLOQUEADA_POR_POLITICAS_FINAIS" as const };
   }
+
+  const reservasConcorrencia = buildInscricaoReservasConcorrencia(inscricao);
 
   const data: {
     confirmacaoAcoesAfirmativas?: StatusConfirmacaoReserva;
@@ -289,23 +333,23 @@ export async function atualizarConfirmacaoReserva(
   } = {};
 
   if (input.confirmacaoAcoesAfirmativas !== undefined) {
-    if (inscricao.modalidadeConcorrencia === "ACOES_AFIRMATIVAS" && input.confirmacaoAcoesAfirmativas === StatusConfirmacaoReserva.NAO_SE_APLICA) {
+    if (reservasConcorrencia.acoesAfirmativas && input.confirmacaoAcoesAfirmativas === StatusConfirmacaoReserva.NAO_SE_APLICA) {
       return { error: "CONFIRMACAO_RESERVA_INVALIDA" as const };
     }
 
     data.confirmacaoAcoesAfirmativas =
-      inscricao.modalidadeConcorrencia === "ACOES_AFIRMATIVAS"
+      reservasConcorrencia.acoesAfirmativas
         ? input.confirmacaoAcoesAfirmativas
         : StatusConfirmacaoReserva.NAO_SE_APLICA;
   }
 
   if (input.confirmacaoPcd !== undefined) {
-    if (inscricao.modalidadeConcorrencia === "PCD" && input.confirmacaoPcd === StatusConfirmacaoReserva.NAO_SE_APLICA) {
+    if (reservasConcorrencia.pcd && input.confirmacaoPcd === StatusConfirmacaoReserva.NAO_SE_APLICA) {
       return { error: "CONFIRMACAO_RESERVA_INVALIDA" as const };
     }
 
     data.confirmacaoPcd =
-      inscricao.modalidadeConcorrencia === "PCD"
+      reservasConcorrencia.pcd
         ? input.confirmacaoPcd
         : StatusConfirmacaoReserva.NAO_SE_APLICA;
   }
@@ -591,7 +635,7 @@ export async function registrarHomologacaoFinal(
       homologacao: true,
       avaliacaoEtapa1: true,
       avaliacaoEtapa2: true,
-      etapaPoliticasAfirmativas: true,
+      etapasPoliticasAfirmativas: true,
       participacaoEdital: {
         select: { editalId: true },
       },
@@ -606,7 +650,7 @@ export async function registrarHomologacaoFinal(
     submetidaEm: inscricao.submetidaEm,
     status: inscricao.status,
     statusPreliminar: inscricao.homologacao?.statusPreliminar,
-    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas),
+    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapasPoliticasAfirmativas.length > 0),
   });
 
   if (bloqueioFinal) {
@@ -614,7 +658,7 @@ export async function registrarHomologacaoFinal(
       return { error: "HOMOLOGACAO_PRELIMINAR_OBRIGATORIA" as const };
     }
 
-    if (inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas) {
+    if (inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || hasPoliticasProcessamentoPosterior(inscricao.etapasPoliticasAfirmativas)) {
       return { error: "HOMOLOGACAO_FINAL_BLOQUEADA_POR_ETAPA_POSTERIOR" as const };
     }
 

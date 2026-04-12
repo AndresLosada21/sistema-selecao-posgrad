@@ -18,6 +18,26 @@ type PublicacoesPageProps = {
 
 const iconFile = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /></svg>;
 
+function getOrigemArquivoLabel(origem: "MANUAL" | "GERADO" | undefined) {
+  return origem === "MANUAL" ? "PDF enviado" : "PDF gerado";
+}
+
+function getOrigemArquivoVariant(origem: "MANUAL" | "GERADO" | undefined) {
+  return origem === "MANUAL" ? "info" : "neutral";
+}
+
+function formatFileSize(size: number | null | undefined) {
+  if (!size) {
+    return null;
+  }
+
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
 export default async function PublicacoesPage({ params }: PublicacoesPageProps) {
   const { editalId } = await params;
 
@@ -26,6 +46,7 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
       getEditalById(editalId),
       listPublicacoesByEdital(editalId),
     ]);
+    const publicacoesVigentes = publicacoes.items.filter((publicacao) => publicacao.isVersaoAtualDoTipo);
 
     if (!publicacoes.items.length) {
       return (
@@ -49,7 +70,40 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
         />
 
         <SectionCard title={`Publicacoes de ${edital.numero}`}>
-          <div>
+          {publicacoesVigentes.length ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+              <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A" }}>Versoes vigentes</h3>
+              <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Atalhos para os documentos oficiais mais recentes de cada tipo.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {publicacoesVigentes.map((publicacao) => (
+                  <div className="pub-item" key={`${publicacao.id}-vigente`}>
+                    <div className="pub-item-content">
+                      <div className="pub-item-title-row">
+                        <span className="pub-item-title">{publicacao.titulo}</span>
+                        <StatusBadge variant={getStatusVariant(publicacao.tipo)}>{getStatusLabel(publicacao.tipo)}</StatusBadge>
+                        <StatusBadge variant="info">Vigente</StatusBadge>
+                        <StatusBadge variant={getOrigemArquivoVariant(publicacao.origemArquivo)}>{getOrigemArquivoLabel(publicacao.origemArquivo)}</StatusBadge>
+                      </div>
+                      <p className="pub-item-desc">{publicacao.descricao ?? "Sem descricao publica cadastrada."}</p>
+                      <div className="pub-item-meta">
+                        <span>Versao: {publicacao.versao}</span>
+                        <span>Publicado em: {formatIsoDate(publicacao.publicadoEm)}</span>
+                        {publicacao.arquivoNomeOriginal ? <span>Arquivo: {publicacao.arquivoNomeOriginal}</span> : null}
+                        {formatFileSize(publicacao.arquivoTamanhoBytes) ? <span>Tamanho: {formatFileSize(publicacao.arquivoTamanhoBytes)}</span> : null}
+                      </div>
+                    </div>
+                    <Link className="pub-pdf-btn" href={resolveApiUrl(publicacao.arquivoUrl)} rel="noreferrer" target="_blank">
+                      <span style={{ display: "flex" }}>{iconFile}</span>
+                      Abrir PDF
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A" }}>Historico completo</h3>
             {publicacoes.items.map((publicacao) => (
               <div className="pub-item" key={publicacao.id}>
                 <div className="pub-item-content">
@@ -62,11 +116,14 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
                     {publicacao.versaoFinal ? (
                       <StatusBadge variant="success">Versao final</StatusBadge>
                     ) : null}
+                    <StatusBadge variant={getOrigemArquivoVariant(publicacao.origemArquivo)}>{getOrigemArquivoLabel(publicacao.origemArquivo)}</StatusBadge>
                   </div>
                   <p className="pub-item-desc">{publicacao.descricao ?? "Sem descricao publica cadastrada."}</p>
                   <div className="pub-item-meta">
                     <span>Versao: {publicacao.versao}</span>
                     <span>Publicado em: {formatIsoDate(publicacao.publicadoEm)}</span>
+                    {publicacao.arquivoNomeOriginal ? <span>Arquivo: {publicacao.arquivoNomeOriginal}</span> : null}
+                    {formatFileSize(publicacao.arquivoTamanhoBytes) ? <span>Tamanho: {formatFileSize(publicacao.arquivoTamanhoBytes)}</span> : null}
                     {publicacao.republicacaoDaVersao ? <em>Republicacao da v{publicacao.republicacaoDaVersao}</em> : null}
                   </div>
                 </div>

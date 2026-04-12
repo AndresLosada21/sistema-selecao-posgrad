@@ -6,6 +6,7 @@ import {
   StatusInscricao,
   TipoEtapaPoliticasAfirmativas,
 } from "@prisma/client";
+import path from "node:path";
 
 import { prisma } from "../../lib/prisma.js";
 import { parseHomologacaoMotivos } from "../homologacao/homologacao.rules.js";
@@ -22,12 +23,147 @@ import {
   type FasePoliticasAfirmativasPublicacao,
 } from "./publicacao.rules.js";
 import { toInputJsonOrUndefined, toIsoOrNull } from "../../lib/serialization.js";
+import { isPrivateUploadOwnedByUser, parsePrivateUploadUrl, privateUploadExists, statPrivateUpload } from "../upload/upload.service.js";
 
 function buildPublicacaoArquivoUrl(publicacao: { id: string; arquivoUrl: string | null }) {
-  return publicacao.arquivoUrl ?? `/v1/publicacoes/${publicacao.id}/arquivo.pdf`;
+  return `/v1/publicacoes/${publicacao.id}/arquivo.pdf`;
 }
 
-function buildPublicacaoResumo(publicacao: {
+function getPublicacaoOrigemArquivo(publicacao: { arquivoUrl: string | null }) {
+  return publicacao.arquivoUrl ? "MANUAL" : "GERADO";
+}
+
+type PublicacaoArquivoMetadata = {
+  nomeOriginal: string | null;
+  mimeType: string | null;
+  tamanhoBytes: number | null;
+};
+
+function asJsonRecord(value: Prisma.JsonValue | undefined | null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, Prisma.JsonValue>;
+}
+
+function buildGeneratedPublicacaoFilename(publicacao: { id: string; titulo: string; versao: number }) {
+  const slug = publicacao.titulo
+    .normalize("NFD")
+    .replace(/[^a-zA-Z0-9.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+
+  return `${slug || `publicacao-${publicacao.id}`}-v${publicacao.versao}.pdf`;
+}
+
+function getPublicacaoArquivoMetadataFromSnapshot(dadosConsolidados: Prisma.JsonValue | undefined | null): PublicacaoArquivoMetadata | null {
+  const snapshot = asJsonRecord(dadosConsolidados);
+  const raw = snapshot?.arquivoPublicado;
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const arquivoPublicado = raw as Record<string, unknown>;
+
+  return {
+    nomeOriginal: typeof arquivoPublicado.nomeOriginal === "string" ? arquivoPublicado.nomeOriginal : null,
+    mimeType: typeof arquivoPublicado.mimeType === "string" ? arquivoPublicado.mimeType : null,
+    tamanhoBytes: typeof arquivoPublicado.tamanhoBytes === "number" ? arquivoPublicado.tamanhoBytes : null,
+  };
+}
+
+function buildStoredPublicacaoSnapshot(baseSnapshot: Record<string, unknown> | undefined, arquivoMetadata?: {
+  nomeOriginal: string;
+  mimeType?: string;
+  tamanhoBytes?: number;
+}) {
+  if (!baseSnapshot && !arquivoMetadata) {
+    return undefined;
+  }
+
+  const nextSnapshot = {
+    ...(baseSnapshot ?? {}),
+    ...(arquivoMetadata
+      ? {
+          arquivoPublicado: {
+            nomeOriginal: arquivoMetadata.nomeOriginal,
+            mimeType: arquivoMetadata.mimeType ?? "application/pdf",
+            tamanhoBytes: arquivoMetadata.tamanhoBytes ?? null,
+          },
+        }
+      : {}),
+  };
+
+  return nextSnapshot as Prisma.InputJsonValue;
+}
+
+async function resolvePublicacaoArquivoMetadata(publicacao: {
+  id: string;
+  titulo: string;
+  versao: number;
+  arquivoUrl: string | null;
+  dadosConsolidados?: Prisma.JsonValue | null;
+}) {
+  const snapshotMetadata = getPublicacaoArquivoMetadataFromSnapshot(publicacao.dadosConsolidados);
+
+  if (!publicacao.arquivoUrl) {
+    return {
+      nomeOriginal: snapshotMetadata?.nomeOriginal ?? buildGeneratedPublicacaoFilename(publicacao),
+      mimeType: snapshotMetadata?.mimeType ?? "application/pdf",
+      tamanhoBytes: snapshotMetadata?.tamanhoBytes ?? null,
+    } satisfies PublicacaoArquivoMetadata;
+  }
+
+  const privateUpload = parsePrivateUploadUrl(publicacao.arquivoUrl);
+
+  if (privateUpload) {
+    let tamanhoBytes = snapshotMetadata?.tamanhoBytes ?? null;
+
+    if (tamanhoBytes == null) {
+      try {
+        const fileStat = await statPrivateUpload(privateUpload.ownerId, privateUpload.filename);
+        tamanhoBytes = Number(fileStat.size);
+      } catch {
+        tamanhoBytes = null;
+      }
+    }
+
+    return {
+      nomeOriginal: snapshotMetadata?.nomeOriginal ?? privateUpload.filename,
+      mimeType: snapshotMetadata?.mimeType ?? "application/pdf",
+      tamanhoBytes,
+    } satisfies PublicacaoArquivoMetadata;
+  }
+
+  if (/^https:\/\//i.test(publicacao.arquivoUrl)) {
+    try {
+      const targetUrl = new URL(publicacao.arquivoUrl);
+
+      return {
+        nomeOriginal: snapshotMetadata?.nomeOriginal ?? path.posix.basename(targetUrl.pathname),
+        mimeType: snapshotMetadata?.mimeType ?? "application/pdf",
+        tamanhoBytes: snapshotMetadata?.tamanhoBytes ?? null,
+      } satisfies PublicacaoArquivoMetadata;
+    } catch {
+      return {
+        nomeOriginal: snapshotMetadata?.nomeOriginal ?? null,
+        mimeType: snapshotMetadata?.mimeType ?? "application/pdf",
+        tamanhoBytes: snapshotMetadata?.tamanhoBytes ?? null,
+      } satisfies PublicacaoArquivoMetadata;
+    }
+  }
+
+  return {
+    nomeOriginal: snapshotMetadata?.nomeOriginal ?? null,
+    mimeType: snapshotMetadata?.mimeType ?? "application/pdf",
+    tamanhoBytes: snapshotMetadata?.tamanhoBytes ?? null,
+  } satisfies PublicacaoArquivoMetadata;
+}
+
+async function buildPublicacaoResumo(publicacao: {
   id: string;
   editalId: string;
   republicacaoDeId: string | null;
@@ -37,8 +173,11 @@ function buildPublicacaoResumo(publicacao: {
   versao: number;
   versaoFinal: boolean;
   arquivoUrl: string | null;
+  dadosConsolidados?: Prisma.JsonValue | null;
   publicadoEm: Date | null;
 }, meta?: { republicacaoDaVersao?: number | null; isVersaoAtualDoTipo?: boolean }) {
+  const arquivoMetadata = await resolvePublicacaoArquivoMetadata(publicacao);
+
   return {
     id: publicacao.id,
     editalId: publicacao.editalId,
@@ -50,9 +189,39 @@ function buildPublicacaoResumo(publicacao: {
     descricao: publicacao.descricao,
     versao: publicacao.versao,
     versaoFinal: publicacao.versaoFinal,
+    origemArquivo: getPublicacaoOrigemArquivo(publicacao),
+    arquivoNomeOriginal: arquivoMetadata.nomeOriginal,
+    arquivoMimeType: arquivoMetadata.mimeType,
+    arquivoTamanhoBytes: arquivoMetadata.tamanhoBytes,
     arquivoUrl: buildPublicacaoArquivoUrl(publicacao),
     publicadoEm: publicacao.publicadoEm?.toISOString() ?? null,
   };
+}
+
+async function validatePublicacaoArquivoUrl(arquivoUrl: string | undefined, criadoPorId: string) {
+  if (!arquivoUrl) {
+    return null;
+  }
+
+  const privateUpload = parsePrivateUploadUrl(arquivoUrl);
+
+  if (!privateUpload) {
+    return /^https:\/\//i.test(arquivoUrl)
+      ? null
+      : { error: "ARQUIVO_PUBLICACAO_INVALIDO" as const };
+  }
+
+  if (!isPrivateUploadOwnedByUser(arquivoUrl, criadoPorId)) {
+    return { error: "ARQUIVO_PUBLICACAO_SEM_PERMISSAO" as const };
+  }
+
+  const exists = await privateUploadExists(privateUpload.ownerId, privateUpload.filename);
+
+  if (!exists) {
+    return { error: "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO" as const };
+  }
+
+  return null;
 }
 
 function toNullableJson(value: Prisma.JsonValue | undefined) {
@@ -122,6 +291,7 @@ export async function createPublicacao(input: {
   descricao?: string;
   versaoFinal: boolean;
   arquivoUrl?: string;
+  arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
   dadosConsolidados?: Record<string, unknown>;
 }) {
   const edital = await prisma.edital.findUnique({
@@ -130,6 +300,12 @@ export async function createPublicacao(input: {
 
   if (!edital) {
     return { error: "EDITAL_NAO_ENCONTRADO" as const };
+  }
+
+  const arquivoValidation = await validatePublicacaoArquivoUrl(input.arquivoUrl, input.criadoPorId);
+
+  if (arquivoValidation) {
+    return arquivoValidation;
   }
 
   const versionamento = await getPublicacaoVersionamento(input.editalId, input.tipo);
@@ -145,7 +321,7 @@ export async function createPublicacao(input: {
       versao: versionamento.versao,
       versaoFinal: input.versaoFinal,
       arquivoUrl: input.arquivoUrl,
-      dadosConsolidados: toInputJsonOrUndefined(input.dadosConsolidados),
+      dadosConsolidados: buildStoredPublicacaoSnapshot(input.dadosConsolidados, input.arquivoMetadados),
       publicadoEm: new Date(),
     },
   });
@@ -286,11 +462,18 @@ export async function createHomologacaoPublicacao(input: {
   titulo?: string;
   descricao?: string;
   arquivoUrl?: string;
+  arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
 }) {
   const previewResult = await buildHomologacaoPublicacaoPreview(input.editalId, input.fase);
 
   if ("error" in previewResult) {
     return previewResult;
+  }
+
+  const arquivoValidation = await validatePublicacaoArquivoUrl(input.arquivoUrl, input.criadoPorId);
+
+  if (arquivoValidation) {
+    return arquivoValidation;
   }
 
   const versionamento = previewResult.preview.versionamento;
@@ -306,7 +489,7 @@ export async function createHomologacaoPublicacao(input: {
       versao: versionamento.versao,
       versaoFinal: input.fase === "FINAL",
       arquivoUrl: input.arquivoUrl,
-      dadosConsolidados: previewResult.preview as Prisma.InputJsonValue,
+      dadosConsolidados: buildStoredPublicacaoSnapshot(previewResult.preview as Record<string, unknown>, input.arquivoMetadados),
       publicadoEm: new Date(),
     },
   });
@@ -434,11 +617,18 @@ export async function createClassificacaoPublicacao(input: {
   titulo?: string;
   descricao?: string;
   arquivoUrl?: string;
+  arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
 }) {
   const previewResult = await buildClassificacaoPublicacaoPreview(input.editalId, input.fase);
 
   if ("error" in previewResult) {
     return previewResult;
+  }
+
+  const arquivoValidation = await validatePublicacaoArquivoUrl(input.arquivoUrl, input.criadoPorId);
+
+  if (arquivoValidation) {
+    return arquivoValidation;
   }
 
   const versionamento = previewResult.preview.versionamento;
@@ -454,7 +644,7 @@ export async function createClassificacaoPublicacao(input: {
       versao: versionamento.versao,
       versaoFinal: input.fase === "FINAL",
       arquivoUrl: input.arquivoUrl,
-      dadosConsolidados: previewResult.preview as Prisma.InputJsonValue,
+      dadosConsolidados: buildStoredPublicacaoSnapshot(previewResult.preview as Record<string, unknown>, input.arquivoMetadados),
       publicadoEm: new Date(),
     },
   });
@@ -580,11 +770,18 @@ export async function createPoliticasAfirmativasPublicacao(input: {
   titulo?: string;
   descricao?: string;
   arquivoUrl?: string;
+  arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
 }) {
   const previewResult = await buildPoliticasAfirmativasPublicacaoPreview(input.editalId, input.fase);
 
   if ("error" in previewResult) {
     return previewResult;
+  }
+
+  const arquivoValidation = await validatePublicacaoArquivoUrl(input.arquivoUrl, input.criadoPorId);
+
+  if (arquivoValidation) {
+    return arquivoValidation;
   }
 
   const versionamento = previewResult.preview.versionamento;
@@ -600,7 +797,7 @@ export async function createPoliticasAfirmativasPublicacao(input: {
       versao: versionamento.versao,
       versaoFinal: input.fase === "FINAL",
       arquivoUrl: input.arquivoUrl,
-      dadosConsolidados: previewResult.preview as Prisma.InputJsonValue,
+      dadosConsolidados: buildStoredPublicacaoSnapshot(previewResult.preview as Record<string, unknown>, input.arquivoMetadados),
       publicadoEm: new Date(),
     },
   });
@@ -608,6 +805,77 @@ export async function createPoliticasAfirmativasPublicacao(input: {
   return {
     publicacao,
     preview: previewResult.preview,
+  };
+}
+
+async function buildPublicacaoResumoList(
+  publicacoes: Array<{
+    id: string;
+    editalId: string;
+    republicacaoDeId: string | null;
+    tipo: string;
+    titulo: string;
+    descricao: string | null;
+    versao: number;
+    versaoFinal: boolean;
+    arquivoUrl: string | null;
+    dadosConsolidados: Prisma.JsonValue | null;
+    publicadoEm: Date | null;
+  }>,
+  latestVersionByTipo: Map<string, number>,
+) {
+  const republicacaoIds = Array.from(new Set(publicacoes.flatMap((publicacao) => publicacao.republicacaoDeId ? [publicacao.republicacaoDeId] : [])));
+  const republicacoes = republicacaoIds.length
+    ? await prisma.publicacaoOficial.findMany({
+        where: {
+          id: {
+            in: republicacaoIds,
+          },
+        },
+        select: {
+          id: true,
+          versao: true,
+        },
+      })
+    : [];
+  const versionById = new Map(republicacoes.map((publicacao) => [publicacao.id, publicacao.versao]));
+
+  return await Promise.all(publicacoes.map((publicacao) => buildPublicacaoResumo(publicacao, {
+    republicacaoDaVersao: publicacao.republicacaoDeId ? (versionById.get(publicacao.republicacaoDeId) ?? null) : null,
+    isVersaoAtualDoTipo: latestVersionByTipo.get(publicacao.tipo) === publicacao.versao,
+  })));
+}
+
+async function getLatestPublicacaoVersionByTipo(editalId: string) {
+  return await prisma.publicacaoOficial.groupBy({
+    by: ["tipo"],
+    where: {
+      editalId,
+    },
+    _max: {
+      versao: true,
+    },
+  });
+}
+
+function buildCurrentPublicacoesWhere(
+  latestVersionByTipo: Array<{ tipo: string; _max: { versao: number | null } }>,
+  tipo?: string,
+): Prisma.PublicacaoOficialWhereInput {
+  const currentItems = latestVersionByTipo
+    .filter((item) => !tipo || item.tipo === tipo)
+    .flatMap((item) => item._max.versao != null ? [{ tipo: item.tipo as never, versao: item._max.versao }] : []);
+
+  if (!currentItems.length) {
+    return {
+      id: {
+        in: [],
+      },
+    };
+  }
+
+  return {
+    OR: currentItems,
   };
 }
 
@@ -619,33 +887,67 @@ export async function listPublicacoesByEdital(editalId: string) {
     orderBy: [{ publicadoEm: "desc" }, { versao: "desc" }, { criadoEm: "desc" }],
   });
 
-  const latestVersionByTipo = new Map<string, number>();
-  const versionById = new Map<string, number>();
+  const latestVersionByTipo = new Map((await getLatestPublicacaoVersionByTipo(editalId)).map((item) => [item.tipo, item._max.versao ?? 0]));
 
-  for (const publicacao of publicacoes) {
-    versionById.set(publicacao.id, publicacao.versao);
-    const current = latestVersionByTipo.get(publicacao.tipo);
-    if (!current || publicacao.versao > current) {
-      latestVersionByTipo.set(publicacao.tipo, publicacao.versao);
-    }
-  }
-
-  return publicacoes.map((publicacao) => buildPublicacaoResumo(publicacao, {
-    republicacaoDaVersao: publicacao.republicacaoDeId ? (versionById.get(publicacao.republicacaoDeId) ?? null) : null,
-    isVersaoAtualDoTipo: latestVersionByTipo.get(publicacao.tipo) === publicacao.versao,
-  }));
+  return await buildPublicacaoResumoList(publicacoes, latestVersionByTipo);
 }
 
-export async function listPublicacoesAdminByEdital(editalId: string, pagination?: { page: number; pageSize: number }) {
-  const page = pagination?.page ?? 1;
-  const pageSize = pagination?.pageSize ?? 20;
-  const items = await listPublicacoesByEdital(editalId);
+export async function listPublicacoesAdminByEdital(editalId: string, input?: { page: number; pageSize: number; tipo?: string; somenteVigentes?: boolean }) {
+  const page = input?.page ?? 1;
+  const pageSize = input?.pageSize ?? 20;
+  const latestByTipo = await getLatestPublicacaoVersionByTipo(editalId);
+  const latestVersionByTipo = new Map(latestByTipo.map((item) => [item.tipo, item._max.versao ?? 0]));
+  const baseWhere: Prisma.PublicacaoOficialWhereInput = {
+    editalId,
+    ...(input?.tipo ? { tipo: input.tipo as never } : {}),
+  };
+  const where: Prisma.PublicacaoOficialWhereInput = input?.somenteVigentes
+    ? {
+        editalId,
+        ...buildCurrentPublicacoesWhere(latestByTipo, input.tipo),
+      }
+    : baseWhere;
+
+  const [publicacoes, total, totalPublicacoes, totalManuais, latestPublicacao, vigentesPorTipoRaw] = await Promise.all([
+    prisma.publicacaoOficial.findMany({
+      where,
+      orderBy: [{ publicadoEm: "desc" }, { versao: "desc" }, { criadoEm: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.publicacaoOficial.count({ where }),
+    prisma.publicacaoOficial.count({ where: { editalId } }),
+    prisma.publicacaoOficial.count({ where: { editalId, arquivoUrl: { not: null } } }),
+    prisma.publicacaoOficial.findFirst({
+      where: { editalId },
+      orderBy: [{ publicadoEm: "desc" }, { criadoEm: "desc" }],
+      select: { publicadoEm: true },
+    }),
+    prisma.publicacaoOficial.findMany({
+      where: {
+        editalId,
+        ...buildCurrentPublicacoesWhere(latestByTipo),
+      },
+      orderBy: [{ publicadoEm: "desc" }, { tipo: "asc" }],
+    }),
+  ]);
+  const [items, vigentesPorTipo] = await Promise.all([
+    buildPublicacaoResumoList(publicacoes, latestVersionByTipo),
+    buildPublicacaoResumoList(vigentesPorTipoRaw, latestVersionByTipo),
+  ]);
 
   return {
-    items: items.slice((page - 1) * pageSize, page * pageSize),
-    total: items.length,
+    items,
+    total,
     page,
     pageSize,
+    overview: {
+      totalPublicacoes,
+      totalVigentes: latestByTipo.length,
+      totalManuais,
+      ultimoPublicadoEm: latestPublicacao?.publicadoEm?.toISOString() ?? null,
+    },
+    vigentesPorTipo,
   };
 }
 

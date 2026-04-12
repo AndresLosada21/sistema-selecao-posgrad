@@ -3,6 +3,7 @@ import {
   FaseHomologacaoRecurso,
   Prisma,
   ResultadoPoliticasAfirmativas,
+  TipoEtapaPoliticasAfirmativas,
   TipoPublicacaoOficial,
   StatusAvaliacaoEtapa,
   StatusInscricao,
@@ -15,7 +16,7 @@ import { prisma } from "../../lib/prisma.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import { buildHomologacaoResumoVigente, getFinalHomologacaoStatus, getInscricaoStatusAfterFinalHomologacao, getPreliminaryHomologacaoStatus } from "../homologacao/homologacao.rules.js";
 import { recalcularNotasEtapa2PorEdital } from "../etapa2/etapa2.service.js";
-import { registrarResultadoFinalPoliticasAfirmativas } from "../politicas-afirmativas/politicas-afirmativas.service.js";
+import { resolveConfirmacaoReservaFromResultado } from "../politicas-afirmativas/politicas-afirmativas.rules.js";
 import { createHomologacaoPublicacao } from "../publicacao/publicacao.service.js";
 import { reprocessarClassificacaoEPublicacoesDerivadas, validarReprocessamentoClassificacaoDerivada } from "../publicacao/publicacao-derived-effects.service.js";
 import { isPrivateUploadOwnedByUser, parsePrivateUploadUrl, privateUploadExists } from "../upload/upload.service.js";
@@ -71,7 +72,7 @@ async function getParticipacao(usuarioId: string, editalId: string) {
           homologacao: true,
           avaliacaoEtapa1: true,
           avaliacaoEtapa2: true,
-          etapaPoliticasAfirmativas: true,
+          etapasPoliticasAfirmativas: true,
         },
       },
       classificacaoFinal: true,
@@ -95,7 +96,7 @@ function hasPreliminaryResult(participacao: NonNullable<Awaited<ReturnType<typeo
     case FaseRecurso.CLASSIFICACAO:
       return participacao.classificacaoFinal?.status === "PRELIMINAR";
     case FaseRecurso.POLITICAS_AFIRMATIVAS:
-      return participacao.inscricao?.etapaPoliticasAfirmativas?.resultadoPreliminar !== ResultadoPoliticasAfirmativas.PENDENTE;
+      return Boolean(participacao.inscricao?.etapasPoliticasAfirmativas.some((etapa) => etapa.resultadoPreliminar !== ResultadoPoliticasAfirmativas.PENDENTE));
   }
 }
 
@@ -103,6 +104,7 @@ export async function createRecurso(input: {
   usuarioId: string;
   editalId: string;
   fase: FaseRecurso;
+  tipoPoliticasAfirmativasReferencia?: TipoEtapaPoliticasAfirmativas;
   fundamentacao: string;
   anexoUrl?: string;
 }) {
@@ -153,6 +155,30 @@ export async function createRecurso(input: {
     }
   }
 
+  let tipoPoliticasAfirmativasReferencia: TipoEtapaPoliticasAfirmativas | null = null;
+
+  if (input.fase === FaseRecurso.POLITICAS_AFIRMATIVAS) {
+    const etapasElegiveis = participacao.inscricao?.etapasPoliticasAfirmativas.filter((etapa) => etapa.resultadoPreliminar !== ResultadoPoliticasAfirmativas.PENDENTE) ?? [];
+
+    if (etapasElegiveis.length === 0) {
+      return { error: "RESULTADO_PRELIMINAR_OBRIGATORIO" as const };
+    }
+
+    if (input.tipoPoliticasAfirmativasReferencia) {
+      const etapaSelecionada = etapasElegiveis.find((etapa) => etapa.tipo === input.tipoPoliticasAfirmativasReferencia);
+
+      if (!etapaSelecionada) {
+        return { error: "TIPO_POLITICAS_AFIRMATIVAS_INVALIDO" as const };
+      }
+
+      tipoPoliticasAfirmativasReferencia = input.tipoPoliticasAfirmativasReferencia;
+    } else if (etapasElegiveis.length === 1) {
+      tipoPoliticasAfirmativasReferencia = etapasElegiveis[0].tipo;
+    } else {
+      return { error: "TIPO_POLITICAS_AFIRMATIVAS_OBRIGATORIO" as const };
+    }
+  }
+
   const faseHomologacaoReferencia = input.fase === FaseRecurso.HOMOLOGACAO
     ? resolveFaseHomologacaoReferencia({
         statusPreliminar: participacao.inscricao?.homologacao?.statusPreliminar,
@@ -164,6 +190,7 @@ export async function createRecurso(input: {
     where: {
       participacaoEditalId: participacao.id,
       fase: input.fase,
+      ...(input.fase === FaseRecurso.POLITICAS_AFIRMATIVAS ? { tipoPoliticasAfirmativasReferencia } : {}),
       ...(input.fase === FaseRecurso.HOMOLOGACAO ? { faseHomologacaoReferencia } : {}),
       status: {
         in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE, StatusRecurso.DEFERIDO, StatusRecurso.INDEFERIDO],
@@ -183,6 +210,7 @@ export async function createRecurso(input: {
       faseHomologacaoReferencia: input.fase === FaseRecurso.HOMOLOGACAO
         ? faseHomologacaoReferencia ?? FaseHomologacaoRecurso.PRELIMINAR
         : undefined,
+      tipoPoliticasAfirmativasReferencia,
       fundamentacao: input.fundamentacao,
       anexoUrl: input.anexoUrl,
       status: StatusRecurso.ABERTO,
@@ -213,6 +241,7 @@ export async function listRecursosDoUsuario(usuarioId: string) {
     id: recurso.id,
     fase: recurso.fase,
     faseHomologacaoReferencia: recurso.faseHomologacaoReferencia,
+    tipoPoliticasAfirmativasReferencia: recurso.tipoPoliticasAfirmativasReferencia,
     status: recurso.status,
     fundamentacao: recurso.fundamentacao,
     anexoUrl: recurso.anexoUrl,
@@ -243,6 +272,7 @@ type RecursoAdminWithRelations = Prisma.RecursoGetPayload<{
           inscricao: {
             include: {
               homologacao: true;
+              etapasPoliticasAfirmativas: true;
             };
           };
         };
@@ -260,6 +290,7 @@ function mapAdminRecurso(recurso: RecursoAdminWithRelations) {
     decisao: recurso.decisao,
     impactoResultado: recurso.impactoResultado,
     faseHomologacaoReferencia: recurso.faseHomologacaoReferencia,
+    tipoPoliticasAfirmativasReferencia: recurso.tipoPoliticasAfirmativasReferencia,
     efeitoPraticoResumo: resolveRecursoEfeitoPraticoResumo({
       fase: recurso.fase,
       status: recurso.status,
@@ -278,6 +309,13 @@ function mapAdminRecurso(recurso: RecursoAdminWithRelations) {
           publicadoFinalEm: recurso.participacaoEdital.inscricao.homologacao.publicadoFinalEm,
         })
       : null,
+    contextoPoliticasAfirmativas: recurso.participacaoEdital.inscricao?.etapasPoliticasAfirmativas?.map((etapa) => ({
+      tipo: etapa.tipo,
+      resultadoPreliminar: etapa.resultadoPreliminar,
+      resultadoFinal: etapa.resultadoFinal,
+      parecerPreliminar: etapa.parecerPreliminar,
+      parecerFinal: etapa.parecerFinal,
+    })) ?? [],
     candidato: {
       id: recurso.criadoPor.id,
       nomeCompleto: recurso.criadoPor.nomeCompleto,
@@ -316,6 +354,7 @@ export async function listRecursosAdmin(filters: { editalId?: string; fase?: Fas
             inscricao: {
               include: {
                 homologacao: true,
+                etapasPoliticasAfirmativas: true,
               },
             },
           },
@@ -342,6 +381,7 @@ export async function getRecursoAdminById(recursoId: string) {
           inscricao: {
             include: {
               homologacao: true,
+              etapasPoliticasAfirmativas: true,
             },
           },
         },
@@ -369,6 +409,11 @@ export async function decidirRecurso(
     novoEspelhoEtapa2?: string;
     novoResultadoFinalPoliticasAfirmativas?: ResultadoPoliticasAfirmativas;
     novoParecerFinalPoliticasAfirmativas?: string;
+    novosResultadosFinaisPoliticasAfirmativas?: Array<{
+      tipo: TipoEtapaPoliticasAfirmativas;
+      resultado: ResultadoPoliticasAfirmativas;
+      parecer: string;
+    }>;
   },
 ) {
   const recurso = await prisma.recurso.findUnique({
@@ -382,7 +427,7 @@ export async function decidirRecurso(
               homologacao: true,
               avaliacaoEtapa1: true,
               avaliacaoEtapa2: true,
-              etapaPoliticasAfirmativas: true,
+              etapasPoliticasAfirmativas: true,
             },
           },
         },
@@ -401,6 +446,24 @@ export async function decidirRecurso(
   }
 
   const editalId = recursoAtual.participacaoEdital.editalId;
+  const tiposPoliticasDisponiveis = recursoAtual.participacaoEdital.inscricao?.etapasPoliticasAfirmativas.map((etapa) => etapa.tipo) ?? [];
+  const politicasUpdates = input.novosResultadosFinaisPoliticasAfirmativas?.length
+    ? input.novosResultadosFinaisPoliticasAfirmativas
+    : input.novoResultadoFinalPoliticasAfirmativas && input.novoParecerFinalPoliticasAfirmativas && tiposPoliticasDisponiveis.length === 1
+      ? [{
+          tipo: tiposPoliticasDisponiveis[0],
+          resultado: input.novoResultadoFinalPoliticasAfirmativas,
+          parecer: input.novoParecerFinalPoliticasAfirmativas,
+        }]
+      : [];
+
+  if (
+    recursoAtual.fase === FaseRecurso.POLITICAS_AFIRMATIVAS
+    && recursoAtual.tipoPoliticasAfirmativasReferencia
+    && politicasUpdates.some((item) => item.tipo !== recursoAtual.tipoPoliticasAfirmativasReferencia)
+  ) {
+    return { error: "TIPO_POLITICAS_AFIRMATIVAS_INVALIDO" as const };
+  }
 
   if (input.deferido && input.impactoResultado) {
     if (recursoAtual.fase === FaseRecurso.ISENCAO && !input.novoStatusIsencao) {
@@ -419,15 +482,47 @@ export async function decidirRecurso(
       return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
     }
 
-    if (recursoAtual.fase === FaseRecurso.POLITICAS_AFIRMATIVAS && (!input.novoResultadoFinalPoliticasAfirmativas || !input.novoParecerFinalPoliticasAfirmativas)) {
+    if (recursoAtual.fase === FaseRecurso.POLITICAS_AFIRMATIVAS && politicasUpdates.length === 0) {
       return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
+    }
+
+    if (recursoAtual.fase === FaseRecurso.POLITICAS_AFIRMATIVAS && politicasUpdates.length > 0) {
+      const publicacaoFinalExistente = await prisma.publicacaoOficial.findFirst({
+        where: {
+          editalId,
+          tipo: TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_FINAL,
+        },
+        select: { id: true },
+      });
+
+      if (publicacaoFinalExistente) {
+        const atualizacoesAlvo = politicasUpdates.map((item) => ({
+          inscricaoId: recursoAtual.participacaoEdital.inscricao?.id,
+          tipo: item.tipo,
+        }));
+        const pendenciasRestantes = await prisma.etapaPoliticasAfirmativas.count({
+          where: {
+            inscricao: {
+              participacaoEdital: {
+                editalId,
+              },
+            },
+            resultadoFinal: ResultadoPoliticasAfirmativas.PENDENTE,
+            NOT: atualizacoesAlvo,
+          },
+        });
+
+        if (pendenciasRestantes > 0) {
+          return { error: "DECISAO_RECURSAL_INCOMPLETA" as const };
+        }
+      }
     }
 
     if (recursoAtual.fase === FaseRecurso.CLASSIFICACAO) {
       return { error: "DECISAO_RECURSAL_CLASSIFICACAO_NAO_SUPORTADA" as const };
     }
 
-    if (shouldReprocessClassificacaoAfterRecurso(recursoAtual.fase)) {
+    if (shouldReprocessClassificacaoAfterRecurso(recursoAtual.fase) && recursoAtual.fase !== FaseRecurso.POLITICAS_AFIRMATIVAS) {
       const validacaoReprocessamento = await validarReprocessamentoClassificacaoDerivada(editalId);
       if ("error" in validacaoReprocessamento) {
         return { error: validacaoReprocessamento.error } as const;
@@ -438,7 +533,6 @@ export async function decidirRecurso(
   let republicarHomologacaoFase: "PRELIMINAR" | "FINAL" | null = null;
   let reprocessarClassificacaoDerivada = false;
   let recalcularEtapa2DoEdital = false;
-  let aplicarResultadoFinalPoliticas = false;
 
   const updated = await prisma.$transaction(async (tx) => {
     if (input.deferido && input.impactoResultado) {
@@ -557,8 +651,32 @@ export async function decidirRecurso(
         case FaseRecurso.CLASSIFICACAO:
           break;
         case FaseRecurso.POLITICAS_AFIRMATIVAS:
-          if (recurso.participacaoEdital.inscricao?.etapaPoliticasAfirmativas) {
-            aplicarResultadoFinalPoliticas = true;
+          if (recurso.participacaoEdital.inscricao?.etapasPoliticasAfirmativas.length) {
+            for (const politicasUpdate of politicasUpdates) {
+              await tx.etapaPoliticasAfirmativas.update({
+                where: {
+                  inscricaoId_tipo: {
+                    inscricaoId: recurso.participacaoEdital.inscricao.id,
+                    tipo: politicasUpdate.tipo,
+                  },
+                },
+                data: {
+                  resultadoFinal: politicasUpdate.resultado,
+                  parecerFinal: politicasUpdate.parecer,
+                  resultadoFinalEm: new Date(),
+                  statusOperacao: "RESULTADO_FINAL_REGISTRADO",
+                },
+              });
+
+              await tx.inscricao.update({
+                where: { id: recurso.participacaoEdital.inscricao.id },
+                data: politicasUpdate.tipo === TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO
+                  ? { confirmacaoAcoesAfirmativas: resolveConfirmacaoReservaFromResultado(politicasUpdate.resultado) }
+                  : { confirmacaoPcd: resolveConfirmacaoReservaFromResultado(politicasUpdate.resultado) },
+              });
+            }
+
+            reprocessarClassificacaoDerivada = true;
           }
           break;
       }
@@ -578,15 +696,6 @@ export async function decidirRecurso(
   // Republicacoes e reprocessamento de classificacao rodam fora da transacao
   // porque envolvem geracao de PDFs e snapshots que nao devem bloquear o commit principal.
   if (input.deferido && input.impactoResultado) {
-    if (aplicarResultadoFinalPoliticas && recursoAtual.participacaoEdital.inscricao && input.novoResultadoFinalPoliticasAfirmativas && input.novoParecerFinalPoliticasAfirmativas) {
-      await registrarResultadoFinalPoliticasAfirmativas({
-        inscricaoId: recursoAtual.participacaoEdital.inscricao.id,
-        registradoPorId: input.decididoPorId,
-        resultado: input.novoResultadoFinalPoliticasAfirmativas,
-        parecer: input.novoParecerFinalPoliticasAfirmativas,
-      });
-    }
-
     if (republicarHomologacaoFase) {
       const tipoPublicacao = republicarHomologacaoFase === "FINAL" ? TipoPublicacaoOficial.HOMOLOGACAO_FINAL : TipoPublicacaoOficial.HOMOLOGACAO_PRELIMINAR;
       const publicacaoHomologacaoExistente = await prisma.publicacaoOficial.findFirst({
@@ -616,6 +725,7 @@ export async function decidirRecurso(
         editalId,
         criadoPorId: input.decididoPorId,
         descricao: "Republicacao administrativa apos deferimento de recurso com impacto em resultado.",
+        republicarPoliticasAfirmativasFinal: recursoAtual.fase === FaseRecurso.POLITICAS_AFIRMATIVAS,
       });
     }
   }

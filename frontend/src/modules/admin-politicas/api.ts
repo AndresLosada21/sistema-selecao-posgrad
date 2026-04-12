@@ -2,6 +2,7 @@ import { apiGet, apiPost, apiPut } from "@/lib/http/client";
 
 import type {
   EncaminhamentoPoliticasPayload,
+  PoliticasInscricaoDetail,
   PoliticasListResponse,
   PoliticasEtapaItem,
   PublicacaoPoliticasPayload,
@@ -17,7 +18,7 @@ export function listPoliticas(editalId: string, token: string, pagination?: { pa
 }
 
 export function getPoliticasByInscricao(inscricaoId: string, token: string) {
-  return apiGet<PoliticasEtapaItem>(`/v1/admin/inscricoes/${inscricaoId}/politicas-afirmativas`, token);
+  return apiGet<PoliticasInscricaoDetail>(`/v1/admin/inscricoes/${inscricaoId}/politicas-afirmativas`, token);
 }
 
 export function registrarEncaminhamentoPoliticas(inscricaoId: string, payload: EncaminhamentoPoliticasPayload, token: string) {

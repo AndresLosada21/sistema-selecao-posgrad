@@ -4,6 +4,7 @@ export type CandidateRecursoItem = {
   id: string;
   fase: string;
   faseHomologacaoReferencia?: "PRELIMINAR" | "FINAL" | null;
+  tipoPoliticasAfirmativasReferencia?: string | null;
   status: string;
   fundamentacao: string;
   anexoUrl: string | null;
@@ -27,6 +28,7 @@ export type CandidateRecursosResponse = {
 export type CreateCandidateRecursoPayload = {
   editalId: string;
   fase: FaseRecurso;
+  tipoPoliticasAfirmativasReferencia?: string;
   fundamentacao: string;
   anexoUrl?: string;
 };

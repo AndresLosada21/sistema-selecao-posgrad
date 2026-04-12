@@ -21,6 +21,10 @@ export type AdminInscricaoHomologacao = {
   status: string;
   statusPagamento: string;
   modalidadeConcorrencia: string;
+  reservasConcorrencia?: {
+    acoesAfirmativas: boolean;
+    pcd: boolean;
+  };
   confirmacaoAcoesAfirmativas: string;
   confirmacaoPcd: string;
   candidato: {

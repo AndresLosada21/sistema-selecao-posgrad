@@ -21,6 +21,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET ?? "change-me-in-real-environmen
 
 const { prisma } = await import("../../lib/prisma.js");
 const { app } = await import("../../app.js");
+const { deletePrivateUpload, parsePrivateUploadUrl } = await import("../upload/upload.service.js");
 
 type E2eContext = {
   adminId: string;
@@ -201,6 +202,84 @@ test("cria publicacao de classificacao e gera PDF oficial", async () => {
     assert.equal(pdfResponse.body.subarray(0, 4).toString(), "%PDF");
     assert.equal(pdfResponse.body.toString("latin1").includes(candidato.email), false);
   } finally {
+    await cleanupE2eContext(context);
+  }
+});
+
+test("cria publicacao generica com PDF manual enviado pelo admin", async () => {
+  const context = await createE2eContext();
+  let uploadedFileUrl: string | null = null;
+
+  try {
+    const admin = await prisma.usuario.findUniqueOrThrow({ where: { id: context.adminId } });
+    const adminToken = createToken(admin.id, admin.email);
+    const manualPdfBuffer = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<<>>\n%%EOF\n", "utf-8");
+
+    const uploadResponse = await request(app)
+      .post("/v1/uploads")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .attach("file", manualPdfBuffer, {
+        filename: "comunicado-manual.pdf",
+        contentType: "application/pdf",
+      });
+
+    assert.equal(uploadResponse.status, 201);
+    uploadedFileUrl = uploadResponse.body.urlArquivo;
+
+    const createResponse = await request(app)
+      .post(`/v1/admin/editais/${context.editalId}/publicacoes`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: "COMUNICADO",
+        titulo: "Comunicado com PDF manual",
+        arquivoUrl: uploadedFileUrl,
+        arquivoMetadados: {
+          nomeOriginal: uploadResponse.body.nomeArquivo,
+          mimeType: uploadResponse.body.mimeType,
+          tamanhoBytes: uploadResponse.body.tamanhoBytes,
+        },
+      });
+
+    assert.equal(createResponse.status, 201);
+    assert.equal(createResponse.body.arquivoUrl, uploadedFileUrl);
+
+    const listResponse = await request(app).get(`/v1/editais/${context.editalId}/publicacoes`);
+
+    assert.equal(listResponse.status, 200);
+    assert.equal(listResponse.body.items[0].arquivoUrl, `/v1/publicacoes/${createResponse.body.id}/arquivo.pdf`);
+    assert.equal(listResponse.body.items[0].origemArquivo, "MANUAL");
+    assert.equal(listResponse.body.items[0].arquivoNomeOriginal, "comunicado-manual.pdf");
+    assert.equal(listResponse.body.items[0].arquivoMimeType, "application/pdf");
+    assert.equal(listResponse.body.items[0].arquivoTamanhoBytes, manualPdfBuffer.length);
+
+    const adminListResponse = await request(app)
+      .get(`/v1/admin/editais/${context.editalId}/publicacoes?page=1&pageSize=1&tipo=COMUNICADO&somenteVigentes=true`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    assert.equal(adminListResponse.status, 200);
+    assert.equal(adminListResponse.body.total, 1);
+    assert.equal(adminListResponse.body.items[0].arquivoNomeOriginal, "comunicado-manual.pdf");
+    assert.equal(adminListResponse.body.items[0].arquivoTamanhoBytes, manualPdfBuffer.length);
+    assert.equal(adminListResponse.body.overview.totalManuais, 1);
+    assert.equal(adminListResponse.body.vigentesPorTipo.length, 1);
+
+    const pdfResponse = await request(app)
+      .get(`/v1/publicacoes/${createResponse.body.id}/arquivo.pdf`)
+      .buffer(true)
+      .parse(parseBinaryResponse);
+
+    assert.equal(pdfResponse.status, 200);
+    assert.equal(pdfResponse.headers["content-type"], "application/pdf");
+    assert.deepEqual(pdfResponse.body, manualPdfBuffer);
+  } finally {
+    if (uploadedFileUrl) {
+      const parsedUpload = parsePrivateUploadUrl(uploadedFileUrl);
+
+      if (parsedUpload) {
+        await deletePrivateUpload(parsedUpload.ownerId, parsedUpload.filename);
+      }
+    }
+
     await cleanupE2eContext(context);
   }
 });

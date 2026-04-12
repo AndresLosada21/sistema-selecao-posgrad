@@ -44,7 +44,7 @@ export type FichaInscricaoPayload = {
 
 export type SaveInscricaoDraftPayload = {
   linhaPesquisaId: string;
-  modalidadeConcorrencia: ModalidadeConcorrencia;
+  modalidadeConcorrencia?: ModalidadeConcorrencia;
   temaRedacaoEditalId?: string;
   temaRedacao?: string;
   resumoCurriculo?: string;

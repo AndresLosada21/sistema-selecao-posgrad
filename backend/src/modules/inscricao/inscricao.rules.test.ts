@@ -175,3 +175,34 @@ test("rejeita redacao fora do intervalo previsto", () => {
     new RegExp(`redacao com tamanho entre ${REDACAO_LIMITS.min} e ${REDACAO_LIMITS.max} caracteres`),
   );
 });
+
+test("aceita simultaneamente documentos de acoes afirmativas e PCD quando ambos os campos estao marcados", () => {
+  const result = validateInscricaoForSubmission({
+    modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+    fichaInscricao: {
+      ...fichaBase,
+      pessoaComDeficiencia: true,
+      concorreAcoesAfirmativas: true,
+    },
+    temaRedacao: "Controle robusto",
+    redacaoTexto: "C".repeat(REDACAO_LIMITS.min),
+    documentos: [
+      ...documentosBase,
+      {
+        tipo: TipoDocumentoInscricao.LAUDO_PCD,
+        nome: "Laudo",
+        nomeArquivo: "laudo-pcd.pdf",
+        urlArquivo: "https://arquivos.test/laudo-pcd.pdf",
+        mimeType: "application/pdf",
+        tamanhoBytes: 100,
+        statusValidacao: StatusDocumentoInscricao.ENVIADO,
+      },
+    ],
+    pagamentoDispensado: true,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.checklist.some((item) => item.tipo === TipoDocumentoInscricao.ANEXO_VIII_AUTODECLARACAO), true);
+  assert.equal(result.checklist.some((item) => item.tipo === TipoDocumentoInscricao.LAUDO_PCD), true);
+});

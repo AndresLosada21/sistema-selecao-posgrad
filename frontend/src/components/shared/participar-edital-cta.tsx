@@ -18,7 +18,7 @@ export function ParticiparEditalCta({ editalId }: ParticiparEditalCtaProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!session.isAuthenticated || session.hasRole("ADMIN")) {
+  if (!session.isAuthenticated) {
     return null;
   }
 
@@ -45,6 +45,7 @@ export function ParticiparEditalCta({ editalId }: ParticiparEditalCtaProps) {
       <ActionButton disabled={busy} loading={busy} onClick={handleClick} type="button">
         Entrar neste edital
       </ActionButton>
+      {!error ? <small>Libera inscricao, isencao e acompanhamento neste edital.</small> : null}
       {error ? <small>{error}</small> : null}
     </div>
   );

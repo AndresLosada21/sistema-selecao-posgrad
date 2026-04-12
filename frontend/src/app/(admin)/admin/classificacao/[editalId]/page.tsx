@@ -19,6 +19,26 @@ type Props = { params: Promise<{ editalId: string }> };
 
 const PAGE_SIZE = 20;
 
+function getReservasConcorrenciaLabel(input: { acoesAfirmativas?: boolean; pcd?: boolean } | undefined, fallback: string) {
+  if (!input) {
+    return getStatusLabel(fallback);
+  }
+
+  if (input.acoesAfirmativas && input.pcd) {
+    return "Acoes afirmativas + PCD";
+  }
+
+  if (input.acoesAfirmativas) {
+    return "Acoes afirmativas";
+  }
+
+  if (input.pcd) {
+    return "PCD";
+  }
+
+  return "Ampla concorrencia";
+}
+
 async function loadAllClassificacaoPages(editalId: string, token: string) {
   const firstPage = await listClassificacaoAdmin(editalId, token, { page: 1, pageSize: 100 });
   const totalPages = Math.max(1, Math.ceil(firstPage.total / firstPage.pageSize));
@@ -288,7 +308,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
                   <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>{item.notaEtapa1 !== null ? item.notaEtapa1.toFixed(1) : "—"}</td>
                   <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>{item.notaEtapa2 !== null ? item.notaEtapa2.toFixed(1) : "—"}</td>
                   <td className="admin-nf-cell" style={{ textAlign: "center" }}>{formatNF(item.notaFinal)}</td>
-                  <td className="admin-homologacao-table-muted">{getStatusLabel(item.modalidadeConcorrencia)}</td>
+                  <td className="admin-homologacao-table-muted">{getReservasConcorrenciaLabel(item.reservasConcorrencia, item.modalidadeConcorrencia)}</td>
                   <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>{item.posicaoLinha ?? "—"}</td>
                   <td style={{ textAlign: "center" }}>
                     <ConfBadge value={item.confirmacaoAcoesAfirmativas} />

@@ -68,10 +68,16 @@ export default function CandidateParticipacoesPage() {
   }
 
   if (!data?.items.length) {
+    const contaAdministrativaSemPerfilCandidato = session.hasRole("ADMIN") && !session.hasRole("CANDIDATO");
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <EmptyState title="Sem participacoes" description="Nenhum edital esta vinculado a esta conta no momento." />
-        <Link href="/editais" style={{ fontSize: 13, fontWeight: 500, color: "#2563EB" }}>Ver editais publicados</Link>
+        <EmptyState title="Sem participacoes" description="Nenhum edital esta vinculado a esta conta no momento. Para liberar inscricao ou isencao, primeiro entre em um edital publicado." />
+        {contaAdministrativaSemPerfilCandidato ? <span style={{ fontSize: 13, color: "#1E40AF" }}>Sua conta tambem possui perfil administrativo. Ainda assim, a adesao ao edital e feita pela area publica.</span> : null}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Escolher edital e entrar</Link>
+          <Link href="/candidato" style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>Voltar ao painel</Link>
+        </div>
       </div>
     );
   }

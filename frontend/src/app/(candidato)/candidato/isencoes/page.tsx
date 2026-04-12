@@ -53,8 +53,11 @@ export default function CandidateIsencoesPage() {
   );
   if (!data?.items.length) return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <EmptyState title="Sem pedidos de isencao" description="Nenhum pedido de isencao foi registrado por esta conta." />
-      <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#2563EB" }}>Ver participacoes e iniciar fluxo</Link>
+      <EmptyState title="Sem pedidos de isencao" description="Nenhum pedido de isencao foi registrado por esta conta. Primeiro entre em um edital publicado; depois o CTA de solicitar isencao aparecera no acompanhamento do edital." />
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Escolher edital para solicitar isencao</Link>
+        <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>Ver participacoes</Link>
+      </div>
     </div>
   );
 

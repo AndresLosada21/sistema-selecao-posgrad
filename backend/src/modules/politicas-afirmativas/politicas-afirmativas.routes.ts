@@ -37,6 +37,12 @@ function getPoliticasMessage(errorCode: string) {
       return "Nao foi possivel atualizar o resultado porque a classificacao derivada do edital esta em estado misto entre preliminar e final.";
     case "EDITAL_NAO_ENCONTRADO":
       return "Edital nao encontrado para o fluxo de publicacao de politicas afirmativas.";
+    case "ARQUIVO_PUBLICACAO_INVALIDO":
+      return "O arquivo informado para a publicacao deve ser um PDF valido do proprio sistema ou uma URL HTTPS terminada em .pdf.";
+    case "ARQUIVO_PUBLICACAO_SEM_PERMISSAO":
+      return "O PDF informado para a publicacao precisa ter sido enviado pelo mesmo usuario administrador autenticado.";
+    case "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO":
+      return "O PDF informado para a publicacao nao foi encontrado no storage configurado.";
     default:
       return errorCode;
   }
@@ -133,6 +139,7 @@ politicasAfirmativasRouter.put(
 
     const result = await registrarResultadoPreliminarPoliticasAfirmativas({
       inscricaoId: parsedParams.data.inscricaoId,
+      tipo: parsedBody.data.tipo,
       registradoPorId: request.auth!.userId,
       resultado: parsedBody.data.resultado,
       parecer: parsedBody.data.parecer as string,
@@ -165,6 +172,7 @@ politicasAfirmativasRouter.put(
 
     const result = await registrarResultadoFinalPoliticasAfirmativas({
       inscricaoId: parsedParams.data.inscricaoId,
+      tipo: parsedBody.data.tipo,
       registradoPorId: request.auth!.userId,
       resultado: parsedBody.data.resultado,
       parecer: parsedBody.data.parecer as string,
@@ -199,13 +207,17 @@ politicasAfirmativasRouter.get(
 
     if ("error" in result) {
       const errorCode = result.error as string;
-      const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
       const message = getPoliticasMessage(errorCode);
-      return response.status(status).json(
-        status === 404
-          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
-      );
+
+      if (errorCode === "EDITAL_NAO_ENCONTRADO" || errorCode === "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO") {
+        return response.status(404).json(notFound(message, errorCode, { details: "details" in result ? result.details : undefined }));
+      }
+
+      if (errorCode === "ARQUIVO_PUBLICACAO_INVALIDO" || errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") {
+        return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+      }
+
+      return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
     }
 
     return response.status(200).json(result.preview);
@@ -235,13 +247,17 @@ politicasAfirmativasRouter.post(
 
     if ("error" in result) {
       const errorCode = result.error as string;
-      const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
       const message = getPoliticasMessage(errorCode);
-      return response.status(status).json(
-        status === 404
-          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
-      );
+
+      if (errorCode === "EDITAL_NAO_ENCONTRADO" || errorCode === "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO") {
+        return response.status(404).json(notFound(message, errorCode, { details: "details" in result ? result.details : undefined }));
+      }
+
+      if (errorCode === "ARQUIVO_PUBLICACAO_INVALIDO" || errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") {
+        return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+      }
+
+      return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
     }
 
     return response.status(201).json(result);

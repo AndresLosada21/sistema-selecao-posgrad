@@ -414,7 +414,7 @@ model Inscricao {
   homologacao                 HomologacaoInscricao?
   avaliacaoEtapa1             AvaliacaoEtapa1?
   avaliacaoEtapa2             AvaliacaoEtapa2?
-  etapaPoliticasAfirmativas   EtapaPoliticasAfirmativas?
+  etapasPoliticasAfirmativas  EtapaPoliticasAfirmativas[]
 }
 
 model DocumentoInscricao {
@@ -501,6 +501,7 @@ model Recurso {
   criadoPorId            String
   fase                   FaseRecurso
   faseHomologacaoReferencia FaseHomologacaoRecurso?
+  tipoPoliticasAfirmativasReferencia TipoEtapaPoliticasAfirmativas?
   status                 StatusRecurso  @default(ABERTO)
   fundamentacao          String
   anexoUrl               String?
@@ -512,7 +513,7 @@ model Recurso {
   participacaoEdital     ParticipacaoEdital @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
   criadoPor              Usuario        @relation("RecursoCriadoPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
 
-  @@index([participacaoEditalId, fase, status])
+  @@index([participacaoEditalId, fase, tipoPoliticasAfirmativasReferencia, status])
 }
 
 model ClassificacaoFinal {
@@ -560,7 +561,7 @@ model PublicacaoOficial {
 
 model EtapaPoliticasAfirmativas {
   id                             String                            @id @default(cuid())
-  inscricaoId                     String                            @unique
+  inscricaoId                    String
   tipo                           TipoEtapaPoliticasAfirmativas
   statusOperacao                 StatusOperacaoPoliticasAfirmativas @default(PENDENTE)
   convocadoEm                    DateTime?
@@ -582,5 +583,7 @@ model EtapaPoliticasAfirmativas {
   atualizadoEm                   DateTime                          @updatedAt
   inscricao                      Inscricao                         @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
 
+  @@unique([inscricaoId, tipo])
+  @@index([inscricaoId])
   @@index([tipo, statusOperacao])
 }
