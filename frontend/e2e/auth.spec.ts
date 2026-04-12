@@ -19,8 +19,8 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
     return page.url();
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
-  await expect(page.getByText("Nenhuma participacao encontrada")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Escolher edital e entrar" })).toBeVisible();
+  await expect(page.getByText("Voce ainda nao entrou em nenhum edital")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Ver editais" })).toBeVisible();
   await page.evaluate(() => window.localStorage.removeItem("selecao-posgrad-token"));
 
   await page.goto("/entrar");
@@ -34,8 +34,8 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
     return page.url();
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
-  await expect(page.getByText("Nenhuma participacao encontrada")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Escolher edital e entrar" })).toBeVisible();
+  await expect(page.getByText("Voce ainda nao entrou em nenhum edital")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Ver editais" })).toBeVisible();
 });
 
 test("candidato autenticado consegue aderir a um edital pela UI publica", async ({ page }) => {
@@ -68,7 +68,7 @@ test("conta administrativa autenticada tambem consegue aderir a um edital pela U
   await page.goto("/editais");
   const entrarButton = page.getByRole("button", { name: "Entrar neste edital" }).first();
   await expect(entrarButton).toBeVisible();
-  await expect(page.getByText("Libera inscricao, isencao e acompanhamento neste edital.").first()).toBeVisible();
+  await expect(page.getByText("Entre neste edital para ver os proximos passos disponiveis.").first()).toBeVisible();
   await entrarButton.click();
 
   await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });

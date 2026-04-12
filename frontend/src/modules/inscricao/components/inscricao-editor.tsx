@@ -841,7 +841,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       const documento = await addDocumento(inscricaoId, { tipo: docFormTipo as TipoDocumentoInscricao, nome: docFormNome, urlArquivo: docFormUrl, nomeArquivo: docFormFilename, mimeType: docFormMime || undefined }, session.token);
       setDocumentos((c) => [...c.filter((d) => d.tipo !== documento.tipo), documento]);
       setDocFormTipo(documentoTipoOptionsSemAnexoIv[0]); setDocFormNome(""); setDocFormUrl(""); setDocFormFilename("");
-      setMessage({ title: "Documento registrado", description: `${getStatusLabel(documento.tipo)} sincronizado.` });
+      setMessage({ title: "Documento enviado", description: `${getStatusLabel(documento.tipo)} registrado com sucesso.` });
     } catch (error) {
       if (handleUnauthorized(error)) return;
       setMessage({ title: "Falha ao registrar documento", description: getErrorMessage(error), type: "error" });
@@ -863,7 +863,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       setMessage({ title: "Anexo IV assinado reenviado", description: "O PDF assinado foi registrado." });
     } catch (error) {
       if (handleUnauthorized(error)) return;
-      setMessage({ title: "Falha no reenvio", description: getErrorMessage(error), type: "error" });
+      setMessage({ title: "Nao foi possivel reenviar o Anexo IV", description: getErrorMessage(error), type: "error" });
     } finally { setUploadingAnexoIv(false); }
   }
 
@@ -886,7 +886,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       const response = await submitInscricao(inscricaoId, session.token);
       const r = response as Record<string, unknown>;
       setInscricaoStatus(typeof r.status === "string" ? r.status : "SUBMETIDA");
-      setMessage({ title: "Inscricao submetida", description: "A inscricao foi aceita pelo sistema." });
+      setMessage({ title: "Inscricao enviada", description: "Sua inscricao foi enviada com sucesso." });
     } catch (error) {
       if (handleUnauthorized(error)) return;
        if (error instanceof ApiError) {
@@ -981,11 +981,11 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           <>
             {podeCancelarParaEditar ? (
               <button type="button" className="wiz-btn-cancel-link" disabled={submitting} onClick={handleCancelSubmission}>
-                Cancelar Inscricao
+                Cancelar envio para editar
               </button>
             ) : null}
             <button type="button" className="wiz-btn-submit" disabled={submitting || !allConfirmed || !inscricaoId || !inscricaoEmRascunho} onClick={handleSubmit}>
-              {svgSend} {submitting ? "Processando..." : "Submeter Inscricao"}
+              {svgSend} {submitting ? "Processando..." : "Enviar inscricao"}
             </button>
           </>
         )}

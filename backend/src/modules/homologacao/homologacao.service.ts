@@ -650,7 +650,7 @@ export async function registrarHomologacaoFinal(
     submetidaEm: inscricao.submetidaEm,
     status: inscricao.status,
     statusPreliminar: inscricao.homologacao?.statusPreliminar,
-    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapasPoliticasAfirmativas.length > 0),
+    hasEtapaPosterior: Boolean(inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || hasPoliticasProcessamentoPosterior(inscricao.etapasPoliticasAfirmativas)),
   });
 
   if (bloqueioFinal) {

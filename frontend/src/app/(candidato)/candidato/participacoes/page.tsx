@@ -56,7 +56,7 @@ export default function CandidateParticipacoesPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, fetchKey]);
 
-  if (status === "loading") return <LoadingState title="Carregando participacoes" description="Consultando os vinculos do candidato com editais." />;
+  if (status === "loading") return <LoadingState title="Carregando editais" description="Consultando os editais da sua conta." />;
 
   if (status === "error") {
     return (
@@ -72,10 +72,10 @@ export default function CandidateParticipacoesPage() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <EmptyState title="Sem participacoes" description="Nenhum edital esta vinculado a esta conta no momento. Para liberar inscricao ou isencao, primeiro entre em um edital publicado." />
-        {contaAdministrativaSemPerfilCandidato ? <span style={{ fontSize: 13, color: "#1E40AF" }}>Sua conta tambem possui perfil administrativo. Ainda assim, a adesao ao edital e feita pela area publica.</span> : null}
+        <EmptyState title="Voce ainda nao entrou em nenhum edital" description="Abra um edital publicado e clique em 'Entrar neste edital'. Depois disso, voce podera acompanhar sua participacao aqui." />
+        {contaAdministrativaSemPerfilCandidato ? <span style={{ fontSize: 13, color: "#1E40AF" }}>Sua conta tambem possui perfil administrativo. Mesmo assim, a entrada no edital continua sendo feita pela area publica.</span> : null}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Escolher edital e entrar</Link>
+          <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Ver editais</Link>
           <Link href="/candidato" style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>Voltar ao painel</Link>
         </div>
       </div>
@@ -88,7 +88,7 @@ export default function CandidateParticipacoesPage() {
       {/* Page header */}
       <div className="part-header">
         <h1>Minhas participacoes</h1>
-        <p>Editais vinculados a sua conta no PPGEE/UFAM.</p>
+        <p>Editais em que voce ja entrou para acompanhar o processo.</p>
       </div>
 
       {/* Cards */}

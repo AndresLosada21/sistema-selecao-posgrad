@@ -10,7 +10,7 @@ import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/enums";
-import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getAdminEditalById } from "@/modules/admin-edital/api";
@@ -113,6 +113,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [historyOnlyCurrent, setHistoryOnlyCurrent] = useState(false);
   const [page, setPage] = useState(1);
   const [editalLabel, setEditalLabel] = useState<string>("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     if (!arquivoGenerico) {
@@ -229,12 +230,13 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     event.preventDefault();
     if (!token || !editalId) return;
     if (!arquivoGenerico) {
+      setFieldErrors((current) => ({ ...current, arquivoUrl: "Selecione o PDF da publicacao." }));
       setFeedback({ type: "error", text: "Selecione o PDF que sera publicado para continuar." });
       return;
     }
 
     setBusy(true);
-    setFeedback(null);
+    setFeedback(null); setFieldErrors({});
     try {
       const dados: Record<string, unknown> = {};
       if (resumoGenerico) dados.resumoPublico = resumoGenerico;
@@ -267,6 +269,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       await reload();
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
+      setFieldErrors(pickFirstFieldErrors(error, ["tipo", "titulo", "descricao", "arquivoUrl"] as const));
       setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
@@ -299,7 +302,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="admin-page-header-left" style={{ flex: 1 }}>
           <h1>Publicacoes — Edital {editalLabel || (editalId ?? "")}</h1>
-          <p>Publique resultados oficiais gerados pelo sistema ou envie um PDF manual com versionamento auditavel.</p>
+          <p>Publique resultados oficiais do sistema ou envie um PDF pronto com historico versionado.</p>
         </div>
         {editalId ? (
           <Link href={`/editais/${editalId}/publicacoes`} rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }} target="_blank">
@@ -640,25 +643,29 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Tipo *</label>
-            <select className="select-field" onChange={(e) => setTipoGenerico(e.target.value as TipoPublicacaoOficial)} value={tipoGenerico}>
+            <select aria-invalid={!!fieldErrors.tipo} className="select-field" onChange={(e) => { setTipoGenerico(e.target.value as TipoPublicacaoOficial); setFieldErrors((current) => ({ ...current, tipo: null })); }} value={tipoGenerico}>
               {genericPublicacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
             </select>
+            {fieldErrors.tipo ? <span className="field-error-text">{fieldErrors.tipo}</span> : null}
           </div>
           <div className="admin-eval-field">
             <label>Titulo *</label>
-            <input onChange={(e) => setTituloGenerico(e.target.value)} placeholder="Titulo da publicacao..." required value={tituloGenerico} />
+            <input aria-invalid={!!fieldErrors.titulo} onChange={(e) => { setTituloGenerico(e.target.value); setFieldErrors((current) => ({ ...current, titulo: null })); }} placeholder="Titulo da publicacao..." required value={tituloGenerico} />
+            {fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}
           </div>
         </div>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Descricao (opcional)</label>
-            <textarea className="text-area" onChange={(e) => setDescricaoGenerica(e.target.value)} value={descricaoGenerica} />
+            <textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setDescricaoGenerica(e.target.value); setFieldErrors((current) => ({ ...current, descricao: null })); }} value={descricaoGenerica} />
+            {fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}
           </div>
           <div className="admin-eval-field">
             <label>Arquivo PDF *</label>
             <input accept="application/pdf,.pdf" key={arquivoGenericoKey} onChange={(event) => setArquivoGenerico(event.target.files?.[0] ?? null)} required={!arquivoGenerico} type="file" />
             <span style={{ fontSize: 12, color: "#64748B" }}>Maximo de 10 MB. O PDF publicado sera o mesmo arquivo enviado pela administracao.</span>
+            {fieldErrors.arquivoUrl ? <span className="field-error-text">{fieldErrors.arquivoUrl}</span> : null}
             {arquivoGenerico ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, padding: 12, border: "1px solid #E2E8F0", borderRadius: 8, background: "#F8FAFC" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>

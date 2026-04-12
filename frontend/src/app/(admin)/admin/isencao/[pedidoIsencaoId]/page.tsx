@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { decidirIsencaoFinalAdmin, decidirIsencaoPreliminarAdmin, getAdminIsencaoById } from "@/modules/admin-isencao/api";
 import type { AdminIsencaoItem } from "@/modules/admin-isencao/types";
@@ -29,6 +29,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
   const [downloadingComprovante, setDownloadingComprovante] = useState(false);
   const [preliminar, setPreliminar] = useState({ deferida: true, parecer: "" });
   const [finalDecision, setFinalDecision] = useState({ deferida: true, parecer: "" });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => { let c = false; params.then((r) => { if (!c) setPedidoId(r.pedidoIsencaoId); }); return () => { c = true; }; }, [params]);
 
@@ -49,18 +50,18 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
   async function handlePreliminar(e: FormEvent) {
     e.preventDefault();
     if (!session.token || !pedidoId) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setFieldErrors({});
     try { await decidirIsencaoPreliminarAdmin(pedidoId, preliminar, session.token); await load(); setMessage({ type: "success", text: "Decisao preliminar registrada." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickFirstFieldErrors(error, ["deferida", "parecer"] as const)); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function handleFinal(e: FormEvent) {
     e.preventDefault();
     if (!session.token || !pedidoId) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setFieldErrors({});
     try { await decidirIsencaoFinalAdmin(pedidoId, finalDecision, session.token); await load(); setMessage({ type: "success", text: "Decisao final registrada." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickFirstFieldErrors(error, ["deferida", "parecer"] as const)); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -84,7 +85,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Isencao — {item.candidato.nomeCompleto}</h1>
-          <p>Edital {item.edital.numero} · Decisao preliminar e final</p>
+          <p>Edital {item.edital.numero} · Analise administrativa do pedido</p>
         </div>
       </div>
 
@@ -141,15 +142,17 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
             <div className="wiz-field">
               <label className="wiz-field-label">Resultado *</label>
               <select value={preliminar.deferida ? "DEFERIDA_PRELIMINAR" : "INDEFERIDA_PRELIMINAR"} onChange={(e) => setPreliminar((c) => ({ ...c, deferida: e.target.value === "DEFERIDA_PRELIMINAR" }))}
-                style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                aria-invalid={!!fieldErrors.deferida} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                 <option value="DEFERIDA_PRELIMINAR">Deferida</option>
                 <option value="INDEFERIDA_PRELIMINAR">Indeferida</option>
               </select>
+              {fieldErrors.deferida ? <span className="field-error-text">{fieldErrors.deferida}</span> : null}
             </div>
             <div className="wiz-field">
               <label className="wiz-field-label">Parecer *</label>
-              <textarea placeholder="Documentacao valida conforme NIS..." value={preliminar.parecer} onChange={(e) => setPreliminar((c) => ({ ...c, parecer: e.target.value }))}
+              <textarea aria-invalid={!!fieldErrors.parecer} placeholder="Explique de forma objetiva a decisao preliminar." value={preliminar.parecer} onChange={(e) => { setPreliminar((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
                 style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>
           <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 200 }}>
@@ -166,16 +169,18 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
             <div className="wiz-field">
               <label className="wiz-field-label">Resultado *</label>
               <select value={finalDecision.deferida ? "DEFERIDA_FINAL" : "INDEFERIDA_FINAL"} onChange={(e) => setFinalDecision((c) => ({ ...c, deferida: e.target.value === "DEFERIDA_FINAL" }))}
-                style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                aria-invalid={!!fieldErrors.deferida} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                 <option value="">Selecione o resultado final</option>
                 <option value="DEFERIDA_FINAL">Deferida final</option>
                 <option value="INDEFERIDA_FINAL">Indeferida final</option>
               </select>
+              {fieldErrors.deferida ? <span className="field-error-text">{fieldErrors.deferida}</span> : null}
             </div>
             <div className="wiz-field">
               <label className="wiz-field-label">Parecer *</label>
-              <textarea placeholder="Parecer da decisao final..." value={finalDecision.parecer} onChange={(e) => setFinalDecision((c) => ({ ...c, parecer: e.target.value }))}
+              <textarea aria-invalid={!!fieldErrors.parecer} placeholder="Explique de forma objetiva a decisao final." value={finalDecision.parecer} onChange={(e) => { setFinalDecision((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
                 style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>
           <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 200 }}>

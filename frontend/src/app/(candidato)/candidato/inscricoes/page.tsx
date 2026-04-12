@@ -51,13 +51,13 @@ export default function CandidateInscricoesPage() {
     }
   }, [session.signOut, session.token]);
 
-  if (status === "loading") return <LoadingState title="Carregando inscricoes" description="Consultando o historico de inscricoes do candidato." />;
+  if (status === "loading") return <LoadingState title="Carregando inscricoes" description="Consultando suas inscricoes..." />;
   if (status === "error") return <ErrorState title="Falha ao carregar inscricoes" description={message ?? undefined} />;
   if (!data?.items.length) return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <EmptyState title="Sem inscricoes" description="Nenhuma inscricao foi registrada por esta conta. Primeiro entre em um edital publicado; depois o CTA de nova inscricao aparecera no acompanhamento do edital." />
+      <EmptyState title="Voce ainda nao iniciou nenhuma inscricao" description="Entre em um edital publicado para liberar o envio da sua inscricao." />
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Escolher edital para iniciar inscricao</Link>
+        <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Ver editais</Link>
         <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>Ver participacoes</Link>
       </div>
     </div>
@@ -65,7 +65,7 @@ export default function CandidateInscricoesPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div className="part-header"><h1>Minhas inscricoes</h1><p>Historico de inscricoes vinculadas a sua conta.</p></div>
+      <div className="part-header"><h1>Minhas inscricoes</h1><p>Veja o que ja foi iniciado ou enviado nos editais em que voce participa.</p></div>
       {data.items.map((insc, i) => {
         const curso = insc.edital.cursoNivel === "MESTRADO" ? "Mestrado em Eng. Eletrica" : "Doutorado em Eng. Eletrica";
         return (

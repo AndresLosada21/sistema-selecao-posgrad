@@ -62,7 +62,7 @@ export function FileField({
       <span className="form-field-label">{label}</span>
       <button
         type="button"
-        className={`file-field-dropzone ${dragOver ? "file-field-dropzone--active" : ""} ${disabled ? "file-field-dropzone--disabled" : ""}`}
+        className={`file-field-dropzone ${dragOver ? "file-field-dropzone--active" : ""} ${disabled ? "file-field-dropzone--disabled" : ""} ${error ? "file-field-dropzone--error" : ""}`}
         onClick={handleClick}
         onDrop={handleDrop}
         onDragOver={handleDragOver}

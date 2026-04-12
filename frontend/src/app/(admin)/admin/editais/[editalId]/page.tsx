@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { isoToDatetimeLocalInput } from "@/lib/datetime-local";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { cursoNivelOptions, statusEditalOptions, tipoCronogramaEditalOptions, type CursoNivel, type StatusEdital, type TipoCronogramaEdital } from "@/lib/enums";
@@ -33,6 +33,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   const [editalForm, setEditalForm] = useState<{
     numero: string; titulo: string; descricao: string; ano: string; semestre: string;
@@ -73,11 +74,16 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true); setFeedback(null);
-    try { await fn(); await load(); } catch (e) { if (isUnauthorizedError(e)) { signOut(); return; } setFeedback({ type: "error", text: getErrorMessage(e) }); } finally { setBusy(false); }
+    try { await fn(); await load(); } catch (e) { if (isUnauthorizedError(e)) { signOut(); return; } applyEditalErrors(e); setFeedback({ type: "error", text: getFirstFormError(e) ?? getErrorMessage(e) }); } finally { setBusy(false); }
+  }
+
+  function applyEditalErrors(error: unknown) {
+    setFieldErrors(pickFirstFieldErrors(error, ["numero", "titulo", "descricao", "ano", "semestre", "cursoNivel", "status", "publicadoEm", "nome", "vagasAmplaConcorrencia", "vagasAcoesAfirmativas", "vagasPcd", "tipo", "inicioEm", "fimEm", "ordem", "ativo"] as const));
   }
 
   async function submitEdital(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
+    setFieldErrors({});
     await wrap(async () => {
       await updateAdminEdital(editalId, {
         numero: editalForm.numero, titulo: editalForm.titulo, descricao: editalForm.descricao || undefined,
@@ -91,6 +97,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function submitLinha(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
+    setFieldErrors({});
     await wrap(async () => {
       const p = { nome: linhaForm.nome, descricao: linhaForm.descricao || undefined, vagasAmplaConcorrencia: Number(linhaForm.vagasAmplaConcorrencia), vagasAcoesAfirmativas: Number(linhaForm.vagasAcoesAfirmativas), vagasPcd: Number(linhaForm.vagasPcd) };
       if (editingLinhaId) await updateLinhaPesquisaAdmin(editingLinhaId, p, token);
@@ -102,6 +109,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function submitCronograma(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
+    setFieldErrors({});
     await wrap(async () => {
       const inicioDate = new Date(cronogramaForm.inicioEm); const fimDate = new Date(cronogramaForm.fimEm);
       const p = { tipo: cronogramaForm.tipo, titulo: cronogramaForm.titulo, descricao: cronogramaForm.descricao || undefined, inicioEm: inicioDate.toISOString(), fimEm: fimDate.toISOString() };
@@ -114,6 +122,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function submitTema(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
+    setFieldErrors({});
     await wrap(async () => {
       const p = { titulo: temaForm.titulo, descricao: temaForm.descricao || undefined, ordem: Number(temaForm.ordem || 0), ativo: temaForm.ativo };
       if (editingTemaId) await updateTemaRedacaoAdmin(editingTemaId, p, token);
@@ -169,7 +178,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="admin-page-header-left" style={{ flex: 1 }}>
           <h1>Edital {data.numero}</h1>
-          <p>{cursoLabel} &middot; Manutencao completa</p>
+          <p>{cursoLabel} &middot; Edite os dados principais, o cronograma e as regras do edital.</p>
         </div>
         <button className="admin-page-cta" disabled={busy} form="edital-form" type="submit">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -182,17 +191,17 @@ export default function AdminEditalDetailPage({ params }: Props) {
         <h2 className="admin-form-card-title">Metadados</h2>
         <form id="edital-form" onSubmit={submitEdital} style={{ display: "contents" }}>
           <div className="admin-form-row">
-            <div className="admin-eval-field"><label>Numero</label><input onChange={(e) => setEditalForm((c) => ({ ...c, numero: e.target.value }))} required value={editalForm.numero} /></div>
-            <div className="admin-eval-field"><label>Titulo</label><input onChange={(e) => setEditalForm((c) => ({ ...c, titulo: e.target.value }))} required value={editalForm.titulo} /></div>
+            <div className="admin-eval-field"><label>Numero</label><input aria-invalid={!!fieldErrors.numero} onChange={(e) => { setEditalForm((c) => ({ ...c, numero: e.target.value })); setFieldErrors((current) => ({ ...current, numero: null })); }} required value={editalForm.numero} />{fieldErrors.numero ? <span className="field-error-text">{fieldErrors.numero}</span> : null}</div>
+            <div className="admin-eval-field"><label>Titulo</label><input aria-invalid={!!fieldErrors.titulo} onChange={(e) => { setEditalForm((c) => ({ ...c, titulo: e.target.value })); setFieldErrors((current) => ({ ...current, titulo: null })); }} required value={editalForm.titulo} />{fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}</div>
           </div>
           <div className="admin-form-row">
-            <div className="admin-eval-field"><label>Ano</label><input min={2024} onChange={(e) => setEditalForm((c) => ({ ...c, ano: e.target.value }))} type="number" value={editalForm.ano} /></div>
-            <div className="admin-eval-field"><label>Semestre</label><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, semestre: e.target.value }))} value={editalForm.semestre}><option value="1">1</option><option value="2">2</option></select></div>
-            <div className="admin-eval-field"><label>Curso</label><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))} value={editalForm.cursoNivel}>{cursoNivelOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
+            <div className="admin-eval-field"><label>Ano</label><input aria-invalid={!!fieldErrors.ano} min={2024} onChange={(e) => { setEditalForm((c) => ({ ...c, ano: e.target.value })); setFieldErrors((current) => ({ ...current, ano: null })); }} type="number" value={editalForm.ano} />{fieldErrors.ano ? <span className="field-error-text">{fieldErrors.ano}</span> : null}</div>
+            <div className="admin-eval-field"><label>Semestre</label><select aria-invalid={!!fieldErrors.semestre} className="select-field" onChange={(e) => { setEditalForm((c) => ({ ...c, semestre: e.target.value })); setFieldErrors((current) => ({ ...current, semestre: null })); }} value={editalForm.semestre}><option value="1">1</option><option value="2">2</option></select>{fieldErrors.semestre ? <span className="field-error-text">{fieldErrors.semestre}</span> : null}</div>
+            <div className="admin-eval-field"><label>Curso</label><select aria-invalid={!!fieldErrors.cursoNivel} className="select-field" onChange={(e) => { setEditalForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel })); setFieldErrors((current) => ({ ...current, cursoNivel: null })); }} value={editalForm.cursoNivel}>{cursoNivelOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select>{fieldErrors.cursoNivel ? <span className="field-error-text">{fieldErrors.cursoNivel}</span> : null}</div>
           </div>
-          <div className="admin-eval-field"><label>Descricao</label><textarea className="text-area" onChange={(e) => setEditalForm((c) => ({ ...c, descricao: e.target.value }))} style={{ minHeight: 80 }} value={editalForm.descricao} /></div>
+          <div className="admin-eval-field"><label>Descricao</label><textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setEditalForm((c) => ({ ...c, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricao: null })); }} style={{ minHeight: 80 }} value={editalForm.descricao} />{fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}</div>
           <div className="admin-form-row">
-            <div className="admin-eval-field"><label>Status</label><select className="select-field" onChange={(e) => setEditalForm((c) => ({ ...c, status: e.target.value as StatusEdital }))} value={editalForm.status}>{statusEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
+            <div className="admin-eval-field"><label>Status</label><select aria-invalid={!!fieldErrors.status} className="select-field" onChange={(e) => { setEditalForm((c) => ({ ...c, status: e.target.value as StatusEdital })); setFieldErrors((current) => ({ ...current, status: null })); }} value={editalForm.status}>{statusEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select>{fieldErrors.status ? <span className="field-error-text">{fieldErrors.status}</span> : null}</div>
             <div className="admin-eval-field">
               <label>Publicado em</label>
               <div className="eval-display" style={{ fontSize: 13, fontWeight: 500 }}>{editalForm.publicadoEm ? formatIsoDate(data.publicadoEm) : "Definido automaticamente ao publicar"}</div>
@@ -226,13 +235,13 @@ export default function AdminEditalDetailPage({ params }: Props) {
           <form onSubmit={submitLinha} style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{editingLinhaId ? "Editar linha" : "Nova linha"}</span>
             <div className="admin-form-row">
-              <div className="admin-eval-field"><label>Nome</label><input onChange={(e) => setLinhaForm((c) => ({ ...c, nome: e.target.value }))} required value={linhaForm.nome} /></div>
-              <div className="admin-eval-field"><label>Descricao</label><input onChange={(e) => setLinhaForm((c) => ({ ...c, descricao: e.target.value }))} value={linhaForm.descricao} /></div>
+              <div className="admin-eval-field"><label>Nome</label><input aria-invalid={!!fieldErrors.nome} onChange={(e) => { setLinhaForm((c) => ({ ...c, nome: e.target.value })); setFieldErrors((current) => ({ ...current, nome: null })); }} required value={linhaForm.nome} />{fieldErrors.nome ? <span className="field-error-text">{fieldErrors.nome}</span> : null}</div>
+              <div className="admin-eval-field"><label>Descricao</label><input aria-invalid={!!fieldErrors.descricao} onChange={(e) => { setLinhaForm((c) => ({ ...c, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricao: null })); }} value={linhaForm.descricao} />{fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}</div>
             </div>
             <div className="admin-form-row">
-              <div className="admin-eval-field"><label>Ampla</label><input min={0} onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAmplaConcorrencia: e.target.value }))} required type="number" value={linhaForm.vagasAmplaConcorrencia} /></div>
-              <div className="admin-eval-field"><label>Cotas</label><input min={0} onChange={(e) => setLinhaForm((c) => ({ ...c, vagasAcoesAfirmativas: e.target.value }))} required type="number" value={linhaForm.vagasAcoesAfirmativas} /></div>
-              <div className="admin-eval-field"><label>PCD</label><input min={0} onChange={(e) => setLinhaForm((c) => ({ ...c, vagasPcd: e.target.value }))} required type="number" value={linhaForm.vagasPcd} /></div>
+              <div className="admin-eval-field"><label>Ampla</label><input aria-invalid={!!fieldErrors.vagasAmplaConcorrencia} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasAmplaConcorrencia: e.target.value })); setFieldErrors((current) => ({ ...current, vagasAmplaConcorrencia: null })); }} required type="number" value={linhaForm.vagasAmplaConcorrencia} />{fieldErrors.vagasAmplaConcorrencia ? <span className="field-error-text">{fieldErrors.vagasAmplaConcorrencia}</span> : null}</div>
+              <div className="admin-eval-field"><label>Acoes afirmativas</label><input aria-invalid={!!fieldErrors.vagasAcoesAfirmativas} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasAcoesAfirmativas: e.target.value })); setFieldErrors((current) => ({ ...current, vagasAcoesAfirmativas: null })); }} required type="number" value={linhaForm.vagasAcoesAfirmativas} />{fieldErrors.vagasAcoesAfirmativas ? <span className="field-error-text">{fieldErrors.vagasAcoesAfirmativas}</span> : null}</div>
+              <div className="admin-eval-field"><label>PCD</label><input aria-invalid={!!fieldErrors.vagasPcd} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasPcd: e.target.value })); setFieldErrors((current) => ({ ...current, vagasPcd: null })); }} required type="number" value={linhaForm.vagasPcd} />{fieldErrors.vagasPcd ? <span className="field-error-text">{fieldErrors.vagasPcd}</span> : null}</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingLinhaId ? "Salvar" : "Criar"}</button>
@@ -268,13 +277,13 @@ export default function AdminEditalDetailPage({ params }: Props) {
           <form onSubmit={submitCronograma} style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{editingCronogramaId ? "Editar fase" : "Nova fase"}</span>
             <div className="admin-form-row">
-              <div className="admin-eval-field"><label>Tipo</label><select className="select-field" onChange={(e) => setCronogramaForm((c) => ({ ...c, tipo: e.target.value as TipoCronogramaEdital }))} value={cronogramaForm.tipo}>{tipoCronogramaEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
-              <div className="admin-eval-field"><label>Titulo</label><input onChange={(e) => setCronogramaForm((c) => ({ ...c, titulo: e.target.value }))} required value={cronogramaForm.titulo} /></div>
+              <div className="admin-eval-field"><label>Tipo</label><select aria-invalid={!!fieldErrors.tipo} className="select-field" onChange={(e) => { setCronogramaForm((c) => ({ ...c, tipo: e.target.value as TipoCronogramaEdital })); setFieldErrors((current) => ({ ...current, tipo: null })); }} value={cronogramaForm.tipo}>{tipoCronogramaEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select>{fieldErrors.tipo ? <span className="field-error-text">{fieldErrors.tipo}</span> : null}</div>
+              <div className="admin-eval-field"><label>Titulo</label><input aria-invalid={!!fieldErrors.titulo} onChange={(e) => { setCronogramaForm((c) => ({ ...c, titulo: e.target.value })); setFieldErrors((current) => ({ ...current, titulo: null })); }} required value={cronogramaForm.titulo} />{fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}</div>
             </div>
-            <div className="admin-eval-field"><label>Descricao</label><textarea className="text-area" onChange={(e) => setCronogramaForm((c) => ({ ...c, descricao: e.target.value }))} style={{ minHeight: 60 }} value={cronogramaForm.descricao} /></div>
+            <div className="admin-eval-field"><label>Descricao</label><textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setCronogramaForm((c) => ({ ...c, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricao: null })); }} style={{ minHeight: 60 }} value={cronogramaForm.descricao} />{fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}</div>
             <div className="admin-form-row">
-              <div className="admin-eval-field"><label>Inicio</label><input onChange={(e) => setCronogramaForm((c) => ({ ...c, inicioEm: e.target.value }))} required type="datetime-local" value={cronogramaForm.inicioEm} /></div>
-              <div className="admin-eval-field"><label>Fim</label><input onChange={(e) => setCronogramaForm((c) => ({ ...c, fimEm: e.target.value }))} required type="datetime-local" value={cronogramaForm.fimEm} /></div>
+              <div className="admin-eval-field"><label>Inicio</label><input aria-invalid={!!fieldErrors.inicioEm} onChange={(e) => { setCronogramaForm((c) => ({ ...c, inicioEm: e.target.value })); setFieldErrors((current) => ({ ...current, inicioEm: null })); }} required type="datetime-local" value={cronogramaForm.inicioEm} />{fieldErrors.inicioEm ? <span className="field-error-text">{fieldErrors.inicioEm}</span> : null}</div>
+              <div className="admin-eval-field"><label>Fim</label><input aria-invalid={!!fieldErrors.fimEm} onChange={(e) => { setCronogramaForm((c) => ({ ...c, fimEm: e.target.value })); setFieldErrors((current) => ({ ...current, fimEm: null })); }} required type="datetime-local" value={cronogramaForm.fimEm} />{fieldErrors.fimEm ? <span className="field-error-text">{fieldErrors.fimEm}</span> : null}</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingCronogramaId ? "Salvar" : "Criar"}</button>
@@ -310,11 +319,11 @@ export default function AdminEditalDetailPage({ params }: Props) {
           <form onSubmit={submitTema} style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{editingTemaId ? "Editar tema" : "Novo tema"}</span>
             <div className="admin-form-row">
-              <div className="admin-eval-field"><label>Titulo</label><input onChange={(e) => setTemaForm((c) => ({ ...c, titulo: e.target.value }))} required value={temaForm.titulo} /></div>
-              <div className="admin-eval-field"><label>Ordem</label><input min={0} onChange={(e) => setTemaForm((c) => ({ ...c, ordem: e.target.value }))} type="number" value={temaForm.ordem} /></div>
-              <div className="admin-eval-field"><label>Ativo</label><select className="select-field" onChange={(e) => setTemaForm((c) => ({ ...c, ativo: e.target.value === "true" }))} value={String(temaForm.ativo)}><option value="true">Sim</option><option value="false">Nao</option></select></div>
+              <div className="admin-eval-field"><label>Titulo</label><input aria-invalid={!!fieldErrors.titulo} onChange={(e) => { setTemaForm((c) => ({ ...c, titulo: e.target.value })); setFieldErrors((current) => ({ ...current, titulo: null })); }} required value={temaForm.titulo} />{fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}</div>
+              <div className="admin-eval-field"><label>Ordem</label><input aria-invalid={!!fieldErrors.ordem} min={0} onChange={(e) => { setTemaForm((c) => ({ ...c, ordem: e.target.value })); setFieldErrors((current) => ({ ...current, ordem: null })); }} type="number" value={temaForm.ordem} />{fieldErrors.ordem ? <span className="field-error-text">{fieldErrors.ordem}</span> : null}</div>
+              <div className="admin-eval-field"><label>Ativo</label><select aria-invalid={!!fieldErrors.ativo} className="select-field" onChange={(e) => { setTemaForm((c) => ({ ...c, ativo: e.target.value === "true" })); setFieldErrors((current) => ({ ...current, ativo: null })); }} value={String(temaForm.ativo)}><option value="true">Sim</option><option value="false">Nao</option></select>{fieldErrors.ativo ? <span className="field-error-text">{fieldErrors.ativo}</span> : null}</div>
             </div>
-            <div className="admin-eval-field"><label>Descricao</label><textarea className="text-area" onChange={(e) => setTemaForm((c) => ({ ...c, descricao: e.target.value }))} style={{ minHeight: 60 }} value={temaForm.descricao} /></div>
+            <div className="admin-eval-field"><label>Descricao</label><textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setTemaForm((c) => ({ ...c, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricao: null })); }} style={{ minHeight: 60 }} value={temaForm.descricao} />{fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}</div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingTemaId ? "Salvar" : "Criar"}</button>
               <button className="admin-pub-btn-preview" onClick={() => { setShowTemaForm(false); setEditingTemaId(null); }} type="button">Cancelar</button>
