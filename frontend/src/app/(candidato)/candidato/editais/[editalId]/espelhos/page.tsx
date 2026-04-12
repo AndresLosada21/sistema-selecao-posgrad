@@ -102,15 +102,15 @@ export default function CandidateEspelhosPage({ params }: Props) {
     } finally { setLoadingEspelho(null); }
   }
 
-  if (status === "loading") return <LoadingState title="Carregando espelhos" description="Consultando o acompanhamento do edital." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar espelhos" description={message ?? undefined} />;
-  if (!item) return <EmptyState title="Edital nao vinculado" description="Nao foi encontrada participacao para este edital." />;
+  if (status === "loading") return <LoadingState title="Carregando espelhos" description="Consultando o status das etapas e dos espelhos." />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar os espelhos" description={message ?? undefined} />;
+  if (!item) return <EmptyState title="Edital nao vinculado" description="Voce ainda nao entrou neste edital para consultar espelhos." />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div className="part-header">
         <h1>Espelhos de correcao</h1>
-        <p>{item.edital.numero} — Solicite ou visualize os espelhos das etapas 1 e 2 conforme disponibilidade do edital.</p>
+          <p>{item.edital.numero} — Solicite ou acompanhe a liberacao dos espelhos das etapas 1 e 2.</p>
       </div>
 
       {message ? <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>{message}</div> : null}
@@ -121,7 +121,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
           {iconFilePen}
           <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 1 — Redacao</span>
           <StatusBadge variant={e1Released ? "success" : e1CanRequest ? "info" : "neutral"}>
-            {e1Released ? "Disponivel" : etapa1?.espelhoSolicitadoEm ? "Solicitado" : "Nao solicitado"}
+              {e1Released ? "Liberado" : etapa1?.espelhoSolicitadoEm ? "Solicitacao registrada" : "Ainda nao solicitado"}
           </StatusBadge>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
@@ -222,14 +222,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
             </button>
           ) : e1CanRequest ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho ou aguarde liberacao administrativa para visualizar a correcao da etapa 1.</span>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Voce ja pode registrar o pedido do espelho da etapa 1. A visualizacao fica disponivel quando houver liberacao administrativa.</span>
               <button type="button" onClick={() => handleSolicitar("1")} disabled={soliciting === "1"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 {soliciting === "1" ? "Solicitando..." : "Solicitar espelho"}
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#64748B" }}>
-              <span>{etapa1?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}</span>
+              <span>{etapa1?.espelhoSolicitadoEm ? "Seu pedido ja foi registrado. Aguarde a liberacao administrativa para visualizar o espelho." : "O espelho da etapa 1 ainda nao pode ser consultado nesta fase."}</span>
               {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ? <span>{item.elegibilidade.motivoBloqueioEspelhoEtapa1}</span> : null}
               {item.acompanhamento?.proximoPasso ? <span>{item.acompanhamento.proximoPasso}</span> : null}
             </div>
@@ -243,7 +243,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
           {iconAward(e2Released ? "#2563EB" : "#94A3B8")}
           <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 2 — Titulos</span>
           <StatusBadge variant={e2Released ? "success" : e2CanRequest ? "info" : "neutral"}>
-            {e2Released ? "Disponivel" : etapa2?.espelhoSolicitadoEm ? "Solicitado" : "Nao solicitado"}
+              {e2Released ? "Liberado" : etapa2?.espelhoSolicitadoEm ? "Solicitacao registrada" : "Ainda nao solicitado"}
           </StatusBadge>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
@@ -352,14 +352,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
             </button>
           ) : e2CanRequest ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Solicite o espelho ou aguarde liberacao administrativa para visualizar a correcao da etapa 2.</span>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Voce ja pode registrar o pedido do espelho da etapa 2. A visualizacao fica disponivel quando houver liberacao administrativa.</span>
               <button type="button" onClick={() => handleSolicitar("2")} disabled={soliciting === "2"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 {soliciting === "2" ? "Solicitando..." : "Solicitar espelho"}
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#64748B" }}>
-              <span>{etapa2?.espelhoSolicitadoEm ? "Espelho solicitado, aguardando liberacao administrativa." : "Espelho ainda nao disponivel para esta etapa."}</span>
+              <span>{etapa2?.espelhoSolicitadoEm ? "Seu pedido ja foi registrado. Aguarde a liberacao administrativa para visualizar o espelho." : "O espelho da etapa 2 ainda nao pode ser consultado nesta fase."}</span>
               {item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ? <span>{item.elegibilidade.motivoBloqueioEspelhoEtapa2}</span> : null}
               {item.acompanhamento?.proximoPasso ? <span>{item.acompanhamento.proximoPasso}</span> : null}
             </div>
