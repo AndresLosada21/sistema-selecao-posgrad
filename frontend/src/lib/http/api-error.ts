@@ -106,6 +106,24 @@ export function getFirstFormError(error: unknown) {
   return candidates[0] ?? null;
 }
 
+export function getFieldErrorCount(error: unknown) {
+  return Object.values(getApiValidationMap(error)).filter((value) => Array.isArray(value) && value.length > 0).length;
+}
+
+export function getActionableErrorMessage(error: unknown, fieldFallback = "Revise os campos destacados para continuar.") {
+  const formError = getFirstFormError(error);
+
+  if (formError) {
+    return formError;
+  }
+
+  if (getFieldErrorCount(error) > 0) {
+    return fieldFallback;
+  }
+
+  return getErrorMessage(error);
+}
+
 export function isUnauthorizedError(error: unknown) {
   return error instanceof ApiError && error.status === 401;
 }
