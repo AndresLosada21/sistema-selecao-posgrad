@@ -59,7 +59,7 @@ test("candidato autenticado consegue aderir a um edital pela UI publica", async 
   await page.getByRole("button", { name: "Entrar neste edital" }).first().click();
 
   await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });
-  await expect(page.getByText(/Acompanhamento do candidato/)).toBeVisible();
+  await expect(page.getByText(/Veja o que ja foi concluido e o que ainda pode ser feito neste edital/)).toBeVisible();
 });
 
 test("conta administrativa autenticada tambem consegue aderir a um edital pela UI publica", async ({ page, request }) => {

@@ -140,15 +140,15 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
   const item = useMemo(() => data?.items.find((entry) => entry.edital.id === editalId) ?? null, [data, editalId]);
   const pacoteDocumentalUrl = item?.inscricao?.pacoteDocumental?.urlArquivo ?? null;
 
-  if (status === "loading") return <LoadingState title="Carregando edital do candidato" description="Consultando o acompanhamento consolidado do edital." />;
+  if (status === "loading") return <LoadingState title="Carregando edital" description="Montando seu acompanhamento neste edital." />;
 
-  if (status === "error") return <ErrorState title="Falha ao carregar acompanhamento" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar este edital" description={message ?? undefined} />;
 
   if (!item) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <EmptyState title="Edital nao vinculado" description="Nao foi encontrada participacao deste candidato para o edital informado." />
-        <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#2563EB" }}>Ver participacoes da conta</Link>
+        <EmptyState title="Voce ainda nao entrou neste edital" description="Abra a lista de participacoes ou volte aos editais publicados para entrar neste processo seletivo." />
+        <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#2563EB" }}>Ver editais da sua conta</Link>
       </div>
     );
   }
@@ -185,7 +185,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
     { label: "Etapa 1", ...resolveHubValue(inscricao?.etapa1?.status ?? null) },
     { label: "Etapa 2", ...resolveHubValue(inscricao?.etapa2?.status ?? null) },
     { label: "Classificacao", ...resolveHubValue(item.classificacao?.status ?? null) },
-    { label: "Recursos", text: (item.recursos?.length ?? 0) === 0 ? "Nenhum" : `${item.recursos.length} interposto(s)`, color: (item.recursos?.length ?? 0) > 0 ? "active" : "neutral" },
+    { label: "Recursos", text: (item.recursos?.length ?? 0) === 0 ? "Nenhum recurso enviado" : `${item.recursos.length} recurso(s) enviado(s)`, color: (item.recursos?.length ?? 0) > 0 ? "active" : "neutral" },
     { label: "Publicacoes", text: `${(item.publicacoes?.length ?? 0)} disponiveis`, color: (item.publicacoes?.length ?? 0) > 0 ? "active" : "neutral" },
   ];
 
@@ -196,7 +196,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
       <div className="hub-header">
         <div className="hub-header-left">
           <h1>{item.edital.numero}</h1>
-          <p>{cursoLabel} em Engenharia Eletrica · Acompanhamento do candidato</p>
+          <p>{cursoLabel} em Engenharia Eletrica · Veja o que ja foi concluido e o que ainda pode ser feito neste edital.</p>
         </div>
         {item.elegibilidade?.podeEditarInscricao || item.elegibilidade?.podeCancelarSubmissao ? (
           hasInscricao ? (
@@ -213,7 +213,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
         ) : (
           <span className="hub-cta" style={{ opacity: 0.65, cursor: "default" }} title={item.elegibilidade?.motivoBloqueioInscricao ?? undefined}>
             {iconPencil}
-            <span>{item.elegibilidade?.motivoBloqueioInscricao ?? "Inscricao bloqueada"}</span>
+            <span>{item.elegibilidade?.motivoBloqueioInscricao ?? "A inscricao nao pode ser alterada neste momento."}</span>
           </span>
         )}
       </div>
@@ -272,21 +272,21 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
             {iconShieldCheck} Solicitar isencao
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconShieldCheck} {item.elegibilidade?.motivoBloqueioIsencao ?? (item.elegibilidade?.janelaIsencaoAberta ? "Isencao indisponivel" : "Janela de isencao encerrada")}</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconShieldCheck} {item.elegibilidade?.motivoBloqueioIsencao ?? (item.elegibilidade?.janelaIsencaoAberta ? "A isencao ainda nao pode ser solicitada." : "A janela de isencao ja foi encerrada.")}</span>
         )}
         {(item.elegibilidade?.podeSolicitarEspelhoEtapa1 || item.elegibilidade?.podeSolicitarEspelhoEtapa2 || item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2) ? (
           <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
             {iconEye} {item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2 ? "Ver espelhos" : "Solicitar espelho"}
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ?? item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ?? "Espelhos indisponiveis"}</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ?? item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ?? "Os espelhos ainda nao estao disponiveis."}</span>
         )}
         {(item.elegibilidade?.fasesRecursoElegiveis?.length ?? 0) > 0 ? (
           <Link href={`/candidato/recursos?editalId=${item.edital.id}`} className="hub-link">
             {iconMessageSquare} Interpor recurso
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} {item.elegibilidade?.motivoBloqueioRecurso ?? "Recurso indisponivel"}</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} {item.elegibilidade?.motivoBloqueioRecurso ?? "Ainda nao ha recurso disponivel para este edital."}</span>
         )}
         <button type="button" onClick={pacoteDocumentalUrl ? handleDownloadPacote : undefined} disabled={!pacoteDocumentalUrl || downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: pacoteDocumentalUrl ? "pointer" : "default", padding: 0, font: "inherit", opacity: pacoteDocumentalUrl ? 1 : 0.5 }}>
           {iconDownload} {pacoteDocumentalUrl ? (downloadingPacote ? "Baixando..." : "Baixar pacote documental") : "Pacote documental indisponivel"}
@@ -324,7 +324,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
           <span style={{ fontSize: 12, color: "#64748B" }}>Posicao geral: {item.classificacao.posicaoGeral ?? "—"} · Posicao na linha: {item.classificacao.posicaoLinha ?? "—"}</span>
           {reservasConcorrenciaLabel ? <span style={{ fontSize: 12, color: "#64748B" }}>Reservas declaradas: {reservasConcorrenciaLabel}</span> : null}
           {item.classificacao.modalidadeConcorrencia ? <span style={{ fontSize: 12, color: "#64748B" }}>Modalidade: {getStatusLabel(item.classificacao.modalidadeConcorrencia)}</span> : null}
-          {publicacaoClassificacaoVigente ? <span style={{ fontSize: 12, color: "#2563EB" }}>{getStatusLabel(publicacaoClassificacaoVigente.tipo)} · versao {publicacaoClassificacaoVigente.versao}{publicacaoClassificacaoVigente.republicacaoDaVersao ? ` · republica v${publicacaoClassificacaoVigente.republicacaoDaVersao}` : ""}</span> : <span style={{ fontSize: 12, color: "#B45309" }}>Classificacao ainda nao publicada oficialmente.</span>}
+          {publicacaoClassificacaoVigente ? <span style={{ fontSize: 12, color: "#2563EB" }}>{getStatusLabel(publicacaoClassificacaoVigente.tipo)} · versao {publicacaoClassificacaoVigente.versao}{publicacaoClassificacaoVigente.republicacaoDaVersao ? ` · republica v${publicacaoClassificacaoVigente.republicacaoDaVersao}` : ""}</span> : <span style={{ fontSize: 12, color: "#B45309" }}>A classificacao ainda nao foi publicada oficialmente.</span>}
           {publicacaoClassificacaoVigente?.publicadoEm ? <span style={{ fontSize: 12, color: "#2563EB" }}>Publicado em: {formatIsoDate(publicacaoClassificacaoVigente.publicadoEm)}</span> : null}
         </div>
       ) : null}
