@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { getErrorMessage, getFirstFormError, pickFirstFieldErrors } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors } from "@/lib/http/api-error";
 import { confirmPasswordReset } from "@/modules/auth/api";
 
 type ResetPasswordFormProps = {
@@ -41,7 +41,10 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
       setMessage({ type: "success", text: "Senha redefinida. Voce ja pode entrar com a nova senha." });
       redirectTimeoutRef.current = setTimeout(() => router.replace("/entrar"), 1200);
     } catch (error) {
-      setFieldErrors(pickFirstFieldErrors(error, ["token", "senha"] as const));
+      setFieldErrors(pickLabeledFieldErrors(error, {
+        token: "o token",
+        senha: "a nova senha",
+      }));
       setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }

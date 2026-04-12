@@ -173,7 +173,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Classificacao atualizada" : feedback.type === "warning" ? "Atencao na classificacao" : "Nao foi possivel atualizar a classificacao"} type={feedback.type} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { decidirIsencaoFinalAdmin, decidirIsencaoPreliminarAdmin, getAdminIsencaoById } from "@/modules/admin-isencao/api";
 import type { AdminIsencaoItem } from "@/modules/admin-isencao/types";
@@ -52,7 +52,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
     if (!session.token || !pedidoId) return;
     setBusy(true); setMessage(null); setFieldErrors({});
     try { await decidirIsencaoPreliminarAdmin(pedidoId, preliminar, session.token); await load(); setMessage({ type: "success", text: "Decisao preliminar registrada." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickFirstFieldErrors(error, ["deferida", "parecer"] as const)); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickLabeledFieldErrors(error, { deferida: "o resultado", parecer: "o parecer" })); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -61,7 +61,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
     if (!session.token || !pedidoId) return;
     setBusy(true); setMessage(null); setFieldErrors({});
     try { await decidirIsencaoFinalAdmin(pedidoId, finalDecision, session.token); await load(); setMessage({ type: "success", text: "Decisao final registrada." }); }
-    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickFirstFieldErrors(error, ["deferida", "parecer"] as const)); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
+    catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickLabeledFieldErrors(error, { deferida: "o resultado final", parecer: "o parecer final" })); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 

@@ -63,6 +63,34 @@ export function pickFirstFieldErrors<T extends string>(error: unknown, fields: r
   return Object.fromEntries(fields.map((field) => [field, getFirstFieldError(error, field)])) as Record<T, string | null>;
 }
 
+function normalizeFieldErrorMessage(label: string, message: string | null) {
+  if (!message) {
+    return null;
+  }
+
+  const normalized = message.trim();
+
+  if (normalized === "Required") {
+    return `Preencha ${label}.`;
+  }
+
+  if (normalized === "Invalid input") {
+    return `Revise ${label}.`;
+  }
+
+  if (normalized === "Invalid datetime") {
+    return `Informe ${label} em data e hora validas.`;
+  }
+
+  return normalized;
+}
+
+export function pickLabeledFieldErrors<T extends string>(error: unknown, labels: Record<T, string>) {
+  return Object.fromEntries(
+    (Object.entries(labels) as Array<[T, string]>).map(([field, label]) => [field, normalizeFieldErrorMessage(label, getFirstFieldError(error, field))]),
+  ) as Record<T, string | null>;
+}
+
 export function getFirstFormError(error: unknown) {
   if (!(error instanceof ApiError)) {
     return null;

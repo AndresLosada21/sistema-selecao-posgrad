@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { ErrorState } from "@/components/shared/page-states";
 import { resolveAuthRedirectPath } from "@/lib/auth/next-path";
-import { getErrorMessage, getFirstFormError, pickFirstFieldErrors } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors } from "@/lib/http/api-error";
 import { useSession } from "@/lib/auth/session-provider";
 import { login, register } from "@/modules/auth/api";
 
@@ -94,7 +94,13 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
       router.replace(resolveAuthRedirectPath(nextPath));
     } catch (error) {
       setStatus("error");
-      setFieldErrors(pickFirstFieldErrors(error, ["nomeCompleto", "email", "senha", "telefone", "cpf"] as const));
+      setFieldErrors(pickLabeledFieldErrors(error, {
+        nomeCompleto: "o nome completo",
+        email: "o e-mail",
+        senha: "a senha",
+        telefone: "o telefone",
+        cpf: "o CPF",
+      }));
       setMessage(getFirstFormError(error) ?? getErrorMessage(error));
     } finally {
       if (resetStatusTimeoutRef.current) {

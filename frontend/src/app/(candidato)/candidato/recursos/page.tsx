@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-s
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, getFirstFieldError, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -135,12 +135,12 @@ export default function CandidateRecursosPage() {
       setMessage(null);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setFieldErrors({
-        fase: getFirstFieldError(error, "fase"),
-        tipoPoliticasAfirmativasReferencia: getFirstFieldError(error, "tipoPoliticasAfirmativasReferencia"),
-        fundamentacao: getFirstFieldError(error, "fundamentacao"),
-        anexoUrl: getFirstFieldError(error, "anexoUrl"),
-      });
+      setFieldErrors(pickLabeledFieldErrors(error, {
+        fase: "a fase do recurso",
+        tipoPoliticasAfirmativasReferencia: "o tipo da etapa",
+        fundamentacao: "a fundamentacao do recurso",
+        anexoUrl: "o anexo do recurso",
+      }));
       setMessage(getFirstFormError(error) ?? getErrorMessage(error));
     } finally { setSubmitting(false); }
   }
@@ -152,7 +152,7 @@ export default function CandidateRecursosPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div className="part-header"><h1>Recursos</h1><p>Interpor novo recurso ou acompanhar recursos ja interpostos.</p></div>
+      <div className="part-header"><h1>Recursos</h1><p>Envie um recurso ou acompanhe as respostas ja registradas.</p></div>
 
       {message ? <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>{message}</div> : null}
 
@@ -170,7 +170,7 @@ export default function CandidateRecursosPage() {
             <div className="wiz-field" style={{ flex: 1 }}>
               <label className="wiz-field-label">Fase *</label>
               <select disabled={!fasesElegiveis.length} value={formFase} onChange={(e) => { setFormFase(e.target.value); setFieldErrors((current) => ({ ...current, fase: null })); }} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
-                {fasesElegiveis.length ? fasesElegiveis.map((f) => <option key={f} value={f}>{getStatusLabel(f)}</option>) : <option value="">Nenhuma fase elegivel</option>}
+                {fasesElegiveis.length ? fasesElegiveis.map((f) => <option key={f} value={f}>{getStatusLabel(f)}</option>) : <option value="">Nenhum recurso disponivel</option>}
               </select>
               {fieldErrors.fase ? <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 4 }}>{fieldErrors.fase}</div> : null}
             </div>

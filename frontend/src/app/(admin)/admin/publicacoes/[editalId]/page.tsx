@@ -296,7 +296,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Publicacao atualizada" : feedback.type === "warning" ? "Atencao na publicacao" : "Nao foi possivel concluir a acao"} type={feedback.type} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

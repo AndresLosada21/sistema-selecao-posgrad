@@ -9,7 +9,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { statusIsencaoOptions, type StatusIsencao } from "@/lib/enums";
-import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
@@ -39,6 +39,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [novoResultadoPoliticas, setNovoResultadoPoliticas] = useState<(typeof resultadoPoliticasOptions)[number] | "">("");
   const [novoParecerPoliticas, setNovoParecerPoliticas] = useState("");
   const [novosResultadosPoliticas, setNovosResultadosPoliticas] = useState<Record<string, { resultado: (typeof resultadoPoliticasOptions)[number] | ""; parecer: string }>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => { let c = false; params.then((r) => { if (!c) setRecursoId(r.recursoId); }); return () => { c = true; }; }, [params]);
 
@@ -69,7 +70,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!token || !recursoId) return;
-    setBusy(true); setFeedback(null);
+    setBusy(true); setFeedback(null); setFieldErrors({});
     try {
       await decidirRecursoAdmin(recursoId, {
         deferido, decisao, impactoResultado,
@@ -92,6 +93,18 @@ export default function AdminRecursoDetailPage({ params }: Props) {
       setFeedback({ type: "success", text: "Decisao registrada." });
     } catch (e) {
       if (isUnauthorizedError(e)) { signOut(); return; }
+      setFieldErrors(pickLabeledFieldErrors(e, {
+        decisao: "a decisao administrativa",
+        novoStatusIsencao: "o novo status da isencao",
+        novoResultadoHomologacao: "o novo resultado da homologacao",
+        novaNotaEtapa1: "a nova nota da etapa 1",
+        novoEspelhoEtapa1: "o novo espelho da etapa 1",
+        novaPontuacaoBrutaEtapa2: "a nova pontuacao bruta da etapa 2",
+        novoEspelhoEtapa2: "o novo espelho da etapa 2",
+        novoResultadoFinalPoliticasAfirmativas: "o novo resultado de politicas afirmativas",
+        novoParecerFinalPoliticasAfirmativas: "o novo parecer de politicas afirmativas",
+        novosResultadosFinaisPoliticasAfirmativas: "os novos resultados de politicas afirmativas",
+      }));
       setFeedback({ type: "error", text: getFirstFormError(e) ?? getErrorMessage(e) });
     } finally { setBusy(false); }
   }
@@ -123,7 +136,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Recurso atualizado" : feedback.type === "warning" ? "Atencao no recurso" : "Nao foi possivel salvar a decisao"} type={feedback.type} />}
 
       <div className="admin-detail-header">
         <h1>Recurso — {getStatusLabel(item.fase)}</h1>
@@ -199,40 +212,43 @@ export default function AdminRecursoDetailPage({ params }: Props) {
 
         <div className="admin-eval-field">
           <label>Decisao *</label>
-          <textarea disabled={recursoJaDecidido || busy} className="text-area" minLength={5} onChange={(e) => setDecisao(e.target.value)} placeholder="Recurso procedente. Documentacao..." required style={{ minHeight: 72 }} value={decisao} />
-        </div>
+            <textarea aria-invalid={!!fieldErrors.decisao} disabled={recursoJaDecidido || busy} className="text-area" minLength={5} onChange={(e) => { setDecisao(e.target.value); setFieldErrors((current) => ({ ...current, decisao: null })); }} placeholder="Explique a decisao e o efeito pratico aplicado, se houver." required style={{ minHeight: 72 }} value={decisao} />
+            {fieldErrors.decisao ? <span className="field-error-text">{fieldErrors.decisao}</span> : null}
+          </div>
 
         {deferido && impactoResultado && (
           <>
             {isIsencao ? (
               <div className="admin-eval-field">
                 <label>Novo status da isencao</label>
-                <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovoStatusIsencao((e.target.value || "") as StatusIsencao | "")} value={novoStatusIsencao}>
-                  <option value="">Nao alterar</option>
-                  {statusIsencaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
-                </select>
-              </div>
+                  <select aria-invalid={!!fieldErrors.novoStatusIsencao} disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => { setNovoStatusIsencao((e.target.value || "") as StatusIsencao | ""); setFieldErrors((current) => ({ ...current, novoStatusIsencao: null })); }} value={novoStatusIsencao}>
+                    <option value="">Nao alterar</option>
+                    {statusIsencaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                  </select>
+                  {fieldErrors.novoStatusIsencao ? <span className="field-error-text">{fieldErrors.novoStatusIsencao}</span> : null}
+                </div>
             ) : null}
             {isHomologacao && (
               <div className="admin-eval-field">
                 <label>Novo resultado da homologacao</label>
-                <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovoResultadoHomologacao((e.target.value || "") as "HOMOLOGADA" | "NAO_HOMOLOGADA" | "")} value={novoResultadoHomologacao}>
-                  <option value="">Selecione</option>
-                  <option value="HOMOLOGADA">Homologada</option>
-                  <option value="NAO_HOMOLOGADA">Nao homologada</option>
-                </select>
-              </div>
+                  <select aria-invalid={!!fieldErrors.novoResultadoHomologacao} disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => { setNovoResultadoHomologacao((e.target.value || "") as "HOMOLOGADA" | "NAO_HOMOLOGADA" | ""); setFieldErrors((current) => ({ ...current, novoResultadoHomologacao: null })); }} value={novoResultadoHomologacao}>
+                    <option value="">Selecione</option>
+                    <option value="HOMOLOGADA">Homologada</option>
+                    <option value="NAO_HOMOLOGADA">Nao homologada</option>
+                  </select>
+                  {fieldErrors.novoResultadoHomologacao ? <span className="field-error-text">{fieldErrors.novoResultadoHomologacao}</span> : null}
+                </div>
             )}
             {isEtapa1 && (
               <div className="admin-form-row">
-                <div className="admin-eval-field"><label>Nova nota etapa 1</label><input disabled={recursoJaDecidido || busy} max={10} min={0} onChange={(e) => setNovaNotaEtapa1(e.target.value)} step={0.1} type="number" value={novaNotaEtapa1} /></div>
-                <div className="admin-eval-field"><label>Novo espelho etapa 1</label><textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovoEspelhoEtapa1(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa1} /></div>
+                <div className="admin-eval-field"><label>Nova nota etapa 1</label><input aria-invalid={!!fieldErrors.novaNotaEtapa1} disabled={recursoJaDecidido || busy} max={10} min={0} onChange={(e) => { setNovaNotaEtapa1(e.target.value); setFieldErrors((current) => ({ ...current, novaNotaEtapa1: null })); }} step={0.1} type="number" value={novaNotaEtapa1} />{fieldErrors.novaNotaEtapa1 ? <span className="field-error-text">{fieldErrors.novaNotaEtapa1}</span> : null}</div>
+                <div className="admin-eval-field"><label>Novo espelho etapa 1</label><textarea aria-invalid={!!fieldErrors.novoEspelhoEtapa1} disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => { setNovoEspelhoEtapa1(e.target.value); setFieldErrors((current) => ({ ...current, novoEspelhoEtapa1: null })); }} style={{ minHeight: 60 }} value={novoEspelhoEtapa1} />{fieldErrors.novoEspelhoEtapa1 ? <span className="field-error-text">{fieldErrors.novoEspelhoEtapa1}</span> : null}</div>
               </div>
             )}
             {isEtapa2 && (
               <div className="admin-form-row">
-                <div className="admin-eval-field"><label>Nova pontuacao bruta etapa 2</label><input disabled={recursoJaDecidido || busy} min={0} onChange={(e) => setNovaPontuacaoBrutaEtapa2(e.target.value)} step={0.1} type="number" value={novaPontuacaoBrutaEtapa2} /></div>
-                <div className="admin-eval-field"><label>Novo espelho etapa 2</label><textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovoEspelhoEtapa2(e.target.value)} style={{ minHeight: 60 }} value={novoEspelhoEtapa2} /></div>
+                <div className="admin-eval-field"><label>Nova pontuacao bruta etapa 2</label><input aria-invalid={!!fieldErrors.novaPontuacaoBrutaEtapa2} disabled={recursoJaDecidido || busy} min={0} onChange={(e) => { setNovaPontuacaoBrutaEtapa2(e.target.value); setFieldErrors((current) => ({ ...current, novaPontuacaoBrutaEtapa2: null })); }} step={0.1} type="number" value={novaPontuacaoBrutaEtapa2} />{fieldErrors.novaPontuacaoBrutaEtapa2 ? <span className="field-error-text">{fieldErrors.novaPontuacaoBrutaEtapa2}</span> : null}</div>
+                <div className="admin-eval-field"><label>Novo espelho etapa 2</label><textarea aria-invalid={!!fieldErrors.novoEspelhoEtapa2} disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => { setNovoEspelhoEtapa2(e.target.value); setFieldErrors((current) => ({ ...current, novoEspelhoEtapa2: null })); }} style={{ minHeight: 60 }} value={novoEspelhoEtapa2} />{fieldErrors.novoEspelhoEtapa2 ? <span className="field-error-text">{fieldErrors.novoEspelhoEtapa2}</span> : null}</div>
               </div>
             )}
             {isPoliticas ? (
@@ -241,17 +257,18 @@ export default function AdminRecursoDetailPage({ params }: Props) {
                   <div className="admin-form-row" key={etapa.tipo}>
                     <div className="admin-eval-field">
                       <label>Resultado {etapa.tipo === "PCD" ? "PCD" : "heteroidentificacao"}</label>
-                      <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), resultado: (e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "" } }))} value={novosResultadosPoliticas[etapa.tipo]?.resultado ?? ""}>
+                      <select aria-invalid={!!fieldErrors.novosResultadosFinaisPoliticasAfirmativas} disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => { setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), resultado: (e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "" } })); setFieldErrors((current) => ({ ...current, novosResultadosFinaisPoliticasAfirmativas: null })); }} value={novosResultadosPoliticas[etapa.tipo]?.resultado ?? ""}>
                         <option value="">Selecione</option>
                         {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                       </select>
                     </div>
                     <div className="admin-eval-field">
                       <label>Parecer {etapa.tipo === "PCD" ? "PCD" : "heteroidentificacao"}</label>
-                      <textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), parecer: e.target.value } }))} style={{ minHeight: 60 }} value={novosResultadosPoliticas[etapa.tipo]?.parecer ?? ""} />
+                      <textarea aria-invalid={!!fieldErrors.novosResultadosFinaisPoliticasAfirmativas} disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => { setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), parecer: e.target.value } })); setFieldErrors((current) => ({ ...current, novosResultadosFinaisPoliticasAfirmativas: null })); }} style={{ minHeight: 60 }} value={novosResultadosPoliticas[etapa.tipo]?.parecer ?? ""} />
                     </div>
                   </div>
                 )) : <PageFeedback type="warning" title="Etapas de politicas nao encontradas" description="O recurso esta vinculado a politicas afirmativas, mas nenhuma etapa ativa foi carregada para a inscricao." />}
+                {fieldErrors.novosResultadosFinaisPoliticasAfirmativas ? <span className="field-error-text">{fieldErrors.novosResultadosFinaisPoliticasAfirmativas}</span> : null}
               </div>
             ) : null}
           </>

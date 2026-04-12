@@ -199,7 +199,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 1 atualizada" : feedback.type === "warning" ? "Atencao na etapa 1" : "Nao foi possivel salvar a etapa 1"} type={feedback.type} />}
 
       {/* Header */}
       <div className="admin-detail-header">

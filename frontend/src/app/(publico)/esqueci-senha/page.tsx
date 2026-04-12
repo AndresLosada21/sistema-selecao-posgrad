@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { getErrorMessage, getFirstFieldError, getFirstFormError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors } from "@/lib/http/api-error";
 import { requestPasswordReset } from "@/modules/auth/api";
 
 const iconKey = (
@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
       setMessage({ type: "success", text: "Se o e-mail estiver apto para recuperacao, enviaremos as orientacoes para redefinir a senha." });
       setTokenPreview(response.resetTokenPreview ?? null);
     } catch (error) {
-      setEmailError(getFirstFieldError(error, "email"));
+      setEmailError(pickLabeledFieldErrors(error, { email: "o e-mail" }).email);
       setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
