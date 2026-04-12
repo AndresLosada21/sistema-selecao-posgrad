@@ -172,7 +172,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {feedback && <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Edital atualizado" : feedback.type === "warning" ? "Atencao no edital" : "Nao foi possivel salvar o edital"} type={feedback.type} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

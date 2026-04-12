@@ -263,7 +263,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback ? <PageFeedback description={feedback.text} title="Retorno" type={feedback.type} /> : null}
+      {feedback ? <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Politicas afirmativas atualizadas" : feedback.type === "warning" ? "Atencao na etapa" : "Nao foi possivel salvar esta etapa"} type={feedback.type} /> : null}
 
       <div className="admin-detail-header">
         <h1>Politicas Afirmativas — {detail.candidato.nomeCompleto}</h1>

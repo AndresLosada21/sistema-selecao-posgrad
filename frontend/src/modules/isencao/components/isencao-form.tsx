@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, getFirstFieldError, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { sanitizePayload } from "@/lib/http/sanitize";
 import { FileField } from "@/components/shared/file-field";
 import { createIsencao } from "@/modules/isencao/api";
@@ -72,10 +72,10 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
       redirectTimeoutRef.current = setTimeout(() => router.replace(`/candidato/editais/${editalId}`), 900);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setFieldErrors({
-        justificativa: getFirstFieldError(error, "justificativa"),
-        comprovanteUrl: getFirstFieldError(error, "comprovanteUrl"),
-      });
+      setFieldErrors(pickLabeledFieldErrors(error, {
+        justificativa: "a justificativa",
+        comprovanteUrl: "o comprovante em PDF",
+      }));
       setStatus("error"); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     }
   }
