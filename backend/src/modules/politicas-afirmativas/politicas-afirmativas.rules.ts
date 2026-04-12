@@ -1,21 +1,25 @@
 import {
-  ModalidadeConcorrencia,
   ResultadoPoliticasAfirmativas,
   StatusConfirmacaoReserva,
   StatusOperacaoPoliticasAfirmativas,
   TipoEtapaPoliticasAfirmativas,
 } from "@prisma/client";
 
-export function resolveTipoEtapaPoliticasAfirmativas(modalidade: ModalidadeConcorrencia) {
-  if (modalidade === ModalidadeConcorrencia.ACOES_AFIRMATIVAS) {
-    return TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO;
+export function resolveTiposEtapaPoliticasAfirmativas(input: {
+  acoesAfirmativas: boolean;
+  pcd: boolean;
+}) {
+  const tipos: TipoEtapaPoliticasAfirmativas[] = [];
+
+  if (input.acoesAfirmativas) {
+    tipos.push(TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO);
   }
 
-  if (modalidade === ModalidadeConcorrencia.PCD) {
-    return TipoEtapaPoliticasAfirmativas.PCD;
+  if (input.pcd) {
+    tipos.push(TipoEtapaPoliticasAfirmativas.PCD);
   }
 
-  return null;
+  return tipos;
 }
 
 export function resolveConfirmacaoReservaFromResultado(resultado: ResultadoPoliticasAfirmativas) {

@@ -28,7 +28,7 @@ const iconDownload = <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
 const iconFile = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /></svg>;
 
 type Props = { params: Promise<{ inscricaoId: string }> };
-const confirmacaoOptions = ["PENDENTE", "CONFIRMADA", "NAO_CONFIRMADA", "NAO_SE_APLICA"] as const;
+const confirmacaoOptions = ["PENDENTE", "CONFIRMADA", "NAO_CONFIRMADA", "AUSENTE", "NAO_SE_APLICA"] as const;
 
 export default function AdminHomologacaoDetailPage({ params }: Props) {
   const session = useSession();
@@ -192,10 +192,12 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   const homolog = item.homologacao;
   const hasPrelim = !!homolog?.statusPreliminar;
   const hasFinal = !!homolog?.statusFinal;
-  const confirmacaoAcoesOptions = item.modalidadeConcorrencia === "ACOES_AFIRMATIVAS"
+  const reservaAcoesAtiva = Boolean(item.reservasConcorrencia?.acoesAfirmativas);
+  const reservaPcdAtiva = Boolean(item.reservasConcorrencia?.pcd);
+  const confirmacaoAcoesOptions = reservaAcoesAtiva
     ? confirmacaoOptions.filter((value) => value !== "NAO_SE_APLICA")
     : ["NAO_SE_APLICA"] as const;
-  const confirmacaoPcdOptions = item.modalidadeConcorrencia === "PCD"
+  const confirmacaoPcdOptions = reservaPcdAtiva
     ? confirmacaoOptions.filter((value) => value !== "NAO_SE_APLICA")
     : ["NAO_SE_APLICA"] as const;
   const comprovantePagamento = item.documentos.find((doc) => doc.tipo === "COMPROVANTE_PAGAMENTO");
@@ -226,8 +228,16 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <strong style={{ fontSize: 16, color: "#1E293B" }}>{item.documentos.length} enviados</strong>
         </div>
         <div className="admin-stat-card">
-          <span className="admin-stat-label">Modalidade</span>
-          <strong style={{ fontSize: 13, color: "#1E293B" }}>{getStatusLabel(item.modalidadeConcorrencia)}</strong>
+          <span className="admin-stat-label">Reservas declaradas</span>
+          <strong style={{ fontSize: 13, color: "#1E293B" }}>
+            {reservaAcoesAtiva && reservaPcdAtiva
+              ? "Acoes afirmativas + PCD"
+              : reservaAcoesAtiva
+                ? "Acoes afirmativas"
+                : reservaPcdAtiva
+                  ? "PCD"
+                  : "Ampla concorrencia"}
+          </strong>
         </div>
         <div className="admin-stat-card">
           <span className="admin-stat-label">Pagamento</span>
@@ -413,20 +423,20 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
       </div>
 
       {/* Confirmacao de reserva */}
-      {item.modalidadeConcorrencia !== "AMPLA_CONCORRENCIA" ? (
+      {(reservaAcoesAtiva || reservaPcdAtiva) ? (
         <div className="admin-form-card">
           <h3 className="admin-form-card-title">Confirmacao operacional de reserva</h3>
           <form onSubmit={handleConfirmacao} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="admin-form-row">
               <div className="wiz-field">
                 <label className="wiz-field-label">Acoes afirmativas</label>
-                  <select disabled={item.modalidadeConcorrencia !== "ACOES_AFIRMATIVAS"} value={confirmAA} onChange={(e) => setConfirmAA(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  <select disabled={!reservaAcoesAtiva} value={confirmAA} onChange={(e) => setConfirmAA(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                   {confirmacaoAcoesOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                   </select>
                 </div>
                 <div className="wiz-field">
                   <label className="wiz-field-label">PCD</label>
-                  <select disabled={item.modalidadeConcorrencia !== "PCD"} value={confirmPCD} onChange={(e) => setConfirmPCD(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  <select disabled={!reservaPcdAtiva} value={confirmPCD} onChange={(e) => setConfirmPCD(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                   {confirmacaoPcdOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                   </select>
                 </div>

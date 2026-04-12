@@ -25,6 +25,10 @@ function getRecursoMessage(errorCode: string, reason?: string | null) {
         : "A janela de recurso desta fase esta fechada no momento.";
     case "RESULTADO_PRELIMINAR_OBRIGATORIO":
       return "So e possivel interpor recurso apos resultado preliminar publicado na fase correspondente.";
+    case "TIPO_POLITICAS_AFIRMATIVAS_OBRIGATORIO":
+      return "Selecione se o recurso de politicas afirmativas se refere a heteroidentificacao ou a PCD.";
+    case "TIPO_POLITICAS_AFIRMATIVAS_INVALIDO":
+      return "O tipo informado para o recurso de politicas afirmativas nao esta disponivel para a inscricao no momento.";
     case "ESPELHO_ETAPA_1_NAO_LIBERADO":
       return "O espelho da etapa 1 ainda nao foi liberado para recurso.";
     case "ESPELHO_ETAPA_2_NAO_LIBERADO":
@@ -59,6 +63,7 @@ recursoRouter.post("/v1/candidato/recursos", requireAuth, async (request, respon
     usuarioId: request.auth!.userId,
     editalId: parsedBody.data.editalId,
     fase: parsedBody.data.fase,
+    tipoPoliticasAfirmativasReferencia: parsedBody.data.tipoPoliticasAfirmativasReferencia,
     fundamentacao: parsedBody.data.fundamentacao,
     anexoUrl: parsedBody.data.anexoUrl as string | undefined,
   });
@@ -138,6 +143,7 @@ recursoRouter.put("/v1/admin/recursos/:recursoId/decisao", requireAuth, requireR
     novoEspelhoEtapa2: payload.novoEspelhoEtapa2,
     novoResultadoFinalPoliticasAfirmativas: payload.novoResultadoFinalPoliticasAfirmativas,
     novoParecerFinalPoliticasAfirmativas: payload.novoParecerFinalPoliticasAfirmativas,
+    novosResultadosFinaisPoliticasAfirmativas: payload.novosResultadosFinaisPoliticasAfirmativas,
   });
 
   if ("error" in result) {

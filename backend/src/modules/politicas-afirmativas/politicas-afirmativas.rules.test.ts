@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  ModalidadeConcorrencia,
   ResultadoPoliticasAfirmativas,
   StatusConfirmacaoReserva,
   StatusOperacaoPoliticasAfirmativas,
@@ -13,13 +12,14 @@ import {
   buildPoliticasAfirmativasPublicacaoTitulo,
   resolveConfirmacaoReservaFromResultado,
   resolveStatusOperacaoFromEncaminhamento,
-  resolveTipoEtapaPoliticasAfirmativas,
+  resolveTiposEtapaPoliticasAfirmativas,
 } from "./politicas-afirmativas.rules.js";
 
-test("resolve tipo da etapa a partir da modalidade", () => {
-  assert.equal(resolveTipoEtapaPoliticasAfirmativas(ModalidadeConcorrencia.ACOES_AFIRMATIVAS), TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO);
-  assert.equal(resolveTipoEtapaPoliticasAfirmativas(ModalidadeConcorrencia.PCD), TipoEtapaPoliticasAfirmativas.PCD);
-  assert.equal(resolveTipoEtapaPoliticasAfirmativas(ModalidadeConcorrencia.AMPLA_CONCORRENCIA), null);
+test("resolve tipos da etapa a partir das reservas declaradas", () => {
+  assert.deepEqual(resolveTiposEtapaPoliticasAfirmativas({ acoesAfirmativas: true, pcd: false }), [TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO]);
+  assert.deepEqual(resolveTiposEtapaPoliticasAfirmativas({ acoesAfirmativas: false, pcd: true }), [TipoEtapaPoliticasAfirmativas.PCD]);
+  assert.deepEqual(resolveTiposEtapaPoliticasAfirmativas({ acoesAfirmativas: true, pcd: true }), [TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO, TipoEtapaPoliticasAfirmativas.PCD]);
+  assert.deepEqual(resolveTiposEtapaPoliticasAfirmativas({ acoesAfirmativas: false, pcd: false }), []);
 });
 
 test("mapeia resultado final para confirmacao de reserva usada na classificacao", () => {

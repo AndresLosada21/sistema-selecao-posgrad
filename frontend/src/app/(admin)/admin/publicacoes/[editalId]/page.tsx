@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
+import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/enums";
@@ -16,7 +16,8 @@ import { formatIsoDate } from "@/modules/edital/formatters";
 import { getAdminEditalById } from "@/modules/admin-edital/api";
 import { listAdminPublicacoesByEdital, previewClassificacaoPublicacao, previewHomologacaoPublicacao, publicarClassificacao, publicarGenerica, publicarHomologacao } from "@/modules/admin-publicacao/api";
 import { previewPublicacaoPoliticas, publicarPoliticas } from "@/modules/admin-politicas/api";
-import type { PublicacoesResponse } from "@/modules/publicacao/types";
+import type { PublicacaoResumo, PublicacoesResponse } from "@/modules/publicacao/types";
+import { uploadPrivateFile } from "@/modules/upload/api";
 
 type Props = { params: Promise<{ editalId: string }> };
 
@@ -65,24 +66,20 @@ const ID_LIKE_KEYS = new Set(["republicacaoDeId"]);
 
 type PubType = "homologacao" | "classificacao" | "politicas";
 
-async function loadAllPublicacoesPages(editalId: string, token: string) {
-  const firstPage = await listAdminPublicacoesByEdital(editalId, token, { page: 1, pageSize: 100 });
-  const totalPages = Math.max(1, Math.ceil(firstPage.total / (firstPage.pageSize ?? 100)));
-
-  if (totalPages === 1) {
-    return firstPage.items;
+function formatFileSize(size: number) {
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  const remainingPages = await Promise.all(
-    Array.from({ length: totalPages - 1 }, (_, index) =>
-      listAdminPublicacoesByEdital(editalId, token, { page: index + 2, pageSize: 100 }),
-    ),
-  );
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
 
-  return [
-    ...firstPage.items,
-    ...remainingPages.flatMap((pageResult) => pageResult.items),
-  ];
+function getOrigemArquivoLabel(origem: PublicacaoResumo["origemArquivo"]) {
+  return origem === "MANUAL" ? "PDF enviado" : "PDF gerado";
+}
+
+function getOrigemArquivoVariant(origem: PublicacaoResumo["origemArquivo"]) {
+  return origem === "MANUAL" ? "info" : "neutral";
 }
 
 export default function AdminPublicacoesDetailPage({ params }: Props) {
@@ -109,8 +106,45 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [resumoGenerico, setResumoGenerico] = useState("");
   const [observacoesGenericas, setObservacoesGenericas] = useState("");
   const [referenciaGenerica, setReferenciaGenerica] = useState("");
+  const [arquivoGenerico, setArquivoGenerico] = useState<File | null>(null);
+  const [arquivoGenericoPreviewUrl, setArquivoGenericoPreviewUrl] = useState<string | null>(null);
+  const [arquivoGenericoKey, setArquivoGenericoKey] = useState(0);
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<"TODOS" | TipoPublicacaoOficial>("TODOS");
+  const [historyOnlyCurrent, setHistoryOnlyCurrent] = useState(false);
   const [page, setPage] = useState(1);
   const [editalLabel, setEditalLabel] = useState<string>("");
+
+  useEffect(() => {
+    if (!arquivoGenerico) {
+      return;
+    }
+
+    if (arquivoGenerico.type === "application/pdf" || arquivoGenerico.name.toLowerCase().endsWith(".pdf")) {
+      return;
+    }
+
+    setArquivoGenerico(null);
+    setArquivoGenericoKey((current) => current + 1);
+    setFeedback({ type: "error", text: "Selecione um arquivo PDF valido para a publicacao manual." });
+  }, [arquivoGenerico]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [historyOnlyCurrent, historyTypeFilter]);
+
+  useEffect(() => {
+    if (!arquivoGenerico) {
+      setArquivoGenericoPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(arquivoGenerico);
+    setArquivoGenericoPreviewUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [arquivoGenerico]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,9 +154,14 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
   const reload = useCallback(async () => {
     if (!editalId || !token) return;
-    const items = await loadAllPublicacoesPages(editalId, token);
-    setHistory({ items, total: items.length, page: 1, pageSize: PAGE_SIZE });
-  }, [editalId, token]);
+    const response = await listAdminPublicacoesByEdital(editalId, token, {
+      page,
+      pageSize: PAGE_SIZE,
+      tipo: historyTypeFilter === "TODOS" ? undefined : historyTypeFilter,
+      somenteVigentes: historyOnlyCurrent,
+    });
+    setHistory(response);
+  }, [editalId, historyOnlyCurrent, historyTypeFilter, page, token]);
 
   useAbortableEffect(async (signal) => {
     if (!editalId || !token) return;
@@ -189,6 +228,11 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   async function handlePublicacaoGenerica(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token || !editalId) return;
+    if (!arquivoGenerico) {
+      setFeedback({ type: "error", text: "Selecione o PDF que sera publicado para continuar." });
+      return;
+    }
+
     setBusy(true);
     setFeedback(null);
     try {
@@ -196,39 +240,53 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       if (resumoGenerico) dados.resumoPublico = resumoGenerico;
       if (observacoesGenericas) dados.observacoesInternas = observacoesGenericas;
       if (referenciaGenerica) dados.referenciaExterna = referenciaGenerica;
+      const upload = await uploadPrivateFile(arquivoGenerico, token);
 
       await publicarGenerica(editalId, {
         tipo: tipoGenerico,
         titulo: tituloGenerico,
         descricao: descricaoGenerica || undefined,
         versaoFinal: versaoFinalGenerica,
+        arquivoUrl: upload.urlArquivo,
+        arquivoMetadados: {
+          nomeOriginal: upload.nomeArquivo,
+          mimeType: upload.mimeType,
+          tamanhoBytes: upload.tamanhoBytes,
+        },
         dadosConsolidados: Object.keys(dados).length ? dados : undefined,
       }, token);
-      setFeedback({ type: "success", text: "Publicacao generica criada." });
+      setFeedback({ type: "success", text: `Publicacao criada com o PDF ${upload.nomeArquivo}.` });
       setTituloGenerico("");
       setDescricaoGenerica("");
       setVersaoFinalGenerica(false);
       setResumoGenerico("");
       setObservacoesGenericas("");
       setReferenciaGenerica("");
+      setArquivoGenerico(null);
+      setArquivoGenericoKey((current) => current + 1);
       await reload();
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
-  const pagedHistoryItems = useMemo(() => {
-    const items = history?.items ?? [];
-    const start = (page - 1) * PAGE_SIZE;
-    return items.slice(start, start + PAGE_SIZE);
-  }, [history?.items, page]);
+  const historyMetrics = useMemo(() => {
+    return {
+      total: history?.overview?.totalPublicacoes ?? 0,
+      vigentes: history?.overview?.totalVigentes ?? 0,
+      manuais: history?.overview?.totalManuais ?? 0,
+      ultimoPublicadoEm: history?.overview?.ultimoPublicadoEm ?? null,
+    };
+  }, [history?.overview]);
 
-  const totalPages = history ? Math.max(1, Math.ceil(history.total / PAGE_SIZE)) : 1;
+  const pagedHistoryItems = history?.items ?? [];
 
-  const latestHomPub = history?.items.find((i) => i.tipo === `HOMOLOGACAO_${faseHomologacao}` && i.isVersaoAtualDoTipo);
-  const latestClassPub = history?.items.find((i) => i.tipo === `CLASSIFICACAO_${faseClassificacao}` && i.isVersaoAtualDoTipo);
-  const latestPolPub = history?.items.find((i) => i.tipo === `POLITICAS_AFIRMATIVAS_${fasePoliticas}` && i.isVersaoAtualDoTipo);
+  const totalPages = Math.max(1, Math.ceil((history?.total ?? 0) / PAGE_SIZE));
+
+  const latestHomPub = history?.vigentesPorTipo?.find((i) => i.tipo === `HOMOLOGACAO_${faseHomologacao}`);
+  const latestClassPub = history?.vigentesPorTipo?.find((i) => i.tipo === `CLASSIFICACAO_${faseClassificacao}`);
+  const latestPolPub = history?.vigentesPorTipo?.find((i) => i.tipo === `POLITICAS_AFIRMATIVAS_${fasePoliticas}`);
 
   if (pageStatus === "loading") return <LoadingState title="Carregando publicacoes" description="Consultando o historico do edital." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar publicacoes" description={feedback?.text} />;
@@ -241,7 +299,35 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="admin-page-header-left" style={{ flex: 1 }}>
           <h1>Publicacoes — Edital {editalLabel || (editalId ?? "")}</h1>
-          <p>Preview, publicacao e historico versionado.</p>
+          <p>Publique resultados oficiais gerados pelo sistema ou envie um PDF manual com versionamento auditavel.</p>
+        </div>
+        {editalId ? (
+          <Link href={`/editais/${editalId}/publicacoes`} rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }} target="_blank">
+            Ver pagina publica
+          </Link>
+        ) : null}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        <div className="admin-form-card" style={{ gap: 4 }}>
+          <span className="admin-form-card-title" style={{ fontSize: 12 }}>Total publicado</span>
+          <strong style={{ fontSize: 28, color: "#0F172A" }}>{historyMetrics.total}</strong>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Todas as versoes registradas no edital.</span>
+        </div>
+        <div className="admin-form-card" style={{ gap: 4 }}>
+          <span className="admin-form-card-title" style={{ fontSize: 12 }}>Versoes vigentes</span>
+          <strong style={{ fontSize: 28, color: "#0F172A" }}>{historyMetrics.vigentes}</strong>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Uma por tipo atualmente valido ao usuario.</span>
+        </div>
+        <div className="admin-form-card" style={{ gap: 4 }}>
+          <span className="admin-form-card-title" style={{ fontSize: 12 }}>PDFs manuais</span>
+          <strong style={{ fontSize: 28, color: "#0F172A" }}>{historyMetrics.manuais}</strong>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Arquivos enviados manualmente pela administracao.</span>
+        </div>
+        <div className="admin-form-card" style={{ gap: 4 }}>
+          <span className="admin-form-card-title" style={{ fontSize: 12 }}>Ultima publicacao</span>
+          <strong style={{ fontSize: 18, color: "#0F172A" }}>{historyMetrics.ultimoPublicadoEm ? formatIsoDate(historyMetrics.ultimoPublicadoEm) : "—"}</strong>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Data da versao mais recente no historico.</span>
         </div>
       </div>
 
@@ -438,43 +524,82 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       {/* Historico table */}
       <div className="admin-form-card">
         <h2 className="admin-form-card-title">Historico publicado</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Todas as publicacoes oficiais do edital em ordem cronologica.</p>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Todas as publicacoes oficiais do edital em ordem cronologica, com leitura rapida do que esta vigente e do que foi enviado manualmente.</p>
 
-        {history?.items.length ? (
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="admin-eval-field" style={{ minWidth: 220, marginBottom: 0 }}>
+            <label>Filtrar por tipo</label>
+            <select className="select-field" onChange={(event) => setHistoryTypeFilter(event.target.value as "TODOS" | TipoPublicacaoOficial)} value={historyTypeFilter}>
+              <option value="TODOS">Todos os tipos</option>
+              {tipoPublicacaoOficialOptions.map((value) => (
+                <option key={value} value={value}>{getStatusLabel(value)}</option>
+              ))}
+            </select>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: "#334155", cursor: "pointer", paddingTop: 18 }}>
+            <input checked={historyOnlyCurrent} onChange={(event) => setHistoryOnlyCurrent(event.target.checked)} type="checkbox" />
+            Mostrar apenas versoes vigentes
+          </label>
+          <span style={{ fontSize: 12, color: "#64748B", paddingTop: 18 }}>
+            {history?.total ?? 0} {(history?.total ?? 0) === 1 ? "registro encontrado" : "registros encontrados"}
+          </span>
+        </div>
+
+        {pagedHistoryItems.length ? (
           <div className="admin-homologacao-table-wrap">
             <table className="admin-homologacao-table">
               <thead>
                 <tr>
-                  <th style={{ minWidth: 200 }}>Titulo</th>
+                  <th style={{ minWidth: 260 }}>Publicacao</th>
                   <th style={{ minWidth: 140 }}>Tipo</th>
-                  <th style={{ width: 80, textAlign: "center" }}>Versao</th>
-                  <th style={{ width: 90, textAlign: "center" }}>Republic.</th>
+                  <th style={{ minWidth: 120 }}>Origem</th>
+                  <th style={{ width: 120, textAlign: "center" }}>Versao</th>
                   <th style={{ minWidth: 140 }}>Data</th>
-                  <th style={{ width: 60, textAlign: "center" }}>PDF</th>
+                  <th style={{ width: 90, textAlign: "center" }}>PDF</th>
                 </tr>
               </thead>
               <tbody>
                 {pagedHistoryItems.map((item) => (
                   <tr key={item.id}>
-                    <td className="admin-homologacao-table-primary">{item.titulo}</td>
-                    <td className="admin-homologacao-table-muted">{getStatusLabel(item.tipo)}</td>
-                    <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>
-                      {item.versao}
-                      {item.isVersaoAtualDoTipo && (
-                        <StatusBadge variant="info" shape="tag">Vigente</StatusBadge>
-                      )}
-                      {item.versaoFinal && (
-                        <StatusBadge variant="success" shape="tag">Final</StatusBadge>
-                      )}
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <strong className="admin-homologacao-table-primary">{item.titulo}</strong>
+                        <span className="admin-homologacao-table-muted">{item.descricao ?? "Sem descricao publica cadastrada."}</span>
+                      </div>
                     </td>
-                    <td style={{ textAlign: "center", color: item.republicacaoDeId ? "#B45309" : "#94A3B8", fontWeight: item.republicacaoDeId ? 600 : 500 }}>
-                      {item.republicacaoDaVersao ? `v${item.republicacaoDaVersao}` : "Nao"}
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+                        <span className="admin-homologacao-table-muted">{getStatusLabel(item.tipo)}</span>
+                        {item.isVersaoAtualDoTipo ? (
+                          <StatusBadge variant="info" shape="tag">Vigente</StatusBadge>
+                        ) : null}
+                        {item.versaoFinal ? (
+                          <StatusBadge variant="success" shape="tag">Final</StatusBadge>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+                        <StatusBadge shape="tag" variant={getOrigemArquivoVariant(item.origemArquivo)}>
+                          {getOrigemArquivoLabel(item.origemArquivo)}
+                        </StatusBadge>
+                        {item.arquivoNomeOriginal ? <span className="admin-homologacao-table-muted">{item.arquivoNomeOriginal}</span> : null}
+                        {item.arquivoTamanhoBytes ? <span className="admin-homologacao-table-muted">{formatFileSize(item.arquivoTamanhoBytes)}</span> : null}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "center", fontWeight: 500, color: "#334155" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+                        <span>v{item.versao}</span>
+                        <span style={{ fontSize: 12, color: item.republicacaoDeId ? "#B45309" : "#94A3B8", fontWeight: item.republicacaoDeId ? 600 : 500 }}>
+                          {item.republicacaoDaVersao ? `Republica v${item.republicacaoDaVersao}` : "Original"}
+                        </span>
+                      </div>
                     </td>
                     <td className="admin-homologacao-table-muted">{formatIsoDate(item.publicadoEm)}</td>
                     <td className="admin-homologacao-table-center">
                       {item.arquivoUrl ? (
                         <Link className="admin-homologacao-table-link" href={resolveApiUrl(item.arquivoUrl)} rel="noreferrer" target="_blank">
-                          PDF
+                          Abrir
                         </Link>
                       ) : (
                         <span style={{ color: "#94A3B8" }}>—</span>
@@ -486,7 +611,10 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </table>
           </div>
         ) : (
-          <EmptyState title="Sem publicacoes" description="Ainda nao ha publicacoes oficiais registradas para este edital." />
+          <EmptyState
+            title={history?.overview?.totalPublicacoes ? "Nenhum registro no filtro atual" : "Sem publicacoes"}
+            description={history?.overview?.totalPublicacoes ? "Ajuste os filtros para visualizar outras publicacoes deste edital." : "Ainda nao ha publicacoes oficiais registradas para este edital."}
+          />
         )}
 
         <div className="admin-pagination">
@@ -504,10 +632,10 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Publicacao generica */}
+      {/* Publicacao manual */}
       <form className="admin-form-card" onSubmit={handlePublicacaoGenerica}>
-        <h2 className="admin-form-card-title">Publicacao generica</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Crie publicacoes avulsas: comunicados, retificacoes, resultados de isencao e outros tipos nao especializados.</p>
+        <h2 className="admin-form-card-title">Publicacao manual em PDF</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Envie um PDF oficial pronto para publicar no edital. O titulo e obrigatorio, a descricao e opcional e o arquivo fica versionado no historico do edital.</p>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
@@ -524,32 +652,63 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
-            <label>Descricao</label>
+            <label>Descricao (opcional)</label>
             <textarea className="text-area" onChange={(e) => setDescricaoGenerica(e.target.value)} value={descricaoGenerica} />
           </div>
           <div className="admin-eval-field">
-            <label>Resumo publico</label>
-            <textarea className="text-area" onChange={(e) => setResumoGenerico(e.target.value)} value={resumoGenerico} />
+            <label>Arquivo PDF *</label>
+            <input accept="application/pdf,.pdf" key={arquivoGenericoKey} onChange={(event) => setArquivoGenerico(event.target.files?.[0] ?? null)} required={!arquivoGenerico} type="file" />
+            <span style={{ fontSize: 12, color: "#64748B" }}>Maximo de 10 MB. O PDF publicado sera o mesmo arquivo enviado pela administracao.</span>
+            {arquivoGenerico ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, padding: 12, border: "1px solid #E2E8F0", borderRadius: 8, background: "#F8FAFC" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <strong style={{ fontSize: 13, color: "#0F172A" }}>{arquivoGenerico.name}</strong>
+                    <span style={{ fontSize: 12, color: "#64748B" }}>{formatFileSize(arquivoGenerico.size)}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {arquivoGenericoPreviewUrl ? (
+                      <a className="admin-homologacao-table-link" href={arquivoGenericoPreviewUrl} rel="noreferrer" target="_blank">
+                        Pre-visualizar PDF
+                      </a>
+                    ) : null}
+                    <button className="admin-pub-btn-preview" onClick={() => { setArquivoGenerico(null); setArquivoGenericoKey((current) => current + 1); }} type="button">
+                      Remover PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
-        <div className="admin-form-row">
-          <div className="admin-eval-field">
-            <label>Observacoes internas</label>
-            <textarea className="text-area" onChange={(e) => setObservacoesGenericas(e.target.value)} value={observacoesGenericas} />
+        <details style={{ border: "1px solid #E2E8F0", borderRadius: 8, padding: 12, background: "#FFFFFF" }}>
+          <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Campos avancados opcionais</summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+            <div className="admin-form-row">
+              <div className="admin-eval-field">
+                <label>Resumo publico</label>
+                <textarea className="text-area" onChange={(e) => setResumoGenerico(e.target.value)} value={resumoGenerico} />
+              </div>
+              <div className="admin-eval-field">
+                <label>Observacoes internas</label>
+                <textarea className="text-area" onChange={(e) => setObservacoesGenericas(e.target.value)} value={observacoesGenericas} />
+              </div>
+            </div>
+            <div className="admin-eval-field">
+              <label>Referencia externa</label>
+              <input onChange={(e) => setReferenciaGenerica(e.target.value)} value={referenciaGenerica} />
+            </div>
           </div>
-          <div className="admin-eval-field">
-            <label>Referencia externa</label>
-            <input onChange={(e) => setReferenciaGenerica(e.target.value)} value={referenciaGenerica} />
-          </div>
-        </div>
+        </details>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: "#334155", cursor: "pointer" }}>
             <input checked={versaoFinalGenerica} onChange={(e) => setVersaoFinalGenerica(e.target.checked)} type="checkbox" />
             Versao final
           </label>
-          <button className="admin-page-cta" disabled={busy} type="submit">Criar publicacao</button>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Se ja existir publicacao do mesmo tipo, esta acao criara uma nova versao no historico.</span>
+          <button className="admin-page-cta" disabled={busy} type="submit">Publicar PDF manual</button>
         </div>
       </form>
     </div>

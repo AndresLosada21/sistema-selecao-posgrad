@@ -184,6 +184,7 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
       .put(`/v1/admin/inscricoes/${context.inscricaoId}/politicas-afirmativas/encaminhamento`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
+        tipo: "HETEROIDENTIFICACAO",
         convocadoEm: "2026-02-09T08:00:00.000Z",
         documentosEncaminhadosEm: "2026-02-09T10:00:00.000Z",
         protocoloEncaminhamento: "CGH-2026-123",
@@ -197,6 +198,7 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
       .put(`/v1/admin/inscricoes/${context.inscricaoId}/politicas-afirmativas/resultado-preliminar`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
+        tipo: "HETEROIDENTIFICACAO",
         resultado: "CONFIRMADO",
         parecer: "Resultado preliminar recebido da CGH.",
         arquivoRetornoUrl: "https://arquivos.teste/hetero-preliminar.pdf",
@@ -218,6 +220,7 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
       .put(`/v1/admin/inscricoes/${context.inscricaoId}/politicas-afirmativas/resultado-final`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
+        tipo: "HETEROIDENTIFICACAO",
         resultado: "CONFIRMADO",
         parecer: "Resultado final recebido da CGH.",
         arquivoRetornoUrl: "https://arquivos.teste/hetero-final.pdf",
@@ -240,12 +243,143 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
       .set("Authorization", `Bearer ${candidatoToken}`);
 
     assert.equal(dashboardResponse.status, 200);
-    assert.equal(dashboardResponse.body.items[0].inscricao.politicasAfirmativas.resultadoFinal, ResultadoPoliticasAfirmativas.CONFIRMADO);
+    assert.equal(dashboardResponse.body.items[0].inscricao.politicasAfirmativas.itens[0].resultadoFinal, ResultadoPoliticasAfirmativas.CONFIRMADO);
     const destaque = dashboardResponse.body.items[0].publicacoesDestaque.find((item: { tipo: string }) => item.tipo === TipoPublicacaoOficial.POLITICAS_AFIRMATIVAS_FINAL);
     assert.ok(destaque);
     assert.equal("dadosConsolidados" in destaque, false);
     assert.equal("criadoPor" in destaque, false);
     assert.equal("criadoPorId" in destaque, false);
+  } finally {
+    await cleanupContext(context);
+  }
+});
+
+test("inscricao com acoes afirmativas e PCD simultaneos expõe duas etapas e dois recursos distintos", async () => {
+  const context = await createContext();
+
+  try {
+    const admin = await prisma.usuario.findUniqueOrThrow({ where: { id: context.adminId } });
+    const candidato = await prisma.usuario.findUniqueOrThrow({ where: { id: context.candidatoId } });
+    const adminToken = createToken(admin.id, admin.email);
+    const candidatoToken = createToken(candidato.id, candidato.email);
+
+    await prisma.inscricao.update({
+      where: { id: context.inscricaoId },
+      data: {
+        confirmacaoPcd: StatusConfirmacaoReserva.PENDENTE,
+        dadosFormulario: {
+          nomeCompleto: candidato.nomeCompleto,
+          email: candidato.email,
+          concorreAcoesAfirmativas: true,
+          pessoaComDeficiencia: true,
+        },
+      },
+    });
+
+    await prisma.documentoInscricao.create({
+      data: {
+        inscricaoId: context.inscricaoId,
+        tipo: "LAUDO_PCD",
+        nome: "Laudo PCD",
+        urlArquivo: "https://arquivos.teste/laudo-pcd.pdf",
+        nomeArquivo: "laudo-pcd.pdf",
+      },
+    });
+
+    await prisma.etapaPoliticasAfirmativas.create({
+      data: {
+        inscricaoId: context.inscricaoId,
+        tipo: TipoEtapaPoliticasAfirmativas.PCD,
+      },
+    });
+
+    await prisma.cronogramaEdital.create({
+      data: {
+        editalId: context.editalId,
+        tipo: "RECURSO_HETEROIDENTIFICACAO",
+        titulo: "Janela recursal politicas",
+        inicioEm: new Date(Date.now() - 60_000),
+        fimEm: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const listResponse = await request(app)
+      .get(`/v1/admin/editais/${context.editalId}/politicas-afirmativas`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    assert.equal(listResponse.status, 200);
+    assert.equal(listResponse.body.total, 2);
+
+    const detailResponse = await request(app)
+      .get(`/v1/admin/inscricoes/${context.inscricaoId}/politicas-afirmativas`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    assert.equal(detailResponse.status, 200);
+    assert.equal(detailResponse.body.inscricao.reservasConcorrencia.acoesAfirmativas, true);
+    assert.equal(detailResponse.body.inscricao.reservasConcorrencia.pcd, true);
+    assert.equal(detailResponse.body.etapas.length, 2);
+
+    const pcdPreliminar = await request(app)
+      .put(`/v1/admin/inscricoes/${context.inscricaoId}/politicas-afirmativas/resultado-preliminar`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: "PCD",
+        resultado: "CONFIRMADO",
+        parecer: "PCD preliminar confirmado.",
+      });
+
+    assert.equal(pcdPreliminar.status, 200);
+    assert.equal(pcdPreliminar.body.tipo, "PCD");
+
+    const heteroPreliminar = await request(app)
+      .put(`/v1/admin/inscricoes/${context.inscricaoId}/politicas-afirmativas/resultado-preliminar`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: "HETEROIDENTIFICACAO",
+        resultado: "NAO_CONFIRMADO",
+        parecer: "Heteroidentificacao preliminar registrada.",
+      });
+
+    assert.equal(heteroPreliminar.status, 200);
+    assert.equal(heteroPreliminar.body.tipo, "HETEROIDENTIFICACAO");
+
+    const recursoPcd = await request(app)
+      .post("/v1/candidato/recursos")
+      .set("Authorization", `Bearer ${candidatoToken}`)
+      .send({
+        editalId: context.editalId,
+        fase: "POLITICAS_AFIRMATIVAS",
+        tipoPoliticasAfirmativasReferencia: "PCD",
+        fundamentacao: "Recurso especifico para a etapa PCD.",
+      });
+
+    assert.equal(recursoPcd.status, 201);
+    assert.equal(recursoPcd.body.tipoPoliticasAfirmativasReferencia, "PCD");
+
+    const recursoHetero = await request(app)
+      .post("/v1/candidato/recursos")
+      .set("Authorization", `Bearer ${candidatoToken}`)
+      .send({
+        editalId: context.editalId,
+        fase: "POLITICAS_AFIRMATIVAS",
+        tipoPoliticasAfirmativasReferencia: "HETEROIDENTIFICACAO",
+        fundamentacao: "Recurso especifico para heteroidentificacao.",
+      });
+
+    assert.equal(recursoHetero.status, 201);
+    assert.equal(recursoHetero.body.tipoPoliticasAfirmativasReferencia, "HETEROIDENTIFICACAO");
+
+    const recursoPcdDuplicado = await request(app)
+      .post("/v1/candidato/recursos")
+      .set("Authorization", `Bearer ${candidatoToken}`)
+      .send({
+        editalId: context.editalId,
+        fase: "POLITICAS_AFIRMATIVAS",
+        tipoPoliticasAfirmativasReferencia: "PCD",
+        fundamentacao: "Tentativa duplicada do mesmo subtipo.",
+      });
+
+    assert.equal(recursoPcdDuplicado.status, 409);
   } finally {
     await cleanupContext(context);
   }

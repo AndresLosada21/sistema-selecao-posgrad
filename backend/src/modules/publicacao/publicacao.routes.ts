@@ -27,6 +27,7 @@ import {
 } from "./publicacao.service.js";
 import { generatePublicacaoPdfBuffer } from "./publicacao-pdf.service.js";
 import { getEditalById as getPublicEditalById } from "../edital/edital.service.js";
+import { createPrivateUploadReadStream, parsePrivateUploadUrl, statPrivateUpload } from "../upload/upload.service.js";
 
 export const publicacaoRouter = Router();
 const publicVisibleEditalStatuses = ["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"];
@@ -43,9 +44,26 @@ function getPublicacaoMessage(errorCode: string) {
       return "Nao e permitido gerar/publicar classificacao preliminar depois que a classificacao final ja foi consolidada.";
     case "CLASSIFICACAO_ESTADO_MISTO":
       return "Nao foi possivel gerar a publicacao porque a classificacao do edital esta em estado misto entre preliminar e final.";
+    case "ARQUIVO_PUBLICACAO_INVALIDO":
+      return "O arquivo informado para a publicacao deve ser um PDF valido do proprio sistema ou uma URL HTTPS terminada em .pdf.";
+    case "ARQUIVO_PUBLICACAO_SEM_PERMISSAO":
+      return "O PDF informado para a publicacao precisa ter sido enviado pelo mesmo usuario administrador autenticado.";
+    case "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO":
+      return "O PDF informado para a publicacao nao foi encontrado no storage configurado.";
     default:
       return errorCode;
   }
+}
+
+function buildPublicacaoDownloadName(publicacao: { id: string; titulo: string; versao: number }) {
+  const slug = publicacao.titulo
+    .normalize("NFD")
+    .replace(/[^a-zA-Z0-9.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+
+  return `${slug || `publicacao-${publicacao.id}`}-v${publicacao.versao}.pdf`;
 }
 
 publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/preview", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
@@ -63,13 +81,17 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/previe
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-      const message = getPublicacaoMessage(errorCode);
-      return response.status(status).json(
-        status === 404
-          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
-      );
+    const message = getPublicacaoMessage(errorCode);
+
+    if (errorCode === "EDITAL_NAO_ENCONTRADO" || errorCode === "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO") {
+      return response.status(404).json(notFound(message, errorCode, { details: "details" in result ? result.details : undefined }));
+    }
+
+    if (errorCode === "ARQUIVO_PUBLICACAO_INVALIDO" || errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") {
+      return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+    }
+
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
   }
 
   return response.status(200).json(result.preview);
@@ -90,13 +112,17 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/classificacao/prev
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-      const message = getPublicacaoMessage(errorCode);
-      return response.status(status).json(
-        status === 404
-          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
-      );
+    const message = getPublicacaoMessage(errorCode);
+
+    if (errorCode === "EDITAL_NAO_ENCONTRADO" || errorCode === "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO") {
+      return response.status(404).json(notFound(message, errorCode, { details: "details" in result ? result.details : undefined }));
+    }
+
+    if (errorCode === "ARQUIVO_PUBLICACAO_INVALIDO" || errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") {
+      return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+    }
+
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
   }
 
   return response.status(200).json(result.preview);
@@ -147,6 +173,8 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes", requireAuth, req
     total: result.total,
     page: result.page,
     pageSize: result.pageSize,
+    overview: result.overview,
+    vigentesPorTipo: result.vigentesPorTipo,
   });
 });
 
@@ -170,6 +198,31 @@ publicacaoRouter.get("/v1/publicacoes/:publicacaoId/arquivo.pdf", async (request
     return response.status(404).json(notFound(getPublicacaoMessage("PUBLICACAO_NAO_ENCONTRADA"), "PUBLICACAO_NAO_ENCONTRADA"));
   }
 
+  if (result.publicacao.arquivoUrl) {
+    const privateUpload = parsePrivateUploadUrl(result.publicacao.arquivoUrl);
+
+    if (privateUpload) {
+      try {
+        const fileStat = await statPrivateUpload(privateUpload.ownerId, privateUpload.filename);
+
+        response.setHeader("Content-Type", "application/pdf");
+        response.setHeader("Content-Length", String(fileStat.size));
+        response.setHeader(
+          "Content-Disposition",
+          `inline; filename="${buildPublicacaoDownloadName(result.publicacao)}"`,
+        );
+
+        return createPrivateUploadReadStream(privateUpload.ownerId, privateUpload.filename).pipe(response);
+      } catch {
+        return response.status(404).json(notFound(getPublicacaoMessage("ARQUIVO_PUBLICACAO_NAO_ENCONTRADO"), "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO"));
+      }
+    }
+
+    if (/^https:\/\//i.test(result.publicacao.arquivoUrl)) {
+      return response.redirect(302, result.publicacao.arquivoUrl);
+    }
+  }
+
   const pdfBuffer = await generatePublicacaoPdfBuffer({
     id: result.publicacao.id,
     titulo: result.publicacao.titulo,
@@ -183,7 +236,7 @@ publicacaoRouter.get("/v1/publicacoes/:publicacaoId/arquivo.pdf", async (request
   response.setHeader("Content-Type", "application/pdf");
   response.setHeader(
     "Content-Disposition",
-    `inline; filename="publicacao-${result.publicacao.tipo.toLowerCase()}-v${result.publicacao.versao}.pdf"`,
+    `inline; filename="${buildPublicacaoDownloadName(result.publicacao)}"`,
   );
 
   return response.status(200).send(pdfBuffer);
@@ -208,12 +261,17 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes", requireAuth, re
     descricao: parsedBody.data.descricao as string | undefined,
     versaoFinal: parsedBody.data.versaoFinal as boolean,
     arquivoUrl: parsedBody.data.arquivoUrl as string | undefined,
+    arquivoMetadados: parsedBody.data.arquivoMetadados as { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number } | undefined,
     dadosConsolidados: parsedBody.data.dadosConsolidados as Record<string, unknown> | undefined,
   });
 
   if ("error" in result) {
     const errorCode = result.error as string;
+    if (errorCode === "EDITAL_NAO_ENCONTRADO" || errorCode === "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO") {
       return response.status(404).json(notFound(getPublicacaoMessage(errorCode), errorCode));
+    }
+
+    return response.status(400).json(validationError(getPublicacaoMessage(errorCode), { formErrors: [getPublicacaoMessage(errorCode)], fieldErrors: {} }));
   }
 
   return response.status(201).json(result.publicacao);
@@ -237,17 +295,22 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/homologacao", req
     titulo: parsedBody.data.titulo as string | undefined,
     descricao: parsedBody.data.descricao as string | undefined,
     arquivoUrl: parsedBody.data.arquivoUrl as string | undefined,
+    arquivoMetadados: parsedBody.data.arquivoMetadados as { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number } | undefined,
   });
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-      const message = getPublicacaoMessage(errorCode);
-      return response.status(status).json(
-        status === 404
-          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
-      );
+    const message = getPublicacaoMessage(errorCode);
+
+    if (errorCode === "EDITAL_NAO_ENCONTRADO" || errorCode === "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO") {
+      return response.status(404).json(notFound(message, errorCode, { details: "details" in result ? result.details : undefined }));
+    }
+
+    if (errorCode === "ARQUIVO_PUBLICACAO_INVALIDO" || errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") {
+      return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+    }
+
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
   }
 
   if (!("publicacao" in result)) {
@@ -278,17 +341,22 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/classificacao", r
     titulo: parsedBody.data.titulo as string | undefined,
     descricao: parsedBody.data.descricao as string | undefined,
     arquivoUrl: parsedBody.data.arquivoUrl as string | undefined,
+    arquivoMetadados: parsedBody.data.arquivoMetadados as { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number } | undefined,
   });
 
   if ("error" in result) {
     const errorCode = result.error as string;
-    const status = result.error === "EDITAL_NAO_ENCONTRADO" ? 404 : 409;
-      const message = getPublicacaoMessage(errorCode);
-      return response.status(status).json(
-        status === 404
-          ? notFound(message, errorCode, { details: "details" in result ? result.details : undefined })
-          : conflict(message, errorCode, { details: "details" in result ? result.details : undefined }),
-      );
+    const message = getPublicacaoMessage(errorCode);
+
+    if (errorCode === "EDITAL_NAO_ENCONTRADO" || errorCode === "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO") {
+      return response.status(404).json(notFound(message, errorCode, { details: "details" in result ? result.details : undefined }));
+    }
+
+    if (errorCode === "ARQUIVO_PUBLICACAO_INVALIDO" || errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") {
+      return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+    }
+
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
   }
 
   if (!("publicacao" in result)) {

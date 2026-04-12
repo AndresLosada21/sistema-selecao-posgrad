@@ -133,9 +133,9 @@ export default function EditaisPage() {
         type="info"
         title="Consulta publica do processo seletivo"
         description={session.isAuthenticated
-          ? "Acompanhe editais, cronogramas e publicacoes oficiais. Voce ja esta autenticado e pode seguir para sua area."
+          ? "Acompanhe editais, cronogramas e publicacoes oficiais. Para iniciar inscricao ou isencao, escolha um edital e use o botao 'Entrar neste edital'."
           : "Acompanhe editais, cronogramas e publicacoes oficiais. Para operar fluxos do candidato, entre com sua conta."}
-        action={<PublicAccessCta />}
+        action={<PublicAccessCta candidateLabel="Abrir painel do candidato" />}
       />
 
       <PageHeader

@@ -39,6 +39,7 @@ import {
 } from "../../modules/politicas-afirmativas/politicas-afirmativas.schemas.js";
 import {
   createClassificacaoPublicacaoSchema,
+  createHomologacaoPublicacaoSchema,
   createPublicacaoSchema,
   publicacaoIdParamSchema,
   previewClassificacaoPublicacaoQuerySchema,
@@ -653,6 +654,10 @@ export const PublicacaoResumoSchema = z
     descricao: z.string().nullable(),
     versao: z.number().int().positive(),
     versaoFinal: z.boolean(),
+    origemArquivo: z.enum(["MANUAL", "GERADO"]),
+    arquivoNomeOriginal: z.string().nullable().optional(),
+    arquivoMimeType: z.string().nullable().optional(),
+    arquivoTamanhoBytes: z.number().int().nullable().optional(),
     arquivoUrl: z.string(),
     publicadoEm: isoDate().nullable(),
   })
@@ -1163,6 +1168,7 @@ export const PagamentoHomologacaoRequestSchema = pagamentoHomologacaoSchema.open
 });
 export const EncaminhamentoPoliticasAfirmativasRequestSchema = encaminhamentoPoliticasAfirmativasSchema.openapi("EncaminhamentoPoliticasAfirmativasRequest", {
   example: {
+    tipo: "HETEROIDENTIFICACAO",
     convocadoEm: "2026-02-09T08:00:00.000Z",
     documentosEncaminhadosEm: "2026-02-09T10:00:00.000Z",
     protocoloEncaminhamento: "CGH-2026-001",
@@ -1171,6 +1177,7 @@ export const EncaminhamentoPoliticasAfirmativasRequestSchema = encaminhamentoPol
 });
 export const ResultadoPoliticasAfirmativasRequestSchema = resultadoPoliticasAfirmativasSchema.openapi("ResultadoPoliticasAfirmativasRequest", {
   example: {
+    tipo: "HETEROIDENTIFICACAO",
     resultado: "CONFIRMADO",
     parecer: "Resultado recebido da comissao e registrado no sistema.",
     arquivoRetornoUrl: "https://arquivos.exemplo/resultado-hetero.pdf",
@@ -1198,7 +1205,7 @@ export const CreatePublicacaoRequestSchema = createPublicacaoSchema.openapi("Cre
     titulo: "Comunicado administrativo do processo seletivo",
     descricao: "Publicacao generica de comunicacao oficial do edital.",
     versaoFinal: false,
-    arquivoUrl: "https://arquivos.exemplo/comunicado.pdf",
+    arquivoUrl: "/v1/uploads/private/admin-id/comunicado.pdf",
   },
 });
 export const PreviewHomologacaoPublicacaoQuerySchema = z
@@ -1210,19 +1217,13 @@ export const PreviewClassificacaoPublicacaoQuerySchema = previewClassificacaoPub
   .openapi("PreviewClassificacaoPublicacaoQuery");
 export const PreviewPoliticasAfirmativasPublicacaoQuerySchema = previewPoliticasAfirmativasPublicacaoQuerySchema
   .openapi("PreviewPoliticasAfirmativasPublicacaoQuery");
-export const CreateHomologacaoPublicacaoRequestSchema = z
-  .object({
-    fase: z.enum(["PRELIMINAR", "FINAL"]),
-    titulo: z.string().trim().min(5).optional(),
-    descricao: z.string().trim().min(5).optional(),
-    arquivoUrl: z.string().trim().url().optional(),
-  })
+export const CreateHomologacaoPublicacaoRequestSchema = createHomologacaoPublicacaoSchema
   .openapi("CreateHomologacaoPublicacaoRequest", {
     example: {
       fase: "PRELIMINAR",
       titulo: "Resultado preliminar da homologacao das inscricoes",
       descricao: "Publicacao administrativa consolidada a partir dos snapshots da homologacao preliminar.",
-      arquivoUrl: "https://arquivos.exemplo/homologacao-preliminar.pdf",
+      arquivoUrl: "/v1/uploads/private/admin-id/homologacao-preliminar.pdf",
     },
   });
 export const CreateClassificacaoPublicacaoRequestSchema = createClassificacaoPublicacaoSchema
@@ -1231,7 +1232,7 @@ export const CreateClassificacaoPublicacaoRequestSchema = createClassificacaoPub
       fase: "FINAL",
       titulo: "Resultado final da classificacao final",
       descricao: "Publicacao administrativa consolidada a partir do snapshot da classificacao final.",
-      arquivoUrl: "https://arquivos.exemplo/classificacao-final.pdf",
+      arquivoUrl: "/v1/uploads/private/admin-id/classificacao-final.pdf",
     },
   });
 export const CreatePoliticasAfirmativasPublicacaoRequestSchema = createPoliticasAfirmativasPublicacaoSchema
@@ -1240,6 +1241,7 @@ export const CreatePoliticasAfirmativasPublicacaoRequestSchema = createPoliticas
       fase: "FINAL",
       titulo: "Resultado final da etapa de politicas afirmativas",
       descricao: "Versao consolidada apos retorno final da comissao da UFAM.",
+      arquivoUrl: "/v1/uploads/private/admin-id/politicas-afirmativas-final.pdf",
     },
   });
 export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request", {

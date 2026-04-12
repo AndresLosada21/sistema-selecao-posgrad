@@ -77,7 +77,7 @@ export type SubmissionValidationResult = {
 };
 
 type SubmissionValidationInput = {
-  modalidadeConcorrencia: ModalidadeConcorrencia;
+  modalidadeConcorrencia?: ModalidadeConcorrencia | null;
   fichaInscricao: FichaInscricao | null;
   temaRedacao?: string | null;
   redacaoTexto?: string | null;
@@ -91,6 +91,55 @@ function normalizeString(value: string | null | undefined) {
 
 function hasValue(value: string | null | undefined) {
   return normalizeString(value).length > 0;
+}
+
+export type ReservasConcorrencia = {
+  acoesAfirmativas: boolean;
+  pcd: boolean;
+};
+
+export function resolveReservasConcorrencia(input: {
+  fichaInscricao?: FichaInscricao | null;
+  modalidadeConcorrencia?: ModalidadeConcorrencia | null;
+}) {
+  const ficha = input.fichaInscricao ?? null;
+  const acoesAfirmativas = typeof ficha?.concorreAcoesAfirmativas === "boolean"
+    ? ficha.concorreAcoesAfirmativas
+    : input.modalidadeConcorrencia === ModalidadeConcorrencia.ACOES_AFIRMATIVAS;
+  const pcd = typeof ficha?.pessoaComDeficiencia === "boolean"
+    ? ficha.pessoaComDeficiencia
+    : input.modalidadeConcorrencia === ModalidadeConcorrencia.PCD;
+
+  return {
+    acoesAfirmativas,
+    pcd,
+  } satisfies ReservasConcorrencia;
+}
+
+export function resolveLegacyModalidadeConcorrencia(input: {
+  reservas: ReservasConcorrencia;
+  modalidadeAtual?: ModalidadeConcorrencia | null;
+}) {
+  if (input.reservas.acoesAfirmativas && input.reservas.pcd) {
+    if (
+      input.modalidadeAtual === ModalidadeConcorrencia.ACOES_AFIRMATIVAS
+      || input.modalidadeAtual === ModalidadeConcorrencia.PCD
+    ) {
+      return input.modalidadeAtual;
+    }
+
+    return ModalidadeConcorrencia.ACOES_AFIRMATIVAS;
+  }
+
+  if (input.reservas.acoesAfirmativas) {
+    return ModalidadeConcorrencia.ACOES_AFIRMATIVAS;
+  }
+
+  if (input.reservas.pcd) {
+    return ModalidadeConcorrencia.PCD;
+  }
+
+  return ModalidadeConcorrencia.AMPLA_CONCORRENCIA;
 }
 
 function isEstrangeiro(nacionalidade: string | undefined) {
@@ -112,9 +161,10 @@ function isPdfDocument(documento: DocumentoResumo | undefined) {
 
 function getRequiredDocumentRules(input: {
   fichaInscricao: FichaInscricao;
-  modalidadeConcorrencia: ModalidadeConcorrencia;
+  modalidadeConcorrencia?: ModalidadeConcorrencia | null;
   pagamentoDispensado: boolean;
 }) {
+  const reservas = resolveReservasConcorrencia(input);
   const rules: RequiredDocumentRule[] = [
     { tipo: TipoDocumentoInscricao.ANEXO_IV, label: "Anexo IV assinado" },
     { tipo: TipoDocumentoInscricao.ANEXO_V, label: "Declaracao de titulos" },
@@ -137,7 +187,7 @@ function getRequiredDocumentRules(input: {
     rules.push({ tipo: TipoDocumentoInscricao.LAUDO_PCD, label: "Laudo medico PCD" });
   }
 
-  if (input.fichaInscricao.concorreAcoesAfirmativas || input.modalidadeConcorrencia === ModalidadeConcorrencia.ACOES_AFIRMATIVAS) {
+  if (reservas.acoesAfirmativas) {
     rules.push({
       tipo: TipoDocumentoInscricao.ANEXO_VIII_AUTODECLARACAO,
       label: "Autodeclaracao e ciencia da gravacao de imagem",
@@ -277,17 +327,6 @@ export function validateInscricaoForSubmission(input: SubmissionValidationInput)
 
   errors.push(...fichaErrors);
 
-  if (input.modalidadeConcorrencia === ModalidadeConcorrencia.PCD && !input.fichaInscricao?.pessoaComDeficiencia) {
-    errors.push("modalidade PCD exige marcacao de pessoa com deficiencia na ficha");
-  }
-
-  if (
-    input.modalidadeConcorrencia === ModalidadeConcorrencia.ACOES_AFIRMATIVAS &&
-    !input.fichaInscricao?.concorreAcoesAfirmativas
-  ) {
-    errors.push("modalidade de acoes afirmativas exige marcacao correspondente na ficha");
-  }
-
   const requiredDocumentRules = input.fichaInscricao
     ? getRequiredDocumentRules({
         fichaInscricao: input.fichaInscricao,
@@ -371,6 +410,10 @@ export function buildInscricaoSubmissionSnapshot(input: {
     inscricao: {
       id: input.inscricao.id,
       modalidadeConcorrencia: input.inscricao.modalidadeConcorrencia,
+      reservasConcorrencia: resolveReservasConcorrencia({
+        fichaInscricao: input.fichaInscricao,
+        modalidadeConcorrencia: input.inscricao.modalidadeConcorrencia,
+      }),
       linhaPesquisaId: input.inscricao.linhaPesquisaId,
       linhaPesquisaNome: input.inscricao.linhaPesquisaNome ?? null,
       pagamentoDispensado: input.pagamentoDispensado,

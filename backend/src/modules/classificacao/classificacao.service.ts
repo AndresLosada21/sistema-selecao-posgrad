@@ -1,6 +1,7 @@
 import { Prisma, StatusClassificacaoFinal, StatusConfirmacaoReserva, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { resolveReservasConcorrencia } from "../inscricao/inscricao.rules.js";
 import { rankClassificacao } from "./classificacao.rules.js";
 
 export async function validarContextoClassificacao(editalId: string, publicacao: "PRELIMINAR" | "FINAL") {
@@ -48,9 +49,12 @@ export async function validarContextoClassificacao(editalId: string, publicacao:
   const details = inscricoesElegiveis
     .map((inscricao) => {
       const pendencias: string[] = [];
+      const reservasConcorrencia = buildReservasConcorrencia(inscricao);
       if (!inscricao.linhaPesquisa) pendencias.push("linha de pesquisa ausente");
       if (!inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa1.status !== "FINAL_PUBLICADA" || inscricao.avaliacaoEtapa1.nota == null) pendencias.push("etapa 1 final ausente");
       if (!inscricao.avaliacaoEtapa2 || inscricao.avaliacaoEtapa2.status !== "FINAL_PUBLICADA" || inscricao.avaliacaoEtapa2.notaNormalizada == null) pendencias.push("etapa 2 final ausente");
+      if (publicacao === "FINAL" && reservasConcorrencia.acoesAfirmativas && inscricao.confirmacaoAcoesAfirmativas === StatusConfirmacaoReserva.PENDENTE) pendencias.push("confirmacao de acoes afirmativas pendente");
+      if (publicacao === "FINAL" && reservasConcorrencia.pcd && inscricao.confirmacaoPcd === StatusConfirmacaoReserva.PENDENTE) pendencias.push("confirmacao PCD pendente");
       return pendencias.length > 0
         ? {
             inscricaoId: inscricao.id,
@@ -86,6 +90,23 @@ function parseFichaDataNascimento(value: Prisma.JsonValue | null | undefined) {
   const parsed = new Date(dataNascimento);
 
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function buildReservasConcorrencia(inscricao: {
+  dadosFormulario?: Prisma.JsonValue | null;
+  modalidadeConcorrencia?: string | null;
+  confirmacaoAcoesAfirmativas?: string | null;
+  confirmacaoPcd?: string | null;
+}) {
+  const base = resolveReservasConcorrencia({
+    fichaInscricao: inscricao.dadosFormulario as Parameters<typeof resolveReservasConcorrencia>[0]["fichaInscricao"],
+    modalidadeConcorrencia: inscricao.modalidadeConcorrencia as Parameters<typeof resolveReservasConcorrencia>[0]["modalidadeConcorrencia"],
+  });
+
+  return {
+    acoesAfirmativas: base.acoesAfirmativas || inscricao.confirmacaoAcoesAfirmativas !== "NAO_SE_APLICA",
+    pcd: base.pcd || inscricao.confirmacaoPcd !== "NAO_SE_APLICA",
+  };
 }
 
 export async function recalcularClassificacao(editalId: string, publicacao: "PRELIMINAR" | "FINAL") {
@@ -281,6 +302,7 @@ export async function listClassificacao(editalId: string, pagination?: { page: n
         }
       : null,
     modalidadeConcorrencia: classificacao.modalidadeConcorrencia,
+    reservasConcorrencia: classificacao.participacaoEdital.inscricao ? buildReservasConcorrencia(classificacao.participacaoEdital.inscricao) : { acoesAfirmativas: false, pcd: false },
     confirmacaoAcoesAfirmativas: classificacao.participacaoEdital.inscricao?.confirmacaoAcoesAfirmativas ?? null,
     confirmacaoPcd: classificacao.participacaoEdital.inscricao?.confirmacaoPcd ?? null,
     notaEtapa1: classificacao.notaEtapa1?.toNumber() ?? null,

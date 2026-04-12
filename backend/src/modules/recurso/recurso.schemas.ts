@@ -1,10 +1,11 @@
-import { FaseRecurso, ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao } from "@prisma/client";
+import { FaseRecurso, ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao, TipoEtapaPoliticasAfirmativas } from "@prisma/client";
 import { z } from "zod";
 import { pdfFileUrlSchema } from "../../lib/file-url.schemas.js";
 
 export const createRecursoSchema = z.object({
   editalId: z.string().min(1),
   fase: z.nativeEnum(FaseRecurso),
+  tipoPoliticasAfirmativasReferencia: z.nativeEnum(TipoEtapaPoliticasAfirmativas).optional(),
   fundamentacao: z.string().trim().min(10),
   anexoUrl: pdfFileUrlSchema.optional(),
 });
@@ -35,6 +36,15 @@ export const decidirRecursoSchema = z.object({
     message: "Resultado final de politicas afirmativas nao pode permanecer pendente.",
   }).optional(),
   novoParecerFinalPoliticasAfirmativas: z.string().trim().min(5).optional(),
+  novosResultadosFinaisPoliticasAfirmativas: z.array(z.object({
+    tipo: z.nativeEnum(TipoEtapaPoliticasAfirmativas),
+    resultado: z.nativeEnum(ResultadoPoliticasAfirmativas).refine((value) => value !== ResultadoPoliticasAfirmativas.PENDENTE, {
+      message: "Resultado final de politicas afirmativas nao pode permanecer pendente.",
+    }),
+    parecer: z.string().trim().min(5),
+  })).min(1).refine((items) => new Set(items.map((item) => item.tipo)).size === items.length, {
+    message: "Nao repita o mesmo tipo de politicas afirmativas na mesma decisao recursal.",
+  }).optional(),
 }).superRefine((data, context) => {
   if (!data.deferido && data.impactoResultado) {
     context.addIssue({
@@ -51,6 +61,7 @@ export const decidirRecursoSchema = z.object({
     data.novaNotaEtapa1,
     data.novaPontuacaoBrutaEtapa2,
     data.novoResultadoFinalPoliticasAfirmativas,
+    data.novosResultadosFinaisPoliticasAfirmativas,
   ].some((value) => value !== undefined)) {
     context.addIssue({
       code: z.ZodIssueCode.custom,

@@ -1,6 +1,8 @@
 import { Prisma, StatusAvaliacaoEtapa, StatusInscricao, StatusRecurso, TipoCronogramaEdital } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { resolveReservasConcorrencia } from "../inscricao/inscricao.rules.js";
+import { syncEtapaPoliticasAfirmativasForInscricao } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { buildInscricaoWhereForAvaliador } from "../avaliacao/avaliador-scope.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import { buildEspelhoEtapa2, buildMemoriaCalculoEtapa2, calcularNotaNormalizadaEtapa2, type GlosaEtapa2 } from "./etapa2.rules.js";
@@ -390,6 +392,16 @@ export async function registrarResultadoEtapa2(
       status: input.publicacao === "FINAL" ? StatusInscricao.CLASSIFICACAO_PRELIMINAR : StatusInscricao.APTA_ETAPA_2,
     },
   });
+
+  if (input.publicacao === "FINAL") {
+    await syncEtapaPoliticasAfirmativasForInscricao({
+      inscricaoId,
+      reservas: resolveReservasConcorrencia({
+        fichaInscricao: inscricao.dadosFormulario as Parameters<typeof resolveReservasConcorrencia>[0]["fichaInscricao"],
+        modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+      }),
+    });
+  }
 
   return { avaliacao };
 }

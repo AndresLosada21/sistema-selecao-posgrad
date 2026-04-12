@@ -19,7 +19,6 @@ import {
   documentoTipoOptions,
   empregadoSituacaoOptions,
   generoOptions,
-  modalidadeConcorrenciaOptions,
   nacionalidadeOptions,
   racaCorOptions,
   regimeTrabalhoOptions,
@@ -195,7 +194,19 @@ function normalizeTextName(value: string) {
 }
 
 function splitNaturalidade(value: string) {
-  const [cidade = "", uf = ""] = value.split("/");
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return { cidade: "", uf: "" };
+  }
+
+  if (!normalized.includes("/")) {
+    return isValidUf(normalized)
+      ? { cidade: "", uf: normalized.toUpperCase() }
+      : { cidade: normalized, uf: "" };
+  }
+
+  const [cidade = "", uf = ""] = normalized.split("/");
   return { cidade: cidade.trim(), uf: uf.trim().toUpperCase() };
 }
 
@@ -247,7 +258,6 @@ function isEstrangeiro(ficha: InscricaoEditorState["fichaInscricao"]) {
 
 function getRequiredDocumentRules(input: {
   ficha: InscricaoEditorState["fichaInscricao"];
-  modalidadeConcorrencia: string;
   pagamentoDispensado: boolean;
 }) {
   const required: RequiredDocumentRuleView[] = [
@@ -272,7 +282,7 @@ function getRequiredDocumentRules(input: {
     required.push({ tipo: "LAUDO_PCD", label: "Laudo medico PCD" });
   }
 
-  if (input.ficha.concorreAcoesAfirmativas || input.modalidadeConcorrencia === "ACOES_AFIRMATIVAS") {
+  if (input.ficha.concorreAcoesAfirmativas) {
     required.push({ tipo: "ANEXO_VIII_AUTODECLARACAO", label: "Autodeclaracao e ciencia da gravacao de imagem" });
   }
 
@@ -413,17 +423,8 @@ function getStepFieldErrors(input: {
     if (!hasText(input.state.linhaPesquisaId)) {
       errors.linhaPesquisaId = "Selecione a linha de pesquisa.";
     }
-    if (!hasText(input.state.modalidadeConcorrencia)) {
-      errors.modalidadeConcorrencia = "Selecione a modalidade de concorrencia.";
-    }
     if (!hasText(input.state.resumoCurriculo) || input.state.resumoCurriculo.trim().length < 10) {
       errors.resumoCurriculo = "Informe um resumo do curriculo com pelo menos 10 caracteres.";
-    }
-    if (input.state.modalidadeConcorrencia === "PCD" && !input.state.fichaInscricao.pessoaComDeficiencia) {
-      errors.modalidadeConcorrencia = "Modalidade PCD exige marcacao de pessoa com deficiencia na ficha.";
-    }
-    if (input.state.modalidadeConcorrencia === "ACOES_AFIRMATIVAS" && !input.state.fichaInscricao.concorreAcoesAfirmativas) {
-      errors.modalidadeConcorrencia = "Modalidade de acoes afirmativas exige a marcacao correspondente na ficha.";
     }
   }
 
@@ -446,7 +447,6 @@ function getStepFieldErrors(input: {
   if (input.step === 3) {
     const requiredRules = getRequiredDocumentRules({
       ficha,
-      modalidadeConcorrencia: input.state.modalidadeConcorrencia,
       pagamentoDispensado: input.pagamentoDispensado,
     });
     const docsByType = new Set(input.documentos.map((doc) => doc.tipo));
@@ -643,12 +643,13 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const hasMountedAutosaveRef = useRef(false);
 
   const anexoIvDocumento = useMemo(() => documentos.find((d) => d.tipo === "ANEXO_IV") ?? null, [documentos]);
-  const requiredDocumentRules = useMemo(() => getRequiredDocumentRules({ ficha: formState.fichaInscricao, modalidadeConcorrencia: formState.modalidadeConcorrencia, pagamentoDispensado }), [formState.fichaInscricao, formState.modalidadeConcorrencia, pagamentoDispensado]);
+  const requiredDocumentRules = useMemo(() => getRequiredDocumentRules({ ficha: formState.fichaInscricao, pagamentoDispensado }), [formState.fichaInscricao, pagamentoDispensado]);
   const pendingRequiredDocumentTypes = useMemo(() => requiredDocumentRules.filter((rule) => rule.tipo !== "ANEXO_IV" && !documentos.some((documento) => documento.tipo === rule.tipo)).map((rule) => rule.tipo), [documentos, requiredDocumentRules]);
   const redacaoLength = formState.redacaoTexto.length;
   const cursoLabel = edital.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
   const maxReachedStep = useMemo(() => getMaxReachedStep({ state: formState, documentos, pagamentoDispensado, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados }), [documentos, edital.temasRedacao, edital.temasRedacaoConfigurados, formState, pagamentoDispensado]);
   const inscricaoEmRascunho = inscricaoStatus === "RASCUNHO";
+  const inscricaoEditavel = inscricaoStatus === "SEM_INSCRICAO" || inscricaoEmRascunho;
   const podeCancelarParaEditar = inscricaoStatus === "SUBMETIDA";
 
   function resetMessage() { setMessage(null); setChecklist([]); }
@@ -749,7 +750,6 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   const currentDraftPayload = useMemo(() => sanitizePayload({
     linhaPesquisaId: formState.linhaPesquisaId,
-    modalidadeConcorrencia: formState.modalidadeConcorrencia as ModalidadeConcorrencia,
     temaRedacaoEditalId: formState.temaRedacaoEditalId || undefined,
     temaRedacao: formState.temaRedacao || undefined,
     resumoCurriculo: formState.resumoCurriculo || undefined,
@@ -759,7 +759,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleSaveDraft(options?: { silent?: boolean }) {
     if (!session.token) return false;
-    if (!inscricaoEmRascunho) {
+    if (!inscricaoEditavel) {
       if (!options?.silent) {
         setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao dentro da janela do edital para voltar ao rascunho antes de editar a inscricao.", type: "warning" });
       }
@@ -968,13 +968,13 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       {/* Footer */}
       <div className="wiz-footer">
         {step > 0 && <button type="button" className="wiz-btn-back" onClick={goBack}>{svgArrowLeft} Voltar</button>}
-        <button type="button" className="wiz-btn-save" disabled={savingDraft || !inscricaoEmRascunho} onClick={() => void handleSaveDraft()}>
+        <button type="button" className="wiz-btn-save" disabled={savingDraft || !inscricaoEditavel} onClick={() => void handleSaveDraft()}>
           {svgSave} {savingDraft ? "Salvando..." : "Salvar Rascunho"}
         </button>
         <span className="wiz-footer-spacer" />
         <span className="wiz-auto-save">{svgCloud} {autosaveState === "saving" ? "Salvando automaticamente..." : autosaveState === "saved" ? `Salvo automaticamente${autosaveAt ? ` as ${new Date(autosaveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : autosaveState === "error" ? "Falha no salvamento automatico" : "Salvamento automatico ativo"}</span>
         {step < 4 ? (
-          <button type="button" className="wiz-btn-next" disabled={savingDraft || !inscricaoEmRascunho} onClick={goNext}>
+          <button type="button" className="wiz-btn-next" disabled={savingDraft || !inscricaoEditavel} onClick={goNext}>
             Proximo: {STEP_LABELS[step + 1]} {svgArrowRight}
           </button>
         ) : (
@@ -1295,33 +1295,6 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
           </div>
         </div>
 
-        <div className="wiz-card-divider" />
-        <h3 className="wiz-section-title">Declaracoes</h3>
-        <p className="wiz-section-hint">Informe abaixo suas condicoes de participacao no processo seletivo</p>
-
-        <div className="wiz-toggle-row">
-          <span className="wiz-toggle-label">Pessoa com Deficiencia (PCD)?</span>
-          <div className="wiz-toggle-pills">
-            <button type="button" className={`wiz-toggle-pill ${f.pessoaComDeficiencia ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => updateFicha("pessoaComDeficiencia", true)}>Sim</button>
-            <button type="button" className={`wiz-toggle-pill ${!f.pessoaComDeficiencia ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => updateFicha("pessoaComDeficiencia", false)}>Nao</button>
-          </div>
-        </div>
-        <div className="wiz-toggle-row">
-          <span className="wiz-toggle-label">Concorre por Vagas de Acoes Afirmativas?</span>
-          <div className="wiz-toggle-pills">
-            <button type="button" className={`wiz-toggle-pill ${f.concorreAcoesAfirmativas ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => updateFicha("concorreAcoesAfirmativas", true)}>Sim</button>
-            <button type="button" className={`wiz-toggle-pill ${!f.concorreAcoesAfirmativas ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => updateFicha("concorreAcoesAfirmativas", false)}>Nao</button>
-          </div>
-        </div>
-        <div className="wiz-toggle-row">
-          <span className="wiz-toggle-label">Vai solicitar Bolsa?</span>
-          <div className="wiz-toggle-pills">
-            <button type="button" className={`wiz-toggle-pill ${f.vaiSolicitarBolsa ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => updateFicha("vaiSolicitarBolsa", true)}>Sim</button>
-            <button type="button" className={`wiz-toggle-pill ${!f.vaiSolicitarBolsa ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => updateFicha("vaiSolicitarBolsa", false)}>Nao</button>
-          </div>
-        </div>
-
-        <div className="wiz-card-divider" />
         <div className="wiz-field">
           <label className="wiz-field-label">Situacao de Trabalho</label>
           <select value={v("empregadoSituacao")} onChange={(e) => updateFicha("empregadoSituacao", e.target.value)}>
@@ -1408,38 +1381,47 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
       </div>
 
       <div className="wiz-card" style={{ gap: 24 }}>
-        <h2 className="wiz-card-title" style={{ fontSize: 24 }}>Modalidade de Concorrencia e Curriculo</h2>
+        <h2 className="wiz-card-title" style={{ fontSize: 24 }}>Reservas e Curriculo</h2>
         <div className="wiz-card-divider" />
 
-        <div className="wiz-field">
-          <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>Modalidade de Concorrencia</label>
-          <div className="wiz-radio-list" style={{ gap: 12 }}>
-            {modalidadeConcorrenciaOptions.map((opt) => {
-              const selected = formState.modalidadeConcorrencia === opt;
-              const labels: Record<string, { title: string; desc: string }> = {
-                AMPLA_CONCORRENCIA: { title: "Ampla Concorrencia", desc: "Processo seletivo regular sem reserva de vagas." },
-                ACOES_AFIRMATIVAS: { title: "Acoes Afirmativas", desc: "Negros, indigenas, quilombolas e grupos elegiveis." },
-                PCD: { title: "PCD — Pessoa com Deficiencia", desc: "Com deficiencia conforme Lei Brasileira de Inclusao." },
-              };
-              const l = labels[opt] ?? { title: getStatusLabel(opt), desc: "" };
-              return (
-                <button type="button" key={opt} className={`wiz-radio-option${selected ? " wiz-radio-option--selected" : ""}`}
-                  style={selected ? { background: "#1B3A6B", borderColor: "#1B3A6B" } : undefined}
-                  onClick={() => setFormState((s) => ({ ...s, modalidadeConcorrencia: opt }))}
-                >
-                  <span className={`wiz-radio-dot${selected ? " wiz-radio-dot--selected" : ""}`} style={selected ? { background: "#2152A0", borderColor: "#fff" } : undefined} />
-                  <div>
-                    <div className="wiz-radio-title" style={selected ? { color: "#fff" } : undefined}>{l.title}</div>
-                    <div className="wiz-radio-desc" style={selected ? { color: "#BFDBFE" } : undefined}>{l.desc}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <FieldError message={fieldErrors.modalidadeConcorrencia} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 16, borderRadius: 8, border: "1px solid #E2E8F0", background: "#F8FAFC" }}>
+          <strong style={{ fontSize: 13, color: "#0F172A" }}>Reservas declaradas no edital</strong>
+          <span style={{ fontSize: 12, color: "#475569" }}>
+            Se o seu caso se enquadrar nas duas hipoteses do edital, voce pode marcar PCD e acoes afirmativas ao mesmo tempo. O sistema nao deve tratar essas declaracoes como exclusivas.
+          </span>
           <div className="wiz-warn-box" style={{ borderRadius: 6, padding: "10px 12px", gap: 10 }}>
             {svgTriangleAlert("#F59E0B")}
-            <span style={{ fontSize: 12, fontWeight: 500, color: "#92400E" }}>A modalidade escolhida determina os documentos exigidos.</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: "#92400E" }}>Se nenhuma reserva for marcada, a inscricao segue em ampla concorrencia.</span>
+          </div>
+          <div className="wiz-toggle-row">
+            <span className="wiz-toggle-label">Pessoa com Deficiencia (PCD)?</span>
+            <div className="wiz-toggle-pills">
+              <button type="button" className={`wiz-toggle-pill ${formState.fichaInscricao.pessoaComDeficiencia ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, pessoaComDeficiencia: true } }))}>Sim</button>
+              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.pessoaComDeficiencia ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, pessoaComDeficiencia: false } }))}>Nao</button>
+            </div>
+          </div>
+          <div className="wiz-toggle-row">
+            <span className="wiz-toggle-label">Concorrer a vaga de acoes afirmativas?</span>
+            <div className="wiz-toggle-pills">
+              <button type="button" className={`wiz-toggle-pill ${formState.fichaInscricao.concorreAcoesAfirmativas ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, concorreAcoesAfirmativas: true } }))}>Sim</button>
+              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.concorreAcoesAfirmativas ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, concorreAcoesAfirmativas: false } }))}>Nao</button>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "#64748B" }}>
+            Enquadramento atual: {formState.fichaInscricao.pessoaComDeficiencia && formState.fichaInscricao.concorreAcoesAfirmativas
+              ? "Acoes afirmativas + PCD"
+              : formState.fichaInscricao.concorreAcoesAfirmativas
+                ? "Acoes afirmativas"
+                : formState.fichaInscricao.pessoaComDeficiencia
+                  ? "PCD"
+                  : "Ampla concorrencia"}
+          </div>
+          <div className="wiz-toggle-row" style={{ marginTop: 4 }}>
+            <span className="wiz-toggle-label">Vai solicitar Bolsa?</span>
+            <div className="wiz-toggle-pills">
+              <button type="button" className={`wiz-toggle-pill ${formState.fichaInscricao.vaiSolicitarBolsa ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, vaiSolicitarBolsa: true } }))}>Sim</button>
+              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.vaiSolicitarBolsa ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, vaiSolicitarBolsa: false } }))}>Nao</button>
+            </div>
           </div>
         </div>
 

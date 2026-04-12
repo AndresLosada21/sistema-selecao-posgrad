@@ -4,6 +4,7 @@ export type AdminRecursoItem = {
   id: string;
   fase: string;
   faseHomologacaoReferencia?: "PRELIMINAR" | "FINAL" | null;
+  tipoPoliticasAfirmativasReferencia?: string | null;
   status: string;
   fundamentacao: string;
   anexoUrl: string | null;
@@ -19,6 +20,13 @@ export type AdminRecursoItem = {
     parecerVigente: string | null;
     publicadoEmVigente: string | null;
   } | null;
+  contextoPoliticasAfirmativas?: Array<{
+    tipo: string;
+    resultadoPreliminar: string;
+    resultadoFinal: string;
+    parecerPreliminar: string | null;
+    parecerFinal: string | null;
+  }>;
   candidato: {
     id: string;
     nomeCompleto: string;
@@ -53,4 +61,9 @@ export type DecisaoRecursoPayload = {
   novoEspelhoEtapa2?: string;
   novoResultadoFinalPoliticasAfirmativas?: ResultadoPoliticasAfirmativas;
   novoParecerFinalPoliticasAfirmativas?: string;
+  novosResultadosFinaisPoliticasAfirmativas?: Array<{
+    tipo: string;
+    resultado: ResultadoPoliticasAfirmativas;
+    parecer: string;
+  }>;
 };

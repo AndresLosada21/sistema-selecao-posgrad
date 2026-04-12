@@ -20,6 +20,10 @@ export type PoliticasEtapaItem = {
     id: string;
     status: string;
     modalidadeConcorrencia: string;
+    reservasConcorrencia?: {
+      acoesAfirmativas: boolean;
+      pcd: boolean;
+    };
   };
   edital: {
     id: string;
@@ -44,6 +48,33 @@ export type PoliticasEtapaItem = {
   }>;
 };
 
+export type PoliticasInscricaoDetail = {
+  inscricao: {
+    id: string;
+    status: string;
+    modalidadeConcorrencia: string;
+    reservasConcorrencia?: {
+      acoesAfirmativas: boolean;
+      pcd: boolean;
+    };
+  };
+  edital: {
+    id: string;
+    numero: string;
+    titulo: string;
+  };
+  candidato: {
+    id: string;
+    nomeCompleto: string;
+    email: string;
+  };
+  linhaPesquisa: {
+    id: string;
+    nome: string;
+  } | null;
+  etapas: PoliticasEtapaItem[];
+};
+
 export type PoliticasListResponse = {
   total: number;
   page: number;
@@ -52,6 +83,7 @@ export type PoliticasListResponse = {
 };
 
 export type EncaminhamentoPoliticasPayload = {
+  tipo: string;
   convocadoEm?: string;
   documentosEncaminhadosEm?: string;
   protocoloEncaminhamento?: string;
@@ -59,6 +91,7 @@ export type EncaminhamentoPoliticasPayload = {
 };
 
 export type ResultadoPoliticasPayload = {
+  tipo: string;
   resultado: ResultadoPoliticasAfirmativas;
   parecer: string;
   arquivoRetornoUrl?: string;

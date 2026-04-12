@@ -24,12 +24,13 @@ import {
   resolvePrivateUploadPath,
 } from "../upload/upload.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
-import { syncEtapaPoliticasAfirmativasForInscricao } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { buildCandidateAnexoIvUrl } from "./inscricao-anexo-iv.service.js";
 import {
   buildInscricaoSubmissionSnapshot,
   mergeFichaInscricao,
   type FichaInscricao,
+  resolveLegacyModalidadeConcorrencia,
+  resolveReservasConcorrencia,
   validateInscricaoForSubmission,
 } from "./inscricao.rules.js";
 
@@ -37,7 +38,7 @@ type SaveDraftInput = {
   editalId: string;
   usuarioId: string;
   linhaPesquisaId: string;
-  modalidadeConcorrencia: ModalidadeConcorrencia;
+  modalidadeConcorrencia?: ModalidadeConcorrencia;
   temaRedacaoEditalId?: string;
   temaRedacao?: string;
   resumoCurriculo?: string;
@@ -174,7 +175,7 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
       homologacao: true,
       avaliacaoEtapa1: true,
       avaliacaoEtapa2: true,
-      etapaPoliticasAfirmativas: true,
+      etapasPoliticasAfirmativas: true,
     },
   });
 }
@@ -238,6 +239,22 @@ function asString(value: unknown) {
 function normalizeOptionalString(value: string | null | undefined) {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function hasPoliticasProcessamentoPosterior(etapas: Array<{
+  statusOperacao?: string;
+  convocadoEm?: Date | null;
+  documentosEncaminhadosEm?: Date | null;
+  resultadoPreliminar?: string;
+  resultadoFinal?: string;
+}>) {
+  return etapas.some((etapa) => (
+    etapa.statusOperacao && etapa.statusOperacao !== "PENDENTE"
+  ) || Boolean(etapa.convocadoEm) || Boolean(etapa.documentosEncaminhadosEm) || (
+    etapa.resultadoPreliminar && etapa.resultadoPreliminar !== "PENDENTE"
+  ) || (
+    etapa.resultadoFinal && etapa.resultadoFinal !== "PENDENTE"
+  ));
 }
 
 function resolveTemaRedacaoSelection(input: {
@@ -685,6 +702,14 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
   }
 
   const fichaInscricao = mergeFichaInscricao(parseFichaInscricao(existente?.dadosFormulario), input.fichaInscricao);
+  const reservasConcorrencia = resolveReservasConcorrencia({
+    fichaInscricao,
+    modalidadeConcorrencia: input.modalidadeConcorrencia ?? existente?.modalidadeConcorrencia,
+  });
+  const modalidadeConcorrencia = resolveLegacyModalidadeConcorrencia({
+    reservas: reservasConcorrencia,
+    modalidadeAtual: input.modalidadeConcorrencia ?? existente?.modalidadeConcorrencia,
+  });
   const temaRedacaoSelection = resolveTemaRedacaoSelection({
     temasEdital: edital.temasRedacao.map((tema) => ({ id: tema.id, titulo: tema.titulo, ativo: tema.ativo })),
     temaRedacaoEditalId: input.temaRedacaoEditalId,
@@ -706,7 +731,7 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
     update: {
       linhaPesquisaId: input.linhaPesquisaId,
       temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
-      modalidadeConcorrencia: input.modalidadeConcorrencia,
+      modalidadeConcorrencia,
       temaRedacao: temaRedacaoSelection.temaRedacao,
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
@@ -717,18 +742,13 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
       participacaoEditalId: participacao.id,
       linhaPesquisaId: input.linhaPesquisaId,
       temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
-      modalidadeConcorrencia: input.modalidadeConcorrencia,
+      modalidadeConcorrencia,
       temaRedacao: temaRedacaoSelection.temaRedacao,
       resumoCurriculo: input.resumoCurriculo,
       redacaoTexto: input.redacaoTexto,
       dadosFormulario: toInputJsonOrDbNull(fichaInscricao),
       status: StatusInscricao.RASCUNHO,
     },
-  });
-
-  await syncEtapaPoliticasAfirmativasForInscricao({
-    inscricaoId: inscricao.id,
-    modalidadeConcorrencia: input.modalidadeConcorrencia,
   });
 
   return { inscricao };
@@ -954,7 +974,7 @@ export async function cancelInscricaoSubmission(inscricaoId: string, usuarioId: 
     return { error: "INSCRICAO_NAO_CANCELAVEL" as const };
   }
 
-  if (inscricao.homologacao || inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || inscricao.etapaPoliticasAfirmativas || inscricao.participacaoEdital.classificacaoFinal) {
+  if (inscricao.homologacao || inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || hasPoliticasProcessamentoPosterior(inscricao.etapasPoliticasAfirmativas) || inscricao.participacaoEdital.classificacaoFinal) {
     return { error: "INSCRICAO_COM_PROCESSAMENTO_POSTERIOR" as const };
   }
 

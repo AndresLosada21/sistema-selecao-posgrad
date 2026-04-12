@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { toIsoOrNull } from "../../lib/serialization.js";
 import { buildCandidateAnexoIvUrl } from "../inscricao/inscricao-anexo-iv.service.js";
 import { buildHomologacaoResumoVigente, parseHomologacaoMotivos } from "../homologacao/homologacao.rules.js";
+import { resolveReservasConcorrencia } from "../inscricao/inscricao.rules.js";
 import { buildPoliticasAfirmativasResumo } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { resolveRecursoEfeitoPraticoResumo } from "../recurso/recurso.rules.js";
 
@@ -11,7 +12,11 @@ function resolvePublicacaoArquivoUrl(publicacao: {
   id: string;
   arquivoUrl: string | null;
 }) {
-  return publicacao.arquivoUrl ?? `/v1/publicacoes/${publicacao.id}/arquivo.pdf`;
+  return `/v1/publicacoes/${publicacao.id}/arquivo.pdf`;
+}
+
+function resolvePublicacaoOrigemArquivo(arquivoUrl: string | null) {
+  return arquivoUrl ? "MANUAL" : "GERADO";
 }
 
 type PublicacaoDashboardRecord = {
@@ -43,7 +48,7 @@ type CandidateParticipacao = Prisma.ParticipacaoEditalGetPayload<{
         homologacao: true;
         avaliacaoEtapa1: true;
         avaliacaoEtapa2: true;
-        etapaPoliticasAfirmativas: true;
+        etapasPoliticasAfirmativas: true;
       };
     };
     classificacaoFinal: true;
@@ -93,6 +98,7 @@ function buildPublicacaoResumo(publicacao: PublicacaoDashboardRecord) {
     descricao: publicacao.descricao,
     versao: publicacao.versao,
     versaoFinal: publicacao.versaoFinal,
+    origemArquivo: resolvePublicacaoOrigemArquivo(publicacao.arquivoUrl),
     arquivoUrl: resolvePublicacaoArquivoUrl(publicacao),
     publicadoEm: toIsoOrNull(publicacao.publicadoEm),
   };
@@ -103,8 +109,27 @@ function isCronogramaAberto(cronogramas: Array<{ tipo: string; inicioEm: Date; f
   return cronogramas.some((cronograma) => cronograma.tipo === tipo && cronograma.inicioEm.getTime() <= now && cronograma.fimEm.getTime() >= now);
 }
 
+function buildInscricaoReservasConcorrencia(inscricao: {
+  dadosFormulario?: unknown;
+  modalidadeConcorrencia?: unknown;
+  confirmacaoAcoesAfirmativas?: string;
+  confirmacaoPcd?: string;
+  etapasPoliticasAfirmativas?: Array<{ tipo: string }>;
+}) {
+  const base = resolveReservasConcorrencia({
+    fichaInscricao: inscricao.dadosFormulario as Parameters<typeof resolveReservasConcorrencia>[0]["fichaInscricao"],
+    modalidadeConcorrencia: inscricao.modalidadeConcorrencia as Parameters<typeof resolveReservasConcorrencia>[0]["modalidadeConcorrencia"],
+  });
+
+  return {
+    acoesAfirmativas: base.acoesAfirmativas || inscricao.confirmacaoAcoesAfirmativas !== "NAO_SE_APLICA" || Boolean(inscricao.etapasPoliticasAfirmativas?.some((etapa) => etapa.tipo === "HETEROIDENTIFICACAO")),
+    pcd: base.pcd || inscricao.confirmacaoPcd !== "NAO_SE_APLICA" || Boolean(inscricao.etapasPoliticasAfirmativas?.some((etapa) => etapa.tipo === "PCD")),
+  };
+}
+
 function resolveAcompanhamento(participacao: CandidateParticipacao) {
   const inscricao = participacao.inscricao;
+  const etapasPoliticas = [...(inscricao?.etapasPoliticasAfirmativas ?? [])].sort((left, right) => left.tipo.localeCompare(right.tipo));
   const homologacaoVigente = inscricao?.homologacao
     ? buildHomologacaoResumoVigente({
         statusPreliminar: inscricao.homologacao.statusPreliminar,
@@ -128,10 +153,22 @@ function resolveAcompanhamento(participacao: CandidateParticipacao) {
     faseAtual = participacao.classificacaoFinal.status === StatusClassificacaoFinal.PRELIMINAR ? "CLASSIFICACAO_PRELIMINAR" : "CLASSIFICACAO_FINAL";
     situacaoAtual = participacao.classificacaoFinal.status;
     proximoPasso = participacao.classificacaoFinal.status === StatusClassificacaoFinal.PRELIMINAR ? "Acompanhar classificacao preliminar e janela recursal." : "Acompanhar publicacoes oficiais e orientacoes finais do edital.";
-  } else if (inscricao?.etapaPoliticasAfirmativas) {
-    faseAtual = inscricao.etapaPoliticasAfirmativas.resultadoFinal !== ResultadoPoliticasAfirmativas.PENDENTE ? "POLITICAS_AFIRMATIVAS_FINAL" : inscricao.etapaPoliticasAfirmativas.resultadoPreliminar !== ResultadoPoliticasAfirmativas.PENDENTE ? "POLITICAS_AFIRMATIVAS_PRELIMINAR" : "POLITICAS_AFIRMATIVAS";
-    situacaoAtual = inscricao.etapaPoliticasAfirmativas.resultadoFinal !== ResultadoPoliticasAfirmativas.PENDENTE ? inscricao.etapaPoliticasAfirmativas.resultadoFinal : inscricao.etapaPoliticasAfirmativas.resultadoPreliminar;
-    motivoResumo = inscricao.etapaPoliticasAfirmativas.parecerFinal ?? inscricao.etapaPoliticasAfirmativas.parecerPreliminar ?? null;
+  } else if (etapasPoliticas.length > 0) {
+    const etapasComFinal = etapasPoliticas.filter((etapa) => etapa.resultadoFinal !== ResultadoPoliticasAfirmativas.PENDENTE);
+    const etapasComPreliminar = etapasPoliticas.filter((etapa) => etapa.resultadoPreliminar !== ResultadoPoliticasAfirmativas.PENDENTE);
+
+    if (etapasComFinal.length > 0) {
+      faseAtual = "POLITICAS_AFIRMATIVAS_FINAL";
+      situacaoAtual = etapasComFinal.length === 1 ? etapasComFinal[0].resultadoFinal : "EM_ANALISE";
+      motivoResumo = etapasComFinal.map((etapa) => etapa.parecerFinal).filter((value): value is string => Boolean(value)).join(" | ") || null;
+    } else if (etapasComPreliminar.length > 0) {
+      faseAtual = "POLITICAS_AFIRMATIVAS_PRELIMINAR";
+      situacaoAtual = etapasComPreliminar.length === 1 ? etapasComPreliminar[0].resultadoPreliminar : "EM_ANALISE";
+      motivoResumo = etapasComPreliminar.map((etapa) => etapa.parecerPreliminar).filter((value): value is string => Boolean(value)).join(" | ") || null;
+    } else {
+      faseAtual = "POLITICAS_AFIRMATIVAS";
+      situacaoAtual = etapasPoliticas[0].statusOperacao;
+    }
   } else if (inscricao?.avaliacaoEtapa2) {
     faseAtual = inscricao.avaliacaoEtapa2.status === "FINAL_PUBLICADA" ? "ETAPA_2_FINAL" : "ETAPA_2_PRELIMINAR";
     situacaoAtual = inscricao.avaliacaoEtapa2.status;
@@ -169,10 +206,17 @@ function resolveAcompanhamento(participacao: CandidateParticipacao) {
 
 function resolveElegibilidade(participacao: CandidateParticipacao, publicacoes: PublicacaoDashboardRecord[]) {
   const inscricao = participacao.inscricao;
+  const etapasPoliticas = inscricao?.etapasPoliticasAfirmativas ?? [];
   const cronogramas = participacao.edital.cronogramas;
   const janelaInscricaoAberta = isCronogramaAberto(cronogramas, TipoCronogramaEdital.INSCRICAO);
   const janelaIsencaoAberta = isCronogramaAberto(cronogramas, TipoCronogramaEdital.PEDIDO_ISENCAO);
   const fasesComRecursoJaInterposto = new Set(participacao.recursos.map((recurso) => recurso.fase));
+  const tiposPoliticasComRecursoJaInterposto = new Set(
+    participacao.recursos
+      .filter((recurso) => recurso.fase === FaseRecurso.POLITICAS_AFIRMATIVAS)
+      .map((recurso) => recurso.tipoPoliticasAfirmativasReferencia)
+      .filter((tipo): tipo is NonNullable<typeof tipo> => tipo !== null),
+  );
   const faseHomologacaoVigente = inscricao?.homologacao?.statusFinal ? FaseHomologacaoRecurso.FINAL : inscricao?.homologacao?.statusPreliminar ? FaseHomologacaoRecurso.PRELIMINAR : null;
   const recursoHomologacaoJaInterpostoNaFaseVigente = faseHomologacaoVigente
     ? participacao.recursos.some((recurso) => recurso.fase === FaseRecurso.HOMOLOGACAO && recurso.faseHomologacaoReferencia === faseHomologacaoVigente)
@@ -199,7 +243,10 @@ function resolveElegibilidade(participacao: CandidateParticipacao, publicacoes: 
     fasesRecursoElegiveis.push(FaseRecurso.CLASSIFICACAO);
   }
 
-  if (inscricao?.etapaPoliticasAfirmativas?.resultadoPreliminar && inscricao.etapaPoliticasAfirmativas.resultadoPreliminar !== ResultadoPoliticasAfirmativas.PENDENTE && !fasesComRecursoJaInterposto.has(FaseRecurso.POLITICAS_AFIRMATIVAS) && isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_HETEROIDENTIFICACAO)) {
+  if (
+    etapasPoliticas.some((etapa) => etapa.resultadoPreliminar && etapa.resultadoPreliminar !== ResultadoPoliticasAfirmativas.PENDENTE && !tiposPoliticasComRecursoJaInterposto.has(etapa.tipo))
+    && isCronogramaAberto(cronogramas, TipoCronogramaEdital.RECURSO_HETEROIDENTIFICACAO)
+  ) {
     fasesRecursoElegiveis.push(FaseRecurso.POLITICAS_AFIRMATIVAS);
   }
 
@@ -289,7 +336,7 @@ export async function getCandidateDashboard(usuarioId: string) {
           homologacao: true,
           avaliacaoEtapa1: true,
           avaliacaoEtapa2: true,
-          etapaPoliticasAfirmativas: true,
+          etapasPoliticasAfirmativas: true,
         },
       },
       classificacaoFinal: true,
@@ -361,6 +408,7 @@ export async function getCandidateDashboard(usuarioId: string) {
     elegibilidade: resolveElegibilidade(participacao, getPublicacoesDashboard(participacao.edital.publicacoesOficiais)),
     inscricao: participacao.inscricao
       ? {
+          reservasConcorrencia: buildInscricaoReservasConcorrencia(participacao.inscricao),
           pacoteDocumental: participacao.inscricao.pacoteDocumentalUrl
             ? {
                 urlArquivo: participacao.inscricao.pacoteDocumentalUrl,
@@ -462,8 +510,10 @@ export async function getCandidateDashboard(usuarioId: string) {
                 resultadoFinalEm: toIsoOrNull(participacao.inscricao.avaliacaoEtapa2.resultadoFinalEm),
               }
             : null,
-          politicasAfirmativas: participacao.inscricao.etapaPoliticasAfirmativas
-            ? buildPoliticasAfirmativasResumo(participacao.inscricao.etapaPoliticasAfirmativas)
+          politicasAfirmativas: participacao.inscricao.etapasPoliticasAfirmativas.length > 0
+            ? {
+                itens: participacao.inscricao.etapasPoliticasAfirmativas.map(buildPoliticasAfirmativasResumo),
+              }
             : null,
         }
       : null,
@@ -485,6 +535,7 @@ export async function getCandidateDashboard(usuarioId: string) {
       id: recurso.id,
       fase: recurso.fase,
       faseHomologacaoReferencia: recurso.faseHomologacaoReferencia,
+      tipoPoliticasAfirmativasReferencia: recurso.tipoPoliticasAfirmativasReferencia,
       status: recurso.status,
       fundamentacao: recurso.fundamentacao,
       anexoUrl: recurso.anexoUrl,

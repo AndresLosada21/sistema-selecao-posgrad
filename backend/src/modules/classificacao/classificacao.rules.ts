@@ -69,49 +69,43 @@ function buildApprovedSet(
   items: Array<ClassificacaoCandidate & { notaFinal: number }>,
   linha: ClassificacaoLinhaConfig,
 ) {
-  const approvedIds = new Set<string>();
+  const approvedByParticipacaoId = new Map<string, ModalidadeConcorrencia>();
 
   for (const item of items.slice(0, linha.vagasAmplaConcorrencia)) {
-    approvedIds.add(item.participacaoEditalId);
+    approvedByParticipacaoId.set(item.participacaoEditalId, ModalidadeConcorrencia.AMPLA_CONCORRENCIA);
   }
 
   for (const item of items) {
-    if (approvedIds.size >= linha.vagasAmplaConcorrencia + linha.vagasAcoesAfirmativas) {
+    if (approvedByParticipacaoId.size >= linha.vagasAmplaConcorrencia + linha.vagasAcoesAfirmativas) {
       break;
     }
 
-    if (approvedIds.has(item.participacaoEditalId)) {
+    if (approvedByParticipacaoId.has(item.participacaoEditalId)) {
       continue;
     }
 
-    if (
-      item.modalidadeConcorrencia === ModalidadeConcorrencia.ACOES_AFIRMATIVAS &&
-      item.confirmacaoAcoesAfirmativas === StatusConfirmacaoReserva.CONFIRMADA
-    ) {
-      approvedIds.add(item.participacaoEditalId);
+    if (item.confirmacaoAcoesAfirmativas === StatusConfirmacaoReserva.CONFIRMADA) {
+      approvedByParticipacaoId.set(item.participacaoEditalId, ModalidadeConcorrencia.ACOES_AFIRMATIVAS);
     }
   }
 
   const limitePcd = linha.vagasAmplaConcorrencia + linha.vagasAcoesAfirmativas + linha.vagasPcd;
 
   for (const item of items) {
-    if (approvedIds.size >= limitePcd) {
+    if (approvedByParticipacaoId.size >= limitePcd) {
       break;
     }
 
-    if (approvedIds.has(item.participacaoEditalId)) {
+    if (approvedByParticipacaoId.has(item.participacaoEditalId)) {
       continue;
     }
 
-    if (
-      item.modalidadeConcorrencia === ModalidadeConcorrencia.PCD &&
-      item.confirmacaoPcd === StatusConfirmacaoReserva.CONFIRMADA
-    ) {
-      approvedIds.add(item.participacaoEditalId);
+    if (item.confirmacaoPcd === StatusConfirmacaoReserva.CONFIRMADA) {
+      approvedByParticipacaoId.set(item.participacaoEditalId, ModalidadeConcorrencia.PCD);
     }
   }
 
-  return approvedIds;
+  return approvedByParticipacaoId;
 }
 
 export function rankClassificacao(input: {
@@ -150,11 +144,12 @@ export function rankClassificacao(input: {
       continue;
     }
 
-    const approvedIds = input.publicacao === "FINAL" ? buildApprovedSet(items, linha) : new Set<string>();
+    const approvedIds = input.publicacao === "FINAL" ? buildApprovedSet(items, linha) : new Map<string, ModalidadeConcorrencia>();
 
     items.forEach((item, index) => {
       ranked.push({
         ...item,
+        modalidadeConcorrencia: approvedIds.get(item.participacaoEditalId) ?? item.modalidadeConcorrencia,
         posicaoGeral: posicaoGeralMap.get(item.participacaoEditalId) ?? index + 1,
         posicaoLinha: index + 1,
         status:

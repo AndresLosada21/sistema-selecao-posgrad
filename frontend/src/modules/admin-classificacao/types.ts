@@ -16,6 +16,10 @@ export type ClassificacaoAdminItem = {
     nome: string;
   } | null;
   modalidadeConcorrencia: string;
+  reservasConcorrencia?: {
+    acoesAfirmativas: boolean;
+    pcd: boolean;
+  };
   confirmacaoAcoesAfirmativas: string | null;
   confirmacaoPcd: string | null;
   notaEtapa1: number | null;

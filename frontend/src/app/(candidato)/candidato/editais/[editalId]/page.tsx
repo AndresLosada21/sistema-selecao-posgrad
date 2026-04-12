@@ -5,9 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { ActionButton } from "@/components/shared/action-button";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
+import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
@@ -74,6 +74,34 @@ function resolveHubValue(status: string | null | undefined): { text: string; col
   if (WARNING_STATUSES.has(s)) return { text: getStatusLabel(s), color: "warning" };
   if (ERROR_STATUSES.has(s)) return { text: getStatusLabel(s), color: "error" };
   return { text: getStatusLabel(s), color: "neutral" };
+}
+
+function getOrigemArquivoLabel(origem: "MANUAL" | "GERADO" | undefined) {
+  return origem === "MANUAL" ? "PDF enviado" : "PDF gerado";
+}
+
+function getReservasConcorrenciaLabel(input: { acoesAfirmativas?: boolean; pcd?: boolean } | undefined) {
+  if (!input) {
+    return null;
+  }
+
+  if (input.acoesAfirmativas && input.pcd) {
+    return "Acoes afirmativas + PCD";
+  }
+
+  if (input.acoesAfirmativas) {
+    return "Acoes afirmativas";
+  }
+
+  if (input.pcd) {
+    return "PCD";
+  }
+
+  return "Ampla concorrencia";
+}
+
+function getPoliticasTipoLabel(tipo: string | undefined) {
+  return tipo === "PCD" ? "PCD" : "Heteroidentificacao";
 }
 
 /* ---- page ---- */
@@ -143,6 +171,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
   const cursoLabel = item.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado";
   const homologacaoVigente = inscricao?.homologacao?.vigente ?? null;
+  const reservasConcorrenciaLabel = getReservasConcorrenciaLabel(inscricao?.reservasConcorrencia);
   const publicacaoClassificacaoFinalVigente = item.publicacoes.find((publicacao) => publicacao.tipo === "CLASSIFICACAO_FINAL" && publicacao.isVersaoAtualDoTipo) ?? null;
   const publicacaoClassificacaoPreliminarVigente = item.publicacoes.find((publicacao) => publicacao.tipo === "CLASSIFICACAO_PRELIMINAR" && publicacao.isVersaoAtualDoTipo) ?? null;
   const publicacaoClassificacaoVigente = publicacaoClassificacaoFinalVigente ?? publicacaoClassificacaoPreliminarVigente;
@@ -274,28 +303,50 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
         </div>
       ) : null}
 
+      {item.inscricao?.politicasAfirmativas?.itens?.length ? (
+        <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span className="hub-status-label">Politicas afirmativas</span>
+          {item.inscricao.politicasAfirmativas.itens.map((etapa) => (
+            <div key={etapa.id ?? etapa.tipo} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <strong style={{ fontSize: 13, color: "#0F172A" }}>{getPoliticasTipoLabel(etapa.tipo)}</strong>
+              <span className="hub-status-value">{getStatusLabel(etapa.resultadoFinal && etapa.resultadoFinal !== "PENDENTE" ? etapa.resultadoFinal : etapa.resultadoPreliminar ?? etapa.statusOperacao)}</span>
+              {etapa.parecerFinal || etapa.parecerPreliminar ? <span style={{ fontSize: 12, color: "#64748B" }}>{etapa.parecerFinal ?? etapa.parecerPreliminar}</span> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {item.classificacao ? (
         <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <span className="hub-status-label">Classificacao {publicacaoClassificacaoVigente ? "oficial vigente" : "calculada"}</span>
           <strong style={{ fontSize: 14, color: "#0F172A" }}>{getStatusLabel(item.classificacao.status)}</strong>
           <span className="hub-status-value">NF: {item.classificacao.notaFinal != null ? item.classificacao.notaFinal.toFixed(2) : "—"}</span>
           <span style={{ fontSize: 12, color: "#64748B" }}>Posicao geral: {item.classificacao.posicaoGeral ?? "—"} · Posicao na linha: {item.classificacao.posicaoLinha ?? "—"}</span>
+          {reservasConcorrenciaLabel ? <span style={{ fontSize: 12, color: "#64748B" }}>Reservas declaradas: {reservasConcorrenciaLabel}</span> : null}
           {item.classificacao.modalidadeConcorrencia ? <span style={{ fontSize: 12, color: "#64748B" }}>Modalidade: {getStatusLabel(item.classificacao.modalidadeConcorrencia)}</span> : null}
           {publicacaoClassificacaoVigente ? <span style={{ fontSize: 12, color: "#2563EB" }}>{getStatusLabel(publicacaoClassificacaoVigente.tipo)} · versao {publicacaoClassificacaoVigente.versao}{publicacaoClassificacaoVigente.republicacaoDaVersao ? ` · republica v${publicacaoClassificacaoVigente.republicacaoDaVersao}` : ""}</span> : <span style={{ fontSize: 12, color: "#B45309" }}>Classificacao ainda nao publicada oficialmente.</span>}
           {publicacaoClassificacaoVigente?.publicadoEm ? <span style={{ fontSize: 12, color: "#2563EB" }}>Publicado em: {formatIsoDate(publicacaoClassificacaoVigente.publicadoEm)}</span> : null}
         </div>
       ) : null}
 
-      {item.publicacoes.length ? (
+      {item.publicacoesDestaque.length ? (
         <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span className="hub-status-label">Historico de publicacoes</span>
-          {item.publicacoes.slice(0, 4).map((publicacao) => (
+          <span className="hub-status-label">Publicacoes oficiais vigentes</span>
+          {item.publicacoesDestaque.slice(0, 4).map((publicacao) => (
             <div key={publicacao.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <strong style={{ fontSize: 13, color: "#0F172A" }}>{publicacao.titulo}</strong>
-                <span style={{ fontSize: 12, color: "#64748B" }}>Versao {publicacao.versao}{publicacao.isVersaoAtualDoTipo ? " · vigente" : ""}{publicacao.republicacaoDaVersao ? ` · republica v${publicacao.republicacaoDaVersao}` : ""}</span>
+                <span style={{ fontSize: 12, color: "#64748B" }}>
+                  {getStatusLabel(publicacao.tipo)} · Versao {publicacao.versao}
+                  {publicacao.republicacaoDaVersao ? ` · republica v${publicacao.republicacaoDaVersao}` : ""}
+                  {publicacao.publicadoEm ? ` · ${formatIsoDate(publicacao.publicadoEm)}` : ""}
+                </span>
+                <span style={{ fontSize: 12, color: "#64748B" }}>{getOrigemArquivoLabel(publicacao.origemArquivo)}</span>
               </div>
-              <Link href={`/editais/${item.edital.id}/publicacoes`} className="hub-link">Historico</Link>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Link href={resolveApiUrl(publicacao.arquivoUrl)} className="hub-link" rel="noreferrer" target="_blank">Abrir PDF</Link>
+                <Link href={`/editais/${item.edital.id}/publicacoes`} className="hub-link">Historico</Link>
+              </div>
             </div>
           ))}
         </div>

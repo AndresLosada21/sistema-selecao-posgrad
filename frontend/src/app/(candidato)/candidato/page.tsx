@@ -155,7 +155,28 @@ export default function CandidateDashboardPage() {
       </div>
     );
   }
-  if (!data?.items.length) return <EmptyState title="Nenhuma participacao encontrada" description="Ainda nao ha participacoes vinculadas a esta conta." />;
+  if (!data?.items.length) {
+    const contaAdministrativaSemPerfilCandidato = session.hasRole("ADMIN") && !session.hasRole("CANDIDATO");
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <EmptyState title="Nenhuma participacao encontrada" description="Ainda nao ha participacoes vinculadas a esta conta." />
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px 18px", borderRadius: 10, background: "#EFF6FF", color: "#1E3A8A" }}>
+          {contaAdministrativaSemPerfilCandidato ? <strong>Esta conta esta autenticada com perfil administrativo, mas o fluxo do candidato continua disponivel pelos editais publicos.</strong> : null}
+          <span>Para iniciar, abra um edital publicado e clique em <strong>Entrar neste edital</strong>. Depois disso, os CTAs de inscricao e isencao aparecem no acompanhamento.</span>
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link href="/editais" className="dash-greeting-cta">
+            {iconPlus}
+            <span>Escolher edital e entrar</span>
+          </Link>
+          <Link href="/candidato/participacoes" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 999, border: "1px solid #CBD5E1", color: "#0F172A", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>
+            Ver participacoes
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const inscricao = active?.inscricao ?? null;
   const hasInscricao = !!inscricao;

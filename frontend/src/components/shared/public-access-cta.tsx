@@ -14,14 +14,6 @@ export function PublicAccessCta({ nextPath, candidateLabel = "Abrir area do cand
   const session = useSession();
 
   if (session.isAuthenticated) {
-    if (session.hasRole("ADMIN")) {
-      return (
-        <Link className="nav-link" href="/admin">
-          Abrir area administrativa
-        </Link>
-      );
-    }
-
     return (
       <Link className="nav-link" href={authenticatedHref}>
         {candidateLabel}

@@ -194,3 +194,61 @@ test("nao ocupa vagas reservadas sem confirmacao operacional correspondente", ()
     ],
   );
 });
+
+test("candidato elegivel em acoes afirmativas e PCD ocupa apenas uma vaga reservada", () => {
+  const items = rankClassificacao({
+    publicacao: "FINAL",
+    linhas: [
+      {
+        id: "linha-1",
+        vagasAmplaConcorrencia: 0,
+        vagasAcoesAfirmativas: 1,
+        vagasPcd: 1,
+      },
+    ],
+    candidates: [
+      {
+        inscricaoId: "i1",
+        participacaoEditalId: "p1",
+        linhaPesquisaId: "linha-1",
+        modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+        confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.CONFIRMADA,
+        confirmacaoPcd: StatusConfirmacaoReserva.CONFIRMADA,
+        notaEtapa1: 9.2,
+        notaEtapa2: 9.1,
+        dataNascimento: new Date("1998-01-01T00:00:00.000Z"),
+      },
+      {
+        inscricaoId: "i2",
+        participacaoEditalId: "p2",
+        linhaPesquisaId: "linha-1",
+        modalidadeConcorrencia: ModalidadeConcorrencia.PCD,
+        confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
+        confirmacaoPcd: StatusConfirmacaoReserva.CONFIRMADA,
+        notaEtapa1: 8.1,
+        notaEtapa2: 8.0,
+        dataNascimento: new Date("1997-01-01T00:00:00.000Z"),
+      },
+      {
+        inscricaoId: "i3",
+        participacaoEditalId: "p3",
+        linhaPesquisaId: "linha-1",
+        modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+        confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
+        confirmacaoPcd: StatusConfirmacaoReserva.NAO_SE_APLICA,
+        notaEtapa1: 7.5,
+        notaEtapa2: 7.5,
+        dataNascimento: new Date("1996-01-01T00:00:00.000Z"),
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    items.map((item) => ({ id: item.participacaoEditalId, status: item.status, modalidade: item.modalidadeConcorrencia })),
+    [
+      { id: "p1", status: StatusClassificacaoFinal.APROVADO, modalidade: ModalidadeConcorrencia.ACOES_AFIRMATIVAS },
+      { id: "p2", status: StatusClassificacaoFinal.APROVADO, modalidade: ModalidadeConcorrencia.PCD },
+      { id: "p3", status: StatusClassificacaoFinal.LISTA_DE_ESPERA, modalidade: ModalidadeConcorrencia.AMPLA_CONCORRENCIA },
+    ],
+  );
+});

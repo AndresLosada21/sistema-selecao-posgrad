@@ -38,6 +38,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [novoEspelhoEtapa2, setNovoEspelhoEtapa2] = useState("");
   const [novoResultadoPoliticas, setNovoResultadoPoliticas] = useState<(typeof resultadoPoliticasOptions)[number] | "">("");
   const [novoParecerPoliticas, setNovoParecerPoliticas] = useState("");
+  const [novosResultadosPoliticas, setNovosResultadosPoliticas] = useState<Record<string, { resultado: (typeof resultadoPoliticasOptions)[number] | ""; parecer: string }>>({});
 
   useEffect(() => { let c = false; params.then((r) => { if (!c) setRecursoId(r.recursoId); }); return () => { c = true; }; }, [params]);
 
@@ -56,6 +57,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
     setNovoEspelhoEtapa2("");
     setNovoResultadoPoliticas("");
     setNovoParecerPoliticas("");
+    setNovosResultadosPoliticas(Object.fromEntries((found.contextoPoliticasAfirmativas ?? []).map((etapa) => [etapa.tipo, { resultado: "", parecer: etapa.parecerFinal ?? etapa.parecerPreliminar ?? "" }])));
   }, [recursoId, token]);
 
   useAbortableEffect(async (signal) => {
@@ -79,6 +81,12 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         novoEspelhoEtapa2: novoEspelhoEtapa2 || undefined,
         novoResultadoFinalPoliticasAfirmativas: novoResultadoPoliticas || undefined,
         novoParecerFinalPoliticasAfirmativas: novoParecerPoliticas || undefined,
+        novosResultadosFinaisPoliticasAfirmativas: isPoliticas
+          ? Object.entries(novosResultadosPoliticas)
+              .filter(([, value]) => value.resultado && value.parecer.trim())
+              .filter(([tipo]) => !item?.tipoPoliticasAfirmativasReferencia || tipo === item.tipoPoliticasAfirmativasReferencia)
+              .map(([tipo, value]) => ({ tipo, resultado: value.resultado as (typeof resultadoPoliticasOptions)[number], parecer: value.parecer }))
+          : undefined,
       }, token);
       await loadItem();
       setFeedback({ type: "success", text: "Decisao registrada." });
@@ -111,6 +119,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const isPoliticas = item.fase === "POLITICAS_AFIRMATIVAS";
   const isClassificacao = item.fase === "CLASSIFICACAO";
   const recursoJaDecidido = item.status === "DEFERIDO" || item.status === "INDEFERIDO";
+  const contextoPoliticasRecorridas = item.contextoPoliticasAfirmativas?.filter((etapa) => !item.tipoPoliticasAfirmativasReferencia || etapa.tipo === item.tipoPoliticasAfirmativasReferencia) ?? [];
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -118,7 +127,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
 
       <div className="admin-detail-header">
         <h1>Recurso — {getStatusLabel(item.fase)}</h1>
-        <p>{item.candidato.nomeCompleto} &middot; Edital {item.edital.numero}</p>
+        <p>{item.candidato.nomeCompleto} &middot; Edital {item.edital.numero}{item.tipoPoliticasAfirmativasReferencia ? ` · ${item.tipoPoliticasAfirmativasReferencia === "PCD" ? "PCD" : "Heteroidentificacao"}` : ""}</p>
       </div>
 
       {isHomologacao ? (
@@ -227,18 +236,22 @@ export default function AdminRecursoDetailPage({ params }: Props) {
               </div>
             )}
             {isPoliticas ? (
-              <div className="admin-form-row">
-                <div className="admin-eval-field">
-                  <label>Resultado politicas afirmativas</label>
-                  <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovoResultadoPoliticas((e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "")} value={novoResultadoPoliticas}>
-                    <option value="">Selecione</option>
-                    {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
-                  </select>
-                </div>
-                <div className="admin-eval-field">
-                  <label>Parecer politicas afirmativas</label>
-                  <textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovoParecerPoliticas(e.target.value)} style={{ minHeight: 60 }} value={novoParecerPoliticas} />
-                </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {contextoPoliticasRecorridas.length ? contextoPoliticasRecorridas.map((etapa) => (
+                  <div className="admin-form-row" key={etapa.tipo}>
+                    <div className="admin-eval-field">
+                      <label>Resultado {etapa.tipo === "PCD" ? "PCD" : "heteroidentificacao"}</label>
+                      <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), resultado: (e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "" } }))} value={novosResultadosPoliticas[etapa.tipo]?.resultado ?? ""}>
+                        <option value="">Selecione</option>
+                        {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+                      </select>
+                    </div>
+                    <div className="admin-eval-field">
+                      <label>Parecer {etapa.tipo === "PCD" ? "PCD" : "heteroidentificacao"}</label>
+                      <textarea disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), parecer: e.target.value } }))} style={{ minHeight: 60 }} value={novosResultadosPoliticas[etapa.tipo]?.parecer ?? ""} />
+                    </div>
+                  </div>
+                )) : <PageFeedback type="warning" title="Etapas de politicas nao encontradas" description="O recurso esta vinculado a politicas afirmativas, mas nenhuma etapa ativa foi carregada para a inscricao." />}
               </div>
             ) : null}
           </>

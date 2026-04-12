@@ -228,7 +228,7 @@ test("recurso com impacto em politicas afirmativas reprocessa classificacao e re
         avaliacaoEtapa2: {
           create: { pontuacaoBruta: 10, notaNormalizada: 9, status: StatusAvaliacaoEtapa.FINAL_PUBLICADA },
         },
-        etapaPoliticasAfirmativas: {
+        etapasPoliticasAfirmativas: {
           create: {
             tipo: TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO,
             statusOperacao: StatusOperacaoPoliticasAfirmativas.RESULTADO_PRELIMINAR_REGISTRADO,
@@ -296,7 +296,14 @@ test("recurso com impacto em politicas afirmativas reprocessa classificacao e re
       });
     assert.equal(decisao.status, 200);
 
-    const etapa = await prisma.etapaPoliticasAfirmativas.findUniqueOrThrow({ where: { inscricaoId } });
+    const etapa = await prisma.etapaPoliticasAfirmativas.findUniqueOrThrow({
+      where: {
+        inscricaoId_tipo: {
+          inscricaoId,
+          tipo: TipoEtapaPoliticasAfirmativas.HETEROIDENTIFICACAO,
+        },
+      },
+    });
     assert.equal(etapa.resultadoFinal, ResultadoPoliticasAfirmativas.CONFIRMADO);
 
     const classificacao = await prisma.classificacaoFinal.findUniqueOrThrow({ where: { participacaoEditalId: participacaoId } });
