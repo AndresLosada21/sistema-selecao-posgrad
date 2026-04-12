@@ -10,7 +10,7 @@ import { getStatusLabel } from "@/components/shared/status-variant-map";
 import { resolveApiUrl } from "@/lib/config/api";
 import { useSession } from "@/lib/auth/session-provider";
 import { tipoPublicacaoOficialOptions, type TipoPublicacaoOficial } from "@/lib/enums";
-import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
+import { getActionableErrorMessage, getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getAdminEditalById } from "@/modules/admin-edital/api";
@@ -114,6 +114,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [page, setPage] = useState(1);
   const [editalLabel, setEditalLabel] = useState<string>("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [fieldErrorScope, setFieldErrorScope] = useState<"manual" | "homologacao" | "classificacao" | "politicas" | null>(null);
 
   useEffect(() => {
     if (!arquivoGenerico) {
@@ -187,7 +188,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   async function loadPreview(type: PubType) {
     if (!token || !editalId) return;
     setBusy(true);
-    setFeedback(null);
+    setFeedback(null); setFieldErrors({}); setFieldErrorScope(type);
     try {
       const fase = faseFor(type);
       const response = type === "homologacao"
@@ -199,14 +200,15 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       setPreviewLabel(`Preview: ${type} · ${fase.toLowerCase()}`);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
+      setFieldErrors(pickLabeledFieldErrors(error, { fase: "a fase da publicacao" }));
+      setFeedback({ type: "error", text: getActionableErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
   async function publish(type: PubType) {
     if (!token || !editalId) return;
     setBusy(true);
-    setFeedback(null);
+    setFeedback(null); setFieldErrors({}); setFieldErrorScope(type);
     setConfirmPublish(null);
     try {
       const fase = faseFor(type);
@@ -222,7 +224,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       await reload();
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
+      setFieldErrors(pickLabeledFieldErrors(error, { fase: "a fase da publicacao" }));
+      setFeedback({ type: "error", text: getActionableErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -231,12 +234,13 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     if (!token || !editalId) return;
     if (!arquivoGenerico) {
       setFieldErrors((current) => ({ ...current, arquivoUrl: "Selecione o PDF da publicacao." }));
+      setFieldErrorScope("manual");
       setFeedback({ type: "error", text: "Selecione o PDF que sera publicado para continuar." });
       return;
     }
 
     setBusy(true);
-    setFeedback(null); setFieldErrors({});
+    setFeedback(null); setFieldErrors({}); setFieldErrorScope("manual");
     try {
       const dados: Record<string, unknown> = {};
       if (resumoGenerico) dados.resumoPublico = resumoGenerico;
@@ -269,8 +273,13 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       await reload();
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFieldErrors(pickFirstFieldErrors(error, ["tipo", "titulo", "descricao", "arquivoUrl"] as const));
-      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
+      setFieldErrors(pickLabeledFieldErrors(error, {
+        tipo: "o tipo da publicacao",
+        titulo: "o titulo da publicacao",
+        descricao: "a descricao da publicacao",
+        arquivoUrl: "o PDF da publicacao",
+      }));
+      setFeedback({ type: "error", text: getActionableErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
