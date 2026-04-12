@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { isoToDatetimeLocalInput } from "@/lib/datetime-local";
-import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
+import { getActionableErrorMessage, getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { cursoNivelOptions, statusEditalOptions, tipoCronogramaEditalOptions, type CursoNivel, type StatusEdital, type TipoCronogramaEdital } from "@/lib/enums";
@@ -34,6 +34,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [fieldErrorScope, setFieldErrorScope] = useState<"edital" | "linha" | "cronograma" | "tema" | null>(null);
 
   const [editalForm, setEditalForm] = useState<{
     numero: string; titulo: string; descricao: string; ano: string; semestre: string;
@@ -74,16 +75,34 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function wrap(fn: () => Promise<void>) {
     setBusy(true); setFeedback(null);
-    try { await fn(); await load(); } catch (e) { if (isUnauthorizedError(e)) { signOut(); return; } applyEditalErrors(e); setFeedback({ type: "error", text: getFirstFormError(e) ?? getErrorMessage(e) }); } finally { setBusy(false); }
+    try { await fn(); await load(); } catch (e) { if (isUnauthorizedError(e)) { signOut(); return; } applyEditalErrors(e); setFeedback({ type: "error", text: getActionableErrorMessage(e) }); } finally { setBusy(false); }
   }
 
   function applyEditalErrors(error: unknown) {
-    setFieldErrors(pickFirstFieldErrors(error, ["numero", "titulo", "descricao", "ano", "semestre", "cursoNivel", "status", "publicadoEm", "nome", "vagasAmplaConcorrencia", "vagasAcoesAfirmativas", "vagasPcd", "tipo", "inicioEm", "fimEm", "ordem", "ativo"] as const));
+    setFieldErrors(pickLabeledFieldErrors(error, {
+      numero: "o numero do edital",
+      titulo: "o titulo",
+      descricao: "a descricao",
+      ano: "o ano",
+      semestre: "o semestre",
+      cursoNivel: "o curso",
+      status: "o status",
+      publicadoEm: "a data de publicacao",
+      nome: "o nome",
+      vagasAmplaConcorrencia: "as vagas de ampla concorrencia",
+      vagasAcoesAfirmativas: "as vagas de acoes afirmativas",
+      vagasPcd: "as vagas PCD",
+      tipo: "o tipo da fase",
+      inicioEm: "o inicio da fase",
+      fimEm: "o fim da fase",
+      ordem: "a ordem do tema",
+      ativo: "o status do tema",
+    }));
   }
 
   async function submitEdital(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
-    setFieldErrors({});
+    setFieldErrors({}); setFieldErrorScope("edital");
     await wrap(async () => {
       await updateAdminEdital(editalId, {
         numero: editalForm.numero, titulo: editalForm.titulo, descricao: editalForm.descricao || undefined,
@@ -97,7 +116,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function submitLinha(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
-    setFieldErrors({});
+    setFieldErrors({}); setFieldErrorScope("linha");
     await wrap(async () => {
       const p = { nome: linhaForm.nome, descricao: linhaForm.descricao || undefined, vagasAmplaConcorrencia: Number(linhaForm.vagasAmplaConcorrencia), vagasAcoesAfirmativas: Number(linhaForm.vagasAcoesAfirmativas), vagasPcd: Number(linhaForm.vagasPcd) };
       if (editingLinhaId) await updateLinhaPesquisaAdmin(editingLinhaId, p, token);
@@ -109,7 +128,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function submitCronograma(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
-    setFieldErrors({});
+    setFieldErrors({}); setFieldErrorScope("cronograma");
     await wrap(async () => {
       const inicioDate = new Date(cronogramaForm.inicioEm); const fimDate = new Date(cronogramaForm.fimEm);
       const p = { tipo: cronogramaForm.tipo, titulo: cronogramaForm.titulo, descricao: cronogramaForm.descricao || undefined, inicioEm: inicioDate.toISOString(), fimEm: fimDate.toISOString() };
@@ -122,7 +141,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   async function submitTema(e: FormEvent) {
     e.preventDefault(); if (!token || !editalId) return;
-    setFieldErrors({});
+    setFieldErrors({}); setFieldErrorScope("tema");
     await wrap(async () => {
       const p = { titulo: temaForm.titulo, descricao: temaForm.descricao || undefined, ordem: Number(temaForm.ordem || 0), ativo: temaForm.ativo };
       if (editingTemaId) await updateTemaRedacaoAdmin(editingTemaId, p, token);

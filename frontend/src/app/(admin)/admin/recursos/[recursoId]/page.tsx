@@ -9,7 +9,7 @@ import { getStatusLabel, getStatusVariant } from "@/components/shared/status-var
 import { useSession } from "@/lib/auth/session-provider";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { statusIsencaoOptions, type StatusIsencao } from "@/lib/enums";
-import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
+import { getActionableErrorMessage, getErrorMessage, getFirstFormError, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { decidirRecursoAdmin, getAdminRecursoById } from "@/modules/admin-recursos/api";
@@ -40,6 +40,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   const [novoParecerPoliticas, setNovoParecerPoliticas] = useState("");
   const [novosResultadosPoliticas, setNovosResultadosPoliticas] = useState<Record<string, { resultado: (typeof resultadoPoliticasOptions)[number] | ""; parecer: string }>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [fieldErrorScope, setFieldErrorScope] = useState<"base" | "impacto" | "politicas" | null>(null);
 
   useEffect(() => { let c = false; params.then((r) => { if (!c) setRecursoId(r.recursoId); }); return () => { c = true; }; }, [params]);
 
@@ -70,7 +71,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!token || !recursoId) return;
-    setBusy(true); setFeedback(null); setFieldErrors({});
+    setBusy(true); setFeedback(null); setFieldErrors({}); setFieldErrorScope("base");
     try {
       await decidirRecursoAdmin(recursoId, {
         deferido, decisao, impactoResultado,
@@ -93,7 +94,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
       setFeedback({ type: "success", text: "Decisao registrada." });
     } catch (e) {
       if (isUnauthorizedError(e)) { signOut(); return; }
-      setFieldErrors(pickLabeledFieldErrors(e, {
+      const mappedErrors = pickLabeledFieldErrors(e, {
         decisao: "a decisao administrativa",
         novoStatusIsencao: "o novo status da isencao",
         novoResultadoHomologacao: "o novo resultado da homologacao",
@@ -104,8 +105,10 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         novoResultadoFinalPoliticasAfirmativas: "o novo resultado de politicas afirmativas",
         novoParecerFinalPoliticasAfirmativas: "o novo parecer de politicas afirmativas",
         novosResultadosFinaisPoliticasAfirmativas: "os novos resultados de politicas afirmativas",
-      }));
-      setFeedback({ type: "error", text: getFirstFormError(e) ?? getErrorMessage(e) });
+      });
+      setFieldErrors(mappedErrors);
+      setFieldErrorScope(mappedErrors.novosResultadosFinaisPoliticasAfirmativas ? "politicas" : (mappedErrors.novoStatusIsencao || mappedErrors.novoResultadoHomologacao || mappedErrors.novaNotaEtapa1 || mappedErrors.novoEspelhoEtapa1 || mappedErrors.novaPontuacaoBrutaEtapa2 || mappedErrors.novoEspelhoEtapa2) ? "impacto" : "base");
+      setFeedback({ type: "error", text: getActionableErrorMessage(e) });
     } finally { setBusy(false); }
   }
 
@@ -192,14 +195,14 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Resultado *</label>
-            <select disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setDeferido(e.target.value === "DEFERIDO")} value={deferido ? "DEFERIDO" : "INDEFERIDO"}>
+            <select aria-invalid={fieldErrorScope === "base" && !!fieldErrors.decisao} disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => setDeferido(e.target.value === "DEFERIDO")} value={deferido ? "DEFERIDO" : "INDEFERIDO"}>
               <option value="DEFERIDO">Deferido</option>
               <option value="INDEFERIDO">Indeferido</option>
             </select>
           </div>
           <div className="admin-eval-field">
             <label>Impacto no resultado?</label>
-            <select className="select-field" disabled={recursoJaDecidido || !deferido || isClassificacao} onChange={(e) => setImpactoResultado(e.target.value === "sim")} value={impactoResultado ? "sim" : "nao"}>
+            <select aria-invalid={fieldErrorScope === "impacto" && !!(fieldErrors.novoStatusIsencao || fieldErrors.novoResultadoHomologacao || fieldErrors.novaNotaEtapa1 || fieldErrors.novoEspelhoEtapa1 || fieldErrors.novaPontuacaoBrutaEtapa2 || fieldErrors.novoEspelhoEtapa2)} className="select-field" disabled={recursoJaDecidido || !deferido || isClassificacao} onChange={(e) => setImpactoResultado(e.target.value === "sim")} value={impactoResultado ? "sim" : "nao"}>
               <option value="nao">Nao</option>
               <option value="sim">Sim — reprocessar</option>
             </select>
@@ -257,18 +260,18 @@ export default function AdminRecursoDetailPage({ params }: Props) {
                   <div className="admin-form-row" key={etapa.tipo}>
                     <div className="admin-eval-field">
                       <label>Resultado {etapa.tipo === "PCD" ? "PCD" : "heteroidentificacao"}</label>
-                      <select aria-invalid={!!fieldErrors.novosResultadosFinaisPoliticasAfirmativas} disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => { setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), resultado: (e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "" } })); setFieldErrors((current) => ({ ...current, novosResultadosFinaisPoliticasAfirmativas: null })); }} value={novosResultadosPoliticas[etapa.tipo]?.resultado ?? ""}>
+                      <select aria-invalid={fieldErrorScope === "politicas" && !!fieldErrors.novosResultadosFinaisPoliticasAfirmativas} disabled={recursoJaDecidido || busy} className="select-field" onChange={(e) => { setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), resultado: (e.target.value || "") as (typeof resultadoPoliticasOptions)[number] | "" } })); setFieldErrors((current) => ({ ...current, novosResultadosFinaisPoliticasAfirmativas: null })); setFieldErrorScope("politicas"); }} value={novosResultadosPoliticas[etapa.tipo]?.resultado ?? ""}>
                         <option value="">Selecione</option>
                         {resultadoPoliticasOptions.filter((v) => v !== "PENDENTE").map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                       </select>
                     </div>
                     <div className="admin-eval-field">
                       <label>Parecer {etapa.tipo === "PCD" ? "PCD" : "heteroidentificacao"}</label>
-                      <textarea aria-invalid={!!fieldErrors.novosResultadosFinaisPoliticasAfirmativas} disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => { setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), parecer: e.target.value } })); setFieldErrors((current) => ({ ...current, novosResultadosFinaisPoliticasAfirmativas: null })); }} style={{ minHeight: 60 }} value={novosResultadosPoliticas[etapa.tipo]?.parecer ?? ""} />
+                      <textarea aria-invalid={fieldErrorScope === "politicas" && !!fieldErrors.novosResultadosFinaisPoliticasAfirmativas} disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => { setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), parecer: e.target.value } })); setFieldErrors((current) => ({ ...current, novosResultadosFinaisPoliticasAfirmativas: null })); setFieldErrorScope("politicas"); }} style={{ minHeight: 60 }} value={novosResultadosPoliticas[etapa.tipo]?.parecer ?? ""} />
                     </div>
                   </div>
                 )) : <PageFeedback type="warning" title="Etapas de politicas nao encontradas" description="O recurso esta vinculado a politicas afirmativas, mas nenhuma etapa ativa foi carregada para a inscricao." />}
-                {fieldErrors.novosResultadosFinaisPoliticasAfirmativas ? <span className="field-error-text">{fieldErrors.novosResultadosFinaisPoliticasAfirmativas}</span> : null}
+                {fieldErrorScope === "politicas" && fieldErrors.novosResultadosFinaisPoliticasAfirmativas ? <span className="field-error-text">{fieldErrors.novosResultadosFinaisPoliticasAfirmativas}</span> : null}
               </div>
             ) : null}
           </>

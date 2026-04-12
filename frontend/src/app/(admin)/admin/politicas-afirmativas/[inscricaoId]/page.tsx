@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { downloadAuthenticatedFile } from "@/lib/files/download";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
+import { getActionableErrorMessage, getErrorMessage, pickLabeledFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { uploadPrivateFile } from "@/modules/upload/api";
 import { getPoliticasByInscricao, registrarEncaminhamentoPoliticas, registrarResultadoFinalPoliticas, registrarResultadoPreliminarPoliticas } from "@/modules/admin-politicas/api";
@@ -93,6 +93,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   const [preliminar, setPreliminar] = useState<Record<string, ResultadoState>>({});
   const [finalResult, setFinalResult] = useState<Record<string, ResultadoState>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [fieldErrorScope, setFieldErrorScope] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,8 +152,17 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
         signOut();
         return;
       }
-      setFieldErrors(pickFirstFieldErrors(error, ["tipo", "convocadoEm", "documentosEncaminhadosEm", "protocoloEncaminhamento", "observacaoEncaminhamento", "resultado", "parecer", "arquivoRetornoUrl"] as const));
-      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
+      setFieldErrors(pickLabeledFieldErrors(error, {
+        tipo: "o tipo da etapa",
+        convocadoEm: "a data de convocacao",
+        documentosEncaminhadosEm: "a data de envio dos documentos",
+        protocoloEncaminhamento: "o protocolo",
+        observacaoEncaminhamento: "a observacao",
+        resultado: "o resultado",
+        parecer: "o parecer",
+        arquivoRetornoUrl: "o arquivo de retorno",
+      }));
+      setFeedback({ type: "error", text: getActionableErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -181,6 +191,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
 
   async function submitEncaminhamento(tipo: string, event: FormEvent) {
     event.preventDefault();
+    setFieldErrorScope(`encaminhamento:${tipo}`);
     await wrap(async () => {
       await registrarEncaminhamentoPoliticas(inscricaoId!, { tipo, ...encaminhamento[tipo] }, token!);
       setFeedback({ type: "success", text: `Encaminhamento atualizado para ${getTipoLabel(tipo)}.` });
@@ -189,6 +200,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
 
   async function submitPreliminar(tipo: string, event: FormEvent) {
     event.preventDefault();
+    setFieldErrorScope(`preliminar:${tipo}`);
     await wrap(async () => {
       const etapa = preliminar[tipo];
       await registrarResultadoPreliminarPoliticas(inscricaoId!, {
@@ -203,6 +215,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
 
   async function submitFinal(tipo: string, event: FormEvent) {
     event.preventDefault();
+    setFieldErrorScope(`final:${tipo}`);
     await wrap(async () => {
       const etapa = finalResult[tipo];
       await registrarResultadoFinalPoliticas(inscricaoId!, {
@@ -222,8 +235,10 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
     try {
       const uploaded = await uploadPrivateFile(file, token);
       if (target === "preliminar") {
+        setFieldErrorScope(`preliminar:${tipo}`);
         updatePreliminar(tipo, { arquivoRetornoUrl: uploaded.urlArquivo });
       } else {
+        setFieldErrorScope(`final:${tipo}`);
         updateFinal(tipo, { arquivoRetornoUrl: uploaded.urlArquivo });
       }
       setFeedback({ type: "success", text: `Arquivo vinculado a ${getTipoLabel(tipo)}.` });
@@ -311,24 +326,24 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
               <div className="admin-eval-field">
                 <label>Convocado em</label>
                 <input aria-invalid={!!fieldErrors.convocadoEm} onChange={(event) => { updateEncaminhamento(etapa.tipo, { convocadoEm: event.target.value }); setFieldErrors((current) => ({ ...current, convocadoEm: null })); }} type="datetime-local" value={encaminhamento[etapa.tipo]?.convocadoEm ?? ""} />
-                {fieldErrors.convocadoEm ? <span className="field-error-text">{fieldErrors.convocadoEm}</span> : null}
+                {fieldErrorScope === `encaminhamento:${etapa.tipo}` && fieldErrors.convocadoEm ? <span className="field-error-text">{fieldErrors.convocadoEm}</span> : null}
               </div>
               <div className="admin-eval-field">
                 <label>Documentos encaminhados em</label>
                 <input aria-invalid={!!fieldErrors.documentosEncaminhadosEm} onChange={(event) => { updateEncaminhamento(etapa.tipo, { documentosEncaminhadosEm: event.target.value }); setFieldErrors((current) => ({ ...current, documentosEncaminhadosEm: null })); }} type="datetime-local" value={encaminhamento[etapa.tipo]?.documentosEncaminhadosEm ?? ""} />
-                {fieldErrors.documentosEncaminhadosEm ? <span className="field-error-text">{fieldErrors.documentosEncaminhadosEm}</span> : null}
+                {fieldErrorScope === `encaminhamento:${etapa.tipo}` && fieldErrors.documentosEncaminhadosEm ? <span className="field-error-text">{fieldErrors.documentosEncaminhadosEm}</span> : null}
               </div>
             </div>
             <div className="admin-form-row">
               <div className="admin-eval-field">
                 <label>Protocolo</label>
                 <input aria-invalid={!!fieldErrors.protocoloEncaminhamento} onChange={(event) => { updateEncaminhamento(etapa.tipo, { protocoloEncaminhamento: event.target.value }); setFieldErrors((current) => ({ ...current, protocoloEncaminhamento: null })); }} value={encaminhamento[etapa.tipo]?.protocoloEncaminhamento ?? ""} />
-                {fieldErrors.protocoloEncaminhamento ? <span className="field-error-text">{fieldErrors.protocoloEncaminhamento}</span> : null}
+                {fieldErrorScope === `encaminhamento:${etapa.tipo}` && fieldErrors.protocoloEncaminhamento ? <span className="field-error-text">{fieldErrors.protocoloEncaminhamento}</span> : null}
               </div>
               <div className="admin-eval-field">
                 <label>Observacao</label>
                 <textarea aria-invalid={!!fieldErrors.observacaoEncaminhamento} className="text-area" onChange={(event) => { updateEncaminhamento(etapa.tipo, { observacaoEncaminhamento: event.target.value }); setFieldErrors((current) => ({ ...current, observacaoEncaminhamento: null })); }} value={encaminhamento[etapa.tipo]?.observacaoEncaminhamento ?? ""} />
-                {fieldErrors.observacaoEncaminhamento ? <span className="field-error-text">{fieldErrors.observacaoEncaminhamento}</span> : null}
+                {fieldErrorScope === `encaminhamento:${etapa.tipo}` && fieldErrors.observacaoEncaminhamento ? <span className="field-error-text">{fieldErrors.observacaoEncaminhamento}</span> : null}
               </div>
             </div>
             <button className="admin-page-cta" disabled={busy} style={{ width: 220 }} type="submit">Salvar encaminhamento</button>
@@ -342,18 +357,18 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
                 <select aria-invalid={!!fieldErrors.resultado} className="select-field" onChange={(event) => { updatePreliminar(etapa.tipo, { resultado: event.target.value as (typeof resultadoPoliticasOptions)[number] }); setFieldErrors((current) => ({ ...current, resultado: null })); }} value={preliminar[etapa.tipo]?.resultado ?? resultadoPoliticasOptions[0]}>
                   {resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}
                 </select>
-                {fieldErrors.resultado ? <span className="field-error-text">{fieldErrors.resultado}</span> : null}
+                {fieldErrorScope === `preliminar:${etapa.tipo}` && fieldErrors.resultado ? <span className="field-error-text">{fieldErrors.resultado}</span> : null}
               </div>
               <div className="admin-eval-field">
                 <label>Parecer</label>
                 <textarea aria-invalid={!!fieldErrors.parecer} className="text-area" onChange={(event) => { updatePreliminar(etapa.tipo, { parecer: event.target.value }); setFieldErrors((current) => ({ ...current, parecer: null })); }} value={preliminar[etapa.tipo]?.parecer ?? ""} />
-                {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
+                {fieldErrorScope === `preliminar:${etapa.tipo}` && fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
               </div>
             </div>
-            {fieldErrors.arquivoRetornoUrl ? <span className="field-error-text">{fieldErrors.arquivoRetornoUrl}</span> : null}
+            {fieldErrorScope === `preliminar:${etapa.tipo}` && fieldErrors.arquivoRetornoUrl ? <span className="field-error-text">{fieldErrors.arquivoRetornoUrl}</span> : null}
             {preliminar[etapa.tipo]?.arquivoRetornoUrl ? <span style={{ fontSize: 12, color: "#64748B" }}>Arquivo preliminar vinculado ao formulario.</span> : null}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <FileField accept="application/pdf" label="Upload retorno" onFileSelect={(file) => void handleUpload(etapa.tipo, "preliminar", file)} />
+              <FileField accept="application/pdf" error={fieldErrorScope === `preliminar:${etapa.tipo}` ? fieldErrors.arquivoRetornoUrl ?? undefined : undefined} label="Upload retorno" onFileSelect={(file) => void handleUpload(etapa.tipo, "preliminar", file)} />
               <button className="admin-page-cta" disabled={busy} style={{ width: 220 }} type="submit">Registrar preliminar</button>
             </div>
           </form>
@@ -366,18 +381,18 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
                 <select aria-invalid={!!fieldErrors.resultado} className="select-field" onChange={(event) => { updateFinal(etapa.tipo, { resultado: event.target.value as (typeof resultadoPoliticasOptions)[number] }); setFieldErrors((current) => ({ ...current, resultado: null })); }} value={finalResult[etapa.tipo]?.resultado ?? resultadoPoliticasOptions[0]}>
                   {resultadoPoliticasOptions.map((value) => <option key={value} value={value}>{getStatusLabel(value)}</option>)}
                 </select>
-                {fieldErrors.resultado ? <span className="field-error-text">{fieldErrors.resultado}</span> : null}
+                {fieldErrorScope === `final:${etapa.tipo}` && fieldErrors.resultado ? <span className="field-error-text">{fieldErrors.resultado}</span> : null}
               </div>
               <div className="admin-eval-field">
                 <label>Parecer final</label>
                 <textarea aria-invalid={!!fieldErrors.parecer} className="text-area" onChange={(event) => { updateFinal(etapa.tipo, { parecer: event.target.value }); setFieldErrors((current) => ({ ...current, parecer: null })); }} value={finalResult[etapa.tipo]?.parecer ?? ""} />
-                {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
+                {fieldErrorScope === `final:${etapa.tipo}` && fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
               </div>
             </div>
-            {fieldErrors.arquivoRetornoUrl ? <span className="field-error-text">{fieldErrors.arquivoRetornoUrl}</span> : null}
+            {fieldErrorScope === `final:${etapa.tipo}` && fieldErrors.arquivoRetornoUrl ? <span className="field-error-text">{fieldErrors.arquivoRetornoUrl}</span> : null}
             {finalResult[etapa.tipo]?.arquivoRetornoUrl ? <span style={{ fontSize: 12, color: "#64748B" }}>Arquivo final vinculado ao formulario.</span> : null}
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <FileField accept="application/pdf" label="Upload retorno" onFileSelect={(file) => void handleUpload(etapa.tipo, "final", file)} />
+              <FileField accept="application/pdf" error={fieldErrorScope === `final:${etapa.tipo}` ? fieldErrors.arquivoRetornoUrl ?? undefined : undefined} label="Upload retorno" onFileSelect={(file) => void handleUpload(etapa.tipo, "final", file)} />
               <button className="admin-page-cta" disabled={busy} style={{ width: 220 }} type="submit">Registrar final</button>
             </div>
           </form>
