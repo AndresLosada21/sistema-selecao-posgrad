@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { getErrorMessage, getFirstFieldError, getFirstFormError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors } from "@/lib/http/api-error";
 import { confirmPasswordReset } from "@/modules/auth/api";
 
 type ResetPasswordFormProps = {
@@ -38,13 +38,10 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
     setBusy(true); setMessage(null); setFieldErrors({});
     try {
       await confirmPasswordReset({ token, senha });
-      setMessage({ type: "success", text: "Senha redefinida com sucesso. Voce ja pode entrar com a nova credencial." });
+      setMessage({ type: "success", text: "Senha redefinida. Voce ja pode entrar com a nova senha." });
       redirectTimeoutRef.current = setTimeout(() => router.replace("/entrar"), 1200);
     } catch (error) {
-      setFieldErrors({
-        token: getFirstFieldError(error, "token"),
-        senha: getFirstFieldError(error, "senha"),
-      });
+      setFieldErrors(pickFirstFieldErrors(error, ["token", "senha"] as const));
       setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
@@ -67,19 +64,19 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
         <div className="auth-card-header">
           <span className="auth-card-icon-raw">{iconLock}</span>
           <strong className="auth-card-title">Redefinir senha</strong>
-          <p className="auth-card-desc">Informe o token recebido e a nova senha da conta.</p>
+          <p className="auth-card-desc">Cole o token recebido e escolha uma nova senha para entrar novamente.</p>
         </div>
 
         <form className="auth-form auth-form--compact" onSubmit={handleSubmit}>
           <label className="auth-field">
             <span className="auth-field-label">Token</span>
-            <textarea className="auth-textarea" onChange={(e) => { setToken(e.target.value); setFieldErrors((current) => ({ ...current, token: null })); }} required value={token} />
+            <textarea aria-invalid={!!fieldErrors.token} className="auth-textarea" onChange={(e) => { setToken(e.target.value); setFieldErrors((current) => ({ ...current, token: null })); }} required value={token} />
             {fieldErrors.token ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.token}</span> : null}
           </label>
 
           <label className="auth-field">
             <span className="auth-field-label">Nova senha</span>
-            <input className="auth-input" minLength={8} onChange={(e) => { setSenha(e.target.value); setFieldErrors((current) => ({ ...current, senha: null })); }} required type="password" value={senha} />
+            <input aria-invalid={!!fieldErrors.senha} className="auth-input" minLength={8} onChange={(e) => { setSenha(e.target.value); setFieldErrors((current) => ({ ...current, senha: null })); }} required type="password" value={senha} />
             {fieldErrors.senha ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.senha}</span> : null}
           </label>
 

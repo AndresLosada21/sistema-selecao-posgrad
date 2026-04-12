@@ -8,7 +8,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { cursoNivelOptions, statusEditalOptions, type CursoNivel, type StatusEdital } from "@/lib/enums";
 import { createAdminEdital, createTemaRedacaoAdmin, listAdminEditais } from "@/modules/admin-edital/api";
@@ -30,6 +30,7 @@ export default function AdminEditaisPage() {
   const [form, setForm] = useState({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO" as CursoNivel, status: "RASCUNHO" as StatusEdital });
   const [temaForm, setTemaForm] = useState({ titulo: "", descricao: "" });
   const [temasRedacao, setTemasRedacao] = useState<Array<{ id: string; titulo: string; descricao: string; ordem: number }>>([]);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   const load = useCallback(async () => {
     if (!session.token) return;
@@ -53,7 +54,7 @@ export default function AdminEditaisPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session.token) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setFieldErrors({});
     try {
       const created = await createAdminEdital({ numero: form.numero, titulo: form.titulo, descricao: form.descricao || undefined, ano: Number(form.ano), semestre: form.semestre ? Number(form.semestre) : undefined, cursoNivel: form.cursoNivel, status: form.status }, session.token) as { id?: string };
       if (!created.id) {
@@ -70,7 +71,8 @@ export default function AdminEditaisPage() {
       setMessage({ type: "success", text: "Edital criado com sucesso." });
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setFieldErrors(pickFirstFieldErrors(error, ["numero", "titulo", "descricao", "ano", "semestre", "cursoNivel", "status", "temasRedacao", "tituloTema", "descricaoTema"] as const));
+      setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -79,7 +81,8 @@ export default function AdminEditaisPage() {
 
   function addTemaRedacaoInicial() {
     if (!temaForm.titulo.trim()) {
-      setMessage({ type: "error", text: "Informe o titulo do tema de redacao antes de adicionar." });
+      setFieldErrors((current) => ({ ...current, tituloTema: "Informe o titulo do tema antes de adicionar." }));
+      setMessage({ type: "error", text: "Preencha o titulo do tema antes de adicionar." });
       return;
     }
 
@@ -93,6 +96,7 @@ export default function AdminEditaisPage() {
       },
     ]);
     setTemaForm({ titulo: "", descricao: "" });
+    setFieldErrors((current) => ({ ...current, tituloTema: null, descricaoTema: null }));
     setMessage(null);
   }
 
@@ -106,7 +110,7 @@ export default function AdminEditaisPage() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Editais</h1>
-          <p>Listagem e gerenciamento de editais do programa.</p>
+          <p>Cadastre novos editais e acompanhe os que ja estao em uso.</p>
         </div>
         <button type="button" className="admin-page-cta" onClick={() => setShowForm((v) => !v)}>
           {iconPlus} Novo edital
@@ -119,24 +123,24 @@ export default function AdminEditaisPage() {
           <h3 className="admin-form-card-title">Novo edital</h3>
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="admin-form-row">
-              <div className="wiz-field"><label className="wiz-field-label">Numero *</label><input required value={form.numero} onChange={(e) => setForm((c) => ({ ...c, numero: e.target.value }))} /></div>
-              <div className="wiz-field"><label className="wiz-field-label">Titulo *</label><input required value={form.titulo} onChange={(e) => setForm((c) => ({ ...c, titulo: e.target.value }))} /></div>
+              <div className="wiz-field"><label className="wiz-field-label">Numero *</label><input aria-invalid={!!fieldErrors.numero} required value={form.numero} onChange={(e) => { setForm((c) => ({ ...c, numero: e.target.value })); setFieldErrors((current) => ({ ...current, numero: null })); }} />{fieldErrors.numero ? <span className="field-error-text">{fieldErrors.numero}</span> : null}</div>
+              <div className="wiz-field"><label className="wiz-field-label">Titulo *</label><input aria-invalid={!!fieldErrors.titulo} required value={form.titulo} onChange={(e) => { setForm((c) => ({ ...c, titulo: e.target.value })); setFieldErrors((current) => ({ ...current, titulo: null })); }} />{fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}</div>
             </div>
-            <div className="wiz-field"><label className="wiz-field-label">Descricao</label><textarea value={form.descricao} onChange={(e) => setForm((c) => ({ ...c, descricao: e.target.value }))} style={{ minHeight: 60 }} /></div>
+            <div className="wiz-field"><label className="wiz-field-label">Descricao</label><textarea aria-invalid={!!fieldErrors.descricao} value={form.descricao} onChange={(e) => { setForm((c) => ({ ...c, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricao: null })); }} style={{ minHeight: 60 }} />{fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}</div>
             <div className="admin-form-row">
-              <div className="wiz-field"><label className="wiz-field-label">Ano</label><input type="number" min="2024" required value={form.ano} onChange={(e) => setForm((c) => ({ ...c, ano: e.target.value }))} /></div>
-              <div className="wiz-field"><label className="wiz-field-label">Semestre</label><select value={form.semestre} onChange={(e) => setForm((c) => ({ ...c, semestre: e.target.value }))}><option value="1">1</option><option value="2">2</option></select></div>
-              <div className="wiz-field"><label className="wiz-field-label">Curso</label><select value={form.cursoNivel} onChange={(e) => setForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel }))}>{cursoNivelOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
-              <div className="wiz-field"><label className="wiz-field-label">Status</label><select value={form.status} onChange={(e) => setForm((c) => ({ ...c, status: e.target.value as StatusEdital }))}>{statusEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select></div>
+              <div className="wiz-field"><label className="wiz-field-label">Ano</label><input aria-invalid={!!fieldErrors.ano} type="number" min="2024" required value={form.ano} onChange={(e) => { setForm((c) => ({ ...c, ano: e.target.value })); setFieldErrors((current) => ({ ...current, ano: null })); }} />{fieldErrors.ano ? <span className="field-error-text">{fieldErrors.ano}</span> : null}</div>
+              <div className="wiz-field"><label className="wiz-field-label">Semestre</label><select aria-invalid={!!fieldErrors.semestre} value={form.semestre} onChange={(e) => { setForm((c) => ({ ...c, semestre: e.target.value })); setFieldErrors((current) => ({ ...current, semestre: null })); }}><option value="1">1</option><option value="2">2</option></select>{fieldErrors.semestre ? <span className="field-error-text">{fieldErrors.semestre}</span> : null}</div>
+              <div className="wiz-field"><label className="wiz-field-label">Curso</label><select aria-invalid={!!fieldErrors.cursoNivel} value={form.cursoNivel} onChange={(e) => { setForm((c) => ({ ...c, cursoNivel: e.target.value as CursoNivel })); setFieldErrors((current) => ({ ...current, cursoNivel: null })); }}>{cursoNivelOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select>{fieldErrors.cursoNivel ? <span className="field-error-text">{fieldErrors.cursoNivel}</span> : null}</div>
+              <div className="wiz-field"><label className="wiz-field-label">Status</label><select aria-invalid={!!fieldErrors.status} value={form.status} onChange={(e) => { setForm((c) => ({ ...c, status: e.target.value as StatusEdital })); setFieldErrors((current) => ({ ...current, status: null })); }}>{statusEditalOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}</select>{fieldErrors.status ? <span className="field-error-text">{fieldErrors.status}</span> : null}</div>
             </div>
             <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <h4 style={{ margin: 0, fontSize: 14, color: "#1E293B" }}>Temas de redacao iniciais</h4>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748B" }}>Cadastre os temas que ficarao disponiveis em dropdown para o candidato.</p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748B" }}>Cadastre os temas que ficarao disponiveis para o candidato escolher na redacao.</p>
               </div>
               <div className="admin-form-row">
-                <div className="wiz-field"><label className="wiz-field-label">Titulo do tema</label><input value={temaForm.titulo} onChange={(e) => setTemaForm((current) => ({ ...current, titulo: e.target.value }))} /></div>
-                <div className="wiz-field"><label className="wiz-field-label">Descricao</label><input value={temaForm.descricao} onChange={(e) => setTemaForm((current) => ({ ...current, descricao: e.target.value }))} /></div>
+                <div className="wiz-field"><label className="wiz-field-label">Titulo do tema</label><input aria-invalid={!!fieldErrors.tituloTema} value={temaForm.titulo} onChange={(e) => { setTemaForm((current) => ({ ...current, titulo: e.target.value })); setFieldErrors((current) => ({ ...current, tituloTema: null })); }} />{fieldErrors.tituloTema ? <span className="field-error-text">{fieldErrors.tituloTema}</span> : null}</div>
+                <div className="wiz-field"><label className="wiz-field-label">Descricao</label><input aria-invalid={!!fieldErrors.descricaoTema} value={temaForm.descricao} onChange={(e) => { setTemaForm((current) => ({ ...current, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricaoTema: null })); }} />{fieldErrors.descricaoTema ? <span className="field-error-text">{fieldErrors.descricaoTema}</span> : null}</div>
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <button type="button" className="admin-page-cta" onClick={addTemaRedacaoInicial}>Adicionar tema</button>

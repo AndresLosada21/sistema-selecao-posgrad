@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 import { PageFeedback } from "@/components/shared/page-feedback";
-import { getErrorMessage } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFieldError, getFirstFormError } from "@/lib/http/api-error";
 import { requestPasswordReset } from "@/modules/auth/api";
 
 const iconKey = (
@@ -25,16 +25,18 @@ export default function ForgotPasswordPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [tokenPreview, setTokenPreview] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true); setMessage(null); setTokenPreview(null);
+    setBusy(true); setMessage(null); setTokenPreview(null); setEmailError(null);
     try {
       const response = await requestPasswordReset({ email });
-      setMessage({ type: "success", text: "Se a conta existir e estiver apta, a recuperação foi solicitada." });
+      setMessage({ type: "success", text: "Se o e-mail estiver apto para recuperacao, enviaremos as orientacoes para redefinir a senha." });
       setTokenPreview(response.resetTokenPreview ?? null);
     } catch (error) {
-      setMessage({ type: "error", text: getErrorMessage(error) });
+      setEmailError(getFirstFieldError(error, "email"));
+      setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -50,13 +52,14 @@ export default function ForgotPasswordPage() {
         <div className="auth-card-header">
           <span className="auth-card-icon-raw">{iconKey}</span>
           <strong className="auth-card-title">Esqueci minha senha</strong>
-          <p className="auth-card-desc">Solicite um token temporário para redefinir a senha da sua conta.</p>
+          <p className="auth-card-desc">Informe seu e-mail para receber as instrucoes de redefinicao de senha.</p>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">
             <span className="auth-field-label">E-mail</span>
-            <input className="auth-input" onChange={(e) => setEmail(e.target.value)} required type="email" value={email} placeholder="seu@email.com" />
+            <input aria-invalid={!!emailError} className="auth-input" onChange={(e) => { setEmail(e.target.value); setEmailError(null); }} required type="email" value={email} placeholder="seu@email.com" />
+            {emailError ? <span className="auth-field-hint auth-field-hint--error">{emailError}</span> : null}
           </label>
 
           <button className="auth-submit" disabled={busy} type="submit">

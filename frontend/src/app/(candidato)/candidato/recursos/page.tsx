@@ -40,7 +40,7 @@ export default function CandidateRecursosPage() {
   const [formAnexoUrl, setFormAnexoUrl] = useState("");
   const [formAnexoNome, setFormAnexoNome] = useState("");
   const [formTipoPoliticas, setFormTipoPoliticas] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ fase?: string | null; fundamentacao?: string | null; anexoUrl?: string | null }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ fase?: string | null; tipoPoliticasAfirmativasReferencia?: string | null; fundamentacao?: string | null; anexoUrl?: string | null }>({});
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -137,6 +137,7 @@ export default function CandidateRecursosPage() {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setFieldErrors({
         fase: getFirstFieldError(error, "fase"),
+        tipoPoliticasAfirmativasReferencia: getFirstFieldError(error, "tipoPoliticasAfirmativasReferencia"),
         fundamentacao: getFirstFieldError(error, "fundamentacao"),
         anexoUrl: getFirstFieldError(error, "anexoUrl"),
       });
@@ -176,7 +177,7 @@ export default function CandidateRecursosPage() {
           </div>
           {!fasesElegiveis.length ? (
             <div style={{ fontSize: 12, color: "#B45309", display: "flex", flexDirection: "column", gap: 4 }}>
-              <span>Nenhuma fase esta elegivel para recurso no momento para o edital selecionado.</span>
+              <span>No momento nao ha recurso aberto para o edital selecionado.</span>
               {participacaoSelecionada?.elegibilidade?.motivoBloqueioRecurso ? <span>{participacaoSelecionada.elegibilidade.motivoBloqueioRecurso}</span> : null}
               {participacaoSelecionada?.acompanhamento?.motivoResumo ? <span>{participacaoSelecionada.acompanhamento.motivoResumo}</span> : null}
               {participacaoSelecionada?.acompanhamento?.proximoPasso ? <span>{participacaoSelecionada.acompanhamento.proximoPasso}</span> : null}
@@ -185,10 +186,11 @@ export default function CandidateRecursosPage() {
           {formFase === "POLITICAS_AFIRMATIVAS" && tiposPoliticasElegiveis.length > 1 ? (
             <div className="wiz-field">
               <label className="wiz-field-label">Tipo da etapa *</label>
-              <select value={formTipoPoliticas} onChange={(e) => setFormTipoPoliticas(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+              <select aria-invalid={!!fieldErrors.tipoPoliticasAfirmativasReferencia} value={formTipoPoliticas} onChange={(e) => { setFormTipoPoliticas(e.target.value); setFieldErrors((current) => ({ ...current, tipoPoliticasAfirmativasReferencia: null })); }} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                 <option value="">Selecione o tipo</option>
                 {tiposPoliticasElegiveis.map((tipo) => <option key={tipo} value={tipo}>{tipo === "PCD" ? "PCD" : "Heteroidentificacao"}</option>)}
               </select>
+              {fieldErrors.tipoPoliticasAfirmativasReferencia ? <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 4 }}>{fieldErrors.tipoPoliticasAfirmativasReferencia}</div> : null}
             </div>
           ) : null}
           <div className="wiz-field">

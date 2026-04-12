@@ -68,7 +68,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
         comprovanteNomeArquivo: inscritoCadUnico ? undefined : comprovanteNomeArquivo || undefined,
       }), session.token);
       setStatus("idle");
-      setMessage({ type: "success", text: "Pedido registrado com sucesso. Redirecionando..." });
+      setMessage({ type: "success", text: "Pedido de isencao enviado. Voce sera redirecionado para acompanhar o status." });
       redirectTimeoutRef.current = setTimeout(() => router.replace(`/candidato/editais/${editalId}`), 900);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
@@ -92,7 +92,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
 
       <div style={{ width: 560, maxWidth: "100%", background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", boxShadow: "0 4px 16px rgba(0,0,0,0.06)", padding: 36, display: "flex", flexDirection: "column", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Solicitar isencao de taxa</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Solicitar isencao da taxa</h2>
           <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>Edital {editalNumero ?? ""} — {cursoLabel}</p>
         </div>
 
@@ -125,7 +125,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
           {/* NIS */}
           <div className="wiz-field">
             <label className="wiz-field-label">NIS (opcional)</label>
-            <input placeholder="12345678901" value={nis} onChange={(e) => setNis(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }} />
+            <input aria-invalid={false} placeholder="12345678901" value={nis} onChange={(e) => setNis(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }} />
           </div>
 
           {/* Justificativa + Comprovante (apenas quando nao CadUnico) */}
@@ -133,7 +133,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
             <>
               <div className="wiz-field">
                 <label className="wiz-field-label">Justificativa *</label>
-                <textarea minLength={10} value={justificativa} onChange={(e) => setJustificativa(e.target.value)}
+                <textarea aria-invalid={!!fieldErrors.justificativa} minLength={10} value={justificativa} onChange={(e) => { setJustificativa(e.target.value); setFieldErrors((current) => ({ ...current, justificativa: null })); }}
                   style={{ minHeight: 80, borderRadius: 6, border: "1px solid #CBD5E1", padding: "12px 14px", fontSize: 14, resize: "vertical" }}
                   placeholder="Justifique o pedido de isencao (minimo 10 caracteres)"
                 />
@@ -143,11 +143,11 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
                 <label className="wiz-field-label">Comprovante (PDF) *</label>
                 <FileField
                   disabled={status === "loading"}
+                  error={fieldErrors.comprovanteUrl ?? undefined}
                   hint={comprovanteNomeArquivo ? `Arquivo: ${comprovanteNomeArquivo}` : "Arraste ou clique para enviar PDF"}
                   label=""
                   onFileSelect={handleComprovanteSelect}
                 />
-                {fieldErrors.comprovanteUrl ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.comprovanteUrl}</span> : null}
               </div>
             </>
           ) : null}

@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
 import { getFilenameFromDispositionHeader, triggerBrowserDownload, downloadAuthenticatedFile } from "@/lib/files/download";
-import { ApiError, getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
+import { ApiError, getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import type { StatusConfirmacaoReserva, StatusPagamentoInscricao } from "@/lib/enums";
 import { formatIsoDate } from "@/modules/edital/formatters";
@@ -41,6 +41,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
   const [busyPagamento, setBusyPagamento] = useState(false);
   const [downloadingPacote, setDownloadingPacote] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   // Decision state
   const [prelimResultado, setPrelimResultado] = useState<"" | "HOMOLOGADA" | "INDEFERIDA">("");
@@ -136,14 +137,15 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   async function handleStatusPagamento(statusPagamento: Exclude<StatusPagamentoInscricao, "NAO_APLICAVEL" | "DISPENSADO">) {
     if (!session.token || !item) return;
     setBusyPagamento(true);
-    setMessage(null);
+    setMessage(null); setFieldErrors({});
     try {
       await atualizarStatusPagamentoHomologacao(item.id, { statusPagamento }, session.token);
       await loadItem();
       setMessage({ type: "success", title: "Pagamento atualizado", description: `Status alterado para ${getStatusLabel(statusPagamento)}.` });
     } catch (error) {
       if (handleUnauth(error)) return;
-      setMessage({ type: "error", title: "Falha no pagamento", description: getErrorMessage(error) });
+      setFieldErrors(pickFirstFieldErrors(error, ["statusPagamento"] as const));
+      setMessage({ type: "error", title: "Nao foi possivel atualizar o pagamento", description: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally {
       setBusyPagamento(false);
     }
@@ -159,29 +161,29 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   async function handlePrelim(e: FormEvent) {
     e.preventDefault();
     if (!session.token || !item) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setFieldErrors({});
     if (!prelimResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao preliminar." }); setBusy(false); return; }
-    try { await registrarHomologacaoPreliminar(item.id, { homologada: prelimResultado === "HOMOLOGADA", parecer: prelimParecer, motivos: motivosPrelim }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao preliminar salva." }); }
-    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
+    try { await registrarHomologacaoPreliminar(item.id, { homologada: prelimResultado === "HOMOLOGADA", parecer: prelimParecer, motivos: motivosPrelim }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Resultado preliminar salvo." }); }
+    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickFirstFieldErrors(error, ["homologada", "parecer", "motivos"] as const)); setMessage({ type: "error", title: "Nao foi possivel salvar o resultado preliminar", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function handleFinal(e: FormEvent) {
     e.preventDefault();
     if (!session.token || !item) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setFieldErrors({});
     if (!finalResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao final." }); setBusy(false); return; }
-    try { await registrarHomologacaoFinal(item.id, { homologada: finalResultado === "HOMOLOGADA", parecer: finalParecer, motivos: motivosFinal }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Homologacao final salva." }); }
-    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
+    try { await registrarHomologacaoFinal(item.id, { homologada: finalResultado === "HOMOLOGADA", parecer: finalParecer, motivos: motivosFinal }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Resultado final salvo." }); }
+    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickFirstFieldErrors(error, ["homologada", "parecer", "motivos"] as const)); setMessage({ type: "error", title: "Nao foi possivel salvar o resultado final", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
   async function handleConfirmacao(e: FormEvent) {
     e.preventDefault();
     if (!session.token || !item) return;
-    setBusy(true); setMessage(null);
+    setBusy(true); setMessage(null); setFieldErrors({});
     try { await atualizarConfirmacaoReserva(item.id, { confirmacaoAcoesAfirmativas: confirmAA, confirmacaoPcd: confirmPCD }, session.token); await loadItem(); setMessage({ type: "success", title: "Confirmacao atualizada", description: "Reservas atualizadas." }); }
-    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Falha", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
+    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickFirstFieldErrors(error, ["confirmacaoAcoesAfirmativas", "confirmacaoPcd"] as const)); setMessage({ type: "error", title: "Nao foi possivel atualizar as reservas", description: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -430,15 +432,17 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             <div className="admin-form-row">
               <div className="wiz-field">
                 <label className="wiz-field-label">Acoes afirmativas</label>
-                  <select disabled={!reservaAcoesAtiva} value={confirmAA} onChange={(e) => setConfirmAA(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  <select aria-invalid={!!fieldErrors.confirmacaoAcoesAfirmativas} disabled={!reservaAcoesAtiva} value={confirmAA} onChange={(e) => { setConfirmAA(e.target.value as StatusConfirmacaoReserva); setFieldErrors((current) => ({ ...current, confirmacaoAcoesAfirmativas: null })); }} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                   {confirmacaoAcoesOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                   </select>
+                  {fieldErrors.confirmacaoAcoesAfirmativas ? <span className="field-error-text">{fieldErrors.confirmacaoAcoesAfirmativas}</span> : null}
                 </div>
                 <div className="wiz-field">
                   <label className="wiz-field-label">PCD</label>
-                  <select disabled={!reservaPcdAtiva} value={confirmPCD} onChange={(e) => setConfirmPCD(e.target.value as StatusConfirmacaoReserva)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
+                  <select aria-invalid={!!fieldErrors.confirmacaoPcd} disabled={!reservaPcdAtiva} value={confirmPCD} onChange={(e) => { setConfirmPCD(e.target.value as StatusConfirmacaoReserva); setFieldErrors((current) => ({ ...current, confirmacaoPcd: null })); }} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                   {confirmacaoPcdOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                   </select>
+                  {fieldErrors.confirmacaoPcd ? <span className="field-error-text">{fieldErrors.confirmacaoPcd}</span> : null}
                 </div>
             </div>
             <button type="submit" disabled={busy} style={{ alignSelf: "flex-start", padding: "10px 20px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: "pointer", color: "#334155" }}>

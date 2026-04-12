@@ -146,7 +146,7 @@ export default function CandidateDashboardPage() {
     return data.items.find((item) => item.id === selectedParticipacaoId) ?? data.items[0] ?? null;
   }, [data, selectedParticipacaoId]);
 
-  if (status === "loading") return <LoadingState title="Carregando painel" description="Consultando area consolidada do candidato..." />;
+  if (status === "loading") return <LoadingState title="Carregando painel" description="Carregando seus dados..." />;
   if (status === "error") {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -160,15 +160,15 @@ export default function CandidateDashboardPage() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <EmptyState title="Nenhuma participacao encontrada" description="Ainda nao ha participacoes vinculadas a esta conta." />
+        <EmptyState title="Voce ainda nao entrou em nenhum edital" description="Abra um edital publicado para acompanhar o processo, pedir isencao ou iniciar sua inscricao." />
         <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px 18px", borderRadius: 10, background: "#EFF6FF", color: "#1E3A8A" }}>
-          {contaAdministrativaSemPerfilCandidato ? <strong>Esta conta esta autenticada com perfil administrativo, mas o fluxo do candidato continua disponivel pelos editais publicos.</strong> : null}
-          <span>Para iniciar, abra um edital publicado e clique em <strong>Entrar neste edital</strong>. Depois disso, os CTAs de inscricao e isencao aparecem no acompanhamento.</span>
+          {contaAdministrativaSemPerfilCandidato ? <strong>Esta conta tambem possui perfil administrativo, mas voce ainda pode participar de editais pela area publica.</strong> : null}
+          <span>Abra um edital e clique em <strong>Entrar neste edital</strong>. Depois disso, os botoes de inscricao e isencao ficam disponiveis no acompanhamento.</span>
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <Link href="/editais" className="dash-greeting-cta">
             {iconPlus}
-            <span>Escolher edital e entrar</span>
+            <span>Ver editais</span>
           </Link>
           <Link href="/candidato/participacoes" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 999, border: "1px solid #CBD5E1", color: "#0F172A", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>
             Ver participacoes
@@ -219,7 +219,7 @@ export default function CandidateDashboardPage() {
       <div className="dash-greeting">
         <div>
           <h2>Ola, {session.user?.nomeCompleto?.split(" ")[0] ?? "Candidato"}</h2>
-          <p>Acompanhe suas participacoes nos processos seletivos do PPGEE/UFAM.</p>
+          <p>Acompanhe seus editais, inscricoes, recursos e resultados.</p>
         </div>
         {active?.elegibilidade?.podeEditarInscricao || active?.elegibilidade?.podeCancelarSubmissao ? (
           <Link href={`/candidato/editais/${active.edital.id}/inscricao`} className="dash-greeting-cta">

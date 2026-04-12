@@ -59,6 +59,10 @@ export function getFirstFieldError(error: unknown, field: string) {
   return Array.isArray(value) && value.length > 0 ? value[0] : null;
 }
 
+export function pickFirstFieldErrors<T extends string>(error: unknown, fields: readonly T[]) {
+  return Object.fromEntries(fields.map((field) => [field, getFirstFieldError(error, field)])) as Record<T, string | null>;
+}
+
 export function getFirstFormError(error: unknown) {
   if (!(error instanceof ApiError)) {
     return null;

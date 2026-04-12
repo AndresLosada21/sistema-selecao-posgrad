@@ -7,7 +7,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getEspelhoEtapa2, getEtapa2Item, liberarEspelhoEtapa2, registrarEtapa2 } from "@/modules/admin-etapas/api";
@@ -40,6 +40,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +107,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     e.preventDefault();
     if (!token || !inscricaoId) return;
     setBusy(true);
-    setFeedback(null);
+    setFeedback(null); setFieldErrors({});
     try {
       const pontuacaoItens = Object.fromEntries(
         itensDraft.filter((entry) => entry.chave.trim()).map((entry) => [entry.chave.trim(), Number(entry.valor) || 0]),
@@ -131,10 +132,11 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       if (espelho) {
         await loadEspelho();
       }
-      setFeedback({ type: "success", text: "Resultado da etapa 2 registrado." });
+      setFeedback({ type: "success", text: "Resultado da etapa 2 salvo." });
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFieldErrors(pickFirstFieldErrors(error, ["pontuacaoItens", "pontuacaoBruta", "maiorPontuacaoBruta", "glosas", "espelhoCorrecao", "publicacao"] as const));
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -228,6 +230,8 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       {/* Itens de pontuacao */}
       <form className="admin-form-card" onSubmit={onSubmit}>
         <h2 className="admin-form-card-title">Itens de pontuacao</h2>
+        {fieldErrors.pontuacaoItens ? <PageFeedback type="error" title="Itens de pontuacao invalidos" description={fieldErrors.pontuacaoItens} /> : null}
+        {fieldErrors.glosas ? <PageFeedback type="error" title="Glosas invalidas" description={fieldErrors.glosas} /> : null}
         <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Adicione os itens do Anexo II com pontuacao e glosas quando aplicavel.</p>
 
         <table className="admin-pont-table">
@@ -350,11 +354,13 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Pontuacao bruta</label>
-            <input disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => setPontuacaoBruta(Number(e.target.value) || 0)} type="number" value={pontuacaoBruta} />
+            <input aria-invalid={!!fieldErrors.pontuacaoBruta} disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => { setPontuacaoBruta(Number(e.target.value) || 0); setFieldErrors((current) => ({ ...current, pontuacaoBruta: null })); }} type="number" value={pontuacaoBruta} />
+            {fieldErrors.pontuacaoBruta ? <span className="field-error-text">{fieldErrors.pontuacaoBruta}</span> : null}
           </div>
           <div className="admin-eval-field">
             <label>Maior pontuacao bruta</label>
-            <input disabled={!podeSalvarResultado || busy} min={0.1} onChange={(e) => setMaiorPontuacaoBruta(Number(e.target.value) || 0)} step={0.1} type="number" value={maiorPontuacaoBruta} />
+            <input aria-invalid={!!fieldErrors.maiorPontuacaoBruta} disabled={!podeSalvarResultado || busy} min={0.1} onChange={(e) => { setMaiorPontuacaoBruta(Number(e.target.value) || 0); setFieldErrors((current) => ({ ...current, maiorPontuacaoBruta: null })); }} step={0.1} type="number" value={maiorPontuacaoBruta} />
+            {fieldErrors.maiorPontuacaoBruta ? <span className="field-error-text">{fieldErrors.maiorPontuacaoBruta}</span> : null}
           </div>
         </div>
 
@@ -415,16 +421,18 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
-          <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} />
+          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
+          {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
         </div>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Publicacao</label>
-            <select className="select-field" disabled={busy} onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}>
+            <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
               <option value="PRELIMINAR">Preliminar</option>
               <option value="FINAL">Final</option>
             </select>
+            {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>

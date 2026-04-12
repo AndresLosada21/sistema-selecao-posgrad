@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { ErrorState } from "@/components/shared/page-states";
 import { resolveAuthRedirectPath } from "@/lib/auth/next-path";
-import { getErrorMessage, getFirstFieldError, getFirstFormError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors } from "@/lib/http/api-error";
 import { useSession } from "@/lib/auth/session-provider";
 import { login, register } from "@/modules/auth/api";
 
@@ -71,7 +71,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         <div className="auth-card">
           <div className="auth-card-header">
             <strong className="auth-card-title">Sessao ja autenticada</strong>
-            <p className="auth-card-desc">Redirecionando para a area adequada.</p>
+            <p className="auth-card-desc">Voce ja esta logado. Vamos levar voce para a area correta.</p>
           </div>
         </div>
       </div>
@@ -94,13 +94,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
       router.replace(resolveAuthRedirectPath(nextPath));
     } catch (error) {
       setStatus("error");
-      setFieldErrors({
-        nomeCompleto: getFirstFieldError(error, "nomeCompleto"),
-        email: getFirstFieldError(error, "email"),
-        senha: getFirstFieldError(error, "senha"),
-        telefone: getFirstFieldError(error, "telefone"),
-        cpf: getFirstFieldError(error, "cpf"),
-      });
+      setFieldErrors(pickFirstFieldErrors(error, ["nomeCompleto", "email", "senha", "telefone", "cpf"] as const));
       setMessage(getFirstFormError(error) ?? getErrorMessage(error));
     } finally {
       if (resetStatusTimeoutRef.current) {
@@ -124,8 +118,8 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         <strong className="auth-card-title">{isLogin ? "Entrar" : "Criar conta"}</strong>
         <p className="auth-card-desc">
           {isLogin
-            ? "Autentique-se para acessar os fluxos do processo."
-            : "Cadastre a conta base do candidato para acessar os editais."}
+            ? "Entre para acompanhar sua inscricao e acessar seus editais."
+            : "Crie sua conta para participar dos editais."}
         </p>
       </div>
 
@@ -133,21 +127,21 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         {!isLogin ? (
           <label className="auth-field">
             <span className="auth-field-label">Nome completo *</span>
-            <input className="auth-input" autoComplete="name" onChange={(e) => { setNomeCompleto(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, nomeCompleto: null })); }} required value={nomeCompleto} />
+            <input aria-invalid={!!fieldErrors.nomeCompleto} className="auth-input" autoComplete="name" onChange={(e) => { setNomeCompleto(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, nomeCompleto: null })); }} required value={nomeCompleto} />
             {fieldErrors.nomeCompleto ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.nomeCompleto}</span> : null}
           </label>
         ) : null}
 
         <label className="auth-field">
           <span className="auth-field-label">E-mail {!isLogin ? "*" : ""}</span>
-          <input className="auth-input" autoComplete="email" onChange={(e) => { setEmail(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, email: null })); }} required type="email" value={email} placeholder={isLogin ? "candidato@email.com" : "maria.pereira@email.com"} />
+          <input aria-invalid={!!fieldErrors.email} className="auth-input" autoComplete="email" onChange={(e) => { setEmail(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, email: null })); }} required type="email" value={email} placeholder={isLogin ? "candidato@email.com" : "maria.pereira@email.com"} />
           {fieldErrors.email ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.email}</span> : null}
         </label>
 
         <label className="auth-field">
           <span className="auth-field-label">Senha {!isLogin ? "*" : ""}</span>
           <div className="auth-input-wrapper">
-            <input className="auth-input auth-input--with-toggle" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, senha: null })); }} required type={showPassword ? "text" : "password"} value={senha} placeholder="••••••••" />
+            <input aria-invalid={!!fieldErrors.senha} className="auth-input auth-input--with-toggle" autoComplete={isLogin ? "current-password" : "new-password"} minLength={8} onChange={(e) => { setSenha(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, senha: null })); }} required type={showPassword ? "text" : "password"} value={senha} placeholder="••••••••" />
             <button className="auth-toggle-password" type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Ocultar caracteres" : "Mostrar caracteres"}>
               {showPassword ? iconEye : iconEyeOff}
             </button>
@@ -159,12 +153,12 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           <div className="auth-row">
             <label className="auth-field">
               <span className="auth-field-label">Telefone</span>
-              <input className="auth-input" autoComplete="tel" onChange={(e) => { setTelefone(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, telefone: null })); }} value={telefone} placeholder="(92) 99123-4567" />
+              <input aria-invalid={!!fieldErrors.telefone} className="auth-input" autoComplete="tel" onChange={(e) => { setTelefone(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, telefone: null })); }} value={telefone} placeholder="(92) 99123-4567" />
               {fieldErrors.telefone ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.telefone}</span> : null}
             </label>
             <label className="auth-field">
               <span className="auth-field-label">CPF</span>
-              <input className="auth-input" autoComplete="off" inputMode="numeric" onChange={(e) => { setCpf(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, cpf: null })); }} value={cpf} placeholder="000.000.000-00" />
+              <input aria-invalid={!!fieldErrors.cpf} className="auth-input" autoComplete="off" inputMode="numeric" onChange={(e) => { setCpf(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, cpf: null })); }} value={cpf} placeholder="000.000.000-00" />
               {fieldErrors.cpf ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.cpf}</span> : null}
             </label>
           </div>

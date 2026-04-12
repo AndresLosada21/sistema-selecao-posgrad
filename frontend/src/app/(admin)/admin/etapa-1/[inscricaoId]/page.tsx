@@ -7,7 +7,7 @@ import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
-import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
+import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { getEspelhoEtapa1, getEtapa1Item, liberarEspelhoEtapa1, registrarEtapa1 } from "@/modules/admin-etapas/api";
@@ -62,6 +62,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -141,7 +142,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     e.preventDefault();
     if (!token || !inscricaoId) return;
     setBusy(true);
-    setFeedback(null);
+    setFeedback(null); setFieldErrors({});
     try {
       if (notaPreview < 0 || notaPreview > 10) {
         setFeedback({ type: "warning", text: "A nota calculada da rubrica deve ficar entre 0 e 10." });
@@ -160,10 +161,11 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
       if (espelho) {
         await loadEspelho();
       }
-      setFeedback({ type: "success", text: "Resultado da etapa 1 registrado." });
+      setFeedback({ type: "success", text: "Resultado da etapa 1 salvo." });
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFeedback({ type: "error", text: getErrorMessage(error) });
+      setFieldErrors(pickFirstFieldErrors(error, ["tema", "rubrica", "fundamentoUsoIa", "espelhoCorrecao", "publicacao"] as const));
+      setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
 
@@ -250,7 +252,8 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
       {/* Rubrica e nota */}
       <form className="admin-form-card admin-etapa1-form-card" onSubmit={onSubmit}>
-        <h2 className="admin-form-card-title">Rubrica e nota</h2>
+          <h2 className="admin-form-card-title">Rubrica e nota</h2>
+          {fieldErrors.rubrica ? <PageFeedback type="error" title="Rubrica incompleta" description={fieldErrors.rubrica} /> : null}
 
         <div className="admin-eval-row">
           <div className="admin-eval-field">
@@ -282,7 +285,8 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         {usoIaComprovado && (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Fundamento do uso de IA</label>
-            <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setFundamentoUsoIa(e.target.value)} value={fundamentoUsoIa} />
+            <textarea aria-invalid={!!fieldErrors.fundamentoUsoIa} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setFundamentoUsoIa(e.target.value); setFieldErrors((current) => ({ ...current, fundamentoUsoIa: null })); }} value={fundamentoUsoIa} />
+            {fieldErrors.fundamentoUsoIa ? <span className="field-error-text">{fieldErrors.fundamentoUsoIa}</span> : null}
           </div>
         )}
 
@@ -328,16 +332,18 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
-          <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setEspelhoCorrecao(e.target.value)} value={espelhoCorrecao} />
+          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
+          {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
         </div>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
             <label>Publicacao</label>
-            <select className="select-field" disabled={!podeAlternarPublicacao || busy} onChange={(e) => setPublicacao(e.target.value as "PRELIMINAR" | "FINAL")} value={publicacao}>
+            <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={!podeAlternarPublicacao || busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
               <option value="PRELIMINAR">Preliminar</option>
               <option value="FINAL">Final</option>
             </select>
+            {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
