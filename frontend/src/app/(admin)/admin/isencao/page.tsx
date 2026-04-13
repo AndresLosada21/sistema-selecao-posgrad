@@ -38,8 +38,8 @@ export default function AdminIsencaoPage() {
     }
   }, [page, session.signOut, session.token]);
 
-  if (status === "loading") return <LoadingState title="Carregando isencoes" description="Consultando a fila administrativa." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar isencoes" description={message ?? undefined} />;
+  if (status === "loading") return <LoadingState title="Carregando isencoes" description="Consultando os pedidos de isencao da fila." />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de isencao" description={message ?? undefined} />;
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 
@@ -48,7 +48,7 @@ export default function AdminIsencaoPage() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Isencao de taxa</h1>
-          <p>Fila de pedidos de isencao por edital.</p>
+          <p>Acompanhe os pedidos de isencao e abra cada um para analise.</p>
         </div>
       </div>
 
@@ -96,7 +96,7 @@ export default function AdminIsencaoPage() {
             </div>
           </div>
         </div>
-      ) : <EmptyState title="Sem pedidos" description="Nenhum pedido de isencao na fila." />}
+      ) : <EmptyState title="Nenhum pedido na fila" description="Nao ha pedidos de isencao aguardando consulta nesta pagina." />}
     </div>
   );
 }

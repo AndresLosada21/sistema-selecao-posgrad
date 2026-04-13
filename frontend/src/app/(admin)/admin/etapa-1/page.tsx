@@ -42,8 +42,8 @@ export default function AdminEtapa1Page() {
     }
   }, [filter, page, signOut, token]);
 
-  if (status === "loading") return <LoadingState title="Carregando etapa 1" description="Consultando a fila administrativa da etapa 1." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar etapa 1" description={message ?? undefined} />;
+  if (status === "loading") return <LoadingState title="Carregando etapa 1" description="Consultando as redacoes prontas para avaliacao." />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila da etapa 1" description={message ?? undefined} />;
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
@@ -52,7 +52,7 @@ export default function AdminEtapa1Page() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Etapa 1 — Redacao</h1>
-          <p>Fila de avaliacao de redacoes por edital.</p>
+          <p>Acompanhe as inscricoes com redacao pronta para avaliacao.</p>
         </div>
       </div>
 
@@ -124,7 +124,7 @@ export default function AdminEtapa1Page() {
               )) : (
                 <tr>
                   <td colSpan={8} style={{ textAlign: "center", padding: 32, color: "#64748B" }}>
-                    Nenhuma inscricao retornada para o filtro atual.
+                    {filter ? "Nenhuma inscricao deste edital chegou a etapa 1 no filtro atual." : "Nenhuma inscricao esta pronta para avaliacao da etapa 1 neste momento."}
                   </td>
                 </tr>
               )}
