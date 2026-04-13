@@ -6,15 +6,16 @@ import { useState, type FormEvent } from "react";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors } from "@/lib/http/api-error";
 import { requestPasswordReset } from "@/modules/auth/api";
+import { normalizeEmail } from "@/modules/auth/input-format";
 
 const iconKey = (
-  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
   </svg>
 );
 
 const iconArrowLeft = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="m12 19-7-7 7-7" /><path d="M19 12H5" />
   </svg>
 );
@@ -31,7 +32,7 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setBusy(true); setMessage(null); setTokenPreview(null); setEmailError(null);
     try {
-      const response = await requestPasswordReset({ email });
+      const response = await requestPasswordReset({ email: normalizeEmail(email) });
       setMessage({ type: "success", text: "Se o e-mail estiver apto para recuperacao, enviaremos as orientacoes para redefinir a senha." });
       setTokenPreview(response.resetTokenPreview ?? null);
     } catch (error) {
