@@ -27,7 +27,7 @@ export function AdminHeader() {
       <div className="admin-topbar-inner">
         <Link href="/admin" className="admin-topbar-brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/ppgee-branca.png" alt="PPGEE/UFAM" className="admin-topbar-brand-img" height={36} />
+          <img src="/images/ppgee-colorida.png" alt="PPGEE/UFAM" className="admin-topbar-brand-img" height={36} />
         </Link>
 
         <div className="admin-topbar-right" ref={ref} style={{ position: "relative" }}>

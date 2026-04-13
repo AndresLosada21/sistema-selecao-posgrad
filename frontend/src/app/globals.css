@@ -2409,8 +2409,9 @@ textarea {
 
 .admin-topbar {
   min-height: var(--topbar-height);
-  background: var(--color-primary-800);
-  color: #fff;
+  background: #FFFFFF;
+  color: #0F172A;
+  border-bottom: 1px solid #E2E8F0;
 }
 
 .admin-topbar-inner {
@@ -2435,7 +2436,7 @@ textarea {
 .admin-topbar-title {
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-primary-200);
+  color: #64748B;
 }
 
 .admin-topbar-right {
@@ -2447,7 +2448,7 @@ textarea {
 .admin-topbar-divider {
   width: 1px;
   height: 20px;
-  background: var(--color-primary-600);
+  background: #E2E8F0;
 }
 
 .admin-topbar-role {
@@ -2457,20 +2458,20 @@ textarea {
   padding: 6px 12px 6px 8px;
   border-radius: var(--radius-full);
   cursor: pointer;
-  border: none;
-  background: var(--color-primary-700);
-  color: #fff;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #334155;
   font-size: 13px;
   font-weight: 500;
 }
 
-.admin-topbar-role:hover { background: var(--color-primary-600); }
+.admin-topbar-role:hover { background: #F1F5F9; }
 
 .admin-topbar-role-dot {
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  background: var(--color-primary-500);
+  background: #2563EB;
 }
 
 .admin-topbar-dropdown {
@@ -2536,12 +2537,13 @@ textarea {
 .admin-sidebar {
   width: 240px;
   flex-shrink: 0;
-  background: var(--color-neutral-900);
-  color: #fff;
+  background: #FFFFFF;
+  color: #334155;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  border-right: 1px solid #E2E8F0;
 }
 
 .admin-sidebar-section {
@@ -2551,9 +2553,11 @@ textarea {
 
 .admin-sidebar-section-label {
   font-size: 10px;
-  font-weight: 600;
-  color: var(--color-neutral-500);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #94A3B8;
   padding: 0 12px;
+  text-transform: uppercase;
 }
 
 .admin-sidebar-nav {
@@ -2567,20 +2571,21 @@ textarea {
   gap: 10px;
   padding: 8px 12px;
   border-radius: 6px;
-  color: var(--color-neutral-300);
+  color: #475569;
   text-decoration: none;
   font-size: 13px;
+  transition: background 0.12s, color 0.12s;
 }
 
 .admin-sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: #F1F5F9;
+  color: #0F172A;
 }
 
 .admin-sidebar-item--active {
-  background: var(--color-primary-800);
-  color: #fff;
-  font-weight: 500;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font-weight: 600;
 }
 
 .admin-sidebar-icon {
@@ -2592,7 +2597,7 @@ textarea {
 
 .admin-sidebar-footer {
   margin-top: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #E2E8F0;
   padding-top: var(--space-4);
 }
 
@@ -2600,12 +2605,12 @@ textarea {
   width: 100%;
   border: 0;
   background: transparent;
-  color: #ef4444;
+  color: #DC2626;
   cursor: pointer;
 }
 
 .admin-sidebar-item--danger:hover {
-  background: rgba(239, 68, 68, 0.08);
+  background: #FEF2F2;
 }
 
 .admin-main {
@@ -2854,6 +2859,129 @@ textarea {
   text-decoration: underline;
 }
 
+/* -- Espelho Cell (Pencil: eye/eye-off + cor por estado) -- */
+.admin-espelho-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-espelho-cell--liberado {
+  color: #15803D;
+}
+.admin-espelho-cell--solicitado {
+  color: #A16207;
+}
+.admin-espelho-cell--pendente {
+  color: #94A3B8;
+  font-weight: 400;
+}
+
+/* -- Glosa Card (Pencil: card com fundo error-50) -- */
+.admin-glosa-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+}
+.admin-glosa-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #991B1B;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.admin-glosa-add-btn:hover { background: #FEE2E2; }
+.admin-glosa-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* -- Calc Summary (Pencil: resumo read-only neutral-50) -- */
+.admin-calc-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #F8FAFC;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+.admin-calc-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* -- Shortcut Buttons (Pencil: primary-50 com ícone zap) -- */
+.admin-shortcut-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #2563EB;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.admin-shortcut-btn:hover { background: #DBEAFE; }
+.admin-shortcut-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* -- Disabled Button (Pencil: Já liberado) -- */
+.admin-btn-disabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #94A3B8;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  cursor: default;
+}
+
+/* -- Dropzone (Pencil: area de arrastar com ícone upload) -- */
+.admin-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  background: #F8FAFC;
+  border: 2px dashed #CBD5E1;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  color: #64748B;
+  transition: border-color 0.15s, background 0.15s;
+}
+.admin-dropzone:hover {
+  border-color: #94A3B8;
+  background: #F1F5F9;
+}
+.admin-dropzone--error {
+  border-color: #DC2626;
+  background: #FEF2F2;
+}
+.admin-dropzone--error:hover {
+  border-color: #B91C1C;
+}
+
 /* -- Admin Form Card (Pencil DS) -- */
 .admin-form-card {
   background: #fff; border: 1px solid #E2E8F0; border-radius: 8px;
@@ -2911,7 +3039,49 @@ textarea {
 
 .admin-eval-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .admin-eval-field { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px; }
+.admin-eval-field > span:first-child { font-size: 13px; font-weight: 600; color: #334155; }
 .admin-eval-field label { font-size: 13px; font-weight: 600; color: #334155; }
+.admin-eval-field input,
+.admin-eval-field select,
+.admin-eval-field textarea {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #0F172A;
+  background: #fff;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.admin-eval-field input:focus,
+.admin-eval-field select:focus,
+.admin-eval-field textarea:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+.admin-eval-field input[aria-invalid="true"],
+.admin-eval-field select[aria-invalid="true"],
+.admin-eval-field textarea[aria-invalid="true"] {
+  border-color: #DC2626;
+  background: #FEF2F2;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.08);
+}
+.admin-eval-field select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2364748B' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+.admin-eval-field input:disabled,
+.admin-eval-field select:disabled,
+.admin-eval-field textarea:disabled {
+  background: #F8FAFC;
+  color: #94A3B8;
+  cursor: not-allowed;
+}
 .admin-inline-help {
   width: 24px;
   height: 24px;
@@ -3039,6 +3209,143 @@ textarea {
 .admin-summary-card-value { font-size: 24px; font-weight: 700; color: #0F172A; }
 .admin-summary-card-value--primary { color: #2563EB; }
 
+.admin-stage-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 360px);
+  gap: 20px;
+  align-items: start;
+}
+
+.admin-stage-main,
+.admin-stage-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.admin-inline-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748B;
+}
+
+.admin-inline-breadcrumb a {
+  color: #2563EB;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.admin-inline-breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.admin-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.admin-kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: #EFF6FF;
+  border: 1px solid #DBEAFE;
+  border-radius: 8px;
+}
+
+.admin-kpi-card--plain {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+}
+
+.admin-kpi-card--primary {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+}
+.admin-kpi-card--primary .admin-kpi-label {
+  color: #2563EB;
+}
+
+.admin-kpi-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.admin-kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.admin-kpi-value--primary {
+  color: #2563EB;
+}
+
+.admin-launcher-card {
+  max-width: 520px;
+  gap: 18px;
+}
+
+.admin-soft-note {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #F8FAFC;
+  font-size: 12px;
+  color: #64748B;
+}
+
+.admin-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-preview-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 16px;
+  background: #F8FAFC;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.admin-preview-metrics strong {
+  color: #0F172A;
+}
+
+.admin-list-filter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+}
+
+.admin-list-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-list-filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ============================================
    Responsive
    ============================================ */
@@ -3136,6 +3443,14 @@ textarea {
 
   .admin-main {
     padding: var(--space-6);
+  }
+
+  .admin-stage-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-kpi-row {
+    grid-template-columns: 1fr;
   }
 
   .admin-launcher-grid {

@@ -15,19 +15,20 @@ export default function AdminPublicacoesLauncher() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Publicacoes Oficiais</h1>
-          <p>Selecione o edital para acessar o workspace de publicacoes.</p>
+          <p>Selecione um edital para continuar.</p>
         </div>
       </div>
 
-      <div className="admin-form-card" style={{ maxWidth: 600 }}>
+      <div className="admin-form-card admin-launcher-card">
         <h2 className="admin-form-card-title">Selecionar edital</h2>
         <AdminEditalCombobox allowEmpty={false} emptyLabel="" label="Edital" onChange={setEditalId} token={session.token ?? ""} value={editalId} />
         {editalId ? (
-          <Link className="admin-page-cta" href={`/admin/publicacoes/${editalId}`} style={{ textDecoration: "none", alignSelf: "flex-start" }}>
+          <Link className="admin-page-cta" href={`/admin/publicacoes/${editalId}`} style={{ textDecoration: "none", alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 8 }}>
             Abrir publicacoes
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </Link>
         ) : (
-          <span style={{ fontSize: 13, color: "#94A3B8" }}>Selecione um edital para continuar.</span>
+          <span className="admin-soft-note">Selecione um edital para continuar.</span>
         )}
       </div>
     </div>

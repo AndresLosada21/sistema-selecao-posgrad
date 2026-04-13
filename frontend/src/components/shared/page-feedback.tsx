@@ -7,9 +7,10 @@ type PageFeedbackProps = {
   title: string;
   description?: string;
   action?: ReactNode;
+  children?: ReactNode;
 };
 
-export function PageFeedback({ type, title, description, action }: PageFeedbackProps) {
+export function PageFeedback({ type, title, description, action, children }: PageFeedbackProps) {
   return (
     <div className={`page-feedback page-feedback--${type}`} role={type === "error" ? "alert" : "status"}>
       <span className="page-feedback-icon" aria-hidden="true">
@@ -21,6 +22,7 @@ export function PageFeedback({ type, title, description, action }: PageFeedbackP
       <div className="page-feedback-content">
         <strong className="page-feedback-title">{title}</strong>
         {description ? <p className="page-feedback-description">{description}</p> : null}
+        {children}
       </div>
       {action ? <div className="page-feedback-action">{action}</div> : null}
     </div>
