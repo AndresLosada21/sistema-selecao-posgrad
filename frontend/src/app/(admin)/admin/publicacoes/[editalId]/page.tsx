@@ -32,6 +32,32 @@ function camelToLabel(key: string): string {
 
 const HIDDEN_PREVIEW_COLS = new Set(["id", "inscricaoId", "editalId", "candidatoId", "linhaPesquisaId"]);
 
+/** Colunas fixas por tipo de preview (Pencil) */
+const PREVIEW_COLUMNS: Record<string, { key: string; label: string }[]> = {
+  homologacao: [
+    { key: "candidato", label: "Candidato" },
+    { key: "linhaPesquisa", label: "Linha" },
+    { key: "situacaoPublica", label: "Situacao" },
+    { key: "parecer", label: "Parecer" },
+  ],
+  classificacao: [
+    { key: "posicaoGeral", label: "#" },
+    { key: "candidato", label: "Candidato" },
+    { key: "linhaPesquisa", label: "Linha" },
+    { key: "modalidadePublica", label: "Modal." },
+    { key: "notaEtapa1", label: "E1" },
+    { key: "notaEtapa2", label: "E2" },
+    { key: "notaFinal", label: "NF" },
+    { key: "situacaoPublica", label: "Situacao" },
+  ],
+  politicas: [
+    { key: "candidato", label: "Candidato" },
+    { key: "modalidadePublica", label: "Modalidade" },
+    { key: "situacaoPublica", label: "Resultado" },
+    { key: "statusClassificacao", label: "Status" },
+  ],
+};
+
 /** Extrai valor legivel de um campo de preview. Objetos aninhados retornam o campo mais relevante. */
 function extractDisplayValue(val: unknown): string {
   if (val === null || val === undefined) return "—";
@@ -115,6 +141,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   const [editalLabel, setEditalLabel] = useState<string>("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
   const [fieldErrorScope, setFieldErrorScope] = useState<"manual" | "homologacao" | "classificacao" | "politicas" | null>(null);
+  const [errorDetails, setErrorDetails] = useState<{ candidatoNome: string; inscricaoId: string }[] | null>(null);
 
   useEffect(() => {
     if (!arquivoGenerico) {
@@ -129,10 +156,6 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     setArquivoGenericoKey((current) => current + 1);
     setFeedback({ type: "error", text: "Selecione um arquivo PDF valido para a publicacao manual." });
   }, [arquivoGenerico]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [historyOnlyCurrent, historyTypeFilter]);
 
   useEffect(() => {
     if (!arquivoGenerico) {
@@ -188,7 +211,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   async function loadPreview(type: PubType) {
     if (!token || !editalId) return;
     setBusy(true);
-    setFeedback(null); setFieldErrors({}); setFieldErrorScope(type);
+    setFeedback(null); setFieldErrors({}); setFieldErrorScope(type); setErrorDetails(null);
     try {
       const fase = faseFor(type);
       const response = type === "homologacao"
@@ -201,6 +224,11 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
       setFieldErrors(pickLabeledFieldErrors(error, { fase: "a fase da publicacao" }));
+      const errObj = error as Record<string, unknown> | undefined;
+      const details = (errObj as Record<string, unknown>)?.details ?? (errObj as Record<string, unknown>)?.data;
+      if (Array.isArray(details) && details.length > 0 && typeof details[0] === "object" && details[0] !== null && "candidatoNome" in details[0]) {
+        setErrorDetails(details as { candidatoNome: string; inscricaoId: string }[]);
+      }
       setFeedback({ type: "error", text: getActionableErrorMessage(error) });
     } finally { setBusy(false); }
   }
@@ -232,10 +260,16 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   async function handlePublicacaoGenerica(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!token || !editalId) return;
-    if (!arquivoGenerico) {
-      setFieldErrors((current) => ({ ...current, arquivoUrl: "Selecione o PDF da publicacao." }));
+
+    const errors: Record<string, string> = {};
+    if (!tituloGenerico.trim()) errors.titulo = "O titulo da publicacao e obrigatorio.";
+    if (!arquivoGenerico) errors.arquivoUrl = "Selecione o PDF da publicacao.";
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       setFieldErrorScope("manual");
-      setFeedback({ type: "error", text: "Selecione o PDF que sera publicado para continuar." });
+      const msgs = Object.values(errors);
+      setFeedback({ type: "warning", text: msgs.length === 1 ? msgs[0] : `Corrija ${msgs.length} campos: ${msgs.join(" · ")}` });
       return;
     }
 
@@ -246,7 +280,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
       if (resumoGenerico) dados.resumoPublico = resumoGenerico;
       if (observacoesGenericas) dados.observacoesInternas = observacoesGenericas;
       if (referenciaGenerica) dados.referenciaExterna = referenciaGenerica;
-      const upload = await uploadPrivateFile(arquivoGenerico, token);
+      const upload = await uploadPrivateFile(arquivoGenerico!, token);
 
       await publicarGenerica(editalId, {
         tipo: tipoGenerico,
@@ -305,17 +339,38 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Publicacao atualizada" : feedback.type === "warning" ? "Atencao na publicacao" : "Nao foi possivel concluir a acao"} type={feedback.type} />}
+      {feedback && (
+        <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Publicacao atualizada" : feedback.type === "warning" ? "Atencao na publicacao" : "Nao foi possivel concluir a acao"} type={feedback.type}>
+          {errorDetails && errorDetails.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <strong style={{ fontSize: 12 }}>Inscricoes pendentes:</strong>
+              <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12 }}>
+                {errorDetails.map((d) => (
+                  <li key={d.inscricaoId}>{d.candidatoNome}</li>
+                ))}
+              </ul>
+              <Link href="/admin/homologacao" style={{ fontSize: 12, color: "#2563EB", fontWeight: 600 }}>Ir para Homologacao</Link>
+            </div>
+          )}
+        </PageFeedback>
+      )}
+
+      <div className="admin-inline-breadcrumb">
+        <Link href="/admin/publicacoes">Publicacoes</Link>
+        <span>/</span>
+        <span>{editalLabel || editalId || "Edital"}</span>
+      </div>
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div className="admin-page-header-left" style={{ flex: 1 }}>
           <h1>Publicacoes — Edital {editalLabel || (editalId ?? "")}</h1>
-          <p>Publique resultados oficiais do sistema ou envie um PDF pronto com historico versionado.</p>
+          <p>Gerencie previews, publicacoes oficiais e PDFs manuais deste edital em um unico workspace.</p>
         </div>
         {editalId ? (
-          <Link href={`/editais/${editalId}/publicacoes`} rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }} target="_blank">
+          <Link href={`/editais/${editalId}/publicacoes`} rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }} target="_blank">
             Ver pagina publica
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </Link>
         ) : null}
       </div>
@@ -348,8 +403,8 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         <div className="admin-form-card" style={{ gap: 12 }}>
           <PageFeedback
             type="warning"
-            title={`Confirmar publicacao de ${confirmPublish.type}`}
-            description={`Voce esta prestes a criar uma publicacao oficial ${confirmPublish.fase.toLowerCase()} de ${confirmPublish.type}. Esta acao gera um PDF oficial e um registro auditavel no historico do edital.`}
+            title={`Confirmar publicacao ${confirmPublish.fase.toLowerCase()}`}
+            description={`Voce esta prestes a criar uma publicacao oficial de ${confirmPublish.type}. Esta acao gera um PDF oficial e um registro auditavel no historico do edital.`}
           />
           <div style={{ display: "flex", gap: 8 }}>
             <button className="admin-pub-btn-publish" disabled={busy} onClick={() => publish(confirmPublish.type)} type="button">
@@ -444,17 +499,20 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
       {/* Preview area — renderizacao dedicada em vez de StructuredPreview generico */}
       {previewLabel && (
-        <div className="admin-form-card" style={{ gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div className="admin-form-card" style={{ gap: 12, borderColor: "#BFDBFE" }}>
+          <div className="admin-preview-toolbar">
             <h2 className="admin-form-card-title" style={{ flex: 1 }}>{previewLabel}</h2>
-            <button className="admin-pub-btn-preview" onClick={() => { setPreview(null); setPreviewLabel(null); }} type="button">Fechar</button>
+            <button className="admin-pub-btn-preview" onClick={() => { setPreview(null); setPreviewLabel(null); }} type="button" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Fechar
+            </button>
           </div>
 
           {preview ? (
             <>
               {/* Metadados do preview */}
               {(preview.tituloSugerido ?? preview.tipo ?? preview.fase ?? preview.geradoEm) ? (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#64748B", padding: "10px 14px", background: "#F8FAFC", borderRadius: 6 }}>
                   {preview.tituloSugerido ? <span><strong>Titulo:</strong> {String(preview.tituloSugerido)}</span> : null}
                   {preview.tipo ? <span><strong>Tipo:</strong> {getStatusLabel(String(preview.tipo))}</span> : null}
                   {preview.fase ? <span><strong>Fase:</strong> {String(preview.fase)}</span> : null}
@@ -464,24 +522,26 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
 
               {/* Resumo */}
               {preview.resumo && typeof preview.resumo === "object" && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, padding: "12px 16px", background: "#F8FAFC", borderRadius: 6, fontSize: 13, color: "#334155" }}>
+                <div className="admin-preview-metrics">
                   {Object.entries(preview.resumo as Record<string, unknown>).map(([k, v]) => (
                     <span key={k}><strong>{getStatusLabel(k)}:</strong> {String(v ?? "—")}</span>
                   ))}
                 </div>
               )}
 
-              {/* Itens (tabela se presente) */}
+              {/* Itens (tabela tipada por tipo de preview) */}
               {Array.isArray(preview.itens) && preview.itens.length > 0 ? (() => {
                 const itens = preview.itens as Record<string, unknown>[];
-                const cols = Object.keys(itens[0]).filter((k) => !HIDDEN_PREVIEW_COLS.has(k)).slice(0, 10);
+                const previewType = previewLabel?.includes("homologacao") ? "homologacao" : previewLabel?.includes("classificacao") ? "classificacao" : previewLabel?.includes("politicas") ? "politicas" : null;
+                const typedCols = previewType ? PREVIEW_COLUMNS[previewType] : null;
+                const cols = typedCols ?? Object.keys(itens[0]).filter((k) => !HIDDEN_PREVIEW_COLS.has(k)).slice(0, 10).map((k) => ({ key: k, label: camelToLabel(k) }));
                 return (
                   <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 6 }}>
                     <table className="admin-homologacao-table" style={{ minWidth: 600 }}>
                       <thead>
                         <tr>
                           {cols.map((col) => (
-                            <th key={col} style={{ fontSize: 11 }}>{camelToLabel(col)}</th>
+                            <th key={col.key} style={{ fontSize: 11 }}>{col.label}</th>
                           ))}
                         </tr>
                       </thead>
@@ -489,15 +549,15 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                         {itens.map((item, idx) => (
                           <tr key={typeof item.id === "string" ? item.id : idx}>
                             {cols.map((col) => (
-                              <td key={col} style={{ fontSize: 12, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={extractDisplayValue(item[col])}>
-                                {extractDisplayValue(item[col])}
+                              <td key={col.key} style={{ fontSize: 12, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={extractDisplayValue(item[col.key])}>
+                                {extractDisplayValue(item[col.key])}
                               </td>
                             ))}
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    <div style={{ padding: "8px 16px", fontSize: 11, color: "#94A3B8", borderTop: "1px solid #F1F5F9" }}>
+                    <div style={{ padding: "8px 16px", fontSize: 11, color: "#94A3B8", background: "#F8FAFC", borderTop: "1px solid #F1F5F9", borderRadius: "0 0 6px 6px" }}>
                       {itens.length} {itens.length === 1 ? "item" : "itens"} no preview
                     </div>
                   </div>
@@ -533,15 +593,77 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         </div>
       )}
 
+      {/* Publicacao manual */}
+      <form className="admin-form-card" id="pub-manual-form" onSubmit={handlePublicacaoGenerica}>
+        <h2 className="admin-form-card-title">Publicacao manual</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Editais, retificacoes, comunicados e demais documentos.</p>
+
+        <div className="admin-form-row">
+          <div className="admin-eval-field">
+            <span>Tipo *</span>
+            <select aria-invalid={!!fieldErrors.tipo} className="select-field" onChange={(e) => { setTipoGenerico(e.target.value as TipoPublicacaoOficial); setFieldErrors((current) => ({ ...current, tipo: null })); }} value={tipoGenerico}>
+              {genericPublicacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
+            </select>
+            {fieldErrors.tipo ? <span className="field-error-text">{fieldErrors.tipo}</span> : null}
+          </div>
+          <div className="admin-eval-field">
+            <span>Titulo *</span>
+            <input aria-invalid={!!fieldErrors.titulo} onChange={(e) => { setTituloGenerico(e.target.value); setFieldErrors((current) => ({ ...current, titulo: null })); }} placeholder="Titulo da publicacao..." value={tituloGenerico} />
+            {fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}
+          </div>
+        </div>
+
+        <div className="admin-eval-field">
+          <span>Descricao (opcional)</span>
+          <textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setDescricaoGenerica(e.target.value); setFieldErrors((current) => ({ ...current, descricao: null })); }} value={descricaoGenerica} style={{ minHeight: 80 }} />
+          {fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}
+        </div>
+
+        {/* Dropzone visual */}
+        <div className="admin-eval-field">
+          <span>Arquivo PDF *</span>
+          <label className={`admin-dropzone${fieldErrors.arquivoUrl ? " admin-dropzone--error" : ""}`}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "#334155" }}>Clique para selecionar ou arraste um PDF</span>
+            <span style={{ fontSize: 11, color: "#94A3B8" }}>Apenas arquivos .pdf sao aceitos</span>
+            <input accept="application/pdf,.pdf" key={arquivoGenericoKey} onChange={(event) => setArquivoGenerico(event.target.files?.[0] ?? null)} type="file" style={{ display: "none" }} />
+          </label>
+          {fieldErrors.arquivoUrl ? <span className="field-error-text">{fieldErrors.arquivoUrl}</span> : null}
+          {arquivoGenerico ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, padding: 12, border: "1px solid #E2E8F0", borderRadius: 8, background: "#F8FAFC" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                <strong style={{ fontSize: 13, color: "#0F172A" }}>{arquivoGenerico.name}</strong>
+                <span style={{ fontSize: 12, color: "#64748B" }}>{formatFileSize(arquivoGenerico.size)} · Pronto para envio</span>
+              </div>
+              <button className="admin-pub-btn-preview" onClick={() => { setArquivoGenerico(null); setArquivoGenericoKey((current) => current + 1); }} style={{ color: "#DC2626", borderColor: "#FECACA" }} type="button">
+                Remover
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: "#334155", cursor: "pointer" }}>
+            <input checked={versaoFinalGenerica} onChange={(e) => setVersaoFinalGenerica(e.target.checked)} type="checkbox" />
+            Marcar como versao final do tipo
+          </label>
+          <button className="admin-page-cta" disabled={busy} type="submit" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Publicar documento
+          </button>
+        </div>
+      </form>
+
       {/* Historico table */}
       <div className="admin-form-card">
         <h2 className="admin-form-card-title">Historico publicado</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Todas as publicacoes oficiais do edital em ordem cronologica, com leitura rapida do que esta vigente e do que foi enviado manualmente.</p>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Acompanhe o que esta vigente, o que foi republicado e quais arquivos foram enviados manualmente.</p>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div className="admin-eval-field" style={{ minWidth: 220, marginBottom: 0 }}>
-            <label>Filtrar por tipo</label>
-            <select className="select-field" onChange={(event) => setHistoryTypeFilter(event.target.value as "TODOS" | TipoPublicacaoOficial)} value={historyTypeFilter}>
+            <span>Filtrar por tipo</span>
+            <select className="select-field" onChange={(event) => { setHistoryTypeFilter(event.target.value as "TODOS" | TipoPublicacaoOficial); setPage(1); }} value={historyTypeFilter}>
               <option value="TODOS">Todos os tipos</option>
               {tipoPublicacaoOficialOptions.map((value) => (
                 <option key={value} value={value}>{getStatusLabel(value)}</option>
@@ -549,7 +671,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
             </select>
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: "#334155", cursor: "pointer", paddingTop: 18 }}>
-            <input checked={historyOnlyCurrent} onChange={(event) => setHistoryOnlyCurrent(event.target.checked)} type="checkbox" />
+            <input checked={historyOnlyCurrent} onChange={(event) => { setHistoryOnlyCurrent(event.target.checked); setPage(1); }} type="checkbox" />
             Mostrar apenas versoes vigentes
           </label>
           <span style={{ fontSize: 12, color: "#64748B", paddingTop: 18 }}>
@@ -643,90 +765,6 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           </div>
         </div>
       </div>
-
-      {/* Publicacao manual */}
-      <form className="admin-form-card" onSubmit={handlePublicacaoGenerica}>
-        <h2 className="admin-form-card-title">Publicacao manual em PDF</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Envie um PDF oficial pronto para publicar no edital. O titulo e obrigatorio, a descricao e opcional e o arquivo fica versionado no historico do edital.</p>
-
-        <div className="admin-form-row">
-          <div className="admin-eval-field">
-            <label>Tipo *</label>
-            <select aria-invalid={!!fieldErrors.tipo} className="select-field" onChange={(e) => { setTipoGenerico(e.target.value as TipoPublicacaoOficial); setFieldErrors((current) => ({ ...current, tipo: null })); }} value={tipoGenerico}>
-              {genericPublicacaoOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
-            </select>
-            {fieldErrors.tipo ? <span className="field-error-text">{fieldErrors.tipo}</span> : null}
-          </div>
-          <div className="admin-eval-field">
-            <label>Titulo *</label>
-            <input aria-invalid={!!fieldErrors.titulo} onChange={(e) => { setTituloGenerico(e.target.value); setFieldErrors((current) => ({ ...current, titulo: null })); }} placeholder="Titulo da publicacao..." required value={tituloGenerico} />
-            {fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}
-          </div>
-        </div>
-
-        <div className="admin-form-row">
-          <div className="admin-eval-field">
-            <label>Descricao (opcional)</label>
-            <textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setDescricaoGenerica(e.target.value); setFieldErrors((current) => ({ ...current, descricao: null })); }} value={descricaoGenerica} />
-            {fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}
-          </div>
-          <div className="admin-eval-field">
-            <label>Arquivo PDF *</label>
-            <input accept="application/pdf,.pdf" key={arquivoGenericoKey} onChange={(event) => setArquivoGenerico(event.target.files?.[0] ?? null)} required={!arquivoGenerico} type="file" />
-            <span style={{ fontSize: 12, color: "#64748B" }}>Maximo de 10 MB. O PDF publicado sera o mesmo arquivo enviado pela administracao.</span>
-            {fieldErrors.arquivoUrl ? <span className="field-error-text">{fieldErrors.arquivoUrl}</span> : null}
-            {arquivoGenerico ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, padding: 12, border: "1px solid #E2E8F0", borderRadius: 8, background: "#F8FAFC" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <strong style={{ fontSize: 13, color: "#0F172A" }}>{arquivoGenerico.name}</strong>
-                    <span style={{ fontSize: 12, color: "#64748B" }}>{formatFileSize(arquivoGenerico.size)}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {arquivoGenericoPreviewUrl ? (
-                      <a className="admin-homologacao-table-link" href={arquivoGenericoPreviewUrl} rel="noreferrer" target="_blank">
-                        Pre-visualizar PDF
-                      </a>
-                    ) : null}
-                    <button className="admin-pub-btn-preview" onClick={() => { setArquivoGenerico(null); setArquivoGenericoKey((current) => current + 1); }} type="button">
-                      Remover PDF
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <details style={{ border: "1px solid #E2E8F0", borderRadius: 8, padding: 12, background: "#FFFFFF" }}>
-          <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Campos avancados opcionais</summary>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
-            <div className="admin-form-row">
-              <div className="admin-eval-field">
-                <label>Resumo publico</label>
-                <textarea className="text-area" onChange={(e) => setResumoGenerico(e.target.value)} value={resumoGenerico} />
-              </div>
-              <div className="admin-eval-field">
-                <label>Observacoes internas</label>
-                <textarea className="text-area" onChange={(e) => setObservacoesGenericas(e.target.value)} value={observacoesGenericas} />
-              </div>
-            </div>
-            <div className="admin-eval-field">
-              <label>Referencia externa</label>
-              <input onChange={(e) => setReferenciaGenerica(e.target.value)} value={referenciaGenerica} />
-            </div>
-          </div>
-        </details>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: "#334155", cursor: "pointer" }}>
-            <input checked={versaoFinalGenerica} onChange={(e) => setVersaoFinalGenerica(e.target.checked)} type="checkbox" />
-            Versao final
-          </label>
-          <span style={{ fontSize: 12, color: "#64748B" }}>Se ja existir publicacao do mesmo tipo, esta acao criara uma nova versao no historico.</span>
-          <button className="admin-page-cta" disabled={busy} type="submit">Publicar PDF manual</button>
-        </div>
-      </form>
     </div>
   );
 }

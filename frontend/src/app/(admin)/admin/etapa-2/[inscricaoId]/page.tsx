@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
@@ -19,6 +20,17 @@ type ItemDraft = { id: string; chave: string; valor: string };
 type GlosaDraft = { id: string; item: string; descricao: string; pontosGlosados: string };
 
 const uid = () => typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+
+/* ícones inline (lucide) */
+const TrashIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+);
+const SaveIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+);
+const ZapIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+);
 
 export default function AdminEtapa2DetailPage({ params }: Props) {
   const session = useSession();
@@ -44,7 +56,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    params.then((r) => { if (!cancelled) setInscricaoId(r.inscricaoId); });
+    params.then((resolved) => { if (!cancelled) setInscricaoId(resolved.inscricaoId); });
     return () => { cancelled = true; };
   }, [params]);
 
@@ -61,11 +73,11 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     setPublicacao(found?.avaliacao?.status === "FINAL_PUBLICADA" ? "FINAL" : "PRELIMINAR");
     setLiberarEspelhoFlag(Boolean(found?.avaliacao?.espelhoLiberadoEm));
     setGlosasDraft(
-      (found?.avaliacao?.glosas ?? []).map((g) => ({
+      (found?.avaliacao?.glosas ?? []).map((glosa) => ({
         id: uid(),
-        item: String((g as Record<string, unknown>).item ?? ""),
-        descricao: String((g as Record<string, unknown>).descricao ?? ""),
-        pontosGlosados: String((g as Record<string, unknown>).pontosGlosados ?? 0),
+        item: String((glosa as Record<string, unknown>).item ?? ""),
+        descricao: String((glosa as Record<string, unknown>).descricao ?? ""),
+        pontosGlosados: String((glosa as Record<string, unknown>).pontosGlosados ?? 0),
       })),
     );
   }, [inscricaoId, token]);
@@ -82,52 +94,96 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
       setPageStatus("error");
     }
-  }, [loadItem, inscricaoId, signOut, token]);
+  }, [inscricaoId, loadItem, signOut, token]);
 
-  // Computed totals
   const totalBruto = itensDraft.reduce((sum, entry) => sum + (Number(entry.valor) || 0), 0);
   const totalGlosa = glosasDraft.reduce((sum, entry) => sum + (Number(entry.pontosGlosados) || 0), 0);
   const totalLiquido = totalBruto - totalGlosa;
   const notaNormalizada = maiorPontuacaoBruta > 0 ? (pontuacaoBruta / maiorPontuacaoBruta) * 10 : 0;
+  const notaCapped = Math.min(notaNormalizada, 10);
   const pontuacaoDivergente = Math.abs(pontuacaoBruta - totalLiquido) > 0.001;
   const referenciaMenorQueBruta = maiorPontuacaoBruta < pontuacaoBruta;
+  const hasAvaliacao = Boolean(item?.avaliacao?.pontuacaoBruta != null);
 
   async function loadEspelho() {
     if (!token || !inscricaoId) return;
     try {
-      const r = await getEspelhoEtapa2(inscricaoId, token);
-      setEspelho(r);
+      const result = await getEspelhoEtapa2(inscricaoId, token);
+      setEspelho(result);
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
       setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     }
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (!token || !inscricaoId) return;
     setBusy(true);
-    setFeedback(null); setFieldErrors({});
+    setFeedback(null);
+    setFieldErrors({});
+
     try {
       const pontuacaoItens = Object.fromEntries(
-        itensDraft.filter((entry) => entry.chave.trim()).map((entry) => [entry.chave.trim(), Number(entry.valor) || 0]),
+        itensDraft
+          .filter((entry) => entry.chave.trim())
+          .map((entry) => [entry.chave.trim(), Number(entry.valor) || 0]),
       );
+
+      // Validação consolidada com fieldErrors
+      const errors: Record<string, string> = {};
+
       if (!Object.keys(pontuacaoItens).length) {
-        setFeedback({ type: "warning", text: "Informe ao menos um item de pontuacao." });
-        return;
+        errors.pontuacaoItens = "Informe ao menos um item de pontuacao com nome preenchido.";
       }
+
+      if (pontuacaoBruta < 0) {
+        errors.pontuacaoBruta = "A pontuacao bruta nao pode ser negativa.";
+      }
+
+      if (maiorPontuacaoBruta <= 0) {
+        errors.maiorPontuacaoBruta = "A maior pontuacao bruta deve ser maior que zero.";
+      }
+
+      if (!espelhoCorrecao.trim()) {
+        errors.espelhoCorrecao = "O espelho de correcao e obrigatorio para salvar o resultado.";
+      }
+
       const glosas = glosasDraft
         .filter((entry) => entry.item.trim() || entry.descricao.trim() || Number(entry.pontosGlosados) > 0)
-        .map((entry) => ({ item: entry.item.trim(), descricao: entry.descricao.trim(), pontosGlosados: Number(entry.pontosGlosados) || 0 }));
-      if (maiorPontuacaoBruta <= 0) {
-        setFeedback({ type: "warning", text: "A maior pontuacao bruta deve ser maior que zero." });
+        .map((entry) => ({
+          item: entry.item.trim(),
+          descricao: entry.descricao.trim(),
+          pontosGlosados: Math.max(0, Number(entry.pontosGlosados) || 0),
+        }));
+
+      const glosaExcedente = glosas.find((g) => g.item && g.pontosGlosados > getItemValor(g.item));
+      if (glosaExcedente) {
+        errors.glosas = `A glosa do item "${glosaExcedente.item}" (${glosaExcedente.pontosGlosados}) excede o valor do item (${getItemValor(glosaExcedente.item)}).`;
+      }
+
+      const glosasSemItem = glosas.filter((g) => !g.item && (g.descricao || g.pontosGlosados > 0));
+      if (glosasSemItem.length > 0) {
+        errors.glosas = errors.glosas ?? "Selecione o item de referencia em todas as glosas antes de salvar.";
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        const msgs = Object.values(errors);
+        setFeedback({ type: "warning", text: msgs.length === 1 ? msgs[0] : `Corrija ${msgs.length} campos antes de salvar: ${msgs.join(" · ")}` });
         return;
       }
-      if (pontuacaoBruta < 0) {
-        setFeedback({ type: "warning", text: "A pontuacao bruta nao pode ser negativa." });
-        return;
-      }
-      await registrarEtapa2(inscricaoId, { pontuacaoItens, pontuacaoBruta, maiorPontuacaoBruta, glosas, espelhoCorrecao, liberarEspelho: liberarEspelhoFlag, publicacao }, token);
+
+      await registrarEtapa2(inscricaoId, {
+        pontuacaoItens,
+        pontuacaoBruta,
+        maiorPontuacaoBruta,
+        glosas,
+        espelhoCorrecao,
+        liberarEspelho: liberarEspelhoFlag,
+        publicacao,
+      }, token);
+
       await loadItem();
       if (espelho) {
         await loadEspelho();
@@ -137,7 +193,9 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       if (isUnauthorizedError(error)) { signOut(); return; }
       setFieldErrors(pickFirstFieldErrors(error, ["pontuacaoItens", "pontuacaoBruta", "maiorPontuacaoBruta", "glosas", "espelhoCorrecao", "publicacao"] as const));
       setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onLiberarEspelho() {
@@ -152,348 +210,355 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
       setFeedback({ type: "error", text: getErrorMessage(error) });
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (pageStatus === "loading") return <LoadingState title="Carregando detalhe" description="Consultando a inscricao." />;
+  function updateItem(index: number, field: keyof ItemDraft, value: string) {
+    if (field === "valor") {
+      const n = Number(value);
+      if (!isNaN(n) && n < 0) value = "0";
+    }
+    setItensDraft((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
+  }
+
+  function getItemValor(itemChave: string): number {
+    const found = itensDraft.find((it) => it.chave.trim().toLowerCase() === itemChave.trim().toLowerCase());
+    return found ? (Number(found.valor) || 0) : Infinity;
+  }
+
+  function updateGlosa(index: number, field: keyof GlosaDraft, value: string) {
+    if (field === "pontosGlosados") {
+      const n = Number(value);
+      if (!isNaN(n) && n < 0) value = "0";
+    }
+    setGlosasDraft((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
+  }
+
+  if (pageStatus === "loading") return <LoadingState title="Carregando detalhe" description="Consultando a inscricao da etapa 2." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar" description={feedback?.text} />;
   if (!item) return <EmptyState title="Inscricao nao encontrada" description="Inscricao nao localizada na fila da etapa 2." />;
 
-  const espelhoLiberado = !!item.avaliacao?.espelhoLiberadoEm;
+  const espelhoLiberado = Boolean(item.avaliacao?.espelhoLiberadoEm);
+  const espelhoSolicitado = Boolean(item.avaliacao?.espelhoSolicitadoEm) && !espelhoLiberado;
   const editState = item.edicao;
   const podeSalvarResultado = publicacao === "FINAL" ? (editState?.podeSalvarFinal ?? true) : (editState?.podeSalvarPreliminar ?? true);
   const bloqueioResultado = publicacao === "FINAL" ? editState?.bloqueioSalvarFinal : editState?.bloqueioSalvarPreliminar;
 
-  function updateItem(index: number, field: keyof ItemDraft, value: string) {
-    setItensDraft((cur) => cur.map((entry, i) => i === index ? { ...entry, [field]: value } : entry));
-  }
-  function updateGlosa(index: number, field: keyof GlosaDraft, value: string) {
-    setGlosasDraft((cur) => cur.map((entry, i) => i === index ? { ...entry, [field]: value } : entry));
-  }
+  const displayBruta = hasAvaliacao ? `${item.avaliacao?.pontuacaoBruta ?? pontuacaoBruta} pts` : "--";
+  const displayRef = hasAvaliacao ? `${maiorPontuacaoBruta} pts` : "--";
+  const displayNota = hasAvaliacao ? `${(item.avaliacao?.notaNormalizada ?? notaCapped).toFixed(2)} / 10` : "--";
+  const maiorRefSugerida = Math.max(pontuacaoBruta, Number(totalLiquido.toFixed(2)), 0.1);
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 2 atualizada" : feedback.type === "warning" ? "Atencao na etapa 2" : "Nao foi possivel salvar a etapa 2"} type={feedback.type} />}
+      {feedback && (
+        <div style={{ position: "relative" }}>
+          <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 2 atualizada" : feedback.type === "warning" ? "Atencao na etapa 2" : "Nao foi possivel salvar a etapa 2"} type={feedback.type} />
+          <button onClick={() => setFeedback(null)} type="button" style={{ position: "absolute", top: 12, right: 12, border: "none", background: "none", cursor: "pointer", fontSize: 18, color: "#64748B", lineHeight: 1 }} aria-label="Fechar">&times;</button>
+        </div>
+      )}
 
-      {/* Header */}
-      <div className="admin-detail-header">
-        <h1>Etapa 2 — {item.candidato.nomeCompleto}</h1>
-        <p>Edital {item.edital.numero} &middot; Pontuacao de titulos do Anexo II</p>
+      <div className="admin-inline-breadcrumb">
+        <Link href="/admin/etapa-2">Etapa 2</Link>
+        <span>/</span>
+        <span>{item.candidato.nomeCompleto}</span>
       </div>
 
-      {/* Summary cards */}
-      <div className="admin-summary-cards">
-        <div className="admin-summary-card">
-          <span className="admin-summary-card-label">Pontuacao bruta</span>
-          <span className="admin-summary-card-value">{item.avaliacao?.pontuacaoBruta ?? "—"}</span>
+      <div className="admin-page-header" style={{ alignItems: "flex-start" }}>
+        <div className="admin-page-header-left">
+          <h1>Etapa 2 — {item.candidato.nomeCompleto}</h1>
+          <p>Edital {item.edital.numero} · {item.linhaPesquisa?.nome ?? "Linha nao definida"} · Pontuacao de titulos do Anexo II</p>
         </div>
-        <div className="admin-summary-card">
-          <span className="admin-summary-card-label">Maior pontuacao</span>
-          <span className="admin-summary-card-value">{maiorPontuacaoBruta}</span>
+        <StatusBadge variant={getStatusVariant(item.avaliacao?.status ?? item.status)}>{getStatusLabel(item.avaliacao?.status ?? item.status)}</StatusBadge>
+      </div>
+
+      {/* KPI cards: bruta, ref, nota, fórmula */}
+      <div className="admin-kpi-row">
+        <div className="admin-kpi-card admin-kpi-card--plain">
+          <span className="admin-kpi-label">Pontuacao bruta</span>
+          <span className="admin-kpi-value">{displayBruta}</span>
         </div>
-        <div className="admin-summary-card">
-          <span className="admin-summary-card-label">Nota normalizada</span>
-          <span className="admin-summary-card-value admin-summary-card-value--primary">
-            {item.avaliacao?.notaNormalizada ?? notaNormalizada.toFixed(1)}
-          </span>
+        <div className="admin-kpi-card admin-kpi-card--plain">
+          <span className="admin-kpi-label">Maior pontuacao (ref.)</span>
+          <span className="admin-kpi-value">{displayRef}</span>
+        </div>
+        <div className="admin-kpi-card admin-kpi-card--primary">
+          <span className="admin-kpi-label">Nota normalizada</span>
+          <span className="admin-kpi-value admin-kpi-value--primary">{displayNota}</span>
+        </div>
+        <div className="admin-kpi-card admin-kpi-card--plain">
+          <span className="admin-kpi-label">Formula</span>
+          {hasAvaliacao ? (
+            <span className="admin-kpi-value" style={{ fontFamily: "monospace", fontSize: 15 }}>
+              ({item.avaliacao?.pontuacaoBruta ?? pontuacaoBruta} / {maiorPontuacaoBruta}) &times; 10 = {(item.avaliacao?.notaNormalizada ?? notaCapped).toFixed(2)}
+            </span>
+          ) : (
+            <span className="admin-kpi-value">--</span>
+          )}
+          <span style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>Bruta / Maior ref. &times; 10</span>
         </div>
       </div>
 
-      <div className="admin-form-card" style={{ gap: 10 }}>
-        <h2 className="admin-form-card-title">Leitura operacional</h2>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 13, color: "#475569" }}>
-          <span>Total bruto dos itens: <strong style={{ color: "#1E293B" }}>{totalBruto}</strong></span>
-          <span>Total de glosas: <strong style={{ color: "#B45309" }}>{totalGlosa}</strong></span>
-          <span>Total liquido calculado: <strong style={{ color: "#1E293B" }}>{totalLiquido}</strong></span>
-          <span>Formula do edital: <strong style={{ color: "#1E293B" }}>({pontuacaoBruta} / {maiorPontuacaoBruta || 0}) * 10 = {notaNormalizada.toFixed(2)}</strong></span>
-        </div>
-        {pontuacaoDivergente ? (
-          <PageFeedback
-            type="warning"
-            title="Pontuacao bruta diferente do total liquido"
-            description="A tabela soma um total liquido diferente da pontuacao bruta informada. Revise a digitacao ou use o atalho para aplicar o total calculado."
-          />
-        ) : null}
-      {referenciaMenorQueBruta ? (
-          <PageFeedback
-            type="warning"
-            title="Maior pontuacao de referencia menor que a pontuacao do candidato"
-            description="A referencia usada para normalizacao ficou menor que a pontuacao bruta informada. Ajuste a referencia para evitar nota acima de 10."
-          />
-      ) : null}
-
-      {!podeSalvarResultado && bloqueioResultado ? (
-        <PageFeedback type="warning" title="Resultado bloqueado" description={bloqueioResultado} />
-      ) : null}
-      </div>
-
-      {/* Itens de pontuacao */}
-      <form className="admin-form-card" onSubmit={onSubmit}>
-        <h2 className="admin-form-card-title">Itens de pontuacao</h2>
-        {fieldErrors.pontuacaoItens ? <PageFeedback type="error" title="Itens de pontuacao invalidos" description={fieldErrors.pontuacaoItens} /> : null}
-        {fieldErrors.glosas ? <PageFeedback type="error" title="Glosas invalidas" description={fieldErrors.glosas} /> : null}
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Adicione os itens do Anexo II com pontuacao e glosas quando aplicavel.</p>
-
-        <table className="admin-pont-table">
-          <thead>
-            <tr>
-              <th>Item do Anexo II</th>
-              <th>Valor</th>
-              <th>Glosa</th>
-              <th>Liquido</th>
-              <th style={{ width: 60 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {itensDraft.map((entry, index) => {
-              const valor = Number(entry.valor) || 0;
-              const glosaForItem = glosasDraft
-                .filter((g) => g.item.trim().toLowerCase() === entry.chave.trim().toLowerCase())
-                .reduce((sum, g) => sum + (Number(g.pontosGlosados) || 0), 0);
-              const liquido = valor - glosaForItem;
-
-              return (
-                <tr key={entry.id}>
-                  <td>
-                      <input
-                        disabled={!podeSalvarResultado || busy}
-                        onChange={(e) => updateItem(index, "chave", e.target.value)}
-                      placeholder="Nome do item"
-                      style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, fontWeight: 500, color: "#1E293B" }}
-                      value={entry.chave}
-                    />
-                  </td>
-                  <td className="pont-valor">
-                      <input
-                        disabled={!podeSalvarResultado || busy}
-                        min={0}
-                      onChange={(e) => updateItem(index, "valor", e.target.value)}
-                      step={0.1}
-                      style={{ width: 60, textAlign: "center", border: "none", background: "transparent", fontWeight: 700 }}
-                      type="number"
-                      value={entry.valor}
-                    />
-                  </td>
-                  <td className={glosaForItem > 0 ? "pont-glosa" : "pont-zero"}>{glosaForItem}</td>
-                  <td className="pont-valor">{liquido}</td>
-                  <td>
-                    {itensDraft.length > 1 && (
-                      <button
-                        onClick={() => setItensDraft((cur) => cur.filter((_, i) => i !== index))}
-                        style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 16 }}
-                        type="button"
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td style={{ fontWeight: 700 }}>Total</td>
-              <td className="pont-valor">{totalBruto}</td>
-              <td className="pont-glosa">{totalGlosa}</td>
-              <td className="pont-total-liq">{totalLiquido}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-
-        <button
-          className="admin-pagination-btn"
-          onClick={() => setItensDraft((cur) => [...cur, { id: uid(), chave: "", valor: "0" }])}
-          disabled={!podeSalvarResultado || busy}
-          style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
-          type="button"
-        >
-          + Adicionar item
-        </button>
-
-        {/* Glosas */}
-        {glosasDraft.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Glosas aplicadas</label>
-            {glosasDraft.map((g, index) => (
-              <div className="admin-form-row" key={g.id}>
-                <div className="admin-eval-field">
-                  <input disabled={!podeSalvarResultado || busy} onChange={(e) => updateGlosa(index, "item", e.target.value)} placeholder="Item glosado" value={g.item} />
-                </div>
-                <div className="admin-eval-field" style={{ flex: 2 }}>
-                  <input disabled={!podeSalvarResultado || busy} onChange={(e) => updateGlosa(index, "descricao", e.target.value)} placeholder="Descricao da glosa" value={g.descricao} />
-                </div>
-                <div className="admin-eval-field" style={{ maxWidth: 100 }}>
-                  <input disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => updateGlosa(index, "pontosGlosados", e.target.value)} step={0.1} type="number" value={g.pontosGlosados} />
-                </div>
-                <button
-                  onClick={() => setGlosasDraft((cur) => cur.filter((_, i) => i !== index))}
-                  disabled={!podeSalvarResultado || busy}
-                  style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", fontSize: 16, alignSelf: "center" }}
-                  type="button"
-                >
-                  &times;
-                </button>
+      <form className="admin-stage-layout" onSubmit={onSubmit}>
+        <div className="admin-stage-main">
+          {/* Itens de pontuação */}
+          <div className="admin-form-card">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div className="admin-page-header-left" style={{ gap: 2 }}>
+                <h2 className="admin-form-card-title">Itens de pontuacao — Anexo II</h2>
+                <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>Pontuacao e glosas por item do Anexo II.</p>
               </div>
-            ))}
-          </div>
-        )}
+              <button className="admin-pagination-btn" onClick={() => setItensDraft((current) => [...current, { id: uid(), chave: "", valor: "0" }])} disabled={!podeSalvarResultado || busy} style={{ width: "auto", padding: "8px 16px", fontSize: 13 }} type="button">
+                + Adicionar item
+              </button>
+            </div>
+            {fieldErrors.pontuacaoItens ? <PageFeedback type="error" title="Itens de pontuacao invalidos" description={fieldErrors.pontuacaoItens} /> : null}
 
-        <button
-          className="admin-pagination-btn"
-          onClick={() => setGlosasDraft((cur) => [...cur, { id: uid(), item: "", descricao: "", pontosGlosados: "0" }])}
-          disabled={!podeSalvarResultado || busy}
-          style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
-          type="button"
-        >
-          + Adicionar glosa
-        </button>
+            <table className="admin-pont-table">
+              <thead>
+                <tr>
+                  <th>Item do Anexo II</th>
+                  <th>Valor</th>
+                  <th>Glosa</th>
+                  <th>Liquido</th>
+                  <th style={{ width: 60 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {itensDraft.map((entry, index) => {
+                  const valor = Number(entry.valor) || 0;
+                  const glosaForItem = glosasDraft
+                    .filter((glosa) => glosa.item.trim().toLowerCase() === entry.chave.trim().toLowerCase())
+                    .reduce((sum, glosa) => sum + (Number(glosa.pontosGlosados) || 0), 0);
+                  const liquido = valor - glosaForItem;
 
-        {/* Pontuacao bruta e maior */}
-        <div className="admin-form-row">
-          <div className="admin-eval-field">
-            <label>Pontuacao bruta</label>
-            <input aria-invalid={!!fieldErrors.pontuacaoBruta} disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => { setPontuacaoBruta(Number(e.target.value) || 0); setFieldErrors((current) => ({ ...current, pontuacaoBruta: null })); }} type="number" value={pontuacaoBruta} />
-            {fieldErrors.pontuacaoBruta ? <span className="field-error-text">{fieldErrors.pontuacaoBruta}</span> : null}
+                  return (
+                    <tr key={entry.id}>
+                      <td>
+                        <input disabled={!podeSalvarResultado || busy} onChange={(e) => updateItem(index, "chave", e.target.value)} placeholder="Nome do item" style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, fontWeight: 500, color: "#1E293B" }} value={entry.chave} />
+                      </td>
+                      <td className="pont-valor">
+                        <input disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => updateItem(index, "valor", e.target.value)} step={0.1} style={{ width: 60, textAlign: "center", border: "none", background: "transparent", fontWeight: 700 }} type="number" value={entry.valor} />
+                      </td>
+                      <td className={glosaForItem > 0 ? "pont-glosa" : "pont-zero"}>{glosaForItem}</td>
+                      <td className="pont-valor">{liquido}</td>
+                      <td>
+                        {itensDraft.length > 1 ? (
+                          <button onClick={() => setItensDraft((current) => current.filter((_, currentIndex) => currentIndex !== index))} style={{ border: "none", background: "none", color: "#EF4444", cursor: "pointer", display: "flex", alignItems: "center" }} type="button">
+                            <TrashIcon />
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td style={{ fontWeight: 700 }}>Total</td>
+                  <td className="pont-valor">{totalBruto}</td>
+                  <td className="pont-glosa">{totalGlosa}</td>
+                  <td className="pont-total-liq">{totalLiquido}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-          <div className="admin-eval-field">
-            <label>Maior pontuacao bruta</label>
-            <input aria-invalid={!!fieldErrors.maiorPontuacaoBruta} disabled={!podeSalvarResultado || busy} min={0.1} onChange={(e) => { setMaiorPontuacaoBruta(Number(e.target.value) || 0); setFieldErrors((current) => ({ ...current, maiorPontuacaoBruta: null })); }} step={0.1} type="number" value={maiorPontuacaoBruta} />
-            {fieldErrors.maiorPontuacaoBruta ? <span className="field-error-text">{fieldErrors.maiorPontuacaoBruta}</span> : null}
+
+          {/* Glosas — cards individuais */}
+          <div className="admin-form-card">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div className="admin-page-header-left" style={{ gap: 2 }}>
+                <h2 className="admin-form-card-title">Glosas aplicadas</h2>
+                <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>Itens nao comprovados ou parcialmente validos.</p>
+              </div>
+              <button className="admin-glosa-add-btn" onClick={() => setGlosasDraft((current) => [...current, { id: uid(), item: "", descricao: "", pontosGlosados: "0" }])} disabled={!podeSalvarResultado || busy} type="button">
+                + Adicionar glosa
+              </button>
+            </div>
+            {fieldErrors.glosas ? <PageFeedback type="error" title="Glosas invalidas" description={fieldErrors.glosas} /> : null}
+
+            {glosasDraft.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {glosasDraft.map((entry, index) => (
+                  <div className="admin-glosa-card" key={entry.id}>
+                    {(() => {
+                      const maxVal = getItemValor(entry.item);
+                      const excede = entry.item.trim() && Number(entry.pontosGlosados) > maxVal;
+                      return (
+                        <>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                            <select
+                              disabled={!podeSalvarResultado || busy}
+                              onChange={(e) => updateGlosa(index, "item", e.target.value)}
+                              value={entry.item}
+                              style={{ flex: 1, border: "1px solid #FECACA", background: "#fff", fontWeight: 600, fontSize: 13, color: "#991B1B", borderRadius: 4, padding: "4px 8px" }}
+                            >
+                              <option value="">Selecione o item...</option>
+                              {itensDraft.filter((it) => it.chave.trim()).map((it) => (
+                                <option key={it.id} value={it.chave.trim()}>{it.chave.trim()}</option>
+                              ))}
+                            </select>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 12, color: "#991B1B", fontWeight: 600, whiteSpace: "nowrap" }}>-{entry.pontosGlosados} pts</span>
+                              <input disabled={!podeSalvarResultado || busy} min={0} max={maxVal === Infinity ? undefined : maxVal} onChange={(e) => updateGlosa(index, "pontosGlosados", e.target.value)} step={0.1} type="number" value={entry.pontosGlosados} style={{ width: 70, textAlign: "center", fontSize: 13, border: `1px solid ${excede ? "#EF4444" : "#FECACA"}`, borderRadius: 4, padding: "2px 4px", background: "#fff" }} />
+                              <button onClick={() => setGlosasDraft((current) => current.filter((_, currentIndex) => currentIndex !== index))} disabled={!podeSalvarResultado || busy} style={{ border: "none", background: "none", color: "#991B1B", cursor: "pointer", display: "flex", alignItems: "center" }} type="button"><TrashIcon /></button>
+                            </div>
+                          </div>
+                          {excede && <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 500 }}>Glosa ({entry.pontosGlosados}) excede o valor do item ({maxVal}).</span>}
+                          <textarea disabled={!podeSalvarResultado || busy} onChange={(e) => updateGlosa(index, "descricao", e.target.value)} placeholder="Descricao da glosa" value={entry.descricao} style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, color: "#7F1D1D", resize: "vertical", minHeight: 36 }} />
+                        </>
+                      );
+                    })()}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="admin-soft-note">Nenhuma glosa registrada. Se a avaliacao nao tiver reducoes, voce pode seguir sem preencher este bloco.</div>
+            )}
           </div>
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button
-              className="admin-pagination-btn"
-              onClick={() => setPontuacaoBruta(Number(totalLiquido.toFixed(2)))}
-              disabled={!podeSalvarResultado || busy}
-              style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
-              type="button"
-            >
-              Usar total liquido calculado
-            </button>
-            <button
-              type="button"
-              onClick={() => setHelperHint((current) => current === "liquido" ? null : "liquido")}
-              className="admin-inline-help"
-              aria-label="Explicar uso do total liquido calculado"
-            >
-              ?
-            </button>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button
-              className="admin-pagination-btn"
-              onClick={() => setMaiorPontuacaoBruta(Math.max(pontuacaoBruta, Number(totalLiquido.toFixed(2)), 0.1))}
-              disabled={!podeSalvarResultado || busy}
-              style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
-              type="button"
-            >
-              Usar maior referencia compativel
-            </button>
-            <button
-              type="button"
-              onClick={() => setHelperHint((current) => current === "referencia" ? null : "referencia")}
-              className="admin-inline-help"
-              aria-label="Explicar uso da maior referencia compativel"
-            >
-              ?
-            </button>
-          </div>
-        </div>
-        {helperHint === "liquido" ? (
-          <PageFeedback
-            type="info"
-            title="Usar total liquido calculado"
-            description="Copia para o campo de pontuacao bruta o total dos itens menos as glosas. Use quando a pontuacao final do candidato deve ser exatamente o resultado da tabela acima."
-          />
-        ) : null}
-        {helperHint === "referencia" ? (
-          <PageFeedback
-            type="info"
-            title="Usar maior referencia compativel"
-            description="Ajusta a maior pontuacao de referencia para nao ficar menor que a pontuacao usada no calculo. Isso evita nota normalizada acima de 10 por erro operacional."
-          />
-        ) : null}
+        {/* Sidebar */}
+        <div className="admin-stage-side">
+          {/* Cálculo e controles */}
+          <div className="admin-form-card" style={{ gap: 12 }}>
+            <h2 className="admin-form-card-title">Calculo e controles</h2>
+            <div className="admin-calc-summary">
+              <div className="admin-calc-summary-row"><span>Total bruto dos itens:</span><strong>{totalBruto}</strong></div>
+              <div className="admin-calc-summary-row"><span>Total de glosas:</span><strong>-{totalGlosa}</strong></div>
+              <hr style={{ border: "none", borderTop: "1px solid #E2E8F0", margin: "4px 0" }} />
+              <div className="admin-calc-summary-row"><span>Total liquido calculado:</span><strong>{totalLiquido}</strong></div>
+            </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
-          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
-          {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
-        </div>
+            {pontuacaoDivergente && (
+              <PageFeedback type="warning" title="Pontuacao bruta diferente do total liquido" description={`Total liquido da tabela e ${totalLiquido}, mas o campo de pontuacao bruta esta com ${pontuacaoBruta}.`}>
+                <div className="admin-calc-summary" style={{ marginTop: 8, fontSize: 12 }}>
+                  <div className="admin-calc-summary-row"><span>Bruto dos itens:</span><strong>{totalBruto}</strong></div>
+                  <div className="admin-calc-summary-row"><span>Glosas:</span><strong>-{totalGlosa}</strong></div>
+                  <div className="admin-calc-summary-row"><span>Liquido calculado:</span><strong>{totalLiquido}</strong></div>
+                  <div className="admin-calc-summary-row"><span>Bruta informada:</span><strong style={{ color: "#A16207" }}>{pontuacaoBruta}</strong></div>
+                </div>
+              </PageFeedback>
+            )}
 
-        <div className="admin-form-row">
-          <div className="admin-eval-field">
-            <label>Publicacao</label>
-            <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
-              <option value="PRELIMINAR">Preliminar</option>
-              <option value="FINAL">Final</option>
-            </select>
-            {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
+            {referenciaMenorQueBruta && (
+              <PageFeedback type="error" title="Referencia menor que a pontuacao do candidato" description={`Com referencia ${maiorPontuacaoBruta} e bruta ${pontuacaoBruta}, a nota resultante seria ${notaNormalizada.toFixed(2)} — acima de 10.`} />
+            )}
+
+            {!podeSalvarResultado && bloqueioResultado && (
+              <PageFeedback type="error" title="Resultado bloqueado" description={bloqueioResultado} />
+            )}
+
+            <div className="admin-eval-field">
+              <span>Pontuacao bruta</span>
+              <input aria-invalid={!!fieldErrors.pontuacaoBruta} disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => { setPontuacaoBruta(Math.max(0, Number(e.target.value) || 0)); setFieldErrors((current) => ({ ...current, pontuacaoBruta: null })); }} type="number" value={pontuacaoBruta} />
+              {fieldErrors.pontuacaoBruta ? <span className="field-error-text">{fieldErrors.pontuacaoBruta}</span> : null}
+            </div>
+            <div className="admin-eval-field">
+              <span>Maior pontuacao bruta (referencia)</span>
+              <input aria-invalid={!!fieldErrors.maiorPontuacaoBruta} disabled={!podeSalvarResultado || busy} min={0.1} onChange={(e) => { setMaiorPontuacaoBruta(Math.max(0.1, Number(e.target.value) || 0.1)); setFieldErrors((current) => ({ ...current, maiorPontuacaoBruta: null })); }} step={0.1} type="number" value={maiorPontuacaoBruta} />
+              {fieldErrors.maiorPontuacaoBruta ? <span className="field-error-text">{fieldErrors.maiorPontuacaoBruta}</span> : null}
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button className="admin-shortcut-btn" onClick={() => setPontuacaoBruta(Number(totalLiquido.toFixed(2)))} disabled={!podeSalvarResultado || busy} type="button">
+                  <ZapIcon /> Usar total liquido calculado
+                </button>
+                <button type="button" onClick={() => setHelperHint((current) => current === "liquido" ? null : "liquido")} className="admin-inline-help" aria-label="Explicar uso do total liquido calculado">?</button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button className="admin-shortcut-btn" onClick={() => setMaiorPontuacaoBruta(maiorRefSugerida)} disabled={!podeSalvarResultado || busy} type="button">
+                  <ZapIcon /> Usar maior referencia compativel ({maiorRefSugerida})
+                </button>
+                <button type="button" onClick={() => setHelperHint((current) => current === "referencia" ? null : "referencia")} className="admin-inline-help" aria-label="Explicar uso da maior referencia compativel">?</button>
+              </div>
+            </div>
+
+            {helperHint === "liquido" ? <PageFeedback type="info" title="Usar total liquido calculado" description="Aplica o total da tabela (itens - glosas) como pontuacao bruta." /> : null}
+            {helperHint === "referencia" ? <PageFeedback type="info" title="Usar maior referencia compativel" description="Ajusta a referencia para nao ficar menor que a pontuacao bruta usada no calculo." /> : null}
           </div>
-          <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+
+          {/* Espelho de correção */}
+          <div className="admin-form-card" style={{ gap: 12 }}>
+            <h2 className="admin-form-card-title">Espelho de correcao</h2>
+            <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>Visivel ao candidato apos liberacao do espelho.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
+              {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
+            </div>
+
+            <div className="admin-eval-field">
+              <span>Tipo de publicacao</span>
+              <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
+                <option value="PRELIMINAR">Preliminar</option>
+                <option value="FINAL">Final</option>
+              </select>
+              {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "#334155" }}>
               <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={!podeSalvarResultado || publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
-              {publicacao === "FINAL" ? "Espelho liberado automaticamente no resultado final" : "Liberar espelho junto do resultado"}
+              Liberar espelho junto do resultado
             </label>
           </div>
-        </div>
 
-        <button className="admin-page-cta" disabled={busy || !podeSalvarResultado} style={{ width: 200 }} type="submit">
-          Salvar avaliacao
-        </button>
-      </form>
+          {/* Espelho do candidato */}
+          <div className="admin-form-card" style={{ gap: 12 }}>
+            <h2 className="admin-form-card-title">Espelho do candidato</h2>
 
-      {/* Espelho section */}
-      <div className="admin-form-card">
-        <h2 className="admin-form-card-title">Espelho da avaliacao</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Gerencie a liberacao do espelho de avaliacao para o candidato.</p>
+            {espelhoSolicitado && (
+              <PageFeedback type="warning" title="Espelho solicitado" description="Espelho solicitado pelo candidato, aguardando liberacao." />
+            )}
 
-        <div className="admin-espelho-row">
-          <div className="admin-espelho-status">
-            <label>Status do espelho</label>
-            <div className="admin-espelho-info">
-              <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
-                {espelhoLiberado ? "Liberado" : "Nao liberado"}
-              </StatusBadge>
-              <span>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "O candidato ainda nao pode visualizar o espelho."}</span>
+            <div className="admin-espelho-row">
+              <div className="admin-espelho-status">
+                <span>Status do espelho</span>
+                <div className="admin-espelho-info">
+                  <StatusBadge variant={espelhoLiberado ? "success" : espelhoSolicitado ? "warning" : "neutral"}>
+                    {espelhoLiberado ? "Liberado" : espelhoSolicitado ? "Solicitado" : "Nao solicitado"}
+                  </StatusBadge>
+                  <span>
+                    {espelhoLiberado
+                      ? `em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}`
+                      : espelhoSolicitado
+                        ? `em ${formatIsoDate(item.avaliacao?.espelhoSolicitadoEm ?? null)}`
+                        : "O candidato ainda nao pediu o espelho desta etapa."}
+                  </span>
+                </div>
+              </div>
+              {espelhoLiberado ? (
+                <button className="admin-btn-disabled" disabled type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Ja liberado
+                </button>
+              ) : (
+                <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={onLiberarEspelho} type="button">
+                  {espelhoSolicitado ? "Liberar espelho" : "Liberar proativamente"}
+                </button>
+              )}
             </div>
+            {!(editState?.podeLiberarEspelho ?? true) && editState?.bloqueioLiberarEspelho ? <PageFeedback type="warning" title="Liberacao do espelho bloqueada" description={editState.bloqueioLiberarEspelho} /> : null}
+
+            {espelho && (
+              <div className="admin-soft-note" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span><strong>Espelho de correcao:</strong> {espelho.espelhoCorrecao ?? "—"}</span>
+                <span><strong>Pontuacao bruta:</strong> {espelho.pontuacaoBruta ?? "—"}</span>
+                <span><strong>Nota normalizada:</strong> {espelho.notaNormalizada ?? "—"}</span>
+                <span><strong>Solicitado:</strong> {formatIsoDate(espelho.espelhoSolicitadoEm)}</span>
+                <span><strong>Liberado:</strong> {formatIsoDate(espelho.espelhoLiberadoEm)}</span>
+              </div>
+            )}
           </div>
-          <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={onLiberarEspelho} type="button">
-            Liberar espelho
+
+          <button className="admin-page-cta" disabled={busy || !podeSalvarResultado} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }} type="submit">
+            <SaveIcon /> Salvar avaliacao
           </button>
         </div>
-        {!(editState?.podeLiberarEspelho ?? true) && editState?.bloqueioLiberarEspelho ? (
-          <PageFeedback type="warning" title="Liberacao do espelho bloqueada" description={editState.bloqueioLiberarEspelho} />
-        ) : null}
-
-        {espelho && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16, background: "#F8FAFC", borderRadius: 6 }}>
-            <small><strong>Espelho de correcao:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
-            <small><strong>Pontuacao bruta:</strong> {espelho.pontuacaoBruta ?? "—"}</small>
-            <small><strong>Nota normalizada:</strong> {espelho.notaNormalizada ?? "—"}</small>
-            <small><strong>Solicitado em:</strong> {formatIsoDate(espelho.espelhoSolicitadoEm)}</small>
-            <small><strong>Liberado em:</strong> {formatIsoDate(espelho.espelhoLiberadoEm)}</small>
-            <small><strong>Resultado preliminar em:</strong> {formatIsoDate(espelho.resultadoPreliminarEm)}</small>
-            <small><strong>Resultado final em:</strong> {formatIsoDate(espelho.resultadoFinalEm)}</small>
-          </div>
-        )}
-
-        {!espelho && (
-          <button
-            className="admin-pagination-btn"
-            disabled={busy}
-            onClick={loadEspelho}
-            style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
-            type="button"
-          >
-            Carregar espelho administrativo
-          </button>
-        )}
-      </div>
+      </form>
     </div>
   );
 }
