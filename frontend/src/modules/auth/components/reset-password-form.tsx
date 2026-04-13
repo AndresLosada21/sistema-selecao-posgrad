@@ -13,13 +13,13 @@ type ResetPasswordFormProps = {
 };
 
 const iconLock = (
-  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
   </svg>
 );
 
 const iconArrowLeft = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="m12 19-7-7 7-7" /><path d="M19 12H5" />
   </svg>
 );
@@ -29,6 +29,7 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
   const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [token, setToken] = useState(initialToken);
   const [senha, setSenha] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ token?: string | null; senha?: string | null }>({});
@@ -55,6 +56,18 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
     }
   }, []);
 
+  const iconEyeOff = (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" />
+    </svg>
+  );
+
+  const iconEye = (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+
   return (
     <div className="auth-center">
       {message ? (
@@ -79,7 +92,12 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
 
           <label className="auth-field">
             <span className="auth-field-label">Nova senha</span>
-            <input aria-invalid={!!fieldErrors.senha} className="auth-input" minLength={8} onChange={(e) => { setSenha(e.target.value); setFieldErrors((current) => ({ ...current, senha: null })); }} required type="password" value={senha} />
+            <div className="auth-input-wrapper">
+              <input aria-invalid={!!fieldErrors.senha} className="auth-input auth-input--with-toggle" minLength={8} onChange={(e) => { setSenha(e.target.value); setFieldErrors((current) => ({ ...current, senha: null })); }} required type={showPassword ? "text" : "password"} value={senha} placeholder="••••••••" />
+              <button className="auth-toggle-password" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Ocultar caracteres" : "Mostrar caracteres"}>
+                {showPassword ? iconEye : iconEyeOff}
+              </button>
+            </div>
             {fieldErrors.senha ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.senha}</span> : null}
           </label>
 

@@ -9,6 +9,7 @@ import { resolveAuthRedirectPath } from "@/lib/auth/next-path";
 import { getErrorMessage, getFirstFormError, pickLabeledFieldErrors } from "@/lib/http/api-error";
 import { useSession } from "@/lib/auth/session-provider";
 import { login, register } from "@/modules/auth/api";
+import { formatCpf, formatPhone, normalizeCpf, normalizeEmail, normalizePhone } from "@/modules/auth/input-format";
 
 type AuthFormProps = {
   mode: "login" | "cadastro";
@@ -16,25 +17,25 @@ type AuthFormProps = {
 };
 
 const iconLogin = (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" x2="3" y1="12" y2="12" />
   </svg>
 );
 
 const iconUserPlus = (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="22" x2="16" y1="11" y2="11" />
   </svg>
 );
 
 const iconEyeOff = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" />
   </svg>
 );
 
 const iconEye = (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
   </svg>
 );
@@ -87,8 +88,14 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
     try {
       const response =
         mode === "cadastro"
-          ? await register({ nomeCompleto, email, senha, telefone, cpf })
-          : await login({ email, senha });
+          ? await register({
+              nomeCompleto: nomeCompleto.trim(),
+              email: normalizeEmail(email),
+              senha,
+              telefone: telefone ? normalizePhone(telefone) : undefined,
+              cpf: cpf ? normalizeCpf(cpf) : undefined,
+            })
+          : await login({ email: normalizeEmail(email), senha });
 
       session.setSessionFromAuthResponse(response);
       router.replace(resolveAuthRedirectPath(nextPath));
@@ -159,12 +166,12 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
           <div className="auth-row">
             <label className="auth-field">
               <span className="auth-field-label">Telefone</span>
-              <input aria-invalid={!!fieldErrors.telefone} className="auth-input" autoComplete="tel" onChange={(e) => { setTelefone(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, telefone: null })); }} value={telefone} placeholder="(92) 99123-4567" />
+              <input aria-invalid={!!fieldErrors.telefone} className="auth-input" autoComplete="tel" inputMode="tel" onChange={(e) => { setTelefone(formatPhone(e.target.value)); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, telefone: null })); }} value={telefone} placeholder="(92) 99123-4567" />
               {fieldErrors.telefone ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.telefone}</span> : null}
             </label>
             <label className="auth-field">
               <span className="auth-field-label">CPF</span>
-              <input aria-invalid={!!fieldErrors.cpf} className="auth-input" autoComplete="off" inputMode="numeric" onChange={(e) => { setCpf(e.target.value); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, cpf: null })); }} value={cpf} placeholder="000.000.000-00" />
+              <input aria-invalid={!!fieldErrors.cpf} className="auth-input" autoComplete="off" inputMode="numeric" onChange={(e) => { setCpf(formatCpf(e.target.value)); setMessage(null); setStatus("idle"); setFieldErrors((current) => ({ ...current, cpf: null })); }} value={cpf} placeholder="000.000.000-00" />
               {fieldErrors.cpf ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.cpf}</span> : null}
             </label>
           </div>
