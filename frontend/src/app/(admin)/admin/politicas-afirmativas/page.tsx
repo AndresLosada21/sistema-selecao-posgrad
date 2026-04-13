@@ -39,8 +39,8 @@ export default function AdminPoliticasPage() {
     }
   }, [filter, page, signOut, token]);
 
-  if (status === "loading") return <LoadingState title="Carregando politicas" description="Consultando a fila." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar" description={message ?? undefined} />;
+  if (status === "loading") return <LoadingState title="Carregando politicas afirmativas" description="Consultando a fila de heteroidentificacao e PCD." />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de politicas afirmativas" description={message ?? undefined} />;
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
@@ -49,7 +49,7 @@ export default function AdminPoliticasPage() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Politicas Afirmativas</h1>
-          <p>Encaminhamento e resultado das reservas de heteroidentificacao e PCD por edital.</p>
+          <p>Acompanhe as etapas de heteroidentificacao e PCD por edital.</p>
         </div>
       </div>
 
@@ -60,9 +60,9 @@ export default function AdminPoliticasPage() {
       </div>
 
       {!filter ? (
-        <EmptyState title="Selecione um edital" description="Use o filtro acima para carregar a fila de politicas afirmativas." />
+        <EmptyState title="Selecione um edital" description="Escolha um edital para carregar a fila de heteroidentificacao e PCD." />
       ) : !data?.items.length ? (
-        <EmptyState title="Sem inscricoes" description="Nenhuma inscricao com politicas afirmativas encontrada para este edital." />
+        <EmptyState title="Nenhuma etapa encontrada" description="Nenhuma inscricao deste edital entrou na fila de politicas afirmativas." />
       ) : (
         <div className="admin-table">
           <div className="admin-homologacao-table-wrap">

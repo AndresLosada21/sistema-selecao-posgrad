@@ -51,7 +51,7 @@ export default function AdminUsuariosPage() {
   async function handleStatus(usuarioId: string, statusConta: StatusConta) {
     if (!session.token) return;
     setBusyUserId(usuarioId); setMessage(null);
-    try { await updateAdminUsuarioStatus(usuarioId, { statusConta }, session.token); await load(); setMessage({ type: "success", text: "Status atualizado." }); }
+    try { await updateAdminUsuarioStatus(usuarioId, { statusConta }, session.token); await load(); setMessage({ type: "success", text: `Conta atualizada para ${getStatusLabel(statusConta)}.` }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusyUserId(null); }
   }
@@ -59,7 +59,7 @@ export default function AdminUsuariosPage() {
   async function handleRoleToggle(usuarioId: string, nextRoles: string[]) {
     if (!session.token) return;
     setBusyUserId(usuarioId); setMessage(null);
-    try { await updateAdminUsuarioPerfis(usuarioId, { perfis: nextRoles }, session.token); await load(); setMessage({ type: "success", text: "Perfis atualizados." }); }
+    try { await updateAdminUsuarioPerfis(usuarioId, { perfis: nextRoles }, session.token); await load(); setMessage({ type: "success", text: "Perfis da conta atualizados." }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusyUserId(null); }
   }
@@ -67,7 +67,7 @@ export default function AdminUsuariosPage() {
   async function handleEscopos(usuarioId: string, escopos: Array<{ editalId: string; linhaPesquisaId?: string | null }>) {
     if (!session.token) return;
     setBusyUserId(usuarioId); setMessage(null);
-    try { await updateAdminUsuarioEscopos(usuarioId, { escopos }, session.token); await load(); setMessage({ type: "success", text: "Escopos atualizados." }); }
+    try { await updateAdminUsuarioEscopos(usuarioId, { escopos }, session.token); await load(); setMessage({ type: "success", text: "Escopos de avaliacao atualizados." }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setMessage({ type: "error", text: getErrorMessage(error) }); }
     finally { setBusyUserId(null); }
   }
@@ -80,7 +80,7 @@ export default function AdminUsuariosPage() {
 
   async function handleAddEscopo(usuarioId: string, currentEscopos: Array<{ editalId: string; linhaPesquisaId: string | null }>) {
     const draft = scopeDrafts[usuarioId];
-    if (!draft?.editalId) { setMessage({ type: "error", text: "Selecione um edital." }); return; }
+    if (!draft?.editalId) { setMessage({ type: "error", text: "Selecione um edital antes de adicionar o escopo." }); return; }
     const nextEscopos = [...currentEscopos, { editalId: draft.editalId, linhaPesquisaId: draft.linhaPesquisaId || undefined }]
       .filter((e, i, a) => a.findIndex((c) => c.editalId === e.editalId && c.linhaPesquisaId === (e.linhaPesquisaId ?? null)) === i);
     await handleEscopos(usuarioId, nextEscopos);
@@ -91,19 +91,19 @@ export default function AdminUsuariosPage() {
     await handleEscopos(usuarioId, currentEscopos.filter((e) => !(e.editalId === toRemove.editalId && e.linhaPesquisaId === toRemove.linhaPesquisaId)));
   }
 
-  if (status === "loading") return <LoadingState title="Carregando usuarios" description="Consultando a base administrativa." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar usuarios" description={message?.text} />;
+  if (status === "loading") return <LoadingState title="Carregando usuarios" description="Consultando contas, perfis e escopos." />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar os usuarios" description={message?.text} />;
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {message ? <PageFeedback type={message.type} title={message.type === "success" ? "Sucesso" : "Erro"} description={message.text} /> : null}
+      {message ? <PageFeedback type={message.type} title={message.type === "success" ? "Usuarios atualizados" : "Nao foi possivel concluir a acao"} description={message.text} /> : null}
 
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Usuarios</h1>
-          <p>Gestao de contas, perfis, bloqueios e escopos de avaliador.</p>
+          <p>Gerencie status da conta, perfis de acesso e escopos de avaliacao.</p>
         </div>
       </div>
 
@@ -178,7 +178,7 @@ export default function AdminUsuariosPage() {
                               <ActionButton disabled={busyUserId === item.id} onClick={() => handleRemoveEscopo(item.id, item.escoposAvaliacao, escopo)} size="sm" type="button" variant="ghost">Remover</ActionButton>
                             </div>
                           );
-                        }) : <span style={{ fontSize: 12, color: "#94A3B8" }}>Nenhum escopo configurado.</span>}
+                        }) : <span style={{ fontSize: 12, color: "#94A3B8" }}>Nenhum escopo configurado. Sem escopo, o avaliador nao recebe filas por edital ou linha.</span>}
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                           <div style={{ flex: 1 }}>
                             <AdminEditalCombobox allowEmpty={false} disabled={busyUserId === item.id} emptyLabel="Selecione o edital" label="" onChange={(v) => updateScopeDraft(item.id, { editalId: v, linhaPesquisaId: "" })} onSelectOption={(e) => setEditais((c) => c.some((x) => x.id === e.id) ? c : [...c, e])} token={session.token ?? ""} value={scopeDrafts[item.id]?.editalId ?? ""} />
@@ -209,7 +209,7 @@ export default function AdminUsuariosPage() {
             </div>
           </div>
         </div>
-      ) : <EmptyState title="Sem usuarios" description="Nenhum usuario encontrado." />}
+      ) : <EmptyState title="Nenhum usuario encontrado" description="Nao houve retorno para a pagina atual de usuarios." />}
     </div>
   );
 }

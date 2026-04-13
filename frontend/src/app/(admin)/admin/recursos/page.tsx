@@ -41,8 +41,8 @@ export default function AdminRecursosPage() {
     }
   }, [editalFilter, faseFilter, page, signOut, token]);
 
-  if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando a fila de recursos." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar recursos" description={message ?? undefined} />;
+  if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando a fila administrativa de recursos." />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de recursos" description={message ?? undefined} />;
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
@@ -51,7 +51,7 @@ export default function AdminRecursosPage() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Recursos</h1>
-          <p>Fila de recursos interpostos com filtro por edital e fase.</p>
+          <p>Acompanhe os recursos enviados e abra cada caso para analise.</p>
         </div>
       </div>
 
@@ -93,11 +93,11 @@ export default function AdminRecursosPage() {
                     <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
                   </td>
                   <td className="admin-homologacao-table-center">
-                    <Link className="admin-homologacao-table-link" href={`/admin/recursos/${item.id}`}>Decidir</Link>
+                        <Link className="admin-homologacao-table-link" href={`/admin/recursos/${item.id}`}>{item.status === "ABERTO" || item.status === "EM_ANALISE" ? "Analisar" : "Ver"}</Link>
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={5} style={{ textAlign: "center", padding: 32, color: "#64748B" }}>Nenhum recurso encontrado.</td></tr>
+                <tr><td colSpan={5} style={{ textAlign: "center", padding: 32, color: "#64748B" }}>{editalFilter || faseFilter ? "Nenhum recurso foi encontrado com os filtros atuais." : "Nenhum recurso entrou na fila ate agora."}</td></tr>
               )}
             </tbody>
           </table>

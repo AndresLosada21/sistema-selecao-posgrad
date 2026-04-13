@@ -47,8 +47,8 @@ export default function AdminHomologacaoPage() {
     };
   }, [data]);
 
-  if (status === "loading") return <LoadingState title="Carregando homologacao" description="Consultando fila de inscricoes." />;
-  if (status === "error") return <ErrorState title="Falha ao carregar homologacao" description={message ?? undefined} />;
+  if (status === "loading") return <LoadingState title="Carregando homologacao" description="Consultando a fila de inscricoes para analise." />;
+  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de homologacao" description={message ?? undefined} />;
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 
@@ -57,7 +57,7 @@ export default function AdminHomologacaoPage() {
       <div className="admin-page-header">
         <div className="admin-page-header-left">
           <h1>Homologacao</h1>
-          <p>Fila de inscricoes para homologacao preliminar e final.</p>
+          <p>Acompanhe as inscricoes prontas para homologacao preliminar e final.</p>
         </div>
       </div>
 
@@ -133,7 +133,7 @@ export default function AdminHomologacaoPage() {
             </div>
           </div>
         </div>
-      ) : <EmptyState title="Fila vazia" description="Nenhuma inscricao retornada para o filtro atual." />}
+      ) : <EmptyState title="Nenhuma inscricao na fila" description={filter ? "Nenhuma inscricao deste edital chegou a homologacao no filtro atual." : "Nenhuma inscricao esta pronta para homologacao neste momento."} />}
     </div>
   );
 }
