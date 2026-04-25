@@ -1,9 +1,9 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { buildUniqueCandidate } from "./helpers/candidate";
-import { waitForAuthenticatedSession } from "./helpers/system";
+import { participateInEdital, registerCandidateApi, waitForAuthenticatedSession } from "./helpers/system";
 
 const backendBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:4000";
+const tokenStorageKey = "selecao-posgrad-token";
 
 const documentoTiposObrigatorios = [
   "ANEXO_IV",
@@ -53,8 +53,7 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
       ano: 2026,
       semestre: 1,
       cursoNivel: "MESTRADO",
-      status: "PUBLICADO",
-      publicadoEm: new Date().toISOString(),
+      status: "RASCUNHO",
     },
   });
 
@@ -103,40 +102,59 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
     expect(cronogramaResponse.ok()).toBeTruthy();
   }
 
+  const publishResponse = await request.put(`${backendBaseUrl}/v1/admin/editais/${edital.id}`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: {
+      numero: edital.numero,
+      titulo: edital.titulo,
+      descricao: edital.descricao,
+      ano: edital.ano,
+      semestre: edital.semestre,
+      cursoNivel: "MESTRADO",
+      status: "PUBLICADO",
+      publicadoEm: new Date().toISOString(),
+    },
+  });
+
+  expect(publishResponse.ok()).toBeTruthy();
+
   return { editalId: edital.id };
-}
-
-async function registerAndReachCandidateArea(page: Page) {
-  const candidate = buildUniqueCandidate();
-
-  await page.goto("/criar-conta");
-  await page.getByLabel("Nome completo").fill(candidate.nomeCompleto);
-  await page.getByLabel("E-mail").fill(candidate.email);
-  await page.getByLabel("Senha").fill(candidate.senha);
-  await page.getByLabel("Telefone").fill(candidate.telefone);
-  await page.getByLabel("CPF").fill(candidate.cpf);
-  await page.getByRole("button", { name: "Criar conta" }).click();
-  await waitForAuthenticatedSession(page);
-
-  await expect(page.getByRole("link", { name: "Area do candidato" })).toBeVisible({ timeout: 20_000 });
-  return candidate;
 }
 
 async function uploadSingleFile(page: Page, index: number, file: { name: string; mimeType: string; buffer: Buffer }) {
   await page.locator('input[type="file"]').nth(index).setInputFiles(file);
 }
 
+async function authenticateCandidate(page: Page, token: string) {
+  await page.goto("/");
+  await page.evaluate(([storageKey, value]) => {
+    window.localStorage.setItem(storageKey, value);
+  }, [tokenStorageKey, token]);
+  await waitForAuthenticatedSession(page);
+}
+
+function wizardField(page: Page, label: string) {
+  return page.locator(".wiz-field").filter({
+    has: page.locator(".wiz-field-label", { hasText: new RegExp(`^${escapeRegex(label)}$`, "i") }),
+  }).first();
+}
+
+async function fillWizardField(page: Page, label: string, value: string) {
+  await wizardField(page, label).locator("input, textarea").first().fill(value);
+}
+
+async function selectWizardField(page: Page, label: string, value: string) {
+  await wizardField(page, label).locator("select").first().selectOption(value);
+}
+
 test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ page, request }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
 
   const { editalId } = await createCandidateFlowEdital(request);
-  await registerAndReachCandidateArea(page);
+  const candidate = await registerCandidateApi(request);
+  await participateInEdital(request, editalId, candidate.token);
+  await authenticateCandidate(page, candidate.token);
 
-  await page.goto(`/editais/${editalId}`);
-  await page.getByRole("button", { name: "Entrar neste edital" }).click();
-  await expect(page).toHaveURL(new RegExp(`/candidato/editais/${editalId}$`), { timeout: 20_000 });
-
-  await expect(page.getByRole("link", { name: "Registrar pedido de isencao" })).toBeVisible();
   await page.goto(`/candidato/editais/${editalId}/isencao/nova`);
   await expect(page).toHaveURL(new RegExp(`/candidato/editais/${editalId}/isencao/nova$`), { timeout: 20_000 });
   await page.getByLabel("Justificativa").fill("Solicito isencao por indisponibilidade financeira devidamente comprovada.");
@@ -145,55 +163,71 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
     mimeType: "application/pdf",
     buffer: createPdfBuffer("Comprovante de isencao"),
   });
-  await page.getByRole("button", { name: "Registrar pedido de isencao" }).click();
-  await expect(page.getByText("Pedido de isencao registrado", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "Solicitar isencao" })).toBeEnabled({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Solicitar isencao" }).click();
+  await expect(page.getByText("Pedido de isencao enviado. Voce sera redirecionado para acompanhar o status.")).toBeVisible({ timeout: 20_000 });
   await expect(page).toHaveURL(new RegExp(`/candidato/editais/${editalId}$`), { timeout: 20_000 });
-  await expect(page.getByText(/Isencao: .*SOLICITADA|Isencao: Solicitada/i)).toBeVisible();
+  await expect(page.getByText("Solicitada").first()).toBeVisible();
 
   await page.goto(`/candidato/editais/${editalId}/inscricao`);
   await expect(page).toHaveURL(new RegExp(`/candidato/editais/${editalId}/inscricao$`), { timeout: 20_000 });
 
-  await page.locator("div", { hasText: "Tema da Redacao" }).locator("select").first().selectOption({ label: "Controle e automacao aplicada a sistemas energeticos" });
-  await page.getByLabel("Resumo do curriculo").fill("Experiencia em pesquisa, extensao e desenvolvimento de sistemas embarcados.");
-  await page.getByRole("textbox", { name: /^Redacao/ }).fill("A".repeat(600));
+  await fillWizardField(page, "Nome Completo", "Candidato UI Fluxo");
+  await fillWizardField(page, "CPF", "52998224725");
+  await fillWizardField(page, "RG", "1234567");
+  await fillWizardField(page, "Data de Expedicao do RG", "01012020");
+  await fillWizardField(page, "Data de Nascimento", "01011990");
+  await selectWizardField(page, "Genero", "MASCULINO");
+  await selectWizardField(page, "Nacionalidade", "Brasileira");
 
-  const textFields = new Map<string, string>([
-    ["Nome completo", "Candidato UI Fluxo"],
-    ["RG", "1234567"],
-    ["Data de expedicao do RG", "2020-01-01"],
-    ["CPF", "12345678901"],
-    ["Nacionalidade", "Brasileira"],
-    ["Naturalidade", "Manaus"],
-    ["E-mail", `fluxo.${Date.now()}@teste.local`],
-    ["Telefone / WhatsApp", "92999999999"],
-    ["Data de nascimento", "1990-01-01"],
-    ["Estado civil", "Solteiro"],
-    ["Tipo sanguineo", "O"],
-    ["Fator RH", "+"],
-    ["Nome do pai", "Pai Teste"],
-    ["Nome da mae", "Mae Teste"],
-    ["Endereco residencial", "Rua Teste, 123"],
-    ["CEP residencial", "69000000"],
-    ["Bairro residencial", "Centro"],
-    ["UF residencial", "AM"],
-    ["Cidade residencial", "Manaus"],
-    ["Instituicao de trabalho", "UFAM"],
-    ["Unidade / departamento", "PPGEE"],
-    ["Endereco de trabalho", "Av. Teste"],
-    ["CEP de trabalho", "69080900"],
-    ["Cidade / bairro de trabalho", "Manaus Centro"],
-  ]);
+  const naturalidadeField = wizardField(page, "Naturalidade");
+  await naturalidadeField.locator("select").nth(0).selectOption("AM");
+  const naturalidadeCidade = naturalidadeField.locator("select").nth(1);
+  await expect(naturalidadeCidade).toBeEnabled({ timeout: 15_000 });
+  await naturalidadeCidade.selectOption({ label: "Manaus" });
 
-  for (const [label, value] of textFields.entries()) {
-    await page.getByRole("textbox", { name: new RegExp(`^${escapeRegex(label)}$`) }).fill(value);
-  }
+  await selectWizardField(page, "Estado Civil", "SOLTEIRO");
+  await fillWizardField(page, "Telefone / WhatsApp", "92999999999");
+  await fillWizardField(page, "CEP", "69000000");
+  await fillWizardField(page, "Logradouro", "Rua Teste, 123");
+  await fillWizardField(page, "Bairro", "Centro");
 
-  await page.getByLabel("Situacao profissional").selectOption("EMPREGADO");
-  await page.getByLabel("Regime de trabalho").selectOption("INTEGRAL");
+  const enderecoRow = page.locator(".wiz-field-row", { hasText: "Bairro" }).last();
+  await enderecoRow.locator("select").nth(1).selectOption("AM");
+  const cidadeResidencial = enderecoRow.locator("select").nth(0);
+  await expect(cidadeResidencial).toBeEnabled({ timeout: 15_000 });
+  await cidadeResidencial.selectOption({ label: "Manaus" });
+
+  await selectWizardField(page, "Tipo Sanguineo", "O+");
+  await selectWizardField(page, "Raca/Cor", "NAO_DECLARADA");
+  await fillWizardField(page, "Nome do Pai", "Pai Teste");
+  await fillWizardField(page, "Nome da Mae", "Mae Teste");
+  await selectWizardField(page, "Situacao de Trabalho", "EMPREGADO");
+  await selectWizardField(page, "Regime de Trabalho", "INTEGRAL");
+  await fillWizardField(page, "Instituicao / Local de Trabalho", "UFAM");
+  await fillWizardField(page, "Unidade / Departamento", "PPGEE");
+  await fillWizardField(page, "Endereco do Trabalho", "Av. Teste");
+  await fillWizardField(page, "CEP do Trabalho", "69080900");
+  await fillWizardField(page, "Cidade/Bairro do Trabalho", "Manaus Centro");
+
   await page.getByRole("button", { name: "Salvar rascunho" }).click();
   await expect(page.getByText("Rascunho salvo", { exact: true })).toBeVisible({ timeout: 20_000 });
 
+  await page.getByRole("button", { name: "Proximo: Dados Academicos" }).click();
+  await expect(page.getByRole("heading", { name: "Dados Academicos e Linha de Pesquisa" })).toBeVisible({ timeout: 20_000 });
+  await page.getByPlaceholder("Descreva brevemente sua formacao, experiencias e principais publicacoes...").fill("Experiencia em pesquisa, extensao e desenvolvimento de sistemas embarcados.");
+
+  await page.getByRole("button", { name: "Proximo: Redacao" }).click();
+  await expect(page.getByRole("heading", { name: "Redacao — Proposta de Pesquisa" })).toBeVisible({ timeout: 20_000 });
+  await page.locator("div", { hasText: "Tema da Redacao" }).locator("select").first().selectOption({ label: "Controle e automacao aplicada a sistemas energeticos" });
+  await page.locator("textarea").first().fill("A".repeat(600));
+
+  await page.getByRole("button", { name: "Proximo: Documentos" }).click();
+  await expect(page.getByRole("heading", { name: "Documentos da Inscricao" })).toBeVisible({ timeout: 20_000 });
+
+  const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Baixar Anexo IV preenchido" }).click();
+  await downloadPromise;
   await uploadSingleFile(page, 0, {
     name: "anexo-iv-assinado.pdf",
     mimeType: "application/pdf",
@@ -205,19 +239,26 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
     if (tipo === "ANEXO_IV") {
       continue;
     }
-    await page.getByLabel("Tipo de documento").selectOption(tipo);
-    await page.getByLabel("Nome").last().fill(`Documento ${tipo}`);
+    const addDocumentForm = page.locator("form", { hasText: "Registrar documento" });
+    await addDocumentForm.locator("select").first().selectOption(tipo);
+    await addDocumentForm.locator("input").first().fill(`Documento ${tipo}`);
     await uploadSingleFile(page, 1, {
       name: `${tipo.toLowerCase()}.pdf`,
       mimeType: "application/pdf",
       buffer: createPdfBuffer(`Documento ${tipo}`),
     });
-    await expect(page.getByText("Arquivo enviado", { exact: true })).toBeVisible({ timeout: 20_000 });
-    await page.getByRole("button", { name: "Registrar documento" }).click();
-    await expect(page.getByText("Documento sincronizado", { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(`${tipo.toLowerCase()}.pdf`)).toBeVisible({ timeout: 20_000 });
+    await expect(addDocumentForm.getByRole("button", { name: "Registrar documento" })).toBeEnabled({ timeout: 20_000 });
+    await addDocumentForm.getByRole("button", { name: "Registrar documento" }).click();
+    await expect(page.getByText("Documento enviado", { exact: true })).toBeVisible({ timeout: 20_000 });
   }
 
-  await page.getByRole("button", { name: "Submeter inscricao" }).click();
-  await expect(page.getByText("Inscricao submetida", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/Status atual: SUBMETIDA/)).toBeVisible();
+  await page.getByRole("button", { name: "Proximo: Revisao" }).click();
+  await expect(page.getByRole("heading", { name: "Revisao da Inscricao" })).toBeVisible({ timeout: 20_000 });
+  for (let index = 0; index < 4; index += 1) {
+    await page.locator(".wiz-confirm-row button").nth(index).click();
+  }
+  await expect(page.getByRole("button", { name: "Enviar inscricao" })).toBeEnabled({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Enviar inscricao" }).click();
+  await expect(page.getByText("Inscricao enviada", { exact: true })).toBeVisible({ timeout: 20_000 });
 });

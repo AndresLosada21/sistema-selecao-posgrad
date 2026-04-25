@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 import { buildUniqueCandidate } from "./helpers/candidate";
-import { waitForAuthenticatedSession } from "./helpers/system";
+import { createOperationalEdital, waitForAuthenticatedSession } from "./helpers/system";
 
-test("selecionar UF em naturalidade habilita a escolha do municipio", async ({ page }) => {
+test("selecionar UF em naturalidade habilita a escolha do municipio", async ({ page, request }) => {
   test.setTimeout(120_000);
   const candidate = buildUniqueCandidate();
+  const edital = await createOperationalEdital(request, {
+    windows: [{ tipo: "INSCRICAO", titulo: "Inscricao aberta" }],
+  });
 
   await page.goto("/criar-conta");
   await page.getByLabel("Nome completo").fill(candidate.nomeCompleto);
@@ -16,7 +19,7 @@ test("selecionar UF em naturalidade habilita a escolha do municipio", async ({ p
   await page.getByRole("button", { name: "Criar conta" }).click();
   await waitForAuthenticatedSession(page);
 
-  await page.goto("/editais");
+  await page.goto(`/editais/${edital.editalId}`);
   await page.getByRole("button", { name: "Entrar neste edital" }).first().click();
   await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });
 

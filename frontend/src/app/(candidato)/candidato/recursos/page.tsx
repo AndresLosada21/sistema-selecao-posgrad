@@ -195,7 +195,7 @@ export default function CandidateRecursosPage() {
           ) : null}
           <div className="wiz-field">
             <label className="wiz-field-label">Fundamentacao *</label>
-            <textarea placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => { setFormFundamentacao(e.target.value); setFieldErrors((current) => ({ ...current, fundamentacao: null })); }}
+            <textarea aria-label="Fundamentacao" placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => { setFormFundamentacao(e.target.value); setFieldErrors((current) => ({ ...current, fundamentacao: null })); }}
               style={{ height: 100, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
             {fieldErrors.fundamentacao ? <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 4 }}>{fieldErrors.fundamentacao}</div> : null}
           </div>

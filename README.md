@@ -80,6 +80,44 @@ O projeto nasce dockerizado e possui dois arquivos de compose:
 docker compose -f docker-compose.yml up --build -d
 ```
 
+## Validacao e CI
+
+O repositorio possui pipeline em GitHub Actions para bloquear regressao antes de mudancas chegarem a `main`.
+
+Comandos executados pelo CI:
+
+```bash
+npm ci
+npm run lint -w backend
+npm run lint -w frontend
+npm run build -w backend
+npm run build -w frontend
+npm run test:e2e -w backend
+npm run test:e2e -w frontend
+```
+
+Para os testes E2E do backend, mantenha um PostgreSQL acessivel em `localhost:5432` com:
+
+```env
+POSTGRES_DB=selecao_posgrad
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/selecao_posgrad?schema=public
+```
+
+Para reproduzir localmente a base usada pelos testes de interface:
+
+```bash
+npm run prisma:generate -w backend
+npm run prisma:deploy -w backend
+npm run prisma:seed -w backend
+npm run dev:backend
+npm run dev:frontend
+npm run test:e2e -w frontend
+```
+
+O workflow roda em `pull_request` e em `push` para `main`. A protecao da branch `main` deve exigir os checks verdes do workflow depois da primeira execucao bem-sucedida.
+
 ## Repositorio
 
 ```bash

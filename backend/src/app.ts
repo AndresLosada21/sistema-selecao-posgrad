@@ -43,9 +43,11 @@ const authRateLimiter = rateLimit({
   },
 });
 
+const expensiveRouteRateLimitMax = env.NODE_ENV === "production" ? 30 : 1000;
+
 const expensiveRouteRateLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 30,
+  max: expensiveRouteRateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (request) => `${ipKeyGenerator(request.ip ?? "")}:${request.path}`,

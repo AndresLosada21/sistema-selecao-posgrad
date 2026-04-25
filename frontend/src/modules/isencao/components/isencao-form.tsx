@@ -133,7 +133,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
             <>
               <div className="wiz-field">
                 <label className="wiz-field-label">Justificativa *</label>
-                <textarea aria-invalid={!!fieldErrors.justificativa} minLength={10} value={justificativa} onChange={(e) => { setJustificativa(e.target.value); setFieldErrors((current) => ({ ...current, justificativa: null })); }}
+                <textarea aria-invalid={!!fieldErrors.justificativa} aria-label="Justificativa" minLength={10} value={justificativa} onChange={(e) => { setJustificativa(e.target.value); setFieldErrors((current) => ({ ...current, justificativa: null })); }}
                   style={{ minHeight: 80, borderRadius: 6, border: "1px solid #CBD5E1", padding: "12px 14px", fontSize: 14, resize: "vertical" }}
                   placeholder="Justifique o pedido de isencao (minimo 10 caracteres)"
                 />
