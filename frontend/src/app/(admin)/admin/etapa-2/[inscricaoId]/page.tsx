@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
+import { AdminBreadcrumb } from "@/components/shared/admin-breadcrumb";
+import { ConfirmModal } from "@/components/shared/confirm-modal";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -11,8 +12,8 @@ import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
-import { getEspelhoEtapa2, getEtapa2Item, liberarEspelhoEtapa2, registrarEtapa2 } from "@/modules/admin-etapas/api";
-import type { Etapa2AdminItem, Etapa2Espelho } from "@/modules/admin-etapas/types";
+import { getEspelhoEtapa2, getEtapa2Item, liberarEspelhoEtapa2, listEtapa2AnexoIiItems, registrarEtapa2 } from "@/modules/admin-etapas/api";
+import type { AnexoIiItem, Etapa2AdminItem, Etapa2Espelho } from "@/modules/admin-etapas/types";
 
 type Props = { params: Promise<{ inscricaoId: string }> };
 
@@ -39,15 +40,16 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const [inscricaoId, setInscricaoId] = useState<string | null>(null);
   const [item, setItem] = useState<Etapa2AdminItem | null>(null);
   const [espelho, setEspelho] = useState<Etapa2Espelho | null>(null);
+  const [anexoIiItems, setAnexoIiItems] = useState<AnexoIiItem[]>([]);
 
-  const [itensDraft, setItensDraft] = useState<ItemDraft[]>([{ id: uid(), chave: "", valor: "0" }]);
+  const [itensDraft, setItensDraft] = useState<ItemDraft[]>([{ id: uid(), chave: "titulo", valor: "0" }]);
   const [glosasDraft, setGlosasDraft] = useState<GlosaDraft[]>([]);
   const [pontuacaoBruta, setPontuacaoBruta] = useState(0);
   const [maiorPontuacaoBruta, setMaiorPontuacaoBruta] = useState(10);
   const [espelhoCorrecao, setEspelhoCorrecao] = useState("");
-  const [liberarEspelhoFlag, setLiberarEspelhoFlag] = useState(false);
   const [publicacao, setPublicacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
   const [helperHint, setHelperHint] = useState<"liquido" | "referencia" | null>(null);
+  const [confirmLiberarEspelho, setConfirmLiberarEspelho] = useState(false);
 
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
@@ -62,16 +64,17 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
 
   const loadItem = useCallback(async () => {
     if (!token || !inscricaoId) return;
-    const found = await getEtapa2Item(inscricaoId, token);
+    const [found, catalog] = await Promise.all([getEtapa2Item(inscricaoId, token), listEtapa2AnexoIiItems(token)]);
+    setAnexoIiItems(catalog.items);
+    const firstItemId = catalog.items[0]?.id ?? "titulo";
     setItem(found);
     setItensDraft(
-      Object.entries(found?.avaliacao?.pontuacaoItens ?? { titulo: 0 }).map(([chave, valor]) => ({ id: uid(), chave, valor: String(valor) })),
+      Object.entries(found?.avaliacao?.pontuacaoItens ?? { [firstItemId]: 0 }).map(([chave, valor]) => ({ id: uid(), chave, valor: String(valor) })),
     );
     setPontuacaoBruta(found?.avaliacao?.pontuacaoBruta ?? 0);
     setMaiorPontuacaoBruta(Math.max(found?.avaliacao?.pontuacaoBruta ?? 10, 10));
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
     setPublicacao(found?.avaliacao?.status === "FINAL_PUBLICADA" ? "FINAL" : "PRELIMINAR");
-    setLiberarEspelhoFlag(Boolean(found?.avaliacao?.espelhoLiberadoEm));
     setGlosasDraft(
       (found?.avaliacao?.glosas ?? []).map((glosa) => ({
         id: uid(),
@@ -127,7 +130,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       const pontuacaoItens = Object.fromEntries(
         itensDraft
           .filter((entry) => entry.chave.trim())
-          .map((entry) => [entry.chave.trim(), Number(entry.valor) || 0]),
+          .map((entry) => [entry.chave, Number(entry.valor) || 0]),
       );
 
       // Validação consolidada com fieldErrors
@@ -159,7 +162,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
 
       const glosaExcedente = glosas.find((g) => g.item && g.pontosGlosados > getItemValor(g.item));
       if (glosaExcedente) {
-        errors.glosas = `A glosa do item "${glosaExcedente.item}" (${glosaExcedente.pontosGlosados}) excede o valor do item (${getItemValor(glosaExcedente.item)}).`;
+        errors.glosas = `A glosa do item "${getItemLabel(glosaExcedente.item)}" (${glosaExcedente.pontosGlosados}) excede o valor do item (${getItemValor(glosaExcedente.item)}).`;
       }
 
       const glosasSemItem = glosas.filter((g) => !g.item && (g.descricao || g.pontosGlosados > 0));
@@ -180,7 +183,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         maiorPontuacaoBruta,
         glosas,
         espelhoCorrecao,
-        liberarEspelho: liberarEspelhoFlag,
+        liberarEspelho: publicacao === "FINAL",
         publicacao,
       }, token);
 
@@ -205,6 +208,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     try {
       await liberarEspelhoEtapa2(inscricaoId, token);
       await loadItem();
+      setConfirmLiberarEspelho(false);
       setFeedback({ type: "success", text: "Espelho da etapa 2 liberado." });
       await loadEspelho();
     } catch (error) {
@@ -223,9 +227,18 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     setItensDraft((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
   }
 
+  function getItemLabel(itemId: string): string {
+    return anexoIiItems.find((it) => it.id === itemId)?.label ?? itemId;
+  }
+
   function getItemValor(itemChave: string): number {
-    const found = itensDraft.find((it) => it.chave.trim().toLowerCase() === itemChave.trim().toLowerCase());
+    const found = itensDraft.find((it) => it.chave === itemChave);
     return found ? (Number(found.valor) || 0) : Infinity;
+  }
+
+  function getAvailableItems(currentValue: string) {
+    const selected = new Set(itensDraft.map((it) => it.chave).filter(Boolean));
+    return anexoIiItems.filter((catalogItem) => catalogItem.id === currentValue || !selected.has(catalogItem.id));
   }
 
   function updateGlosa(index: number, field: keyof GlosaDraft, value: string) {
@@ -260,11 +273,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         </div>
       )}
 
-      <div className="admin-inline-breadcrumb">
-        <Link href="/admin/etapa-2">Etapa 2</Link>
-        <span>/</span>
-        <span>{item.candidato.nomeCompleto}</span>
-      </div>
+      <AdminBreadcrumb items={[{ label: "Etapa 2", href: "/admin/etapa-2" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
       <div className="admin-page-header" style={{ alignItems: "flex-start" }}>
         <div className="admin-page-header-left">
@@ -310,34 +319,38 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
                 <h2 className="admin-form-card-title">Itens de pontuacao — Anexo II</h2>
                 <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>Pontuacao e glosas por item do Anexo II.</p>
               </div>
-              <button className="admin-pagination-btn" onClick={() => setItensDraft((current) => [...current, { id: uid(), chave: "", valor: "0" }])} disabled={!podeSalvarResultado || busy} style={{ width: "auto", padding: "8px 16px", fontSize: 13 }} type="button">
+              <button className="admin-pagination-btn" onClick={() => setItensDraft((current) => [...current, { id: uid(), chave: getAvailableItems("")[0]?.id ?? "", valor: "0" }])} disabled={!podeSalvarResultado || busy || getAvailableItems("").length === 0} style={{ width: "auto", padding: "8px 16px", fontSize: 13 }} type="button">
                 + Adicionar item
               </button>
             </div>
             {fieldErrors.pontuacaoItens ? <PageFeedback type="error" title="Itens de pontuacao invalidos" description={fieldErrors.pontuacaoItens} /> : null}
 
             <table className="admin-pont-table">
+              <caption className="sr-only">Pontuacao por item do Anexo II</caption>
               <thead>
                 <tr>
-                  <th>Item do Anexo II</th>
-                  <th>Valor</th>
-                  <th>Glosa</th>
-                  <th>Liquido</th>
-                  <th style={{ width: 60 }}></th>
+                  <th scope="col">Item do Anexo II</th>
+                  <th scope="col">Valor</th>
+                  <th scope="col">Glosa</th>
+                  <th scope="col">Liquido</th>
+                  <th scope="col" style={{ width: 60 }}>Acoes</th>
                 </tr>
               </thead>
               <tbody>
                 {itensDraft.map((entry, index) => {
                   const valor = Number(entry.valor) || 0;
                   const glosaForItem = glosasDraft
-                    .filter((glosa) => glosa.item.trim().toLowerCase() === entry.chave.trim().toLowerCase())
+                    .filter((glosa) => glosa.item === entry.chave)
                     .reduce((sum, glosa) => sum + (Number(glosa.pontosGlosados) || 0), 0);
                   const liquido = valor - glosaForItem;
 
                   return (
                     <tr key={entry.id}>
                       <td>
-                        <input disabled={!podeSalvarResultado || busy} onChange={(e) => updateItem(index, "chave", e.target.value)} placeholder="Nome do item" style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, fontWeight: 500, color: "#1E293B" }} value={entry.chave} />
+                         <select disabled={!podeSalvarResultado || busy} onChange={(e) => updateItem(index, "chave", e.target.value)} style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, fontWeight: 500, color: "#1E293B" }} value={entry.chave}>
+                           <option value="">Selecione o item...</option>
+                           {getAvailableItems(entry.chave).map((catalogItem) => <option key={catalogItem.id} value={catalogItem.id}>{catalogItem.label}</option>)}
+                         </select>
                       </td>
                       <td className="pont-valor">
                         <input disabled={!podeSalvarResultado || busy} min={0} onChange={(e) => updateItem(index, "valor", e.target.value)} step={0.1} style={{ width: 60, textAlign: "center", border: "none", background: "transparent", fontWeight: 700 }} type="number" value={entry.valor} />
@@ -397,8 +410,8 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
                               style={{ flex: 1, border: "1px solid #FECACA", background: "#fff", fontWeight: 600, fontSize: 13, color: "#991B1B", borderRadius: 4, padding: "4px 8px" }}
                             >
                               <option value="">Selecione o item...</option>
-                              {itensDraft.filter((it) => it.chave.trim()).map((it) => (
-                                <option key={it.id} value={it.chave.trim()}>{it.chave.trim()}</option>
+                              {itensDraft.filter((it) => it.chave).map((it) => (
+                                <option key={it.id} value={it.chave}>{getItemLabel(it.chave)}</option>
                               ))}
                             </select>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -500,10 +513,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
               {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
             </div>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "#334155" }}>
-              <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={!podeSalvarResultado || publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
-              Liberar espelho junto do resultado
-            </label>
+            <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a acao confirmada de liberacao abaixo."}</span>
           </div>
 
           {/* Espelho do candidato */}
@@ -536,7 +546,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
                   Ja liberado
                 </button>
               ) : (
-                <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={onLiberarEspelho} type="button">
+                <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={() => setConfirmLiberarEspelho(true)} type="button">
                   {espelhoSolicitado ? "Liberar espelho" : "Liberar proativamente"}
                 </button>
               )}
@@ -559,6 +569,16 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
           </button>
         </div>
       </form>
+      <ConfirmModal
+        confirmLabel="Liberar espelho"
+        description="Esta acao torna o espelho da etapa 2 visivel ao candidato. Confirme apenas se o conteudo e o candidato estao corretos."
+        details={[`Candidato: ${item.candidato.nomeCompleto}`, `Inscricao: ${item.id}`, "Fase: Etapa 2"]}
+        disabled={busy}
+        onCancel={() => setConfirmLiberarEspelho(false)}
+        onConfirm={onLiberarEspelho}
+        open={confirmLiberarEspelho}
+        title="Confirmar liberacao de espelho"
+      />
     </div>
   );
 }

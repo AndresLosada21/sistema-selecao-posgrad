@@ -2,11 +2,13 @@ import { apiGet, apiPut } from "@/lib/http/client";
 
 import type { AdminIsencaoItem, AdminIsencoesResponse } from "./types";
 
-export function listAdminIsencoes(token: string, pagination?: { page?: number; pageSize?: number }) {
+export function listAdminIsencoes(token: string, filters?: { editalId?: string; status?: string; page?: number; pageSize?: number }) {
   const params = new URLSearchParams();
 
-  if (pagination?.page) params.set("page", String(pagination.page));
-  if (pagination?.pageSize) params.set("pageSize", String(pagination.pageSize));
+  if (filters?.editalId) params.set("editalId", filters.editalId);
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.page) params.set("page", String(filters.page));
+  if (filters?.pageSize) params.set("pageSize", String(filters.pageSize));
 
   const suffix = params.size ? `?${params.toString()}` : "";
   return apiGet<AdminIsencoesResponse>(`/v1/admin/isencoes${suffix}`, token);

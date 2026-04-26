@@ -1,9 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { participateInEdital, registerCandidateApi, waitForAuthenticatedSession } from "./helpers/system";
+import { loginCandidateViaUi, participateInEdital, registerCandidateApi } from "./helpers/system";
 
 const backendBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:4000";
-const tokenStorageKey = "selecao-posgrad-token";
 
 const documentoTiposObrigatorios = [
   "ANEXO_IV",
@@ -40,12 +39,18 @@ async function loginAsAdmin(request: APIRequestContext) {
   return body.token as string;
 }
 
+async function csrfHeader(request: APIRequestContext): Promise<Record<string, string>> {
+  const state = await request.storageState();
+  const csrfCookie = state.cookies.find((cookie) => cookie.name === "XSRF-TOKEN");
+  return csrfCookie ? { "X-CSRF-Token": csrfCookie.value } : {};
+}
+
 async function createCandidateFlowEdital(request: APIRequestContext) {
   const adminToken = await loginAsAdmin(request);
   const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
   const editalResponse = await request.post(`${backendBaseUrl}/v1/admin/editais`, {
-    headers: { Authorization: `Bearer ${adminToken}` },
+    headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
     data: {
       numero: `094/${suffix}`,
       titulo: `Fluxo real candidato ${suffix}`,
@@ -61,7 +66,7 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
   const edital = await editalResponse.json();
 
   const temaResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/temas-redacao`, {
-    headers: { Authorization: `Bearer ${adminToken}` },
+    headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
     data: {
       titulo: "Controle e automacao aplicada a sistemas energeticos",
       descricao: "Tema tecnico padrao do fluxo E2E do candidato.",
@@ -73,7 +78,7 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
   expect(temaResponse.ok()).toBeTruthy();
 
   const linhaResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/linhas`, {
-    headers: { Authorization: `Bearer ${adminToken}` },
+    headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
     data: {
       nome: `Linha fluxo ${suffix}`,
       descricao: "Linha de pesquisa usada no E2E real do candidato.",
@@ -90,7 +95,7 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
     { tipo: "INSCRICAO", titulo: "Inscricao E2E" },
   ]) {
     const cronogramaResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/cronogramas`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
       data: {
         ...cronograma,
         descricao: `Janela real para ${cronograma.titulo}`,
@@ -103,7 +108,7 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
   }
 
   const publishResponse = await request.put(`${backendBaseUrl}/v1/admin/editais/${edital.id}`, {
-    headers: { Authorization: `Bearer ${adminToken}` },
+    headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
     data: {
       numero: edital.numero,
       titulo: edital.titulo,
@@ -125,12 +130,8 @@ async function uploadSingleFile(page: Page, index: number, file: { name: string;
   await page.locator('input[type="file"]').nth(index).setInputFiles(file);
 }
 
-async function authenticateCandidate(page: Page, token: string) {
-  await page.goto("/");
-  await page.evaluate(([storageKey, value]) => {
-    window.localStorage.setItem(storageKey, value);
-  }, [tokenStorageKey, token]);
-  await waitForAuthenticatedSession(page);
+async function authenticateCandidate(page: Page, email: string, senha: string) {
+  await loginCandidateViaUi(page, email, senha);
 }
 
 function wizardField(page: Page, label: string) {
@@ -153,7 +154,7 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   const { editalId } = await createCandidateFlowEdital(request);
   const candidate = await registerCandidateApi(request);
   await participateInEdital(request, editalId, candidate.token);
-  await authenticateCandidate(page, candidate.token);
+  await authenticateCandidate(page, candidate.email, candidate.senha);
 
   await page.goto(`/candidato/editais/${editalId}/isencao/nova`);
   await expect(page).toHaveURL(new RegExp(`/candidato/editais/${editalId}/isencao/nova$`), { timeout: 20_000 });
@@ -228,7 +229,7 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Baixar Anexo IV preenchido" }).click();
   await downloadPromise;
-  await uploadSingleFile(page, 0, {
+  await page.locator(".file-field", { hasText: "Enviar Anexo IV assinado (PDF)" }).locator('input[type="file"]').setInputFiles({
     name: "anexo-iv-assinado.pdf",
     mimeType: "application/pdf",
     buffer: createPdfBuffer("Anexo IV assinado"),
@@ -242,7 +243,7 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
     const addDocumentForm = page.locator("form", { hasText: "Registrar documento" });
     await addDocumentForm.locator("select").first().selectOption(tipo);
     await addDocumentForm.locator("input").first().fill(`Documento ${tipo}`);
-    await uploadSingleFile(page, 1, {
+    await addDocumentForm.locator('.file-field input[type="file"]').setInputFiles({
       name: `${tipo.toLowerCase()}.pdf`,
       mimeType: "application/pdf",
       buffer: createPdfBuffer(`Documento ${tipo}`),

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
+import { AdminStatusFilter } from "@/components/shared/admin-status-filter";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
@@ -15,12 +17,20 @@ import type { AdminInscricoesHomologacaoResponse } from "@/modules/admin-homolog
 
 const iconChevL = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>;
 const iconChevR = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>;
+const homologacaoStatusOptions = [
+  { value: "", label: "Todos" },
+  { value: "PENDENTE", label: "Pendentes" },
+  { value: "HOMOLOGADA", label: "Homologadas" },
+  { value: "INDEFERIDA", label: "Indeferidas" },
+];
 
 export default function AdminHomologacaoPage() {
   const session = useSession();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<AdminInscricoesHomologacaoResponse | null>(null);
   const [filter, setFilter] = useState("");
   const [draftFilter, setDraftFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
@@ -28,7 +38,7 @@ export default function AdminHomologacaoPage() {
   useAbortableEffect(async (signal) => {
     if (!session.token) return;
     try {
-      const response = await listInscricoesParaHomologacao(session.token, { editalId: filter || undefined, page, pageSize: 20 });
+      const response = await listInscricoesParaHomologacao(session.token, { editalId: filter || undefined, status: statusFilter || undefined, page, pageSize: 20 });
       if (signal.aborted) return;
       setData(response); setStatus("ready");
     } catch (error) {
@@ -36,7 +46,7 @@ export default function AdminHomologacaoPage() {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setMessage(getErrorMessage(error)); setStatus("error");
     }
-  }, [filter, page, session.signOut, session.token]);
+  }, [filter, page, session.signOut, session.token, statusFilter]);
 
   const stats = useMemo(() => {
     const items = data?.items ?? [];
@@ -77,11 +87,14 @@ export default function AdminHomologacaoPage() {
         {filter ? <button type="button" style={{ height: 40, padding: "0 16px", fontSize: 13, background: "none", border: "1px solid #E2E8F0", borderRadius: 6, cursor: "pointer", color: "#475569" }} onClick={() => { setDraftFilter(""); setFilter(""); setPage(1); }}>Limpar</button> : null}
       </div>
 
+      <AdminStatusFilter ariaLabel="Filtrar homologacao por status" onChange={(value) => { setStatusFilter(value); setPage(1); }} options={homologacaoStatusOptions} value={statusFilter} />
+
       {/* Table */}
       {data?.items.length ? (
         <div className="admin-table">
           <div className="admin-homologacao-table-wrap">
             <table className="admin-homologacao-table">
+              <caption className="sr-only">Fila administrativa de homologacao de inscricoes</caption>
               <colgroup>
                 <col style={{ width: "320px" }} />
                 <col style={{ width: "220px" }} />
@@ -92,12 +105,12 @@ export default function AdminHomologacaoPage() {
               </colgroup>
               <thead>
                 <tr>
-                  <th>Candidato</th>
-                  <th>Edital</th>
-                  <th>Linha</th>
-                  <th className="admin-homologacao-table-center">Inscricao</th>
-                  <th className="admin-homologacao-table-center">Homologacao</th>
-                  <th className="admin-homologacao-table-center">Acao</th>
+                  <th scope="col">Candidato</th>
+                  <th scope="col">Edital</th>
+                  <th scope="col">Linha</th>
+                  <th scope="col" className="admin-homologacao-table-center">Inscricao</th>
+                  <th scope="col" className="admin-homologacao-table-center">Homologacao</th>
+                  <th scope="col" className="admin-homologacao-table-center">Acao</th>
                 </tr>
               </thead>
               <tbody>

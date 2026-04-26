@@ -145,8 +145,8 @@ function mapEtapa1Inscricao(inscricao: Prisma.InscricaoGetPayload<{
   };
 }
 
-export async function listInscricoesParaEtapa1(input: { editalId?: string; page: number; pageSize: number; avaliadorUserId?: string }) {
-  const baseWhere = {
+export async function listInscricoesParaEtapa1(input: { editalId?: string; status?: StatusAvaliacaoEtapa | "SEM_AVALIACAO"; page: number; pageSize: number; avaliadorUserId?: string }) {
+  const baseWhere: Prisma.InscricaoWhereInput = {
     status: {
       in: [StatusInscricao.HOMOLOGADA_FINAL, StatusInscricao.APTA_ETAPA_1, StatusInscricao.APTA_ETAPA_2, StatusInscricao.ELIMINADA_ETAPA_1],
     },
@@ -157,6 +157,11 @@ export async function listInscricoesParaEtapa1(input: { editalId?: string; page:
           },
         }
       : {}),
+    ...(input.status === "SEM_AVALIACAO"
+      ? { avaliacaoEtapa1: null }
+      : input.status
+        ? { avaliacaoEtapa1: { is: { status: input.status } } }
+        : {}),
   };
 
   const where = input.avaliadorUserId ? await buildInscricaoWhereForAvaliador(baseWhere, input.avaliadorUserId) : baseWhere;
@@ -334,6 +339,7 @@ export async function registrarResultadoEtapa1(
         resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : null,
       },
       create: {
+        editalId: inscricao.participacaoEdital.editalId,
         inscricaoId,
         tema: input.tema,
         textoSubmetido: inscricao.redacaoTexto,

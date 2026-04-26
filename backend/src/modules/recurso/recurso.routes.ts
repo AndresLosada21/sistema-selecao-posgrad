@@ -98,6 +98,7 @@ recursoRouter.get("/v1/admin/recursos", requireAuth, requireRole(Role.ADMIN), as
   const items = await listRecursosAdmin({
     editalId: parsedQuery.data.editalId as string | undefined,
     fase: parsedQuery.data.fase,
+    status: parsedQuery.data.status,
     page: parsedQuery.data.page,
     pageSize: parsedQuery.data.pageSize,
   });

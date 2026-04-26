@@ -52,6 +52,7 @@ etapa1Router.get("/v1/admin/etapa-1/inscricoes", requireAuth, requireAnyRole([Ro
 
   const result = await listInscricoesParaEtapa1({
     editalId: parsedQuery.data.editalId as string | undefined,
+    status: parsedQuery.data.status,
     page: parsedQuery.data.page,
     pageSize: parsedQuery.data.pageSize,
     avaliadorUserId: request.auth!.perfis.includes(Role.ADMIN) ? undefined : request.auth!.userId,

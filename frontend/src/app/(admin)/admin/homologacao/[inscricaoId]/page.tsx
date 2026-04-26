@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
+import { AdminBreadcrumb } from "@/components/shared/admin-breadcrumb";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -214,6 +215,8 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {message ? <PageFeedback type={message.type} title={message.title} description={message.description} /> : null}
+
+      <AdminBreadcrumb items={[{ label: "Homologacao", href: "/admin/homologacao" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
       {/* Header */}
       <div className="admin-page-header">

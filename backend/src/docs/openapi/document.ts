@@ -91,7 +91,7 @@ registry.registerComponent("securitySchemes", "bearerAuth", {
   type: "http",
   scheme: "bearer",
   bearerFormat: "JWT",
-  description: "Token JWT obtido em `/v1/auth/login` ou `/v1/auth/register`.",
+  description: "Access token curto obtido em `/v1/auth/login`, `/v1/auth/register` ou `/v1/auth/refresh`.",
 });
 
 const jsonContent = (schema: ZodTypeAny) => ({
@@ -164,6 +164,34 @@ registry.registerPath({
     401: { description: "Credenciais invalidas ou conta bloqueada.", content: jsonContent(UnauthorizedResponseSchema) },
     413: { description: "Payload acima do limite permitido.", content: jsonContent(PayloadTooLargeResponseSchema) },
     429: { description: "Muitas tentativas consecutivas.", content: jsonContent(TooManyRequestsResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/auth/refresh",
+  tags: ["Autenticacao"],
+  operationId: "refreshAuthSession",
+  summary: "Renova a sessao autenticada",
+  description: "Usa o cookie HttpOnly de refresh para emitir novo access token e rotacionar a sessao. Quando houver cookie `XSRF-TOKEN`, envie o mesmo valor no header `X-CSRF-Token`.",
+  responses: {
+    200: { description: "Sessao renovada com sucesso.", content: jsonContent(AuthResponseSchema) },
+    401: { description: "Refresh token ausente, expirado ou revogado.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "CSRF ou origem invalida.", content: jsonContent(MessageResponseSchema) },
+    429: { description: "Muitas tentativas consecutivas.", content: jsonContent(TooManyRequestsResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/auth/logout",
+  tags: ["Autenticacao"],
+  operationId: "logoutAuthSession",
+  summary: "Encerra a sessao de refresh",
+  description: "Revoga a sessao de refresh server-side e limpa os cookies de autenticacao. Quando houver cookie `XSRF-TOKEN`, envie o mesmo valor no header `X-CSRF-Token`.",
+  responses: {
+    204: { description: "Sessao encerrada." },
+    403: { description: "CSRF ou origem invalida.", content: jsonContent(MessageResponseSchema) },
   },
 });
 

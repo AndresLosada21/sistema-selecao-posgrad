@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
+import { AdminStatusFilter } from "@/components/shared/admin-status-filter";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
@@ -15,14 +17,24 @@ import { listEtapa1 } from "@/modules/admin-etapas/api";
 import type { Etapa1ListResponse } from "@/modules/admin-etapas/types";
 
 const PAGE_SIZE = 20;
+const etapaStatusOptions = [
+  { value: "", label: "Todos" },
+  { value: "SEM_AVALIACAO", label: "Sem avaliacao" },
+  { value: "PENDENTE", label: "Pendente" },
+  { value: "EM_AVALIACAO", label: "Em avaliacao" },
+  { value: "PRELIMINAR_PUBLICADA", label: "Preliminar" },
+  { value: "FINAL_PUBLICADA", label: "Final" },
+];
 
 export default function AdminEtapa1Page() {
   const session = useSession();
+  const searchParams = useSearchParams();
   const token = session.token;
   const signOut = session.signOut;
   const [data, setData] = useState<Etapa1ListResponse | null>(null);
   const [draftFilter, setDraftFilter] = useState("");
   const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
@@ -30,7 +42,7 @@ export default function AdminEtapa1Page() {
   useAbortableEffect(async (signal) => {
     if (!token) return;
     try {
-      const response = await listEtapa1(token, { editalId: filter || undefined, page, pageSize: PAGE_SIZE });
+      const response = await listEtapa1(token, { editalId: filter || undefined, status: statusFilter || undefined, page, pageSize: PAGE_SIZE });
       if (signal.aborted) return;
       setData(response);
       setStatus("ready");
@@ -40,7 +52,7 @@ export default function AdminEtapa1Page() {
       setMessage(getErrorMessage(error));
       setStatus("error");
     }
-  }, [filter, page, signOut, token]);
+  }, [filter, page, signOut, statusFilter, token]);
 
   if (status === "loading") return <LoadingState title="Carregando etapa 1" description="Consultando as redacoes prontas para avaliacao." />;
   if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila da etapa 1" description={message ?? undefined} />;
@@ -80,19 +92,22 @@ export default function AdminEtapa1Page() {
         )}
       </div>
 
+      <AdminStatusFilter ariaLabel="Filtrar etapa 1 por status" onChange={(value) => { setStatusFilter(value); setPage(1); }} options={etapaStatusOptions} value={statusFilter} />
+
       <div className="admin-table">
         <div className="admin-homologacao-table-wrap">
           <table className="admin-homologacao-table">
+            <caption className="sr-only">Fila administrativa da etapa 1</caption>
             <thead>
               <tr>
-                <th style={{ minWidth: 200 }}>Candidato</th>
-                <th style={{ minWidth: 140 }}>Linha</th>
-                <th style={{ minWidth: 80, textAlign: "center" }}>Nota</th>
-                <th style={{ minWidth: 140, textAlign: "center" }}>Status</th>
-                <th style={{ minWidth: 90, textAlign: "center" }}>Esp. solicit.</th>
-                <th style={{ minWidth: 100, textAlign: "center" }}>Status aval.</th>
-                <th style={{ minWidth: 90, textAlign: "center" }}>Esp. liber.</th>
-                <th style={{ minWidth: 80, textAlign: "center" }}>Acao</th>
+                <th scope="col" style={{ minWidth: 200 }}>Candidato</th>
+                <th scope="col" style={{ minWidth: 140 }}>Linha</th>
+                <th scope="col" style={{ minWidth: 80, textAlign: "center" }}>Nota</th>
+                <th scope="col" style={{ minWidth: 140, textAlign: "center" }}>Status</th>
+                <th scope="col" style={{ minWidth: 90, textAlign: "center" }}>Esp. solicit.</th>
+                <th scope="col" style={{ minWidth: 100, textAlign: "center" }}>Status aval.</th>
+                <th scope="col" style={{ minWidth: 90, textAlign: "center" }}>Esp. liber.</th>
+                <th scope="col" style={{ minWidth: 80, textAlign: "center" }}>Acao</th>
               </tr>
             </thead>
             <tbody>

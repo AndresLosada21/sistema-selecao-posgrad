@@ -1,5 +1,6 @@
 import { Prisma, Role, StatusConta } from "@prisma/client";
 
+import { invalidateAuthUserCache } from "../../lib/auth-cache.js";
 import { conflict, notFound } from "../../lib/http-errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordAuditEvent } from "../operacao/audit.service.js";
@@ -61,6 +62,7 @@ export async function updateUsuarioStatus(usuarioId: string, statusConta: Status
   const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: usuarioAdminInclude });
   if (!usuario) throw notFound("Usuario nao encontrado.", "USUARIO_NAO_ENCONTRADO");
   const updated = await prisma.usuario.update({ where: { id: usuarioId }, data: { statusConta }, include: usuarioAdminInclude });
+  invalidateAuthUserCache(usuarioId);
   await recordAuditEvent({ entidade: "USUARIO", entidadeId: usuarioId, acao: "USUARIO_STATUS_ATUALIZADO", descricao: `Status alterado para ${statusConta}.` });
   return mapUsuario(updated);
 }
@@ -86,6 +88,7 @@ export async function updateUsuarioPerfis(usuarioId: string, perfis: Role[], act
     await prisma.avaliadorEscopo.deleteMany({ where: { usuarioId } });
   }
   const updated = await prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, include: usuarioAdminInclude });
+  invalidateAuthUserCache(usuarioId);
   await recordAuditEvent({ entidade: "USUARIO", entidadeId: usuarioId, acao: "USUARIO_PERFIS_ATUALIZADOS", descricao: "Perfis operacionais atualizados.", payload: { perfis } });
   return mapUsuario(updated);
 }
@@ -103,6 +106,7 @@ export async function updateUsuarioEscoposAvaliacao(usuarioId: string, escopos: 
   }
 
   const updated = await prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId }, include: usuarioAdminInclude });
+  invalidateAuthUserCache(usuarioId);
   await recordAuditEvent({ entidade: "USUARIO", entidadeId: usuarioId, acao: "ESCOPOS_AVALIADOR_ATUALIZADOS", descricao: "Escopos de avaliacao atualizados.", payload: { escopos } });
   return mapUsuario(updated);
 }

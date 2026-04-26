@@ -188,9 +188,7 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
   await prisma.$transaction(async (tx) => {
     await tx.classificacaoFinal.deleteMany({
       where: {
-        participacaoEdital: {
-          editalId,
-        },
+        editalId,
         ...(participacoesClassificadasIds.length > 0
           ? {
               participacaoEditalId: {
@@ -207,6 +205,7 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
           participacaoEditalId: item.participacaoEditalId,
         },
         update: {
+          editalId,
           linhaPesquisaId: item.linhaPesquisaId,
           notaEtapa1: item.notaEtapa1,
           notaEtapa2: item.notaEtapa2,
@@ -219,6 +218,7 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
           publicadoFinalEm: publicacao === "FINAL" ? new Date() : undefined,
         },
         create: {
+          editalId,
           participacaoEditalId: item.participacaoEditalId,
           linhaPesquisaId: item.linhaPesquisaId,
           modalidadeConcorrencia: item.modalidadeConcorrencia,
@@ -256,9 +256,7 @@ export async function listClassificacao(editalId: string, pagination?: { page: n
   const page = pagination?.page ?? 1;
   const pageSize = pagination?.pageSize ?? 20;
   const where = {
-    participacaoEdital: {
-      editalId,
-    },
+    editalId,
   };
 
   const [classificacoes, total] = await prisma.$transaction([

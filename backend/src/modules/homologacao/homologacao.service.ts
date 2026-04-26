@@ -232,14 +232,48 @@ function mapInscricaoHomologacao(inscricao: Prisma.InscricaoGetPayload<{
   };
 }
 
-export async function listInscricoesParaHomologacao(input: { editalId?: string; page: number; pageSize: number }) {
-  const where = input.editalId
-    ? {
-        participacaoEdital: {
-          editalId: input.editalId,
-        },
-      }
-    : undefined;
+export async function listInscricoesParaHomologacao(input: { editalId?: string; status?: "PENDENTE" | "HOMOLOGADA" | "INDEFERIDA"; page: number; pageSize: number }) {
+  const where: Prisma.InscricaoWhereInput = {
+    ...(input.editalId
+      ? {
+          participacaoEdital: {
+            editalId: input.editalId,
+          },
+        }
+      : {}),
+    ...(input.status === "PENDENTE"
+      ? {
+          OR: [
+            { homologacao: null },
+            { homologacao: { is: { statusPreliminar: null, statusFinal: null } } },
+          ],
+        }
+      : {}),
+    ...(input.status === "HOMOLOGADA"
+      ? {
+          homologacao: {
+            is: {
+              OR: [
+                { statusFinal: StatusInscricao.HOMOLOGADA_FINAL },
+                { statusFinal: null, statusPreliminar: StatusInscricao.HOMOLOGADA_PRELIMINAR },
+              ],
+            },
+          },
+        }
+      : {}),
+    ...(input.status === "INDEFERIDA"
+      ? {
+          homologacao: {
+            is: {
+              OR: [
+                { statusFinal: StatusInscricao.NAO_HOMOLOGADA_FINAL },
+                { statusFinal: null, statusPreliminar: StatusInscricao.NAO_HOMOLOGADA_PRELIMINAR },
+              ],
+            },
+          },
+        }
+      : {}),
+  };
 
   const [inscricoes, total] = await prisma.$transaction([
     prisma.inscricao.findMany({

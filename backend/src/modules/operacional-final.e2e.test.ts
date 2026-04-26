@@ -223,10 +223,15 @@ test("recurso com impacto em politicas afirmativas reprocessa classificacao e re
         submetidaEm: now,
         dadosFormulario: { nomeCompleto: candidato.nomeCompleto, email: candidato.email, concorreAcoesAfirmativas: true },
         avaliacaoEtapa1: {
-          create: { nota: 8.5, status: StatusAvaliacaoEtapa.FINAL_PUBLICADA },
+          create: { edital: { connect: { id: editalId } }, nota: 8.5, status: StatusAvaliacaoEtapa.FINAL_PUBLICADA },
         },
         avaliacaoEtapa2: {
-          create: { pontuacaoBruta: 10, notaNormalizada: 9, status: StatusAvaliacaoEtapa.FINAL_PUBLICADA },
+          create: {
+            edital: { connect: { id: editalId } },
+            pontuacaoBruta: 10,
+            notaNormalizada: 9,
+            status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
+          },
         },
         etapasPoliticasAfirmativas: {
           create: {
@@ -246,6 +251,7 @@ test("recurso com impacto em politicas afirmativas reprocessa classificacao e re
 
     await prisma.classificacaoFinal.create({
       data: {
+        editalId,
         participacaoEditalId: participacaoId,
         linhaPesquisaId: linhaId,
         modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,

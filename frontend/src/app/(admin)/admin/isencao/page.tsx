@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { AdminStatusFilter } from "@/components/shared/admin-status-filter";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
 import { useSession } from "@/lib/auth/session-provider";
+import { statusIsencaoOptions } from "@/lib/enums";
 import { getErrorMessage, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
@@ -18,17 +21,19 @@ const iconChevR = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" st
 
 export default function AdminIsencaoPage() {
   const session = useSession();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<AdminIsencoesResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState("");
   const [draftFilter, setDraftFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
 
   useAbortableEffect(async (signal) => {
     if (!session.token) return;
     try {
-      const response = await listAdminIsencoes(session.token, { page, pageSize: 20 });
+      const response = await listAdminIsencoes(session.token, { editalId: filter || undefined, status: statusFilter || undefined, page, pageSize: 20 });
       if (signal.aborted) return;
       setData(response); setStatus("ready");
     } catch (error) {
@@ -36,7 +41,7 @@ export default function AdminIsencaoPage() {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setMessage(getErrorMessage(error)); setStatus("error");
     }
-  }, [page, session.signOut, session.token]);
+  }, [filter, page, session.signOut, session.token, statusFilter]);
 
   if (status === "loading") return <LoadingState title="Carregando isencoes" description="Consultando os pedidos de isencao da fila." />;
   if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de isencao" description={message ?? undefined} />;
@@ -61,30 +66,46 @@ export default function AdminIsencaoPage() {
         <button type="button" className="admin-page-cta" style={{ height: 38, padding: "0 14px", fontSize: 13 }} onClick={() => { setFilter(draftFilter); setPage(1); }}>Aplicar</button>
       </div>
 
+      <AdminStatusFilter
+        ariaLabel="Filtrar isencoes por status"
+        onChange={(value) => { setStatusFilter(value); setPage(1); }}
+        options={[{ value: "", label: "Todos" }, ...statusIsencaoOptions.filter((value) => value !== "NAO_SOLICITADA").map((value) => ({ value, label: getStatusLabel(value) }))]}
+        value={statusFilter}
+      />
+
       {data?.items.length ? (
         <div className="admin-table">
-          <div className="admin-table-head">
-            <span className="admin-table-cell admin-table-cell--grow">Candidato</span>
-            <span className="admin-table-cell" style={{ width: 140 }}>Edital</span>
-            <span className="admin-table-cell admin-table-cell--center" style={{ width: 100 }}>CadUnico</span>
-            <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>Status</span>
-            <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>Acao</span>
+          <div className="admin-homologacao-table-wrap">
+            <table className="admin-homologacao-table" style={{ minWidth: 720 }}>
+              <caption className="sr-only">Fila administrativa de pedidos de isencao</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Candidato</th>
+                  <th scope="col" style={{ minWidth: 140 }}>Edital</th>
+                  <th scope="col" style={{ width: 100, textAlign: "center" }}>CadUnico</th>
+                  <th scope="col" style={{ width: 120, textAlign: "center" }}>Status</th>
+                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Acao</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
+                    <td className="admin-homologacao-table-muted">{item.edital.numero}</td>
+                    <td className="admin-homologacao-table-center">{item.inscritoCadUnico ? "Sim" : "Nao"}</td>
+                    <td className="admin-homologacao-table-center">
+                      <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
+                    </td>
+                    <td className="admin-homologacao-table-center">
+                      <Link className="admin-homologacao-table-link" href={`/admin/isencao/${item.id}`}>
+                        {item.status === "SOLICITADA" ? "Analisar" : "Ver"}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          {data.items.map((item) => (
-            <div key={item.id} className="admin-table-row">
-              <span className="admin-table-cell admin-table-cell--grow admin-table-cell--bold">{item.candidato.nomeCompleto}</span>
-              <span className="admin-table-cell admin-table-cell--muted" style={{ width: 140 }}>{item.edital.numero}</span>
-              <span className="admin-table-cell admin-table-cell--center" style={{ width: 100 }}>{item.inscritoCadUnico ? "Sim" : "Nao"}</span>
-              <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>
-                <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
-              </span>
-              <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>
-                <Link href={`/admin/isencao/${item.id}`} style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>
-                  {item.status === "SOLICITADA" ? "Analisar" : "Ver"}
-                </Link>
-              </span>
-            </div>
-          ))}
           <div className="admin-pagination">
             <span>Mostrando {((page - 1) * 20) + 1}-{Math.min(page * 20, data.total)} de {data.total} pedidos</span>
             <div className="admin-pagination-controls">

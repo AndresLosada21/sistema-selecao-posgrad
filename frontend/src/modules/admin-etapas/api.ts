@@ -6,14 +6,16 @@ import type {
   Etapa1ListResponse,
   Etapa1ResultadoPayload,
   Etapa2AdminItem,
+  AnexoIiItemsResponse,
   Etapa2Espelho,
   Etapa2ListResponse,
   Etapa2ResultadoPayload,
 } from "./types";
 
-export function listEtapa1(token: string, filters?: { editalId?: string; page?: number; pageSize?: number }) {
+export function listEtapa1(token: string, filters?: { editalId?: string; status?: string; page?: number; pageSize?: number }) {
   const query = new URLSearchParams();
   if (filters?.editalId) query.set("editalId", filters.editalId);
+  if (filters?.status) query.set("status", filters.status);
   if (filters?.page) query.set("page", String(filters.page));
   if (filters?.pageSize) query.set("pageSize", String(filters.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
@@ -36,13 +38,18 @@ export function getEspelhoEtapa1(inscricaoId: string, token: string) {
   return apiGet<Etapa1Espelho>(`/v1/admin/inscricoes/${inscricaoId}/etapa-1/espelho`, token);
 }
 
-export function listEtapa2(token: string, filters?: { editalId?: string; page?: number; pageSize?: number }) {
+export function listEtapa2(token: string, filters?: { editalId?: string; status?: string; page?: number; pageSize?: number }) {
   const query = new URLSearchParams();
   if (filters?.editalId) query.set("editalId", filters.editalId);
+  if (filters?.status) query.set("status", filters.status);
   if (filters?.page) query.set("page", String(filters.page));
   if (filters?.pageSize) query.set("pageSize", String(filters.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";
   return apiGet<Etapa2ListResponse>(`/v1/admin/etapa-2/inscricoes${suffix}`, token);
+}
+
+export function listEtapa2AnexoIiItems(token: string) {
+  return apiGet<AnexoIiItemsResponse>("/v1/admin/etapa-2/anexo-ii-itens", token);
 }
 
 export function getEtapa2Item(inscricaoId: string, token: string) {

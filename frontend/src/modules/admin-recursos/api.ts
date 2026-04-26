@@ -2,7 +2,7 @@ import { apiGet, apiPut } from "@/lib/http/client";
 
 import type { AdminRecursoItem, AdminRecursosResponse, DecisaoRecursoPayload } from "./types";
 
-export function listRecursosAdmin(token: string, filters?: { editalId?: string; fase?: string; page?: number; pageSize?: number }) {
+export function listRecursosAdmin(token: string, filters?: { editalId?: string; fase?: string; status?: string; page?: number; pageSize?: number }) {
   const query = new URLSearchParams();
 
   if (filters?.editalId) {
@@ -11,6 +11,10 @@ export function listRecursosAdmin(token: string, filters?: { editalId?: string; 
 
   if (filters?.fase) {
     query.set("fase", filters.fase);
+  }
+
+  if (filters?.status) {
+    query.set("status", filters.status);
   }
 
   if (filters?.page) {

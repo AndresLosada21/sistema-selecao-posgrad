@@ -114,6 +114,7 @@ async function createContext(): Promise<Context> {
       },
       avaliacaoEtapa1: {
         create: {
+          edital: { connect: { id: edital.id } },
           tema: "Tema teste",
           textoSubmetido: "Texto submetido",
           nota: 8.5,
@@ -126,6 +127,7 @@ async function createContext(): Promise<Context> {
       },
       avaliacaoEtapa2: {
         create: {
+          edital: { connect: { id: edital.id } },
           pontuacaoItens: { titulo: 10 },
           pontuacaoBruta: 10,
           notaNormalizada: 10,
@@ -151,6 +153,7 @@ async function createContext(): Promise<Context> {
 
   const recursoB = await prisma.recurso.create({
     data: {
+      editalId: edital.id,
       participacaoEditalId: participacaoB.id,
       criadoPorId: candidatoB.id,
       fase: FaseRecurso.ETAPA_1,

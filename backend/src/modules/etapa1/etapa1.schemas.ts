@@ -1,3 +1,4 @@
+import { StatusAvaliacaoEtapa } from "@prisma/client";
 import { z } from "zod";
 
 export const inscricaoIdParamSchema = z.object({
@@ -6,6 +7,7 @@ export const inscricaoIdParamSchema = z.object({
 
 export const listEtapa1QuerySchema = z.object({
   editalId: z.string().min(1).optional(),
+  status: z.union([z.literal("SEM_AVALIACAO"), z.nativeEnum(StatusAvaliacaoEtapa)]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });

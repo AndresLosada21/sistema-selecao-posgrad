@@ -24,7 +24,6 @@ test("admin percorre isencao, homologacao e etapa 1 pela UI real", async ({ page
   await page.getByRole("button", { name: "Registrar decisao final" }).click();
   await expect(page.getByText("Decisao final registrada.")).toBeVisible({ timeout: 20_000 });
 
-  await loginAsAdminViaUi(page, request);
   await page.goto(`/admin/homologacao/${fixture.inscricaoId}`);
   const homologacaoPreliminarCard = page.locator(".admin-form-card").filter({ hasText: "Resultado preliminar da homologacao" });
   const homologacaoFinalCard = page.locator(".admin-form-card").filter({ hasText: "Resultado final da homologacao" });
@@ -38,7 +37,6 @@ test("admin percorre isencao, homologacao e etapa 1 pela UI real", async ({ page
   await homologacaoFinalCard.getByRole("button", { name: "Registrar homologacao" }).click();
   await expect(page.getByText("Resultado final salvo.")).toBeVisible({ timeout: 20_000 });
 
-  await loginAsAdminViaUi(page, request);
   await page.goto(`/admin/etapa-1/${fixture.inscricaoId}`);
   for (const criterio of ["Adequacao e dominio do tema", "Estrutura", "Organizacao textual e coerencia", "Objetividade e capacidade de sintese", "Grafia, acentuacao e gramatica"]) {
     await page.locator(".admin-eval-field", { hasText: criterio }).locator('input[type="number"]').fill("8");

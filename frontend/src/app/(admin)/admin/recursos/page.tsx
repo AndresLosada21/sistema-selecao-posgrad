@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
+import { AdminStatusFilter } from "@/components/shared/admin-status-filter";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { getStatusLabel, getStatusVariant } from "@/components/shared/status-variant-map";
@@ -15,15 +17,24 @@ import { listRecursosAdmin } from "@/modules/admin-recursos/api";
 import type { AdminRecursosResponse } from "@/modules/admin-recursos/types";
 
 const PAGE_SIZE = 20;
+const recursoStatusOptions = [
+  { value: "", label: "Todos" },
+  { value: "ABERTO", label: "Aberto" },
+  { value: "EM_ANALISE", label: "Em analise" },
+  { value: "DEFERIDO", label: "Deferido" },
+  { value: "INDEFERIDO", label: "Indeferido" },
+];
 
 export default function AdminRecursosPage() {
   const session = useSession();
+  const searchParams = useSearchParams();
   const token = session.token;
   const signOut = session.signOut;
   const [data, setData] = useState<AdminRecursosResponse | null>(null);
   const [draftEdital, setDraftEdital] = useState("");
   const [editalFilter, setEditalFilter] = useState("");
   const [faseFilter, setFaseFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState<string | null>(null);
@@ -31,7 +42,7 @@ export default function AdminRecursosPage() {
   useAbortableEffect(async (signal) => {
     if (!token) return;
     try {
-      const r = await listRecursosAdmin(token, { editalId: editalFilter || undefined, fase: faseFilter || undefined, page, pageSize: PAGE_SIZE });
+      const r = await listRecursosAdmin(token, { editalId: editalFilter || undefined, fase: faseFilter || undefined, status: statusFilter || undefined, page, pageSize: PAGE_SIZE });
       if (signal.aborted) return;
       setData(r); setStatus("ready");
     } catch (e) {
@@ -39,7 +50,7 @@ export default function AdminRecursosPage() {
       if (isUnauthorizedError(e)) { signOut(); return; }
       setMessage(getErrorMessage(e)); setStatus("error");
     }
-  }, [editalFilter, faseFilter, page, signOut, token]);
+  }, [editalFilter, faseFilter, page, signOut, statusFilter, token]);
 
   if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando a fila administrativa de recursos." />;
   if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de recursos" description={message ?? undefined} />;
@@ -66,16 +77,19 @@ export default function AdminRecursosPage() {
         <button className="admin-page-cta" onClick={() => { setEditalFilter(draftEdital.trim()); setPage(1); }} type="button">Aplicar</button>
       </div>
 
+      <AdminStatusFilter ariaLabel="Filtrar recursos por status" onChange={(value) => { setStatusFilter(value); setPage(1); }} options={recursoStatusOptions} value={statusFilter} />
+
       <div className="admin-table">
         <div className="admin-homologacao-table-wrap">
           <table className="admin-homologacao-table">
+            <caption className="sr-only">Fila administrativa de recursos</caption>
             <thead>
               <tr>
-                <th style={{ minWidth: 200 }}>Candidato</th>
-                <th style={{ minWidth: 120 }}>Edital</th>
-                <th style={{ minWidth: 140 }}>Fase</th>
-                <th style={{ minWidth: 120, textAlign: "center" }}>Status</th>
-                <th style={{ width: 80, textAlign: "center" }}>Acao</th>
+                <th scope="col" style={{ minWidth: 200 }}>Candidato</th>
+                <th scope="col" style={{ minWidth: 120 }}>Edital</th>
+                <th scope="col" style={{ minWidth: 140 }}>Fase</th>
+                <th scope="col" style={{ minWidth: 120, textAlign: "center" }}>Status</th>
+                <th scope="col" style={{ width: 80, textAlign: "center" }}>Acao</th>
               </tr>
             </thead>
             <tbody>

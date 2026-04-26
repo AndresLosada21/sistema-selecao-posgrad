@@ -60,24 +60,24 @@ export function createLinhaPesquisaAdmin(editalId: string, payload: AdminLinhaPe
   return apiPost<Record<string, unknown>>(`/v1/admin/editais/${editalId}/linhas`, payload, token);
 }
 
-export function updateLinhaPesquisaAdmin(linhaPesquisaId: string, payload: AdminLinhaPesquisaPayload, token: string) {
-  return apiPut<Record<string, unknown>>(`/v1/admin/linhas/${linhaPesquisaId}`, payload, token);
+export function updateLinhaPesquisaAdmin(editalId: string, linhaPesquisaId: string, payload: AdminLinhaPesquisaPayload, token: string) {
+  return apiPut<Record<string, unknown>>(`/v1/admin/editais/${editalId}/linhas/${linhaPesquisaId}`, payload, token);
 }
 
-export function deleteLinhaPesquisaAdmin(linhaPesquisaId: string, token: string) {
-  return apiDelete<void>(`/v1/admin/linhas/${linhaPesquisaId}`, token);
+export function deleteLinhaPesquisaAdmin(editalId: string, linhaPesquisaId: string, token: string) {
+  return apiDelete<void>(`/v1/admin/editais/${editalId}/linhas/${linhaPesquisaId}`, token);
 }
 
 export function createCronogramaAdmin(editalId: string, payload: AdminCronogramaPayload, token: string) {
   return apiPost<Record<string, unknown>>(`/v1/admin/editais/${editalId}/cronogramas`, payload, token);
 }
 
-export function updateCronogramaAdmin(cronogramaId: string, payload: AdminCronogramaPayload, token: string) {
-  return apiPut<Record<string, unknown>>(`/v1/admin/cronogramas/${cronogramaId}`, payload, token);
+export function updateCronogramaAdmin(editalId: string, cronogramaId: string, payload: AdminCronogramaPayload, token: string) {
+  return apiPut<Record<string, unknown>>(`/v1/admin/editais/${editalId}/cronogramas/${cronogramaId}`, payload, token);
 }
 
-export function deleteCronogramaAdmin(cronogramaId: string, token: string) {
-  return apiDelete<void>(`/v1/admin/cronogramas/${cronogramaId}`, token);
+export function deleteCronogramaAdmin(editalId: string, cronogramaId: string, token: string) {
+  return apiDelete<void>(`/v1/admin/editais/${editalId}/cronogramas/${cronogramaId}`, token);
 }
 
 export function createTemaRedacaoAdmin(editalId: string, payload: AdminTemaRedacaoPayload, token: string) {

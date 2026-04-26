@@ -23,9 +23,9 @@ import {
   updateTemaRedacao,
 } from "./edital.service.js";
 import {
-  cronogramaParamsSchema,
+  editalCronogramaParamsSchema,
+  editalLinhaPesquisaParamsSchema,
   editalParamsSchema,
-  linhaPesquisaParamsSchema,
   listEditaisQuerySchema,
   temaRedacaoParamsSchema,
   upsertCronogramaSchema,
@@ -177,8 +177,8 @@ editalRouter.post("/v1/admin/editais/:editalId/linhas", requireAuth, requireRole
   }
 });
 
-editalRouter.put("/v1/admin/linhas/:linhaPesquisaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
-  const parsedParams = linhaPesquisaParamsSchema.safeParse(request.params);
+editalRouter.put("/v1/admin/editais/:editalId/linhas/:linhaPesquisaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalLinhaPesquisaParamsSchema.safeParse(request.params);
   const parsedBody = upsertLinhaPesquisaSchema.safeParse(request.body);
 
   if (!parsedParams.success) {
@@ -190,7 +190,7 @@ editalRouter.put("/v1/admin/linhas/:linhaPesquisaId", requireAuth, requireRole(R
   }
 
   try {
-    const linha = await updateLinhaPesquisa(parsedParams.data.linhaPesquisaId, parsedBody.data);
+    const linha = await updateLinhaPesquisa(parsedParams.data.editalId, parsedParams.data.linhaPesquisaId, parsedBody.data);
     return response.status(200).json(linha);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Nao foi possivel atualizar a linha de pesquisa.";
@@ -198,15 +198,15 @@ editalRouter.put("/v1/admin/linhas/:linhaPesquisaId", requireAuth, requireRole(R
   }
 });
 
-editalRouter.delete("/v1/admin/linhas/:linhaPesquisaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
-  const parsedParams = linhaPesquisaParamsSchema.safeParse(request.params);
+editalRouter.delete("/v1/admin/editais/:editalId/linhas/:linhaPesquisaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalLinhaPesquisaParamsSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
     return response.status(400).json(validationError("Identificador da linha de pesquisa invalido.", parsedParams.error.flatten()));
   }
 
   try {
-    await deleteLinhaPesquisa(parsedParams.data.linhaPesquisaId);
+    await deleteLinhaPesquisa(parsedParams.data.editalId, parsedParams.data.linhaPesquisaId);
     return response.status(204).send();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Nao foi possivel excluir a linha de pesquisa.";
@@ -234,8 +234,8 @@ editalRouter.post("/v1/admin/editais/:editalId/cronogramas", requireAuth, requir
   }
 });
 
-editalRouter.put("/v1/admin/cronogramas/:cronogramaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
-  const parsedParams = cronogramaParamsSchema.safeParse(request.params);
+editalRouter.put("/v1/admin/editais/:editalId/cronogramas/:cronogramaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalCronogramaParamsSchema.safeParse(request.params);
   const parsedBody = upsertCronogramaSchema.safeParse(request.body);
 
   if (!parsedParams.success) {
@@ -247,7 +247,7 @@ editalRouter.put("/v1/admin/cronogramas/:cronogramaId", requireAuth, requireRole
   }
 
   try {
-    const cronograma = await updateCronograma(parsedParams.data.cronogramaId, parsedBody.data);
+    const cronograma = await updateCronograma(parsedParams.data.editalId, parsedParams.data.cronogramaId, parsedBody.data);
     return response.status(200).json(cronograma);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Nao foi possivel atualizar o cronograma.";
@@ -255,15 +255,15 @@ editalRouter.put("/v1/admin/cronogramas/:cronogramaId", requireAuth, requireRole
   }
 });
 
-editalRouter.delete("/v1/admin/cronogramas/:cronogramaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
-  const parsedParams = cronogramaParamsSchema.safeParse(request.params);
+editalRouter.delete("/v1/admin/editais/:editalId/cronogramas/:cronogramaId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalCronogramaParamsSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
     return response.status(400).json(validationError("Identificador do cronograma invalido.", parsedParams.error.flatten()));
   }
 
   try {
-    await deleteCronograma(parsedParams.data.cronogramaId);
+    await deleteCronograma(parsedParams.data.editalId, parsedParams.data.cronogramaId);
     return response.status(204).send();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Nao foi possivel excluir o cronograma.";

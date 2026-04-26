@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+import { AdminBreadcrumb } from "@/components/shared/admin-breadcrumb";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -119,7 +120,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
     setFieldErrors({}); setFieldErrorScope("linha");
     await wrap(async () => {
       const p = { nome: linhaForm.nome, descricao: linhaForm.descricao || undefined, vagasAmplaConcorrencia: Number(linhaForm.vagasAmplaConcorrencia), vagasAcoesAfirmativas: Number(linhaForm.vagasAcoesAfirmativas), vagasPcd: Number(linhaForm.vagasPcd) };
-      if (editingLinhaId) await updateLinhaPesquisaAdmin(editingLinhaId, p, token);
+      if (editingLinhaId) await updateLinhaPesquisaAdmin(editalId, editingLinhaId, p, token);
       else await createLinhaPesquisaAdmin(editalId, p, token);
       setEditingLinhaId(null); setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" }); setShowLinhaForm(false);
       setFeedback({ type: "success", text: editingLinhaId ? "Linha atualizada." : "Linha criada." });
@@ -132,7 +133,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
     await wrap(async () => {
       const inicioDate = new Date(cronogramaForm.inicioEm); const fimDate = new Date(cronogramaForm.fimEm);
       const p = { tipo: cronogramaForm.tipo, titulo: cronogramaForm.titulo, descricao: cronogramaForm.descricao || undefined, inicioEm: inicioDate.toISOString(), fimEm: fimDate.toISOString() };
-      if (editingCronogramaId) await updateCronogramaAdmin(editingCronogramaId, p, token);
+      if (editingCronogramaId) await updateCronogramaAdmin(editalId, editingCronogramaId, p, token);
       else await createCronogramaAdmin(editalId, p, token);
       setEditingCronogramaId(null); setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" }); setShowCronogramaForm(false);
       setFeedback({ type: "success", text: editingCronogramaId ? "Fase atualizada." : "Fase criada." });
@@ -172,6 +173,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
   if (status === "loading") return <LoadingState title="Carregando edital" description="Consultando detalhe do edital." />;
   if (status === "error") return <ErrorState title="Falha ao carregar edital" description={feedback?.text} />;
   if (!data) return <EmptyState title="Edital indisponivel" description="Edital nao encontrado." />;
+  if (!editalId || !token) return <LoadingState title="Carregando sessao" description="Validando acesso administrativo." />;
 
   const cursoLabel = data.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
 
@@ -192,6 +194,8 @@ export default function AdminEditalDetailPage({ params }: Props) {
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Edital atualizado" : feedback.type === "warning" ? "Atencao no edital" : "Nao foi possivel salvar o edital"} type={feedback.type} />}
+
+      <AdminBreadcrumb items={[{ label: "Editais", href: "/admin/editais" }, { label: data.numero }]} />
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -243,7 +247,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
             <button className="admin-line-edit" onClick={() => handleEditLinha(l.id)} title="Editar" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
             </button>
-            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteLinhaPesquisaAdmin(l.id, token!); setFeedback({ type: "success", text: "Linha removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteLinhaPesquisaAdmin(editalId, l.id, token!); setFeedback({ type: "success", text: "Linha removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
           </div>
@@ -285,7 +289,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
             <button className="admin-line-edit" onClick={() => handleEditCronograma(c.id)} title="Editar" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
             </button>
-            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteCronogramaAdmin(c.id, token!); setFeedback({ type: "success", text: "Fase removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteCronogramaAdmin(editalId, c.id, token!); setFeedback({ type: "success", text: "Fase removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
           </div>

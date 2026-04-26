@@ -3,7 +3,6 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { buildUniqueCandidate } from "./candidate";
 
 const backendBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:4000";
-const tokenStorageKey = "selecao-posgrad-token";
 
 export const documentoTiposObrigatorios = [
   "ANEXO_IV",
@@ -27,23 +26,29 @@ export function createPngBuffer() {
   return Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0fcAAAAASUVORK5CYII=", "base64");
 }
 
+async function csrfHeader(request: APIRequestContext): Promise<Record<string, string>> {
+  const state = await request.storageState();
+  const csrfCookie = state.cookies.find((cookie) => cookie.name === "XSRF-TOKEN");
+  return csrfCookie ? { "X-CSRF-Token": csrfCookie.value } : {};
+}
+
 async function postJson(request: APIRequestContext, path: string, data: unknown, token?: string) {
   return request.post(`${backendBaseUrl}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(await csrfHeader(request)) },
     data,
   });
 }
 
 async function putJson(request: APIRequestContext, path: string, data: unknown, token: string) {
   return request.put(`${backendBaseUrl}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...(await csrfHeader(request)) },
     data,
   });
 }
 
 async function uploadPdfApi(request: APIRequestContext, token: string, name: string, text: string) {
   const response = await request.post(`${backendBaseUrl}/v1/uploads`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...(await csrfHeader(request)) },
     multipart: {
       file: {
         name,
@@ -89,23 +94,43 @@ export async function loginAsAdmin(request: APIRequestContext) {
   return body.token as string;
 }
 
-export async function loginAsAdminViaUi(page: Page, request: APIRequestContext) {
-  const token = await loginAsAdmin(request);
-  await page.goto("/");
-  await page.evaluate(([storageKey, value]) => {
-    window.localStorage.setItem(storageKey, value);
-  }, [tokenStorageKey, token]);
+export async function loginAsAdminViaUi(page: Page, _request: APIRequestContext) {
+  await page.goto("/admin");
+  if (await page.getByRole("heading", { name: "Painel Administrativo" }).isVisible({ timeout: 5_000 }).catch(() => false)) {
+    return;
+  }
+
+  await page.goto("/entrar?next=/admin");
+  await page.getByLabel("E-mail").fill("admin@ppgee.ufam.edu.br");
+  await page.getByLabel("Senha").fill("Admin1234");
+  await page.getByRole("button", { name: "Entrar" }).click();
   await waitForAuthenticatedSession(page);
-  await expect.poll(async () => {
-    await page.goto("/admin");
-    return page.url();
-  }, { timeout: 20_000 }).toMatch(/\/admin(\/|$)/);
+  await expect(page).toHaveURL((url) => url.pathname === "/admin", { timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Painel Administrativo" })).toBeVisible({ timeout: 20_000 });
+  await page.reload();
+  await expect(page).toHaveURL((url) => url.pathname === "/admin", { timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Painel Administrativo" })).toBeVisible({ timeout: 20_000 });
 }
 
 export async function waitForAuthenticatedSession(page: Page) {
   await expect.poll(async () => {
-    return page.evaluate((storageKey) => window.localStorage.getItem(storageKey), tokenStorageKey);
-  }, { timeout: 20_000 }).not.toBeNull();
+    const pathname = new URL(page.url()).pathname;
+    return pathname === "/entrar" || pathname === "/criar-conta" ? "pending" : "authenticated";
+  }, { timeout: 20_000 }).toBe("authenticated");
+}
+
+export async function loginCandidateViaUi(page: Page, email: string, senha: string) {
+  await page.goto("/entrar");
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha").fill(senha);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await waitForAuthenticatedSession(page);
+}
+
+export async function signOutViaPublicHeader(page: Page) {
+  await page.goto("/editais");
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page.getByLabel("Navegacao principal").getByRole("link", { name: "Entrar" })).toBeVisible({ timeout: 20_000 });
 }
 
 export async function createOperationalEdital(request: APIRequestContext, options?: {
@@ -332,27 +357,24 @@ export async function homologarFinalApi(request: APIRequestContext, adminToken: 
 }
 
 export async function registrarEtapa1Api(request: APIRequestContext, adminToken: string, inscricaoId: string, input?: { publicacao?: "PRELIMINAR" | "FINAL"; liberarEspelho?: boolean }) {
-  const response = await request.put(`${backendBaseUrl}/v1/admin/etapa-1/inscricoes/${inscricaoId}/resultado`, {
-    headers: { Authorization: `Bearer ${adminToken}` },
-    data: {
-      tema: "Controle e automacao aplicada a sistemas energeticos",
-      rubrica: {
-        adequacaoDominioTema: 8,
-        estrutura: 8,
-        organizacaoCoerencia: 8,
-        objetividadeSintese: 8,
-        grafiaGramatica: 8,
-        observacoes: {
-          geral: "Texto avaliado na etapa 1.",
-        },
+  const response = await putJson(request, `/v1/admin/etapa-1/inscricoes/${inscricaoId}/resultado`, {
+    tema: "Controle e automacao aplicada a sistemas energeticos",
+    rubrica: {
+      adequacaoDominioTema: 8,
+      estrutura: 8,
+      organizacaoCoerencia: 8,
+      objetividadeSintese: 8,
+      grafiaGramatica: 8,
+      observacoes: {
+        geral: "Texto avaliado na etapa 1.",
       },
-      usoIaComprovado: false,
-      espelhoCorrecao: "Espelho estruturado da etapa 1.",
-      liberarEspelho: input?.liberarEspelho ?? false,
-      publicacao: input?.publicacao ?? "PRELIMINAR",
     },
-  });
-  expect(response.ok()).toBeTruthy();
+    usoIaComprovado: false,
+    espelhoCorrecao: "Espelho estruturado da etapa 1.",
+    liberarEspelho: input?.liberarEspelho ?? false,
+    publicacao: input?.publicacao ?? "PRELIMINAR",
+  }, adminToken);
+  expect(response.ok(), await response.text()).toBeTruthy();
 }
 
 export async function liberarEspelhoEtapa1Api(request: APIRequestContext, adminToken: string, inscricaoId: string) {
@@ -361,19 +383,16 @@ export async function liberarEspelhoEtapa1Api(request: APIRequestContext, adminT
 }
 
 export async function registrarEtapa2Api(request: APIRequestContext, adminToken: string, inscricaoId: string, input?: { liberarEspelho?: boolean }) {
-  const response = await request.put(`${backendBaseUrl}/v1/admin/etapa-2/inscricoes/${inscricaoId}/resultado`, {
-    headers: { Authorization: `Bearer ${adminToken}` },
-    data: {
-      pontuacaoItens: { producao: 10, orientacao: 5 },
-      pontuacaoBruta: 15,
-      maiorPontuacaoBruta: 20,
-      glosas: [{ item: "orientacao", descricao: "Glosa tecnica de exemplo.", pontosGlosados: 1 }],
-      espelhoCorrecao: "Espelho estruturado da etapa 2.",
-      liberarEspelho: input?.liberarEspelho ?? false,
-      publicacao: "PRELIMINAR",
-    },
-  });
-  expect(response.ok()).toBeTruthy();
+  const response = await putJson(request, `/v1/admin/etapa-2/inscricoes/${inscricaoId}/resultado`, {
+    pontuacaoItens: { titulo: 10, artigo_periodico: 5 },
+    pontuacaoBruta: 15,
+    maiorPontuacaoBruta: 20,
+    glosas: [{ item: "titulo", descricao: "Glosa tecnica de exemplo.", pontosGlosados: 1 }],
+    espelhoCorrecao: "Espelho estruturado da etapa 2.",
+    liberarEspelho: input?.liberarEspelho ?? false,
+    publicacao: "PRELIMINAR",
+  }, adminToken);
+  expect(response.ok(), await response.text()).toBeTruthy();
 }
 
 export async function liberarEspelhoEtapa2Api(request: APIRequestContext, adminToken: string, inscricaoId: string) {

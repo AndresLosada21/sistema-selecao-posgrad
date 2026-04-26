@@ -226,6 +226,22 @@ model Usuario {
   publicacoesCriadas PublicacaoOficial[]  @relation("PublicacaoCriadaPor")
   escoposAvaliacao   AvaliadorEscopo[]
   auditoriasCriadas  AuditoriaEvento[]    @relation("AuditoriaCriadaPor")
+  sessoesRefresh      SessaoRefresh[]
+}
+
+model SessaoRefresh {
+  id           String    @id @default(cuid())
+  usuarioId    String
+  tokenHash    String    @unique
+  emitidoEm    DateTime  @default(now())
+  expiraEm     DateTime
+  invalidadoEm DateTime?
+  userAgent    String?
+  ip           String?
+  usuario      Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, expiraEm])
+  @@index([invalidadoEm, expiraEm])
 }
 
 model UsuarioPerfil {
@@ -288,6 +304,10 @@ model Edital {
   escoposAvaliacao      AvaliadorEscopo[]
   participacoes         ParticipacaoEdital[]
   publicacoesOficiais   PublicacaoOficial[]
+  avaliacoesEtapa1      AvaliacaoEtapa1[]
+  avaliacoesEtapa2      AvaliacaoEtapa2[]
+  recursos              Recurso[]
+  classificacoesFinais  ClassificacaoFinal[]
 
   @@unique([numero, ano, cursoNivel])
 }
@@ -356,6 +376,7 @@ model ParticipacaoEdital {
 
   @@unique([usuarioId, editalId])
   @@index([editalId, status])
+  @@index([usuarioId])
 }
 
 model PedidoIsencao {
@@ -458,6 +479,7 @@ model HomologacaoInscricao {
 
 model AvaliacaoEtapa1 {
   id                    String               @id @default(cuid())
+  editalId              String
   inscricaoId           String               @unique
   tema                  String?
   textoSubmetido        String?
@@ -473,11 +495,15 @@ model AvaliacaoEtapa1 {
   resultadoFinalEm      DateTime?
   criadoEm              DateTime             @default(now())
   atualizadoEm          DateTime             @updatedAt
+  edital                Edital               @relation(fields: [editalId], references: [id], onDelete: Cascade)
   inscricao             Inscricao            @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+
+  @@index([editalId, status])
 }
 
 model AvaliacaoEtapa2 {
   id                    String               @id @default(cuid())
+  editalId              String
   inscricaoId           String               @unique
   pontuacaoItens        Json?
   pontuacaoBruta        Decimal?             @db.Decimal(7, 2)
@@ -492,11 +518,15 @@ model AvaliacaoEtapa2 {
   resultadoFinalEm      DateTime?
   criadoEm              DateTime             @default(now())
   atualizadoEm          DateTime             @updatedAt
+  edital                Edital               @relation(fields: [editalId], references: [id], onDelete: Cascade)
   inscricao             Inscricao            @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+
+  @@index([editalId, status])
 }
 
 model Recurso {
   id                     String         @id @default(cuid())
+  editalId               String
   participacaoEditalId   String
   criadoPorId            String
   fase                   FaseRecurso
@@ -510,14 +540,18 @@ model Recurso {
   respondidoEm           DateTime?
   criadoEm               DateTime       @default(now())
   atualizadoEm           DateTime       @updatedAt
+  edital                 Edital         @relation(fields: [editalId], references: [id], onDelete: Cascade)
   participacaoEdital     ParticipacaoEdital @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
   criadoPor              Usuario        @relation("RecursoCriadoPor", fields: [criadoPorId], references: [id], onDelete: Restrict)
 
   @@index([participacaoEditalId, fase, tipoPoliticasAfirmativasReferencia, status])
+  @@index([editalId, fase, status])
+  @@index([editalId, status])
 }
 
 model ClassificacaoFinal {
   id                    String                  @id @default(cuid())
+  editalId              String
   participacaoEditalId  String                  @unique
   linhaPesquisaId       String?
   modalidadeConcorrencia ModalidadeConcorrencia @default(AMPLA_CONCORRENCIA)
@@ -531,8 +565,12 @@ model ClassificacaoFinal {
   publicadoFinalEm      DateTime?
   criadoEm              DateTime                @default(now())
   atualizadoEm          DateTime                @updatedAt
+  edital                Edital                  @relation(fields: [editalId], references: [id], onDelete: Cascade)
   participacaoEdital    ParticipacaoEdital      @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
   linhaPesquisa         LinhaPesquisa?          @relation(fields: [linhaPesquisaId], references: [id], onDelete: SetNull)
+
+  @@index([editalId, status])
+  @@index([status, modalidadeConcorrencia])
 }
 
 model PublicacaoOficial {

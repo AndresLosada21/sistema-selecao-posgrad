@@ -204,6 +204,7 @@ export async function createRecurso(input: {
 
   const recurso = await prisma.recurso.create({
     data: {
+      editalId: input.editalId,
       participacaoEditalId: participacao.id,
       criadoPorId: input.usuarioId,
       fase: input.fase,
@@ -331,9 +332,10 @@ function mapAdminRecurso(recurso: RecursoAdminWithRelations) {
   };
 }
 
-export async function listRecursosAdmin(filters: { editalId?: string; fase?: FaseRecurso; page: number; pageSize: number }) {
+export async function listRecursosAdmin(filters: { editalId?: string; fase?: FaseRecurso; status?: StatusRecurso; page: number; pageSize: number }) {
   const where = {
     fase: filters.fase,
+    status: filters.status,
     ...(filters.editalId
       ? {
           participacaoEdital: {
