@@ -150,7 +150,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field">
               <label className="wiz-field-label">Parecer *</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} placeholder="Explique de forma objetiva a decisao preliminar." value={preliminar.parecer} onChange={(e) => { setPreliminar((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer preliminar" placeholder="Explique de forma objetiva a decisao preliminar." value={preliminar.parecer} onChange={(e) => { setPreliminar((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
                 style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
@@ -178,7 +178,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field">
               <label className="wiz-field-label">Parecer *</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} placeholder="Explique de forma objetiva a decisao final." value={finalDecision.parecer} onChange={(e) => { setFinalDecision((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer final" placeholder="Explique de forma objetiva a decisao final." value={finalDecision.parecer} onChange={(e) => { setFinalDecision((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
                 style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>

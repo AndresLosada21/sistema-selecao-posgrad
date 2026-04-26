@@ -39,9 +39,11 @@ test("candidato registra recurso real pela UI apos resultado preliminar", async 
     mimeType: "application/pdf",
     buffer: createPdfBuffer("Anexo de recurso"),
   });
-  await page.getByRole("button", { name: "Registrar recurso" }).click();
+  await expect(page.getByText("anexo-recurso.pdf")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "Enviar recurso" })).toBeEnabled({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Enviar recurso" }).click();
 
-  await expect(page.getByText("Recurso registrado e lista atualizada.")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText("Fase: Homologacao")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Baixar anexo" })).toBeVisible();
+  await expect(page.getByText("Recurso — Homologacao")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Apresento recurso administrativo contra o resultado preliminar da homologacao.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Baixar anexo enviado" })).toBeVisible();
 });

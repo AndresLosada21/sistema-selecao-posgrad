@@ -346,7 +346,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field" style={{ flex: 2 }}>
               <label className="wiz-field-label">Parecer</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimParecer} onChange={(e) => { setPrelimParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisao preliminar." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer preliminar" disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimParecer} onChange={(e) => { setPrelimParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisao preliminar." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrorScope === "prelim" && fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>
@@ -400,7 +400,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field" style={{ flex: 2 }}>
               <label className="wiz-field-label">Parecer</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalParecer} onChange={(e) => { setFinalParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisao final." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer final" disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalParecer} onChange={(e) => { setFinalParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisao final." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrorScope === "final" && fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>

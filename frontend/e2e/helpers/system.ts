@@ -41,6 +41,43 @@ async function putJson(request: APIRequestContext, path: string, data: unknown, 
   });
 }
 
+async function uploadPdfApi(request: APIRequestContext, token: string, name: string, text: string) {
+  const response = await request.post(`${backendBaseUrl}/v1/uploads`, {
+    headers: { Authorization: `Bearer ${token}` },
+    multipart: {
+      file: {
+        name,
+        mimeType: "application/pdf",
+        buffer: createPdfBuffer(text),
+      },
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  return await response.json() as { urlArquivo: string; nomeArquivo: string; mimeType: string; tamanhoBytes: number };
+}
+
+function expandCronogramaWindows(windows: Array<{ tipo: string; titulo: string; descricao?: string }>) {
+  const existingTipos = new Set(windows.map((window) => window.tipo));
+  const expanded = [...windows];
+
+  const dependencies: Array<{ tipo: string; dependsOn: string; titulo: string }> = [
+    { tipo: "RECURSO_HOMOLOGACAO", dependsOn: "HOMOLOGACAO_PRELIMINAR", titulo: "Homologacao preliminar" },
+    { tipo: "RECURSO_ETAPA_1", dependsOn: "ETAPA_1", titulo: "Etapa 1" },
+    { tipo: "RECURSO_ETAPA_2", dependsOn: "ETAPA_2", titulo: "Etapa 2" },
+    { tipo: "RECURSO_CLASSIFICACAO", dependsOn: "CLASSIFICACAO_PRELIMINAR", titulo: "Classificacao preliminar" },
+  ];
+
+  for (const dependency of dependencies) {
+    if (existingTipos.has(dependency.tipo) && !existingTipos.has(dependency.dependsOn)) {
+      expanded.push({ tipo: dependency.dependsOn, titulo: dependency.titulo });
+      existingTipos.add(dependency.dependsOn);
+    }
+  }
+
+  return expanded;
+}
+
 export async function loginAsAdmin(request: APIRequestContext) {
   const response = await postJson(request, "/v1/auth/login", {
     email: "admin@ppgee.ufam.edu.br",
@@ -83,13 +120,12 @@ export async function createOperationalEdital(request: APIRequestContext, option
   const editalResponse = await postJson(request, "/v1/admin/editais", {
     numero: `UI-${suffix}`,
     titulo: `Edital UI ${suffix}`,
-    descricao: "Edital tecnico para fluxos E2E reais.",
-    ano: 2026,
-    semestre: 1,
-    cursoNivel,
-    status: "PUBLICADO",
-    publicadoEm: new Date().toISOString(),
-  }, adminToken);
+      descricao: "Edital tecnico para fluxos E2E reais.",
+      ano: 2026,
+      semestre: 1,
+      cursoNivel,
+      status: "RASCUNHO",
+    }, adminToken);
 
   expect(editalResponse.ok()).toBeTruthy();
   const edital = await editalResponse.json();
@@ -112,15 +148,29 @@ export async function createOperationalEdital(request: APIRequestContext, option
   expect(linhaResponse.ok()).toBeTruthy();
   const linha = await linhaResponse.json();
 
-  for (const cronograma of options?.windows ?? []) {
+  for (const cronograma of expandCronogramaWindows(options?.windows ?? [])) {
+    const isBaseForResource = ["HOMOLOGACAO_PRELIMINAR", "ETAPA_1", "ETAPA_2", "CLASSIFICACAO_PRELIMINAR"].includes(cronograma.tipo);
     const cronogramaResponse = await postJson(request, `/v1/admin/editais/${edital.id}/cronogramas`, {
       ...cronograma,
       descricao: cronograma.descricao ?? `Janela tecnica para ${cronograma.titulo}`,
-      inicioEm: isoDateWithOffset(-1),
-      fimEm: isoDateWithOffset(1),
+      inicioEm: isoDateWithOffset(isBaseForResource ? -4 : -1),
+      fimEm: isoDateWithOffset(isBaseForResource ? -3 : 1),
     }, adminToken);
     expect(cronogramaResponse.ok()).toBeTruthy();
   }
+
+  const publishResponse = await putJson(request, `/v1/admin/editais/${edital.id}`, {
+    numero: edital.numero,
+    titulo: edital.titulo,
+    descricao: edital.descricao,
+    ano: edital.ano,
+    semestre: edital.semestre,
+    cursoNivel,
+    status: "PUBLICADO",
+    publicadoEm: new Date().toISOString(),
+  }, adminToken);
+
+  expect(publishResponse.ok()).toBeTruthy();
 
   return {
     adminToken,
@@ -149,12 +199,13 @@ export async function participateInEdital(request: APIRequestContext, editalId: 
 }
 
 export async function createIsencaoApi(request: APIRequestContext, input: { editalId: string; cursoNivel: "MESTRADO" | "DOUTORADO"; token: string }) {
+  const upload = await uploadPdfApi(request, input.token, "isencao.pdf", "Comprovante de isencao");
   const response = await postJson(request, `/v1/editais/${input.editalId}/isencao`, {
     cursoNivel: input.cursoNivel,
     inscritoCadUnico: false,
     justificativa: "Solicito isencao por indisponibilidade financeira devidamente comprovada.",
-    comprovanteUrl: "https://arquivos.teste/isencao.pdf",
-    comprovanteNomeArquivo: "isencao.pdf",
+    comprovanteUrl: upload.urlArquivo,
+    comprovanteNomeArquivo: upload.nomeArquivo,
   }, input.token);
   expect(response.ok()).toBeTruthy();
   const body = await response.json();
@@ -214,12 +265,14 @@ export async function createSubmittedInscricaoApi(request: APIRequestContext, in
   const inscricaoId = draft.id as string;
 
   for (const tipo of documentoTiposObrigatorios) {
+    const upload = await uploadPdfApi(request, input.token, `${tipo.toLowerCase()}.pdf`, `Documento ${tipo}`);
     const documentoResponse = await postJson(request, `/v1/inscricoes/${inscricaoId}/documentos`, {
       tipo,
       nome: `Documento ${tipo}`,
-      urlArquivo: `https://arquivos.teste/${tipo.toLowerCase()}.pdf`,
-      nomeArquivo: `${tipo.toLowerCase()}.pdf`,
-      mimeType: "application/pdf",
+      urlArquivo: upload.urlArquivo,
+      nomeArquivo: upload.nomeArquivo,
+      mimeType: upload.mimeType,
+      tamanhoBytes: upload.tamanhoBytes,
     }, input.token);
     expect(documentoResponse.ok()).toBeTruthy();
   }
