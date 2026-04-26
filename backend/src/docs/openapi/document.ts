@@ -1189,6 +1189,7 @@ registry.registerPath({
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Recurso nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Recurso ja decidido ou conflito de estado.", content: jsonContent(MessageResponseSchema) },
   },
 });
 

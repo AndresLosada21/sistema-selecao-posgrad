@@ -537,6 +537,23 @@ export async function decidirRecurso(
   let recalcularEtapa2DoEdital = false;
 
   const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.recurso.updateMany({
+      where: {
+        id: recursoId,
+        status: { in: [StatusRecurso.ABERTO, StatusRecurso.EM_ANALISE] },
+      },
+      data: {
+        status: input.deferido ? StatusRecurso.DEFERIDO : StatusRecurso.INDEFERIDO,
+        decisao: input.decisao,
+        impactoResultado: input.impactoResultado,
+        respondidoEm: new Date(),
+      },
+    });
+
+    if (claimed.count !== 1) {
+      return null;
+    }
+
     if (input.deferido && input.impactoResultado) {
       switch (recursoAtual.fase) {
         case FaseRecurso.ISENCAO:
@@ -684,16 +701,14 @@ export async function decidirRecurso(
       }
     }
 
-    return tx.recurso.update({
+    return tx.recurso.findUniqueOrThrow({
       where: { id: recursoId },
-      data: {
-        status: input.deferido ? StatusRecurso.DEFERIDO : StatusRecurso.INDEFERIDO,
-        decisao: input.decisao,
-        impactoResultado: input.impactoResultado,
-        respondidoEm: new Date(),
-      },
     });
   });
+
+  if (!updated) {
+    return { error: "RECURSO_JA_DECIDIDO" as const };
+  }
 
   // Republicacoes e reprocessamento de classificacao rodam fora da transacao
   // porque envolvem geracao de PDFs e snapshots que nao devem bloquear o commit principal.
