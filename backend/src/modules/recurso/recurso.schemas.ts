@@ -1,4 +1,4 @@
-import { FaseRecurso, ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao, TipoEtapaPoliticasAfirmativas } from "@prisma/client";
+import { FaseRecurso, ResultadoPoliticasAfirmativas, StatusInscricao, StatusIsencao, StatusRecurso, TipoEtapaPoliticasAfirmativas } from "@prisma/client";
 import { z } from "zod";
 import { pdfFileUrlSchema } from "../../lib/file-url.schemas.js";
 
@@ -17,6 +17,7 @@ export const recursoIdParamSchema = z.object({
 export const listRecursosAdminQuerySchema = z.object({
   editalId: z.string().min(1).optional(),
   fase: z.nativeEnum(FaseRecurso).optional(),
+  status: z.nativeEnum(StatusRecurso).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });

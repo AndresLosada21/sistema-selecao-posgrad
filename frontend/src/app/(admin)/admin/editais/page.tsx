@@ -177,26 +177,35 @@ export default function AdminEditaisPage() {
       {/* Table */}
       {data?.items.length ? (
         <div className="admin-table">
-          <div className="admin-table-head">
-            <span className="admin-table-cell" style={{ width: 120 }}>Numero</span>
-            <span className="admin-table-cell admin-table-cell--grow">Titulo</span>
-            <span className="admin-table-cell" style={{ width: 200 }}>Curso/Nivel</span>
-            <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>Status</span>
-            <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>Acoes</span>
+          <div className="admin-homologacao-table-wrap">
+            <table className="admin-homologacao-table" style={{ minWidth: 820 }}>
+              <caption className="sr-only">Lista administrativa de editais</caption>
+              <thead>
+                <tr>
+                  <th scope="col" style={{ width: 120 }}>Numero</th>
+                  <th scope="col">Titulo</th>
+                  <th scope="col" style={{ minWidth: 200 }}>Curso/Nivel</th>
+                  <th scope="col" style={{ width: 120, textAlign: "center" }}>Status</th>
+                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="admin-homologacao-table-primary">{item.numero}</td>
+                    <td className="admin-homologacao-table-muted">{item.titulo}</td>
+                    <td className="admin-homologacao-table-muted">{getStatusLabel(item.cursoNivel)}</td>
+                    <td className="admin-homologacao-table-center">
+                      <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
+                    </td>
+                    <td className="admin-homologacao-table-center">
+                      <Link aria-label={`Editar edital ${item.numero}`} href={`/admin/editais/${item.id}`} title="Editar">{iconPencil}</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          {data.items.map((item) => (
-            <div key={item.id} className="admin-table-row">
-              <span className="admin-table-cell admin-table-cell--bold" style={{ width: 120 }}>{item.numero}</span>
-              <span className="admin-table-cell admin-table-cell--grow admin-table-cell--muted">{item.titulo}</span>
-              <span className="admin-table-cell admin-table-cell--muted" style={{ width: 200 }}>{getStatusLabel(item.cursoNivel)}</span>
-              <span className="admin-table-cell admin-table-cell--center" style={{ width: 120 }}>
-                <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
-              </span>
-              <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>
-                <Link href={`/admin/editais/${item.id}`} title="Editar">{iconPencil}</Link>
-              </span>
-            </div>
-          ))}
           <div className="admin-pagination">
             <span>Mostrando {((page - 1) * 20) + 1}-{Math.min(page * 20, data.total)} de {data.total} editais</span>
             <div className="admin-pagination-controls">

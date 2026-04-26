@@ -68,6 +68,7 @@ homologacaoRouter.get("/v1/admin/inscricoes", requireAuth, requireRole(Role.ADMI
 
   const result = await listInscricoesParaHomologacao({
     editalId: parsedQuery.data.editalId as string | undefined,
+    status: parsedQuery.data.status,
     page: parsedQuery.data.page,
     pageSize: parsedQuery.data.pageSize,
   });

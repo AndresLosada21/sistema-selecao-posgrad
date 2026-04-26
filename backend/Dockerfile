@@ -16,10 +16,13 @@ RUN npm run prisma:generate && npm run build
 FROM node:22-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
+RUN addgroup -S app && adduser -S app -G app
 COPY package*.json ./
 RUN npm install --omit=dev
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build --chown=app:app /app/dist ./dist
+COPY --from=build --chown=app:app /app/prisma ./prisma
+COPY --from=build --chown=app:app /app/node_modules/.prisma ./node_modules/.prisma
+RUN mkdir -p /app/storage/uploads && chown -R app:app /app
 EXPOSE 4000
+USER app
 CMD ["sh", "-c", "npm run prisma:deploy && node dist/server.js"]

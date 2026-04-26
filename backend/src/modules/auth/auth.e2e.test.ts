@@ -19,6 +19,26 @@ function createToken(userId: string, email: string, expiresIn: SignOptions["expi
   return jwt.sign({ email }, process.env.JWT_SECRET!, { subject: userId, expiresIn });
 }
 
+function getSetCookies(response: request.Response) {
+  const rawSetCookie = response.headers["set-cookie"];
+  assert.ok(rawSetCookie, "Resposta deveria definir cookies de autenticacao.");
+  return Array.isArray(rawSetCookie) ? rawSetCookie : [rawSetCookie];
+}
+
+function getCookiePair(response: request.Response, name: string) {
+  const cookie = getSetCookies(response).find((item) => item.startsWith(`${name}=`));
+  assert.ok(cookie, `Cookie ${name} deveria existir.`);
+  return cookie.split(";")[0];
+}
+
+function getCookieValue(response: request.Response, name: string) {
+  return getCookiePair(response, name).slice(name.length + 1);
+}
+
+function getCookieHeader(response: request.Response) {
+  return getSetCookies(response).map((cookie) => cookie.split(";")[0]).join("; ");
+}
+
 async function createUser(input: {
   suffix: string;
   role: Role;
@@ -85,6 +105,70 @@ test("register, login e me funcionam para conta ativa", async () => {
     if (userId) {
       await cleanupUsers([userId]);
     }
+  }
+});
+
+test("login emite refresh HttpOnly e refresh rotaciona sessao com CSRF", async () => {
+  const suffix = `auth-refresh-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const user = await createUser({ suffix, role: Role.CANDIDATO });
+
+  try {
+    const loginResponse = await request(app)
+      .post("/v1/auth/login")
+      .send({ email: user.email, senha: "Senha123456" });
+
+    assert.equal(loginResponse.status, 200);
+    assert.equal(loginResponse.body.user.id, user.id);
+    assert.ok(loginResponse.body.token);
+
+    const setCookies = getSetCookies(loginResponse);
+    assert.ok(setCookies.some((cookie) => cookie.startsWith("ppgee_refresh=") && cookie.includes("HttpOnly")));
+    assert.ok(setCookies.some((cookie) => cookie.startsWith("XSRF-TOKEN=") && !cookie.includes("HttpOnly")));
+
+    const initialRefreshToken = getCookieValue(loginResponse, "ppgee_refresh");
+    const initialCsrfToken = getCookieValue(loginResponse, "XSRF-TOKEN");
+    const csrfBlockedResponse = await request(app)
+      .post("/v1/auth/refresh")
+      .set("Cookie", getCookieHeader(loginResponse));
+
+    assert.equal(csrfBlockedResponse.status, 403);
+    assert.equal(csrfBlockedResponse.body.code, "CSRF_TOKEN_INVALID");
+
+    const refreshResponse = await request(app)
+      .post("/v1/auth/refresh")
+      .set("Cookie", getCookieHeader(loginResponse))
+      .set("X-CSRF-Token", initialCsrfToken);
+
+    assert.equal(refreshResponse.status, 200);
+    assert.equal(refreshResponse.body.user.id, user.id);
+    assert.ok(refreshResponse.body.token);
+    assert.notEqual(getCookieValue(refreshResponse, "ppgee_refresh"), initialRefreshToken);
+
+    const reusedRefreshResponse = await request(app)
+      .post("/v1/auth/refresh")
+      .set("Cookie", getCookieHeader(loginResponse))
+      .set("X-CSRF-Token", initialCsrfToken);
+
+    assert.equal(reusedRefreshResponse.status, 401);
+    assert.equal(reusedRefreshResponse.body.code, "REFRESH_TOKEN_INVALID");
+
+    const rotatedCsrfToken = getCookieValue(refreshResponse, "XSRF-TOKEN");
+    const logoutResponse = await request(app)
+      .post("/v1/auth/logout")
+      .set("Cookie", getCookieHeader(refreshResponse))
+      .set("X-CSRF-Token", rotatedCsrfToken);
+
+    assert.equal(logoutResponse.status, 204);
+
+    const loggedOutRefreshResponse = await request(app)
+      .post("/v1/auth/refresh")
+      .set("Cookie", getCookieHeader(refreshResponse))
+      .set("X-CSRF-Token", rotatedCsrfToken);
+
+    assert.equal(loggedOutRefreshResponse.status, 401);
+    assert.equal(loggedOutRefreshResponse.body.code, "REFRESH_TOKEN_INVALID");
+  } finally {
+    await cleanupUsers([user.id]);
   }
 });
 

@@ -145,8 +145,8 @@ function mapEtapa1Inscricao(inscricao: Prisma.InscricaoGetPayload<{
   };
 }
 
-export async function listInscricoesParaEtapa1(input: { editalId?: string; page: number; pageSize: number; avaliadorUserId?: string }) {
-  const baseWhere = {
+export async function listInscricoesParaEtapa1(input: { editalId?: string; status?: StatusAvaliacaoEtapa | "SEM_AVALIACAO"; page: number; pageSize: number; avaliadorUserId?: string }) {
+  const baseWhere: Prisma.InscricaoWhereInput = {
     status: {
       in: [StatusInscricao.HOMOLOGADA_FINAL, StatusInscricao.APTA_ETAPA_1, StatusInscricao.APTA_ETAPA_2, StatusInscricao.ELIMINADA_ETAPA_1],
     },
@@ -157,6 +157,11 @@ export async function listInscricoesParaEtapa1(input: { editalId?: string; page:
           },
         }
       : {}),
+    ...(input.status === "SEM_AVALIACAO"
+      ? { avaliacaoEtapa1: null }
+      : input.status
+        ? { avaliacaoEtapa1: { is: { status: input.status } } }
+        : {}),
   };
 
   const where = input.avaliadorUserId ? await buildInscricaoWhereForAvaliador(baseWhere, input.avaliadorUserId) : baseWhere;
@@ -316,10 +321,9 @@ export async function registrarResultadoEtapa1(
       ? new Date()
       : null;
 
-  const avaliacao = await prisma.$transaction(async (tx) => {
-    const result = await tx.avaliacaoEtapa1.upsert({
-      where: { inscricaoId },
-      update: {
+  try {
+    const avaliacao = await prisma.$transaction(async (tx) => {
+      const updateData = {
         tema: input.tema,
         textoSubmetido: inscricao.redacaoTexto,
         nota: notaFinal,
@@ -332,37 +336,62 @@ export async function registrarResultadoEtapa1(
         status: statusAvaliacao,
         resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
         resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : null,
-      },
-      create: {
+      };
+
+      const createData = {
+        editalId: inscricao.participacaoEdital.editalId,
         inscricaoId,
-        tema: input.tema,
-        textoSubmetido: inscricao.redacaoTexto,
-        nota: notaFinal,
-        rubricaDetalhada: rubricaDetalhada as Prisma.InputJsonValue,
-        usoIaComprovado: input.usoIaComprovado,
-        fundamentoUsoIa: input.fundamentoUsoIa,
-        espelhoCorrecao: input.espelhoCorrecao,
-        espelhoSolicitadoEm,
-        espelhoLiberadoEm,
-        status: statusAvaliacao,
-        resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
+        ...updateData,
         resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
-      },
+      };
+
+      const result = input.publicacao === "PRELIMINAR" && !inscricao.avaliacaoEtapa1
+        ? await (async () => {
+            const insert = await tx.avaliacaoEtapa1.createMany({
+              data: createData,
+              skipDuplicates: true,
+            });
+
+            if (insert.count === 0) {
+              return null;
+            }
+
+            return tx.avaliacaoEtapa1.findUniqueOrThrow({ where: { inscricaoId } });
+          })()
+        : await tx.avaliacaoEtapa1.upsert({
+            where: { inscricaoId },
+            update: updateData,
+            create: createData,
+          });
+
+      if (!result) {
+        return null;
+      }
+
+      await tx.inscricao.update({
+        where: { id: inscricaoId },
+        data: {
+          status: input.publicacao === "FINAL"
+            ? (notaFinal >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1)
+            : StatusInscricao.APTA_ETAPA_1,
+        },
+      });
+
+      return result;
     });
 
-    await tx.inscricao.update({
-      where: { id: inscricaoId },
-      data: {
-        status: input.publicacao === "FINAL"
-          ? (notaFinal >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1)
-          : StatusInscricao.APTA_ETAPA_1,
-      },
-    });
+    if (!avaliacao) {
+      return { error: "ETAPA_1_PRELIMINAR_BLOQUEADA" as const };
+    }
 
-    return result;
-  });
+    return { avaliacao };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: "ETAPA_1_PRELIMINAR_BLOQUEADA" as const };
+    }
 
-  return { avaliacao };
+    throw error;
+  }
 }
 
 export async function getEspelhoEtapa1ForCandidate(inscricaoId: string, usuarioId: string) {

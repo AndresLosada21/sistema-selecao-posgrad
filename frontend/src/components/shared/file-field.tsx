@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 type FileFieldProps = {
   label: string;
@@ -19,6 +19,11 @@ export function FileField({
   disabled = false,
   onFileSelect,
 }: FileFieldProps) {
+  const generatedId = useId();
+  const inputId = `file-${generatedId}`;
+  const hintId = hint ? `${inputId}-hint` : undefined;
+  const errorId = error ? `${inputId}-error` : undefined;
+  const describedBy = [errorId, hintId].filter(Boolean).join(" ") || undefined;
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -59,10 +64,14 @@ export function FileField({
 
   return (
     <div className="file-field">
-      <span className="form-field-label">{label}</span>
+      <label className="form-field-label" htmlFor={inputId}>{label}</label>
       <button
         type="button"
         className={`file-field-dropzone ${dragOver ? "file-field-dropzone--active" : ""} ${disabled ? "file-field-dropzone--disabled" : ""} ${error ? "file-field-dropzone--error" : ""}`}
+        aria-controls={inputId}
+        aria-describedby={describedBy}
+        aria-invalid={Boolean(error) || undefined}
+        aria-label={`${label}. Arraste o arquivo ou clique para selecionar.`}
         onClick={handleClick}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -80,17 +89,18 @@ export function FileField({
         </span>
       </button>
       {error ? (
-        <span className="form-field-error">{error}</span>
+        <span className="form-field-error" id={errorId}>{error}</span>
       ) : hint ? (
-        <span className="form-field-hint">{hint}</span>
+        <span className="form-field-hint" id={hintId}>{hint}</span>
       ) : null}
       <input
+        id={inputId}
         ref={inputRef}
         type="file"
         accept={accept}
         onChange={handleChange}
         disabled={disabled}
-        style={{ display: "none" }}
+        className="sr-only"
       />
     </div>
   );

@@ -284,19 +284,20 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
       <div className="admin-table">
         <div className="admin-homologacao-table-wrap">
           <table className="admin-homologacao-table" style={{ minWidth: 1100 }}>
+            <caption className="sr-only">Classificacao administrativa por candidato</caption>
             <thead>
               <tr>
-                <th style={{ width: 40, textAlign: "center" }}>#</th>
-                <th style={{ minWidth: 180 }}>Candidato</th>
-                <th style={{ minWidth: 140 }}>Linha</th>
-                <th style={{ width: 60, textAlign: "center" }}>E1</th>
-                <th style={{ width: 60, textAlign: "center" }}>E2</th>
-                <th style={{ width: 60, textAlign: "center" }}>NF</th>
-                <th style={{ minWidth: 120 }}>Modalidade</th>
-                <th style={{ width: 60, textAlign: "center" }}>P. Linha</th>
-                <th style={{ width: 80, textAlign: "center" }}>Conf. AA</th>
-                <th style={{ width: 80, textAlign: "center" }}>Conf. PCD</th>
-                <th style={{ width: 120, textAlign: "center" }}>Situacao</th>
+                <th scope="col" style={{ width: 40, textAlign: "center" }}>#</th>
+                <th scope="col" style={{ minWidth: 180 }}>Candidato</th>
+                <th scope="col" style={{ minWidth: 140 }}>Linha</th>
+                <th scope="col" style={{ width: 60, textAlign: "center" }}>E1</th>
+                <th scope="col" style={{ width: 60, textAlign: "center" }}>E2</th>
+                <th scope="col" style={{ width: 60, textAlign: "center" }}>NF</th>
+                <th scope="col" style={{ minWidth: 120 }}>Modalidade</th>
+                <th scope="col" style={{ width: 60, textAlign: "center" }}>P. Linha</th>
+                <th scope="col" style={{ width: 80, textAlign: "center" }}>Conf. AA</th>
+                <th scope="col" style={{ width: 80, textAlign: "center" }}>Conf. PCD</th>
+                <th scope="col" style={{ width: 120, textAlign: "center" }}>Situacao</th>
               </tr>
             </thead>
             <tbody>

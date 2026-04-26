@@ -1,4 +1,7 @@
+import { StatusAvaliacaoEtapa } from "@prisma/client";
 import { z } from "zod";
+
+import { anexoIiItemIds, isAnexoIiItemId } from "./anexo-ii-items.js";
 
 export const inscricaoIdParamSchema = z.object({
   inscricaoId: z.string().min(1),
@@ -6,22 +9,31 @@ export const inscricaoIdParamSchema = z.object({
 
 export const listEtapa2QuerySchema = z.object({
   editalId: z.string().min(1).optional(),
+  status: z.union([z.literal("SEM_AVALIACAO"), z.nativeEnum(StatusAvaliacaoEtapa)]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export const glosaEtapa2Schema = z.object({
-  item: z.string().trim().min(1),
+  item: z.enum(anexoIiItemIds),
   descricao: z.string().trim().min(3),
   pontosGlosados: z.number().min(0),
 });
 
-export const resultadoEtapa2Schema = z.object({
-  pontuacaoItens: z.record(z.number().min(0)),
-  pontuacaoBruta: z.number().min(0),
-  maiorPontuacaoBruta: z.number().positive(),
-  glosas: z.array(glosaEtapa2Schema).max(50).default([]),
-  espelhoCorrecao: z.string().trim().min(5),
-  liberarEspelho: z.boolean().default(false),
-  publicacao: z.enum(["PRELIMINAR", "FINAL"]),
-});
+export const resultadoEtapa2Schema = z
+  .object({
+    pontuacaoItens: z.record(z.number().min(0)),
+    pontuacaoBruta: z.number().min(0),
+    maiorPontuacaoBruta: z.number().positive(),
+    glosas: z.array(glosaEtapa2Schema).max(50).default([]),
+    espelhoCorrecao: z.string().trim().min(5),
+    liberarEspelho: z.boolean().default(false),
+    publicacao: z.enum(["PRELIMINAR", "FINAL"]),
+  })
+  .superRefine((value, ctx) => {
+    for (const itemId of Object.keys(value.pontuacaoItens)) {
+      if (!isAnexoIiItemId(itemId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pontuacaoItens", itemId], message: "Item do Anexo II invalido." });
+      }
+    }
+  });

@@ -6,6 +6,9 @@
     "frontend",
     "backend"
   ],
+  "overrides": {
+    "prisma": "6.19.3"
+  },
   "scripts": {
     "dev": "npm run dev:frontend",
     "dev:frontend": "npm run dev -w frontend",

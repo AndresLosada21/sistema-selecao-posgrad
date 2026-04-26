@@ -5,6 +5,7 @@ import { conflict, notFound, requestValidationError, validationError } from "../
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireAnyRole } from "../../middleware/role.middleware.js";
 import { avaliadorPodeAcessarInscricao } from "../avaliacao/avaliador-scope.service.js";
+import { anexoIiItems } from "./anexo-ii-items.js";
 
 import {
   inscricaoIdParamSchema,
@@ -22,6 +23,10 @@ import {
 } from "./etapa2.service.js";
 
 export const etapa2Router = Router();
+
+etapa2Router.get("/v1/admin/etapa-2/anexo-ii-itens", requireAuth, requireAnyRole([Role.ADMIN, Role.AVALIADOR]), (_request, response) => {
+  return response.status(200).json({ items: anexoIiItems, total: anexoIiItems.length });
+});
 
 function getEtapa2Message(errorCode: string) {
   switch (errorCode) {
@@ -52,6 +57,7 @@ etapa2Router.get("/v1/admin/etapa-2/inscricoes", requireAuth, requireAnyRole([Ro
 
   const result = await listInscricoesParaEtapa2({
     editalId: parsedQuery.data.editalId as string | undefined,
+    status: parsedQuery.data.status,
     page: parsedQuery.data.page,
     pageSize: parsedQuery.data.pageSize,
     avaliadorUserId: request.auth!.perfis.includes(Role.ADMIN) ? undefined : request.auth!.userId,

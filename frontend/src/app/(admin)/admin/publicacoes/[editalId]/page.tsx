@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { AdminBreadcrumb } from "@/components/shared/admin-breadcrumb";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -355,11 +356,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         </PageFeedback>
       )}
 
-      <div className="admin-inline-breadcrumb">
-        <Link href="/admin/publicacoes">Publicacoes</Link>
-        <span>/</span>
-        <span>{editalLabel || editalId || "Edital"}</span>
-      </div>
+      <AdminBreadcrumb items={[{ label: "Publicacoes", href: "/admin/publicacoes" }, { label: editalLabel || editalId || "Edital" }]} />
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -538,10 +535,11 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                 return (
                   <div style={{ maxHeight: 400, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 6 }}>
                     <table className="admin-homologacao-table" style={{ minWidth: 600 }}>
+                      <caption className="sr-only">Itens do preview da publicacao</caption>
                       <thead>
                         <tr>
                           {cols.map((col) => (
-                            <th key={col.key} style={{ fontSize: 11 }}>{col.label}</th>
+                            <th key={col.key} scope="col" style={{ fontSize: 11 }}>{col.label}</th>
                           ))}
                         </tr>
                       </thead>
@@ -682,14 +680,15 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         {pagedHistoryItems.length ? (
           <div className="admin-homologacao-table-wrap">
             <table className="admin-homologacao-table">
+              <caption className="sr-only">Historico administrativo de publicacoes oficiais</caption>
               <thead>
                 <tr>
-                  <th style={{ minWidth: 260 }}>Publicacao</th>
-                  <th style={{ minWidth: 140 }}>Tipo</th>
-                  <th style={{ minWidth: 120 }}>Origem</th>
-                  <th style={{ width: 120, textAlign: "center" }}>Versao</th>
-                  <th style={{ minWidth: 140 }}>Data</th>
-                  <th style={{ width: 90, textAlign: "center" }}>PDF</th>
+                  <th scope="col" style={{ minWidth: 260 }}>Publicacao</th>
+                  <th scope="col" style={{ minWidth: 140 }}>Tipo</th>
+                  <th scope="col" style={{ minWidth: 120 }}>Origem</th>
+                  <th scope="col" style={{ width: 120, textAlign: "center" }}>Versao</th>
+                  <th scope="col" style={{ minWidth: 140 }}>Data</th>
+                  <th scope="col" style={{ width: 90, textAlign: "center" }}>PDF</th>
                 </tr>
               </thead>
               <tbody>

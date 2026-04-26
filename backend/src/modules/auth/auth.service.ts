@@ -1,13 +1,21 @@
 import { Role, StatusConta } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { env } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
 import { sendOperationalNotificationSafely } from "../operacao/notification.service.js";
 
 import type { AuthenticatedUser, ParticipacaoResumo } from "./auth.types.js";
+
+type RefreshSessionContext = {
+  userAgent?: string | null;
+  ip?: string | null;
+};
+
+const accessTokenExpiresIn = "15m";
+const refreshTokenTtlMs = 30 * 24 * 60 * 60 * 1000;
 
 function sanitizeUser(user: {
   id: string;
@@ -34,8 +42,47 @@ function sanitizeUser(user: {
 function createAccessToken(user: { id: string; email: string }) {
   return jwt.sign({ email: user.email }, env.JWT_SECRET, {
     subject: user.id,
-    expiresIn: "7d",
+    expiresIn: accessTokenExpiresIn,
   });
+}
+
+function createRefreshToken() {
+  return randomBytes(48).toString("base64url");
+}
+
+function hashRefreshToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function getRefreshExpiration() {
+  return new Date(Date.now() + refreshTokenTtlMs);
+}
+
+async function createRefreshSession(usuarioId: string, context: RefreshSessionContext = {}) {
+  const refreshToken = createRefreshToken();
+  const expiraEm = getRefreshExpiration();
+
+  await prisma.sessaoRefresh.create({
+    data: {
+      usuarioId,
+      tokenHash: hashRefreshToken(refreshToken),
+      expiraEm,
+      userAgent: context.userAgent ?? null,
+      ip: context.ip ?? null,
+    },
+  });
+
+  return { refreshToken, refreshTokenExpiraEm: expiraEm };
+}
+
+async function buildAuthResult(user: Parameters<typeof sanitizeUser>[0], context?: RefreshSessionContext) {
+  const refreshSession = await createRefreshSession(user.id, context);
+
+  return {
+    user: sanitizeUser(user),
+    token: createAccessToken(user),
+    ...refreshSession,
+  };
 }
 
 export async function registerCandidate(input: {
@@ -44,7 +91,7 @@ export async function registerCandidate(input: {
   senha: string;
   telefone?: string;
   cpf?: string;
-}) {
+}, context?: RefreshSessionContext) {
   const existingUser = await prisma.usuario.findFirst({
     where: {
       OR: [
@@ -79,13 +126,10 @@ export async function registerCandidate(input: {
     },
   });
 
-  return {
-    user: sanitizeUser(user),
-    token: createAccessToken(user),
-  };
+  return buildAuthResult(user, context);
 }
 
-export async function login(input: { email: string; senha: string }) {
+export async function login(input: { email: string; senha: string }, context?: RefreshSessionContext) {
   const user = await prisma.usuario.findUnique({
     where: { email: input.email },
     include: {
@@ -107,10 +151,67 @@ export async function login(input: { email: string; senha: string }) {
     return { error: "INVALID_CREDENTIALS" as const };
   }
 
+  return buildAuthResult(user, context);
+}
+
+export async function refreshAuthSession(refreshToken: string, context?: RefreshSessionContext) {
+  const tokenHash = hashRefreshToken(refreshToken);
+  const currentSession = await prisma.sessaoRefresh.findUnique({
+    where: { tokenHash },
+    include: {
+      usuario: {
+        include: {
+          perfis: true,
+        },
+      },
+    },
+  });
+
+  if (!currentSession || currentSession.invalidadoEm || currentSession.expiraEm <= new Date()) {
+    return { error: "REFRESH_TOKEN_INVALID" as const };
+  }
+
+  if (currentSession.usuario.statusConta === StatusConta.BLOQUEADA) {
+    return { error: "ACCOUNT_BLOCKED" as const };
+  }
+
+  const nextRefreshToken = createRefreshToken();
+  const nextRefreshExpiration = getRefreshExpiration();
+
+  await prisma.$transaction([
+    prisma.sessaoRefresh.update({
+      where: { id: currentSession.id },
+      data: { invalidadoEm: new Date() },
+    }),
+    prisma.sessaoRefresh.create({
+      data: {
+        usuarioId: currentSession.usuarioId,
+        tokenHash: hashRefreshToken(nextRefreshToken),
+        expiraEm: nextRefreshExpiration,
+        userAgent: context?.userAgent ?? null,
+        ip: context?.ip ?? null,
+      },
+    }),
+  ]);
+
   return {
-    user: sanitizeUser(user),
-    token: createAccessToken(user),
+    user: sanitizeUser(currentSession.usuario),
+    token: createAccessToken(currentSession.usuario),
+    refreshToken: nextRefreshToken,
+    refreshTokenExpiraEm: nextRefreshExpiration,
   };
+}
+
+export async function invalidateRefreshSession(refreshToken: string) {
+  await prisma.sessaoRefresh.updateMany({
+    where: {
+      tokenHash: hashRefreshToken(refreshToken),
+      invalidadoEm: null,
+    },
+    data: {
+      invalidadoEm: new Date(),
+    },
+  });
 }
 
 export async function getAuthenticatedUser(userId: string) {

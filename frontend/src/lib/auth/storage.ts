@@ -1,17 +1,14 @@
 export const tokenStorageKey = "selecao-posgrad-token";
+let memoryToken: string | null = null;
 
 export function readStoredToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.localStorage.getItem(tokenStorageKey);
+  return memoryToken;
 }
 
 export function writeStoredToken(token: string) {
-  window.localStorage.setItem(tokenStorageKey, token);
+  memoryToken = token;
 }
 
 export function clearStoredToken() {
-  window.localStorage.removeItem(tokenStorageKey);
+  memoryToken = null;
 }

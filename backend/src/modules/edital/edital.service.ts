@@ -378,10 +378,10 @@ export async function createLinhaPesquisa(editalId: string, input: UpsertLinhaPe
   });
 }
 
-export async function updateLinhaPesquisa(linhaPesquisaId: string, input: UpsertLinhaPesquisaInput) {
+export async function updateLinhaPesquisa(editalId: string, linhaPesquisaId: string, input: UpsertLinhaPesquisaInput) {
   const linha = await prisma.linhaPesquisa.findUnique({ where: { id: linhaPesquisaId } });
 
-  if (!linha) {
+  if (!linha || linha.editalId !== editalId) {
     throw notFound("Linha de pesquisa nao encontrada.", "LINHA_PESQUISA_NAO_ENCONTRADA");
   }
 
@@ -399,13 +399,13 @@ export async function updateLinhaPesquisa(linhaPesquisaId: string, input: Upsert
   });
 }
 
-export async function deleteLinhaPesquisa(linhaPesquisaId: string) {
+export async function deleteLinhaPesquisa(editalId: string, linhaPesquisaId: string) {
   const linha = await prisma.linhaPesquisa.findUnique({
     where: { id: linhaPesquisaId },
     include: { inscricoes: true, classificacoesFinais: true },
   });
 
-  if (!linha) {
+  if (!linha || linha.editalId !== editalId) {
     throw notFound("Linha de pesquisa nao encontrada.", "LINHA_PESQUISA_NAO_ENCONTRADA");
   }
 
@@ -434,10 +434,10 @@ export async function createCronograma(editalId: string, input: UpsertCronograma
   });
 }
 
-export async function updateCronograma(cronogramaId: string, input: UpsertCronogramaInput) {
+export async function updateCronograma(editalId: string, cronogramaId: string, input: UpsertCronogramaInput) {
   const cronograma = await prisma.cronogramaEdital.findUnique({ where: { id: cronogramaId } });
 
-  if (!cronograma) {
+  if (!cronograma || cronograma.editalId !== editalId) {
     throw notFound("Cronograma nao encontrado.", "CRONOGRAMA_NAO_ENCONTRADO");
   }
 
@@ -457,10 +457,10 @@ export async function updateCronograma(cronogramaId: string, input: UpsertCronog
   });
 }
 
-export async function deleteCronograma(cronogramaId: string) {
+export async function deleteCronograma(editalId: string, cronogramaId: string) {
   const cronograma = await prisma.cronogramaEdital.findUnique({ where: { id: cronogramaId } });
 
-  if (!cronograma) {
+  if (!cronograma || cronograma.editalId !== editalId) {
     throw notFound("Cronograma nao encontrado.", "CRONOGRAMA_NAO_ENCONTRADO");
   }
 

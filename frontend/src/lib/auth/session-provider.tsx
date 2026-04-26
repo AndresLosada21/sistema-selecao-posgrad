@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-import { getAuthenticatedUser } from "@/modules/auth/api";
+import { configureAuthRefresh } from "@/lib/http/client";
+import { getAuthenticatedUser, logout, refreshSession } from "@/modules/auth/api";
 import type { AuthResponse, AuthUser } from "@/modules/auth/types";
 
 import { clearStoredToken, readStoredToken, writeStoredToken } from "./storage";
@@ -25,6 +26,11 @@ type SessionProviderProps = {
   children: React.ReactNode;
 };
 
+function hasCsrfCookie() {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split("; ").some((item) => item.startsWith("XSRF-TOKEN="));
+}
+
 export function SessionProvider({ children }: SessionProviderProps) {
   const [status, setStatus] = useState<SessionStatus>("loading");
   const [token, setToken] = useState<string | null>(null);
@@ -33,15 +39,32 @@ export function SessionProvider({ children }: SessionProviderProps) {
   useEffect(() => {
     const storedToken = readStoredToken();
 
-    if (!storedToken) {
+    if (storedToken) {
+      setToken(storedToken);
+      getAuthenticatedUser(storedToken)
+        .then((authenticatedUser) => {
+          setUser(authenticatedUser);
+          setStatus("authenticated");
+        })
+        .catch(() => {
+          clearStoredToken();
+          setToken(null);
+          setUser(null);
+          setStatus("anonymous");
+        });
+      return;
+    }
+
+    if (!hasCsrfCookie()) {
       setStatus("anonymous");
       return;
     }
 
-    setToken(storedToken);
-    getAuthenticatedUser(storedToken)
-      .then((authenticatedUser) => {
-        setUser(authenticatedUser);
+    refreshSession()
+      .then((response) => {
+        writeStoredToken(response.token);
+        setToken(response.token);
+        setUser(response.user);
         setStatus("authenticated");
       })
       .catch(() => {
@@ -50,6 +73,27 @@ export function SessionProvider({ children }: SessionProviderProps) {
         setUser(null);
         setStatus("anonymous");
       });
+  }, []);
+
+  useEffect(() => {
+    configureAuthRefresh(async () => {
+      try {
+        const response = await refreshSession();
+        writeStoredToken(response.token);
+        setToken(response.token);
+        setUser(response.user);
+        setStatus("authenticated");
+        return response.token;
+      } catch {
+        clearStoredToken();
+        setToken(null);
+        setUser(null);
+        setStatus("anonymous");
+        return null;
+      }
+    });
+
+    return () => configureAuthRefresh(null);
   }, []);
 
   const value = useMemo<SessionContextValue>(() => ({
@@ -65,6 +109,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
       setStatus("authenticated");
     },
     signOut: () => {
+      void logout(token).catch(() => undefined);
       clearStoredToken();
       setToken(null);
       setUser(null);

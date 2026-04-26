@@ -9,6 +9,8 @@ import swaggerUi from "swagger-ui-express";
 import { env } from "./config/env.js";
 import { openApiDocument } from "./docs/openapi/document.js";
 import { payloadTooLarge, tooManyRequests, validationError } from "./lib/http-errors.js";
+import { logger, requestLogger } from "./lib/logger.js";
+import { csrfProtection } from "./middleware/csrf.middleware.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { candidatoAreaRouter } from "./modules/candidato/candidato-area.routes.js";
 import { classificacaoRouter } from "./modules/classificacao/classificacao.routes.js";
@@ -57,13 +59,24 @@ const expensiveRouteRateLimiter = rateLimit({
 });
 
 app.disable("x-powered-by");
-// Mantemos a CSP desabilitada aqui para preservar o Swagger UI operacional em /docs.
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        imgSrc: ["'self'", "data:"],
+        styleSrc: env.ENABLE_SWAGGER_UI ? ["'self'", "'unsafe-inline'"] : ["'self'"],
+        scriptSrc: env.ENABLE_SWAGGER_UI ? ["'self'", "'unsafe-inline'"] : ["'self'"],
+        connectSrc: ["'self'", env.FRONTEND_URL],
+      },
+    },
     crossOriginEmbedderPolicy: false,
   }),
 );
+app.use(requestLogger);
 
 app.use(
   cors({
@@ -74,23 +87,26 @@ app.use(
 app.use(express.json({ limit: jsonBodyLimit }));
 app.use("/v1/auth/login", authRateLimiter);
 app.use("/v1/auth/register", authRateLimiter);
+app.use("/v1/auth/refresh", authRateLimiter);
 app.use("/v1/auth/password-reset/request", authRateLimiter);
 app.use("/v1/auth/email-verification/request", expensiveRouteRateLimiter);
 app.use("/v1/uploads", expensiveRouteRateLimiter);
 app.use(/\/v1\/publicacoes\/.*\/arquivo\.pdf$/, expensiveRouteRateLimiter);
 app.use(/\/v1\/inscricoes\/.*\/anexo-iv/, expensiveRouteRateLimiter);
 app.use(/\/v1\/admin\/inscricoes\/.*\/anexo-iv/, expensiveRouteRateLimiter);
+app.use(csrfProtection);
 
-app.get("/docs/openapi.json", (_request, response) => {
-  response.status(200).json(openApiDocument);
-});
+if (env.ENABLE_SWAGGER_UI) {
+  app.get("/docs/openapi.json", (_request, response) => {
+    response.status(200).json(openApiDocument);
+  });
 
-app.use(
-  "/docs",
-  swaggerUi.serve,
-  swaggerUi.setup(openApiDocument, {
-    customSiteTitle: "PPGEE/UFAM API Docs",
-    customCss: `
+  app.use(
+    "/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(openApiDocument, {
+      customSiteTitle: "PPGEE/UFAM API Docs",
+      customCss: `
       .swagger-ui .topbar { border-bottom: 4px solid #0f766e; }
       .swagger-ui .topbar-wrapper::after {
         content: "Use Authorize ou o campo Authorization em cada rota protegida.";
@@ -110,22 +126,23 @@ app.use(
       .swagger-ui .information-container .markdown p code,
       .swagger-ui .opblock-description-wrapper code { background: #f1f5f9; padding: 2px 4px; border-radius: 4px; }
     `,
-    explorer: true,
-    swaggerOptions: {
-      persistAuthorization: true,
-      tryItOutEnabled: true,
-      filter: true,
-      deepLinking: true,
-      displayOperationId: true,
-      displayRequestDuration: true,
-      docExpansion: "list",
-      defaultModelExpandDepth: 3,
-      defaultModelsExpandDepth: 2,
-      tagsSorter: "alpha",
-      operationsSorter: "alpha",
-    },
-  }),
-);
+      explorer: true,
+      swaggerOptions: {
+        persistAuthorization: true,
+        tryItOutEnabled: true,
+        filter: true,
+        deepLinking: true,
+        displayOperationId: true,
+        displayRequestDuration: true,
+        docExpansion: "list",
+        defaultModelExpandDepth: 3,
+        defaultModelsExpandDepth: 2,
+        tagsSorter: "alpha",
+        operationsSorter: "alpha",
+      },
+    }),
+  );
+}
 
 app.use(healthRouter);
 app.use(authRouter);
@@ -156,7 +173,7 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
     return response.status(413).json(payloadTooLarge("Arquivo excede o limite permitido de upload."));
   }
 
-  console.error("[ERROR_HANDLER]", error);
+  logger.error("unhandled_error", { requestId: _request.requestId, error });
   return response.status(500).json({
     code: "INTERNAL_SERVER_ERROR",
     message: "Erro interno do servidor.",

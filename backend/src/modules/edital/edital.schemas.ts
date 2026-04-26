@@ -38,7 +38,15 @@ export const linhaPesquisaParamsSchema = z.object({
   linhaPesquisaId: z.string().min(1),
 });
 
+export const editalLinhaPesquisaParamsSchema = editalParamsSchema.extend({
+  linhaPesquisaId: z.string().min(1),
+});
+
 export const cronogramaParamsSchema = z.object({
+  cronogramaId: z.string().min(1),
+});
+
+export const editalCronogramaParamsSchema = editalParamsSchema.extend({
   cronogramaId: z.string().min(1),
 });
 

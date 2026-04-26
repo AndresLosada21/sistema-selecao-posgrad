@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
+import { AdminBreadcrumb } from "@/components/shared/admin-breadcrumb";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -140,6 +141,8 @@ export default function AdminRecursoDetailPage({ params }: Props) {
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Recurso atualizado" : feedback.type === "warning" ? "Atencao no recurso" : "Nao foi possivel salvar a decisao"} type={feedback.type} />}
+
+      <AdminBreadcrumb items={[{ label: "Recursos", href: "/admin/recursos" }, { label: getStatusLabel(item.fase) }, { label: item.candidato.nomeCompleto }]} />
 
       <div className="admin-detail-header">
         <h1>Recurso — {getStatusLabel(item.fase)}</h1>

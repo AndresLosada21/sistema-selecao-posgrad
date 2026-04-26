@@ -67,13 +67,14 @@ export default function AdminPoliticasPage() {
         <div className="admin-table">
           <div className="admin-homologacao-table-wrap">
             <table className="admin-homologacao-table">
+              <caption className="sr-only">Fila administrativa de politicas afirmativas e PCD</caption>
               <thead>
                 <tr>
-                  <th style={{ minWidth: 200 }}>Candidato</th>
-                  <th style={{ minWidth: 180 }}>Reserva</th>
-                  <th style={{ minWidth: 160, textAlign: "center" }}>Status</th>
-                  <th style={{ minWidth: 120, textAlign: "center" }}>Resultado</th>
-                  <th style={{ width: 80, textAlign: "center" }}>Acao</th>
+                  <th scope="col" style={{ minWidth: 200 }}>Candidato</th>
+                  <th scope="col" style={{ minWidth: 180 }}>Reserva</th>
+                  <th scope="col" style={{ minWidth: 160, textAlign: "center" }}>Status</th>
+                  <th scope="col" style={{ minWidth: 120, textAlign: "center" }}>Resultado</th>
+                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Acao</th>
                 </tr>
               </thead>
               <tbody>

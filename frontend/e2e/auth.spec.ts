@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildUniqueCandidate } from "./helpers/candidate";
-import { loginAsAdminViaUi, waitForAuthenticatedSession } from "./helpers/system";
+import { loginAsAdminViaUi, signOutViaPublicHeader, waitForAuthenticatedSession } from "./helpers/system";
 
 test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   const candidate = buildUniqueCandidate();
@@ -21,7 +21,7 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   await page.goto("/candidato");
   await expect(page.getByText("Voce ainda nao entrou em nenhum edital")).toBeVisible();
   await expect(page.getByRole("link", { name: "Ver editais" })).toBeVisible();
-  await page.evaluate(() => window.localStorage.removeItem("selecao-posgrad-token"));
+  await signOutViaPublicHeader(page);
 
   await page.goto("/entrar");
   await page.getByLabel("E-mail").fill(candidate.email);

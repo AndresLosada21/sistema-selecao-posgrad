@@ -4,12 +4,34 @@ import { ApiError } from "./api-error";
 import { stripEmptyStrings } from "./sanitize";
 
 type RequestOptions = RequestInit & {
+  skipAuthRefresh?: boolean;
   token?: string | null;
 };
 
 type JsonValue = Record<string, unknown> | Array<unknown> | null;
 type ParsedBody = JsonValue | string;
 const REQUEST_TIMEOUT_MS = 15_000;
+const unsafeMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+let authRefreshHandler: (() => Promise<string | null>) | null = null;
+
+export function configureAuthRefresh(handler: (() => Promise<string | null>) | null) {
+  authRefreshHandler = handler;
+}
+
+function readCookie(name: string) {
+  if (typeof document === "undefined") return null;
+
+  const prefix = `${name}=`;
+  const cookie = document.cookie.split("; ").find((item) => item.startsWith(prefix));
+  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
+}
+
+function attachCsrfHeader(headers: Headers, method?: string) {
+  if (!method || !unsafeMethods.has(method.toUpperCase()) || headers.has("X-CSRF-Token")) return;
+
+  const token = readCookie("XSRF-TOKEN");
+  if (token) headers.set("X-CSRF-Token", token);
+}
 
 function withTimeout(signal?: AbortSignal) {
   const controller = new AbortController();
@@ -59,14 +81,32 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
+  attachCsrfHeader(headers, options.method);
+
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    let response = await fetch(`${getApiBaseUrl()}${path}`, {
       ...options,
+      credentials: "include",
       headers,
       signal: timeout.signal,
     });
 
-    const payload = await parseResponseBody(response);
+    let payload = await parseResponseBody(response);
+
+    if (!response.ok && response.status === 401 && !options.skipAuthRefresh && authRefreshHandler) {
+      const refreshedToken = await authRefreshHandler();
+
+      if (refreshedToken) {
+        headers.set("Authorization", `Bearer ${refreshedToken}`);
+        response = await fetch(`${getApiBaseUrl()}${path}`, {
+          ...options,
+          credentials: "include",
+          headers,
+          signal: timeout.signal,
+        });
+        payload = await parseResponseBody(response);
+      }
+    }
 
     if (!response.ok) {
       throw new ApiError(response.status, toErrorPayload(payload));
@@ -122,6 +162,7 @@ export async function apiDownload(path: string, token?: string | null) {
   try {
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
       method: "GET",
+      credentials: "include",
       headers,
       signal: timeout.signal,
     });
@@ -159,6 +200,8 @@ export async function apiUpload(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
+  attachCsrfHeader(headers, "POST");
+
   const formData = new FormData();
   formData.append("file", input.file);
 
@@ -169,6 +212,7 @@ export async function apiUpload(
   try {
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
       method: "POST",
+      credentials: "include",
       headers,
       body: formData,
       signal: timeout.signal,

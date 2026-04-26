@@ -14,9 +14,10 @@ export function listFundamentosHomologacao(token: string) {
   return apiGet<HomologacaoFundamentosResponse>("/v1/admin/homologacao/fundamentos", token);
 }
 
-export function listInscricoesParaHomologacao(token: string, filters?: { editalId?: string; page?: number; pageSize?: number }) {
+export function listInscricoesParaHomologacao(token: string, filters?: { editalId?: string; status?: string; page?: number; pageSize?: number }) {
   const query = new URLSearchParams();
   if (filters?.editalId) query.set("editalId", filters.editalId);
+  if (filters?.status) query.set("status", filters.status);
   if (filters?.page) query.set("page", String(filters.page));
   if (filters?.pageSize) query.set("pageSize", String(filters.pageSize));
   const suffix = query.size ? `?${query.toString()}` : "";

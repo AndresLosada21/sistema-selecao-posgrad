@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 
 import { env } from "../../config/env.js";
+import { logger } from "../../lib/logger.js";
 
 type NotificationInput = {
   to: string;
@@ -42,7 +43,7 @@ export async function sendOperationalNotificationSafely(input: NotificationInput
     return await sendOperationalNotification(input);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha desconhecida ao enviar notificacao.";
-    console.warn(`[notification] ${message}`);
+    logger.warn("notification_failed", { message });
     return {
       accepted: input.to,
       preview: undefined,

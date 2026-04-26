@@ -939,8 +939,8 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
     pagamentoDispensado,
   });
 
-  const updated = await prisma.inscricao.update({
-    where: { id: inscricao.id },
+  const updatedCount = await prisma.inscricao.updateMany({
+    where: { id: inscricao.id, status: StatusInscricao.RASCUNHO },
     data: {
       status: StatusInscricao.SUBMETIDA,
       submetidaEm: submittedAt,
@@ -952,6 +952,14 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
       versaoSubmissao,
       ...pacoteDocumentalData,
     },
+  });
+
+  if (updatedCount.count !== 1) {
+    return { error: "INSCRICAO_NAO_EDITAVEL" as const };
+  }
+
+  const updated = await prisma.inscricao.findUniqueOrThrow({
+    where: { id: inscricao.id },
   });
 
   return { inscricao: updated };

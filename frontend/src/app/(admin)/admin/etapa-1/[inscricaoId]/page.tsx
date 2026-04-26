@@ -2,6 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
+import { AdminBreadcrumb } from "@/components/shared/admin-breadcrumb";
+import { ConfirmModal } from "@/components/shared/confirm-modal";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -57,7 +59,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const [fundamentoUsoIa, setFundamentoUsoIa] = useState("");
   const [publicacao, setPublicacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
   const [usoIaComprovado, setUsoIaComprovado] = useState(false);
-  const [liberarEspelhoFlag, setLiberarEspelhoFlag] = useState(false);
+  const [confirmLiberarEspelho, setConfirmLiberarEspelho] = useState(false);
 
   const [pageStatus, setPageStatus] = useState<"loading" | "ready" | "error">("loading");
   const [feedback, setFeedback] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
@@ -98,7 +100,6 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     setUsoIaComprovado(rubricaSalva?.usoIaComprovado ?? found?.avaliacao?.usoIaComprovado ?? false);
     setFundamentoUsoIa(rubricaSalva?.fundamentoUsoIa ?? found?.avaliacao?.fundamentoUsoIa ?? "");
     setPublicacao(found?.avaliacao?.status === "FINAL_PUBLICADA" ? "FINAL" : "PRELIMINAR");
-    setLiberarEspelhoFlag(Boolean(found?.avaliacao?.espelhoLiberadoEm));
   }, [inscricaoId, token]);
 
   useAbortableEffect(async (signal) => {
@@ -154,7 +155,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         usoIaComprovado,
         fundamentoUsoIa: usoIaComprovado ? fundamentoUsoIa : undefined,
         espelhoCorrecao,
-        liberarEspelho: liberarEspelhoFlag,
+        liberarEspelho: publicacao === "FINAL",
         publicacao,
       }, token);
       await loadItem();
@@ -176,6 +177,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     try {
       await liberarEspelhoEtapa1(inscricaoId, token);
       await loadItem();
+      setConfirmLiberarEspelho(false);
       setFeedback({ type: "success", text: "Espelho da etapa 1 liberado." });
       await loadEspelho();
     } catch (error) {
@@ -200,6 +202,8 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 1 atualizada" : feedback.type === "warning" ? "Atencao na etapa 1" : "Nao foi possivel salvar a etapa 1"} type={feedback.type} />}
+
+      <AdminBreadcrumb items={[{ label: "Etapa 1", href: "/admin/etapa-1" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
       {/* Header */}
       <div className="admin-detail-header">
@@ -346,10 +350,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input checked={publicacao === "FINAL" ? true : liberarEspelhoFlag} disabled={!podeSalvarResultado || publicacao === "FINAL"} onChange={(e) => setLiberarEspelhoFlag(e.target.checked)} type="checkbox" />
-              {publicacao === "FINAL" ? "Espelho liberado automaticamente no resultado final" : "Liberar espelho junto do resultado"}
-            </label>
+            <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a acao confirmada de liberacao abaixo."}</span>
           </div>
         </div>
 
@@ -365,12 +366,13 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Distribuicao de notas por criterio de avaliacao.</p>
 
         <table className="admin-rubrica-table">
+          <caption className="sr-only">Rubrica de correcao da etapa 1</caption>
           <thead>
             <tr>
-              <th>Criterio</th>
-              <th style={{ width: 80 }}>Peso</th>
-              <th style={{ width: 80 }}>Nota</th>
-              <th style={{ width: 100 }}>Contribuicao</th>
+              <th scope="col">Criterio</th>
+              <th scope="col" style={{ width: 80 }}>Peso</th>
+              <th scope="col" style={{ width: 80 }}>Nota</th>
+              <th scope="col" style={{ width: 100 }}>Contribuicao</th>
             </tr>
           </thead>
           <tbody>
@@ -413,9 +415,13 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
               <span>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "O candidato ainda nao pode visualizar o espelho."}</span>
             </div>
           </div>
-          <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={onLiberarEspelho} type="button">
-            Liberar espelho
-          </button>
+          {espelhoLiberado ? (
+            <button className="admin-btn-disabled" disabled type="button">Ja liberado</button>
+          ) : (
+            <button className="admin-page-cta" disabled={busy || !(editState?.podeLiberarEspelho ?? true)} onClick={() => setConfirmLiberarEspelho(true)} type="button">
+              Liberar espelho
+            </button>
+          )}
         </div>
         {!(editState?.podeLiberarEspelho ?? true) && editState?.bloqueioLiberarEspelho ? (
           <PageFeedback type="warning" title="Liberacao do espelho bloqueada" description={editState.bloqueioLiberarEspelho} />
@@ -444,6 +450,16 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
           </button>
         )}
       </div>
+      <ConfirmModal
+        confirmLabel="Liberar espelho"
+        description="Esta acao torna o espelho da etapa 1 visivel ao candidato. Confirme apenas se o conteudo e o candidato estao corretos."
+        details={[`Candidato: ${item.candidato.nomeCompleto}`, `Inscricao: ${item.id}`, "Fase: Etapa 1"]}
+        disabled={busy}
+        onCancel={() => setConfirmLiberarEspelho(false)}
+        onConfirm={onLiberarEspelho}
+        open={confirmLiberarEspelho}
+        title="Confirmar liberacao de espelho"
+      />
     </div>
   );
 }

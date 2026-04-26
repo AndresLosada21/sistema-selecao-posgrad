@@ -127,6 +127,7 @@ async function createE2eContext(): Promise<E2eContext> {
 
   await prisma.classificacaoFinal.create({
     data: {
+      editalId: edital.id,
       participacaoEditalId: participacao.id,
       linhaPesquisaId: linha.id,
       modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,

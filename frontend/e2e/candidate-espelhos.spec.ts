@@ -5,11 +5,12 @@ import {
   homologarPreliminarApi,
   liberarEspelhoEtapa1Api,
   liberarEspelhoEtapa2Api,
+  loginCandidateViaUi,
   loginAsAdmin,
   registrarEtapa1Api,
   registrarEtapa2Api,
+  signOutViaPublicHeader,
   setupCandidateSubmissionFixture,
-  waitForAuthenticatedSession,
 } from "./helpers/system";
 
 test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", async ({ page, request }) => {
@@ -25,11 +26,7 @@ test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", a
   await homologarFinalApi(request, adminToken, fixture.inscricaoId);
   await registrarEtapa1Api(request, adminToken, fixture.inscricaoId, { publicacao: "PRELIMINAR", liberarEspelho: false });
 
-  await page.goto("/entrar");
-  await page.getByLabel("E-mail").fill(fixture.email);
-  await page.getByLabel("Senha").fill(fixture.senha);
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await waitForAuthenticatedSession(page);
+  await loginCandidateViaUi(page, fixture.email, fixture.senha);
 
   await page.goto(`/candidato/editais/${fixture.editalId}/espelhos`);
   await page.getByRole("button", { name: "Solicitar espelho" }).click();
@@ -52,13 +49,8 @@ test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", a
   await registrarEtapa1Api(request, adminToken, etapa2Fixture.inscricaoId, { publicacao: "FINAL", liberarEspelho: true });
   await registrarEtapa2Api(request, adminToken, etapa2Fixture.inscricaoId, { liberarEspelho: false });
 
-  await page.goto("/entrar");
-  await page.evaluate(() => window.localStorage.clear());
-  await page.goto("/entrar");
-  await page.getByLabel("E-mail").fill(etapa2Fixture.email);
-  await page.getByLabel("Senha").fill(etapa2Fixture.senha);
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await waitForAuthenticatedSession(page);
+  await signOutViaPublicHeader(page);
+  await loginCandidateViaUi(page, etapa2Fixture.email, etapa2Fixture.senha);
 
   await page.goto(`/candidato/editais/${etapa2Fixture.editalId}/espelhos`);
   await page.getByRole("button", { name: "Solicitar espelho" }).click();
@@ -69,6 +61,6 @@ test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", a
   await page.getByRole("button", { name: "Ver espelho" }).nth(1).click();
   await expect(page.getByText("Espelho estruturado da etapa 2.")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Pontuacao bruta:")).toBeVisible();
-  await expect(page.getByText("producao").first()).toBeVisible();
+  await expect(page.getByText("titulo").first()).toBeVisible();
   await expect(page.getByText("Glosas aplicadas:")).toBeVisible();
 });

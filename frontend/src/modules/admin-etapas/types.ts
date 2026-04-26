@@ -140,6 +140,16 @@ export type Etapa2ResultadoPayload = {
   publicacao: "PRELIMINAR" | "FINAL";
 };
 
+export type AnexoIiItem = {
+  id: string;
+  label: string;
+};
+
+export type AnexoIiItemsResponse = {
+  items: AnexoIiItem[];
+  total: number;
+};
+
 export type Etapa2Espelho = {
   pontuacaoItens: Record<string, number>;
   pontuacaoBruta: number | null;

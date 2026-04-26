@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { AdminBreadcrumb } from "@/components/shared/admin-breadcrumb";
 import { FileField } from "@/components/shared/file-field";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/page-states";
 import { PageFeedback } from "@/components/shared/page-feedback";
@@ -279,6 +280,8 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {feedback ? <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Politicas afirmativas atualizadas" : feedback.type === "warning" ? "Atencao na etapa" : "Nao foi possivel salvar esta etapa"} type={feedback.type} /> : null}
+
+      <AdminBreadcrumb items={[{ label: "Politicas afirmativas", href: "/admin/politicas-afirmativas" }, { label: detail.edital.numero }, { label: detail.candidato.nomeCompleto }]} />
 
       <div className="admin-detail-header">
         <h1>Politicas Afirmativas — {detail.candidato.nomeCompleto}</h1>

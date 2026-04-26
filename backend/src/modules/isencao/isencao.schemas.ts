@@ -1,4 +1,4 @@
-import { CursoNivel } from "@prisma/client";
+import { CursoNivel, StatusIsencao } from "@prisma/client";
 import { z } from "zod";
 import { pdfFileUrlSchema } from "../../lib/file-url.schemas.js";
 
@@ -11,6 +11,8 @@ export const pedidoIsencaoIdParamSchema = z.object({
 });
 
 export const listPedidosIsencaoAdminQuerySchema = z.object({
+  editalId: z.string().min(1).optional(),
+  status: z.nativeEnum(StatusIsencao).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });

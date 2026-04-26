@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "@/lib/http/client";
+import { apiGet, apiPost, apiRequest } from "@/lib/http/client";
 
 import type {
   AuthResponse,
@@ -17,6 +17,14 @@ export function login(payload: LoginPayload) {
 
 export function register(payload: RegisterPayload) {
   return apiPost<AuthResponse>("/v1/auth/register", payload);
+}
+
+export function refreshSession() {
+  return apiRequest<AuthResponse>("/v1/auth/refresh", { method: "POST", skipAuthRefresh: true });
+}
+
+export function logout(token?: string | null) {
+  return apiRequest<void>("/v1/auth/logout", { method: "POST", token, skipAuthRefresh: true });
 }
 
 export function getAuthenticatedUser(token: string) {

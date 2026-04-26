@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 
 import { ActionButton } from "@/components/shared/action-button";
 import { AdminEditalCombobox } from "@/components/shared/admin-edital-combobox";
@@ -110,33 +110,41 @@ export default function AdminUsuariosPage() {
       {/* Table */}
       {data?.items.length ? (
         <div className="admin-table">
-          <div className="admin-table-head">
-            <span className="admin-table-cell admin-table-cell--grow">Nome</span>
-            <span className="admin-table-cell" style={{ width: 240 }}>E-mail</span>
-            <span className="admin-table-cell" style={{ width: 140 }}>Perfis</span>
-            <span className="admin-table-cell admin-table-cell--center" style={{ width: 100 }}>Conta</span>
-            <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>Acoes</span>
-          </div>
-          {data.items.map((item) => {
-            const isExpanded = expandedUser === item.id;
-            const currentRoles = new Set(item.perfis);
-            return (
-              <div key={item.id}>
-                <div className="admin-table-row">
-                  <span className="admin-table-cell admin-table-cell--grow admin-table-cell--bold">{item.nomeCompleto}</span>
-                  <span className="admin-table-cell admin-table-cell--muted" style={{ width: 240 }}>{item.email}</span>
-                  <span className="admin-table-cell admin-table-cell--muted" style={{ width: 140 }}>{item.perfis.map((r) => getStatusLabel(r)).join(", ")}</span>
-                  <span className="admin-table-cell admin-table-cell--center" style={{ width: 100 }}>
-                    <StatusBadge variant={getStatusVariant(item.statusConta)}>{getStatusLabel(item.statusConta)}</StatusBadge>
-                  </span>
-                  <span className="admin-table-cell admin-table-cell--center" style={{ width: 80 }}>
-                    <button type="button" onClick={() => setExpandedUser(isExpanded ? null : item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>{iconSettings}</button>
-                  </span>
-                </div>
+          <div className="admin-homologacao-table-wrap">
+            <table className="admin-homologacao-table" style={{ minWidth: 920 }}>
+              <caption className="sr-only">Lista administrativa de usuarios</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Nome</th>
+                  <th scope="col" style={{ minWidth: 240 }}>E-mail</th>
+                  <th scope="col" style={{ minWidth: 140 }}>Perfis</th>
+                  <th scope="col" style={{ width: 100, textAlign: "center" }}>Conta</th>
+                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map((item) => {
+                  const isExpanded = expandedUser === item.id;
+                  const currentRoles = new Set(item.perfis);
+                  return (
+                    <Fragment key={item.id}>
+                      <tr>
+                        <td className="admin-homologacao-table-primary">{item.nomeCompleto}</td>
+                        <td className="admin-homologacao-table-muted">{item.email}</td>
+                        <td className="admin-homologacao-table-muted">{item.perfis.map((r) => getStatusLabel(r)).join(", ")}</td>
+                        <td className="admin-homologacao-table-center">
+                          <StatusBadge variant={getStatusVariant(item.statusConta)}>{getStatusLabel(item.statusConta)}</StatusBadge>
+                        </td>
+                        <td className="admin-homologacao-table-center">
+                          <button aria-expanded={isExpanded} aria-label={`${isExpanded ? "Ocultar" : "Abrir"} controles de ${item.nomeCompleto}`} type="button" onClick={() => setExpandedUser(isExpanded ? null : item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>{iconSettings}</button>
+                        </td>
+                      </tr>
 
-                {/* Expanded detail */}
-                {isExpanded ? (
-                  <div style={{ padding: "16px 24px", background: "#F8FAFC", borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 16 }}>
+                      {/* Expanded detail */}
+                      {isExpanded ? (
+                        <tr>
+                          <td colSpan={5} style={{ padding: 0 }}>
+                            <div style={{ padding: "16px 24px", background: "#F8FAFC", display: "flex", flexDirection: "column", gap: 16 }}>
                     {/* Status */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Status da conta:</span>
@@ -191,11 +199,16 @@ export default function AdminUsuariosPage() {
                         </div>
                       </div>
                     ) : null}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {/* Pagination */}
           <div className="admin-pagination">

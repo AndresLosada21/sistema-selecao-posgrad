@@ -238,12 +238,23 @@ function mapPedidoAdmin(pedido: PedidoIsencaoAdminWithRelations) {
   };
 }
 
-export async function listPedidosIsencaoAdmin(pagination?: { page: number; pageSize: number }) {
-  const page = pagination?.page ?? 1;
-  const pageSize = pagination?.pageSize ?? 20;
+export async function listPedidosIsencaoAdmin(filters?: { editalId?: string; status?: StatusIsencao; page: number; pageSize: number }) {
+  const page = filters?.page ?? 1;
+  const pageSize = filters?.pageSize ?? 20;
+  const where: Prisma.PedidoIsencaoWhereInput = {
+    ...(filters?.status ? { status: filters.status } : {}),
+    ...(filters?.editalId
+      ? {
+          participacaoEdital: {
+            editalId: filters.editalId,
+          },
+        }
+      : {}),
+  };
 
   const [pedidos, total] = await prisma.$transaction([
     prisma.pedidoIsencao.findMany({
+      where,
       include: {
         participacaoEdital: {
           include: {
@@ -256,7 +267,7 @@ export async function listPedidosIsencaoAdmin(pagination?: { page: number; pageS
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.pedidoIsencao.count(),
+    prisma.pedidoIsencao.count({ where }),
   ]);
 
   return {
