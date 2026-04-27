@@ -13,6 +13,14 @@ type PublicAccessCtaProps = {
 export function PublicAccessCta({ nextPath, candidateLabel = "Abrir area do candidato", authenticatedHref = "/candidato" }: PublicAccessCtaProps) {
   const session = useSession();
 
+  if (session.status === "loading") {
+    return (
+      <span className="nav-link" aria-live="polite">
+        Restaurando sessao...
+      </span>
+    );
+  }
+
   if (session.isAuthenticated) {
     return (
       <Link className="nav-link" href={authenticatedHref}>

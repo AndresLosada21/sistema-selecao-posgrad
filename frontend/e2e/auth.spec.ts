@@ -38,6 +38,30 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Ver editais" })).toBeVisible();
 });
 
+test("sessao autenticada e restaurada na area publica apos reload sem cookie CSRF legivel", async ({ page }) => {
+  const candidate = buildUniqueCandidate();
+
+  await page.goto("/criar-conta");
+  await page.getByLabel("Nome completo").fill(candidate.nomeCompleto);
+  await page.getByLabel("E-mail").fill(candidate.email);
+  await page.getByLabel("Senha").fill(candidate.senha);
+  await page.getByLabel("Telefone").fill(candidate.telefone);
+  await page.getByLabel("CPF").fill(candidate.cpf);
+  await page.getByRole("button", { name: "Criar conta" }).click();
+  await waitForAuthenticatedSession(page);
+
+  await page.goto("/editais");
+  await expect(page.getByLabel("Navegacao principal").getByRole("link", { name: "Area do candidato" })).toBeVisible();
+
+  await page.evaluate(() => {
+    document.cookie = "XSRF-TOKEN=; Max-Age=0; path=/";
+  });
+  await page.reload();
+
+  await expect(page.getByLabel("Navegacao principal").getByRole("link", { name: "Area do candidato" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByLabel("Navegacao principal").getByRole("link", { name: "Entrar" })).toHaveCount(0);
+});
+
 test("candidato autenticado consegue aderir a um edital pela UI publica", async ({ page }) => {
   const candidate = buildUniqueCandidate();
 
