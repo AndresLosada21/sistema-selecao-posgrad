@@ -2,11 +2,18 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-import { configureAuthRefresh } from "@/lib/http/client";
+import { configureAuthRefresh, configureCsrfToken } from "@/lib/http/client";
 import { getAuthenticatedUser, logout, refreshSession } from "@/modules/auth/api";
 import type { AuthResponse, AuthUser } from "@/modules/auth/types";
 
-import { clearStoredToken, readStoredToken, writeStoredToken } from "./storage";
+import {
+  clearStoredSessionHint,
+  clearStoredToken,
+  hasStoredSessionHint,
+  readStoredToken,
+  writeStoredSessionHint,
+  writeStoredToken,
+} from "./storage";
 
 type SessionStatus = "loading" | "authenticated" | "anonymous";
 
@@ -36,6 +43,24 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
 
+  function applyAuthResponse(response: AuthResponse) {
+    writeStoredToken(response.token);
+    writeStoredSessionHint();
+    configureCsrfToken(response.csrfToken);
+    setToken(response.token);
+    setUser(response.user);
+    setStatus("authenticated");
+  }
+
+  function clearSession() {
+    clearStoredToken();
+    clearStoredSessionHint();
+    configureCsrfToken(null);
+    setToken(null);
+    setUser(null);
+    setStatus("anonymous");
+  }
+
   useEffect(() => {
     const storedToken = readStoredToken();
 
@@ -43,52 +68,32 @@ export function SessionProvider({ children }: SessionProviderProps) {
       setToken(storedToken);
       getAuthenticatedUser(storedToken)
         .then((authenticatedUser) => {
+          writeStoredSessionHint();
           setUser(authenticatedUser);
           setStatus("authenticated");
         })
-        .catch(() => {
-          clearStoredToken();
-          setToken(null);
-          setUser(null);
-          setStatus("anonymous");
-        });
+        .catch(clearSession);
       return;
     }
 
-    if (!hasCsrfCookie()) {
+    if (!hasCsrfCookie() && !hasStoredSessionHint()) {
       setStatus("anonymous");
       return;
     }
 
     refreshSession()
-      .then((response) => {
-        writeStoredToken(response.token);
-        setToken(response.token);
-        setUser(response.user);
-        setStatus("authenticated");
-      })
-      .catch(() => {
-        clearStoredToken();
-        setToken(null);
-        setUser(null);
-        setStatus("anonymous");
-      });
+      .then(applyAuthResponse)
+      .catch(clearSession);
   }, []);
 
   useEffect(() => {
     configureAuthRefresh(async () => {
       try {
         const response = await refreshSession();
-        writeStoredToken(response.token);
-        setToken(response.token);
-        setUser(response.user);
-        setStatus("authenticated");
+        applyAuthResponse(response);
         return response.token;
       } catch {
-        clearStoredToken();
-        setToken(null);
-        setUser(null);
-        setStatus("anonymous");
+        clearSession();
         return null;
       }
     });
@@ -102,18 +107,10 @@ export function SessionProvider({ children }: SessionProviderProps) {
     user,
     isAuthenticated: status === "authenticated" && !!token && !!user,
     hasRole: (role) => user?.perfis.includes(role) ?? false,
-    setSessionFromAuthResponse: (response) => {
-      writeStoredToken(response.token);
-      setToken(response.token);
-      setUser(response.user);
-      setStatus("authenticated");
-    },
+    setSessionFromAuthResponse: applyAuthResponse,
     signOut: () => {
       void logout(token).catch(() => undefined);
-      clearStoredToken();
-      setToken(null);
-      setUser(null);
-      setStatus("anonymous");
+      clearSession();
     },
   }), [status, token, user]);
 

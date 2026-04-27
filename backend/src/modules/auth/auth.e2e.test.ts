@@ -85,6 +85,7 @@ test("register, login e me funcionam para conta ativa", async () => {
 
     assert.equal(registerResponse.status, 201);
     assert.equal(registerResponse.body.user.statusConta, StatusConta.ATIVA);
+    assert.ok(registerResponse.body.csrfToken);
     userId = registerResponse.body.user.id;
 
     const loginResponse = await request(app)
@@ -93,6 +94,7 @@ test("register, login e me funcionam para conta ativa", async () => {
 
     assert.equal(loginResponse.status, 200);
     assert.equal(loginResponse.body.user.id, userId);
+    assert.ok(loginResponse.body.csrfToken);
 
     const meResponse = await request(app)
       .get("/v1/auth/me")
@@ -120,6 +122,7 @@ test("login emite refresh HttpOnly e refresh rotaciona sessao com CSRF", async (
     assert.equal(loginResponse.status, 200);
     assert.equal(loginResponse.body.user.id, user.id);
     assert.ok(loginResponse.body.token);
+    assert.ok(loginResponse.body.csrfToken);
 
     const setCookies = getSetCookies(loginResponse);
     assert.ok(setCookies.some((cookie) => cookie.startsWith("ppgee_refresh=") && cookie.includes("HttpOnly")));
@@ -127,6 +130,7 @@ test("login emite refresh HttpOnly e refresh rotaciona sessao com CSRF", async (
 
     const initialRefreshToken = getCookieValue(loginResponse, "ppgee_refresh");
     const initialCsrfToken = getCookieValue(loginResponse, "XSRF-TOKEN");
+    assert.equal(loginResponse.body.csrfToken, initialCsrfToken);
     const csrfBlockedResponse = await request(app)
       .post("/v1/auth/refresh")
       .set("Cookie", getCookieHeader(loginResponse));
@@ -137,12 +141,14 @@ test("login emite refresh HttpOnly e refresh rotaciona sessao com CSRF", async (
     const refreshResponse = await request(app)
       .post("/v1/auth/refresh")
       .set("Cookie", getCookieHeader(loginResponse))
-      .set("X-CSRF-Token", initialCsrfToken);
+      .set("Origin", process.env.FRONTEND_URL!);
 
     assert.equal(refreshResponse.status, 200);
     assert.equal(refreshResponse.body.user.id, user.id);
     assert.ok(refreshResponse.body.token);
+    assert.ok(refreshResponse.body.csrfToken);
     assert.notEqual(getCookieValue(refreshResponse, "ppgee_refresh"), initialRefreshToken);
+    assert.equal(refreshResponse.body.csrfToken, getCookieValue(refreshResponse, "XSRF-TOKEN"));
 
     const reusedRefreshResponse = await request(app)
       .post("/v1/auth/refresh")

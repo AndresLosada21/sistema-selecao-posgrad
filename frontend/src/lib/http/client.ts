@@ -13,9 +13,14 @@ type ParsedBody = JsonValue | string;
 const REQUEST_TIMEOUT_MS = 15_000;
 const unsafeMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 let authRefreshHandler: (() => Promise<string | null>) | null = null;
+let csrfTokenOverride: string | null = null;
 
 export function configureAuthRefresh(handler: (() => Promise<string | null>) | null) {
   authRefreshHandler = handler;
+}
+
+export function configureCsrfToken(token: string | null) {
+  csrfTokenOverride = token;
 }
 
 function readCookie(name: string) {
@@ -26,10 +31,12 @@ function readCookie(name: string) {
   return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
 }
 
-function attachCsrfHeader(headers: Headers, method?: string) {
-  if (!method || !unsafeMethods.has(method.toUpperCase()) || headers.has("X-CSRF-Token")) return;
+function attachCsrfHeader(headers: Headers, method?: string, overwrite = false) {
+  if (!method || !unsafeMethods.has(method.toUpperCase()) || (!overwrite && headers.has("X-CSRF-Token"))) return;
 
-  const token = readCookie("XSRF-TOKEN");
+  const token = overwrite
+    ? csrfTokenOverride ?? readCookie("XSRF-TOKEN")
+    : readCookie("XSRF-TOKEN") ?? csrfTokenOverride;
   if (token) headers.set("X-CSRF-Token", token);
 }
 
@@ -98,6 +105,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
 
       if (refreshedToken) {
         headers.set("Authorization", `Bearer ${refreshedToken}`);
+        attachCsrfHeader(headers, options.method, true);
         response = await fetch(`${getApiBaseUrl()}${path}`, {
           ...options,
           credentials: "include",

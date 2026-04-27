@@ -13,9 +13,17 @@ const csrfExemptPaths = new Set([
   "/v1/auth/password-reset/confirm",
   "/v1/auth/email-verification/confirm",
 ]);
+const csrfHeaderOptionalPaths = new Set([
+  "/v1/auth/refresh",
+  "/v1/auth/logout",
+]);
 
 function isAllowedOrigin(origin: string | undefined) {
   return !origin || origin === env.FRONTEND_URL;
+}
+
+function isFrontendOrigin(origin: string | undefined) {
+  return origin === env.FRONTEND_URL;
 }
 
 export function csrfProtection(request: Request, response: Response, next: NextFunction) {
@@ -37,6 +45,11 @@ export function csrfProtection(request: Request, response: Response, next: NextF
 
   const csrfHeader = request.headers["x-csrf-token"];
   const csrfToken = Array.isArray(csrfHeader) ? csrfHeader[0] : csrfHeader;
+
+  // Em deploy cross-origin, o frontend nao consegue ler o cookie host-only da API para montar este header.
+  if (!csrfToken && csrfHeaderOptionalPaths.has(request.path) && isFrontendOrigin(request.headers.origin)) {
+    return next();
+  }
 
   if (!csrfToken || csrfToken !== csrfCookie) {
     return response.status(403).json(forbidden("Token CSRF ausente ou invalido.", "CSRF_TOKEN_INVALID"));

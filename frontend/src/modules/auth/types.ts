@@ -11,6 +11,7 @@ export type AuthUser = {
 
 export type AuthResponse = {
   token: string;
+  csrfToken: string;
   user: AuthUser;
 };
 

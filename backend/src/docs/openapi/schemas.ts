@@ -179,6 +179,7 @@ export const AuthResponseSchema = z
   .object({
     user: AuthenticatedUserSchema,
     token: z.string(),
+    csrfToken: z.string(),
   })
   .openapi("AuthResponse");
 

@@ -44,7 +44,7 @@ function getRequestContext(request: Request) {
 function getCookieOptions(expiraEm?: Date) {
   return {
     ...(expiraEm ? { expires: expiraEm } : {}),
-    sameSite: "strict" as const,
+    sameSite: env.NODE_ENV === "production" ? "none" as const : "strict" as const,
     secure: env.NODE_ENV === "production",
   };
 }
@@ -63,6 +63,8 @@ function setAuthCookies(response: Response, result: AuthRouteResult) {
     httpOnly: false,
     path: "/",
   });
+
+  return csrfToken;
 }
 
 function clearAuthCookies(response: Response) {
@@ -76,8 +78,8 @@ function getRefreshToken(request: Request) {
 }
 
 function sendAuthResponse(response: Response, status: number, result: AuthRouteResult) {
-  setAuthCookies(response, result);
-  return response.status(status).json({ user: result.user, token: result.token });
+  const csrfToken = setAuthCookies(response, result);
+  return response.status(status).json({ user: result.user, token: result.token, csrfToken });
 }
 
 authRouter.post("/v1/auth/register", async (request, response) => {

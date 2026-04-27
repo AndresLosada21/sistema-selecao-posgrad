@@ -173,7 +173,7 @@ registry.registerPath({
   tags: ["Autenticacao"],
   operationId: "refreshAuthSession",
   summary: "Renova a sessao autenticada",
-  description: "Usa o cookie HttpOnly de refresh para emitir novo access token e rotacionar a sessao. Quando houver cookie `XSRF-TOKEN`, envie o mesmo valor no header `X-CSRF-Token`.",
+  description: "Usa o cookie HttpOnly de refresh para emitir novo access token, rotacionar a sessao e devolver novo `csrfToken` para clientes web em origem separada. A origem da requisicao continua validada.",
   responses: {
     200: { description: "Sessao renovada com sucesso.", content: jsonContent(AuthResponseSchema) },
     401: { description: "Refresh token ausente, expirado ou revogado.", content: jsonContent(UnauthorizedResponseSchema) },
@@ -188,7 +188,7 @@ registry.registerPath({
   tags: ["Autenticacao"],
   operationId: "logoutAuthSession",
   summary: "Encerra a sessao de refresh",
-  description: "Revoga a sessao de refresh server-side e limpa os cookies de autenticacao. Quando houver cookie `XSRF-TOKEN`, envie o mesmo valor no header `X-CSRF-Token`.",
+  description: "Revoga a sessao de refresh server-side e limpa os cookies de autenticacao. A origem da requisicao continua validada.",
   responses: {
     204: { description: "Sessao encerrada." },
     403: { description: "CSRF ou origem invalida.", content: jsonContent(MessageResponseSchema) },

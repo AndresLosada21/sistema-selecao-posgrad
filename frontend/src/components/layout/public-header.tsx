@@ -22,7 +22,11 @@ export function PublicHeader() {
             Editais
           </Link>
 
-          {session.isAuthenticated ? (
+          {session.status === "loading" ? (
+            <span className="public-topbar-link" aria-live="polite">
+              Restaurando sessao...
+            </span>
+          ) : session.isAuthenticated ? (
             <>
               <Link href="/candidato" className="public-topbar-link">
                 Area do candidato
