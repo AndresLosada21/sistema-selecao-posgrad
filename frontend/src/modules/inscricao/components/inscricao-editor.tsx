@@ -36,6 +36,9 @@ type InscricaoEditorProps = {
   dashboardItem: CandidateDashboardResponse["items"][number] | null;
 };
 
+type DashboardInscricao = NonNullable<NonNullable<InscricaoEditorProps["dashboardItem"]>["inscricao"]>;
+type InscricaoDocumentoView = DashboardInscricao["documentos"][number];
+
 type FormMessage = { title: string; description: string; type?: "success" | "error" | "warning" | "info" };
 
 type SubmissionChecklistViewItem = {
@@ -66,6 +69,22 @@ type InscricaoEditorState = {
 const documentoTipoOptionsSemAnexoIv = documentoTipoOptions.filter((t) => t !== "ANEXO_IV");
 
 const STEP_LABELS = ["Dados Pessoais", "Dados Academicos", "Redacao", "Documentos", "Revisao"];
+
+function mergeDocumentosPreservandoAtuais(current: InscricaoDocumentoView[], incoming: InscricaoDocumentoView[]) {
+  const byTipo = new Map<string, InscricaoDocumentoView>();
+
+  for (const documento of incoming) {
+    byTipo.set(documento.tipo, documento);
+  }
+
+  for (const documento of current) {
+    if (!byTipo.has(documento.tipo)) {
+      byTipo.set(documento.tipo, documento);
+    }
+  }
+
+  return Array.from(byTipo.values());
+}
 
 function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
@@ -775,7 +794,9 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       const saved = response as Record<string, unknown>;
       setInscricaoId(typeof saved.id === "string" ? saved.id : inscricaoId);
       setInscricaoStatus(typeof saved.status === "string" ? saved.status : inscricaoStatus);
-      setDocumentos(Array.isArray(saved.documentos) ? saved.documentos : documentos);
+      if (Array.isArray(saved.documentos)) {
+        setDocumentos((current) => mergeDocumentosPreservandoAtuais(current, saved.documentos as InscricaoDocumentoView[]));
+      }
       lastSavedDraftRef.current = JSON.stringify(currentDraftPayload);
       setAutosaveState("saved");
       setAutosaveAt(new Date().toISOString());
