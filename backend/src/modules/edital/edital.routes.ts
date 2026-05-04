@@ -38,6 +38,41 @@ export const editalRouter = Router();
 
 const publicEditalStatuses: StatusEdital[] = ["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"];
 
+type HttpErrorPayload = {
+  code: string;
+  message: string;
+} & Record<string, unknown>;
+
+function isHttpErrorPayload(error: unknown): error is HttpErrorPayload {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as Partial<HttpErrorPayload>;
+  return typeof candidate.code === "string" && typeof candidate.message === "string";
+}
+
+function isNotFoundCode(code: string) {
+  return code === "NOT_FOUND" || code.includes("NAO_ENCONTRAD");
+}
+
+function buildAdminEditalError(error: unknown, fallbackMessage: string) {
+  if (isHttpErrorPayload(error)) {
+    return {
+      status: isNotFoundCode(error.code) ? 404 : 409,
+      body: error,
+    };
+  }
+
+  const message = error instanceof Error ? error.message : fallbackMessage;
+  const notFoundError = message.toLowerCase().includes("nao encontrad");
+
+  return {
+    status: notFoundError ? 404 : 409,
+    body: notFoundError ? notFound(message) : conflict(message),
+  };
+}
+
 editalRouter.get("/v1/editais", async (request, response) => {
   const parsedQuery = listEditaisQuerySchema.safeParse(request.query);
 
@@ -116,7 +151,8 @@ editalRouter.post("/v1/admin/editais", requireAuth, requireRole(Role.ADMIN), asy
     const edital = await createEdital(parsedBody.data, request.auth!.userId);
     return response.status(201).json(edital);
   } catch (error) {
-    return response.status(409).json(conflict(error instanceof Error ? error.message : "Nao foi possivel criar o edital."));
+    const result = buildAdminEditalError(error, "Nao foi possivel criar o edital.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -136,8 +172,8 @@ editalRouter.put("/v1/admin/editais/:editalId", requireAuth, requireRole(Role.AD
     const edital = await updateEdital(parsedParams.data.editalId, parsedBody.data);
     return response.status(200).json(edital);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar o edital.";
-    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel atualizar o edital.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -152,8 +188,8 @@ editalRouter.delete("/v1/admin/editais/:editalId", requireAuth, requireRole(Role
     await deleteEdital(parsedParams.data.editalId);
     return response.status(204).send();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel excluir o edital.";
-    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel excluir o edital.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -173,7 +209,8 @@ editalRouter.post("/v1/admin/editais/:editalId/linhas", requireAuth, requireRole
     const linha = await createLinhaPesquisa(parsedParams.data.editalId, parsedBody.data);
     return response.status(201).json(linha);
   } catch (error) {
-    return response.status(409).json(conflict(error instanceof Error ? error.message : "Nao foi possivel criar a linha de pesquisa."));
+    const result = buildAdminEditalError(error, "Nao foi possivel criar a linha de pesquisa.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -193,8 +230,8 @@ editalRouter.put("/v1/admin/editais/:editalId/linhas/:linhaPesquisaId", requireA
     const linha = await updateLinhaPesquisa(parsedParams.data.editalId, parsedParams.data.linhaPesquisaId, parsedBody.data);
     return response.status(200).json(linha);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar a linha de pesquisa.";
-    return response.status(message.includes("nao encontrada") ? 404 : 409).json(message.includes("nao encontrada") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel atualizar a linha de pesquisa.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -209,8 +246,8 @@ editalRouter.delete("/v1/admin/editais/:editalId/linhas/:linhaPesquisaId", requi
     await deleteLinhaPesquisa(parsedParams.data.editalId, parsedParams.data.linhaPesquisaId);
     return response.status(204).send();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel excluir a linha de pesquisa.";
-    return response.status(message.includes("nao encontrada") ? 404 : 409).json(message.includes("nao encontrada") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel excluir a linha de pesquisa.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -230,7 +267,8 @@ editalRouter.post("/v1/admin/editais/:editalId/cronogramas", requireAuth, requir
     const cronograma = await createCronograma(parsedParams.data.editalId, parsedBody.data);
     return response.status(201).json(cronograma);
   } catch (error) {
-    return response.status(409).json(conflict(error instanceof Error ? error.message : "Nao foi possivel criar o cronograma."));
+    const result = buildAdminEditalError(error, "Nao foi possivel criar o cronograma.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -250,8 +288,8 @@ editalRouter.put("/v1/admin/editais/:editalId/cronogramas/:cronogramaId", requir
     const cronograma = await updateCronograma(parsedParams.data.editalId, parsedParams.data.cronogramaId, parsedBody.data);
     return response.status(200).json(cronograma);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar o cronograma.";
-    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel atualizar o cronograma.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -266,8 +304,8 @@ editalRouter.delete("/v1/admin/editais/:editalId/cronogramas/:cronogramaId", req
     await deleteCronograma(parsedParams.data.editalId, parsedParams.data.cronogramaId);
     return response.status(204).send();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel excluir o cronograma.";
-    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel excluir o cronograma.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -287,8 +325,8 @@ editalRouter.post("/v1/admin/editais/:editalId/temas-redacao", requireAuth, requ
     const tema = await createTemaRedacao(parsedParams.data.editalId, parsedBody.data);
     return response.status(201).json(tema);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel criar o tema de redacao.";
-    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel criar o tema de redacao.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -308,8 +346,8 @@ editalRouter.put("/v1/admin/temas-redacao/:temaId", requireAuth, requireRole(Rol
     const tema = await updateTemaRedacao(parsedParams.data.temaId, parsedBody.data);
     return response.status(200).json(tema);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar o tema de redacao.";
-    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel atualizar o tema de redacao.");
+    return response.status(result.status).json(result.body);
   }
 });
 
@@ -324,7 +362,7 @@ editalRouter.delete("/v1/admin/temas-redacao/:temaId", requireAuth, requireRole(
     await deleteTemaRedacao(parsedParams.data.temaId);
     return response.status(204).send();
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel excluir o tema de redacao.";
-    return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
+    const result = buildAdminEditalError(error, "Nao foi possivel excluir o tema de redacao.");
+    return response.status(result.status).json(result.body);
   }
 });

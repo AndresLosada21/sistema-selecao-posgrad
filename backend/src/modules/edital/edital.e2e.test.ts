@@ -32,6 +32,19 @@ async function createAdmin(suffix: string) {
   });
 }
 
+async function createCandidate(suffix: string) {
+  const senhaHash = await bcrypt.hash("Senha123456", 10);
+
+  return prisma.usuario.create({
+    data: {
+      nomeCompleto: `Candidato ${suffix}`,
+      email: `candidato.${suffix}@teste.local`,
+      senhaHash,
+      statusConta: StatusConta.ATIVA,
+    },
+  });
+}
+
 test("lista publica de editais respeita total paginado e bloqueia rascunhos", async () => {
   const suffix = `edital-list-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const admin = await createAdmin(suffix);
@@ -187,5 +200,59 @@ test("backend bloqueia publicacao de edital sem estrutura minima e cronograma du
     if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
     await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
     await prisma.usuario.deleteMany({ where: { id: admin.id } });
+  }
+});
+
+test("admin recebe codigo e mensagem especificos ao editar cronograma de edital operacionalizado", async () => {
+  const suffix = `edital-cronograma-guard-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const candidato = await createCandidate(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  const edital = await prisma.edital.create({
+    data: {
+      numero: `OPER-${suffix}`,
+      titulo: `Edital operacionalizado ${suffix}`,
+      ano: 2026,
+      semestre: 1,
+      cursoNivel: CursoNivel.DOUTORADO,
+      status: StatusEdital.EM_ANDAMENTO,
+      publicadoEm: new Date(),
+      criadoPorId: admin.id,
+    },
+  });
+
+  const cronograma = await prisma.cronogramaEdital.create({
+    data: {
+      editalId: edital.id,
+      tipo: TipoCronogramaEdital.INSCRICAO,
+      titulo: "Inscricao online doutorado",
+      inicioEm: new Date("2026-04-16T23:13:00.000Z"),
+      fimEm: new Date("2026-04-29T23:13:00.000Z"),
+    },
+  });
+
+  const participacao = await prisma.participacaoEdital.create({ data: { usuarioId: candidato.id, editalId: edital.id } });
+
+  try {
+    const response = await request(app)
+      .put(`/v1/admin/editais/${edital.id}/cronogramas/${cronograma.id}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: TipoCronogramaEdital.INSCRICAO,
+        titulo: "Inscricao online doutorado",
+        inicioEm: new Date("2026-04-16T23:13:00.000Z").toISOString(),
+        fimEm: new Date("2026-04-29T23:13:00.000Z").toISOString(),
+      });
+
+    assert.equal(response.status, 409);
+    assert.equal(response.body.code, "EDITAL_ESTRUTURA_BLOQUEADA");
+    assert.equal(response.body.message, "Nao e permitido alterar estrutura de linhas ou cronogramas em edital ja operacionalizado. Use retificacao/publicacao apropriada.");
+  } finally {
+    await prisma.participacaoEdital.deleteMany({ where: { id: participacao.id } });
+    await prisma.cronogramaEdital.deleteMany({ where: { id: cronograma.id } });
+    await prisma.edital.deleteMany({ where: { id: edital.id } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, candidato.id] } } });
   }
 });
