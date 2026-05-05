@@ -59,23 +59,12 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
       semestre: 1,
       cursoNivel: "MESTRADO",
       status: "RASCUNHO",
+      temaPacoteInicialSlug: "ppgee-v1",
     },
   });
 
   expect(editalResponse.ok()).toBeTruthy();
   const edital = await editalResponse.json();
-
-  const temaResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/temas-redacao`, {
-    headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
-    data: {
-      titulo: "Controle e automacao aplicada a sistemas energeticos",
-      descricao: "Tema tecnico padrao do fluxo E2E do candidato.",
-      ordem: 0,
-      ativo: true,
-    },
-  });
-
-  expect(temaResponse.ok()).toBeTruthy();
 
   const linhaResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/linhas`, {
     headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
@@ -220,7 +209,16 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
 
   await page.getByRole("button", { name: "Proximo: Redacao" }).click();
   await expect(page.getByRole("heading", { name: "Redacao — Proposta de Pesquisa" })).toBeVisible({ timeout: 20_000 });
-  await page.locator("div", { hasText: "Tema da Redacao" }).locator("select").first().selectOption({ label: "Controle e automacao aplicada a sistemas energeticos" });
+  await page.getByPlaceholder("Buscar por controle, energia, blockchain, visao...").fill("energia");
+  const temaSelect = page.locator("div", { hasText: "Tema da Redacao" }).locator("select").first();
+  const temaOptionValue = await temaSelect.locator("option").evaluateAll((options) => {
+    const matchingOption = options.find((option, index) => index > 0 && option.getAttribute("value"));
+    return matchingOption?.getAttribute("value") ?? null;
+  });
+  if (!temaOptionValue) {
+    throw new Error("Nenhum tema ativo foi encontrado no select de redacao.");
+  }
+  await temaSelect.selectOption(temaOptionValue);
   await page.locator("textarea").first().fill("A".repeat(600));
 
   await page.getByRole("button", { name: "Proximo: Documentos" }).click();

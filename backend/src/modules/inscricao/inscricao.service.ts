@@ -5,9 +5,9 @@ import {
   StatusPagamentoInscricao,
   StatusParticipacaoEdital,
   TipoCronogramaEdital,
-  type TipoDocumentoInscricao,
+  TipoDocumentoInscricao,
 } from "@prisma/client";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, type PDFFont, rgb } from "pdf-lib";
 import { readFile, writeFile } from "node:fs/promises";
 import { parse } from "node:path";
 
@@ -24,7 +24,7 @@ import {
   resolvePrivateUploadPath,
 } from "../upload/upload.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
-import { buildCandidateAnexoIvUrl } from "./inscricao-anexo-iv.service.js";
+import { buildAnexoIvTemplatePdfBytes, buildCandidateAnexoIvUrl } from "./inscricao-anexo-iv.service.js";
 import {
   buildInscricaoSubmissionSnapshot,
   mergeFichaInscricao,
@@ -68,6 +68,9 @@ type RegistrarPacoteDocumentalInput = {
 };
 
 type InscricaoWithRelations = NonNullable<Awaited<ReturnType<typeof getInscricaoById>>>;
+
+const PACOTE_DOCUMENTAL_SCHEMA_VERSION = 2;
+const PACOTE_DOCUMENTAL_ANEXO_IV_ORIGEM = "TEMPLATE_OFICIAL_FLATTEN";
 
 function isPdfFile(input: { mimeType?: string; nomeArquivo: string; urlArquivo: string }) {
   const mimeType = input.mimeType?.trim().toLowerCase() ?? "";
@@ -384,6 +387,92 @@ function getRedacaoFromSnapshot(snapshot: Prisma.JsonValue | null | undefined, i
   };
 }
 
+type PacoteDocumentoFonte = {
+  tipo: string;
+  nome: string;
+  nomeArquivo: string;
+  urlArquivo: string;
+  content?: Buffer;
+};
+
+function isPacoteDocumentalAtual(inscricao: {
+  id: string;
+  pacoteDocumentalNomeArquivo?: string | null;
+  pacoteDocumentalSnapshot?: Prisma.JsonValue | null;
+}) {
+  const record = asRecord(inscricao.pacoteDocumentalSnapshot);
+  const pacote = asRecord(record?.pacoteDocumental);
+
+  if (asString(pacote?.origem) === "MANUAL") {
+    return true;
+  }
+
+  if (asNumber(pacote?.schemaVersao) === PACOTE_DOCUMENTAL_SCHEMA_VERSION
+    && asString(pacote?.anexoIvOrigem) === PACOTE_DOCUMENTAL_ANEXO_IV_ORIGEM) {
+    return true;
+  }
+
+  const nomeArquivo = inscricao.pacoteDocumentalNomeArquivo ?? asString(pacote?.nomeArquivo) ?? "";
+
+  return !new RegExp(`^inscricao-${inscricao.id}-v\\d+\\.pdf$`).test(nomeArquivo);
+}
+
+async function pacoteDocumentalArquivoExiste(inscricao: { pacoteDocumentalUrl?: string | null }) {
+  if (!inscricao.pacoteDocumentalUrl) {
+    return false;
+  }
+
+  const pacotePrivado = parsePrivateUploadUrl(inscricao.pacoteDocumentalUrl);
+
+  if (!pacotePrivado) {
+    return true;
+  }
+
+  return await privateUploadExists(pacotePrivado.ownerId, pacotePrivado.filename);
+}
+
+async function buildAnexoIvGeradoParaPacote(inscricao: InscricaoWithRelations, pagamentoDispensado: boolean): Promise<PacoteDocumentoFonte | null> {
+  const ficha = parseFichaInscricao(inscricao.dadosFormulario);
+
+  if (!ficha) {
+    return null;
+  }
+
+  const content = await buildAnexoIvTemplatePdfBytes({
+    ficha: {
+      ...ficha,
+      nomeCompleto: ficha.nomeCompleto ?? inscricao.participacaoEdital.usuario.nomeCompleto,
+      email: ficha.email ?? inscricao.participacaoEdital.usuario.email,
+    },
+    documentos: inscricao.documentos.map((documento) => ({ tipo: documento.tipo, nomeArquivo: documento.nomeArquivo })),
+    pagamentoDispensado,
+    linhaNome: inscricao.linhaPesquisa?.nome ?? "",
+    flatten: true,
+  });
+
+  return {
+    tipo: TipoDocumentoInscricao.ANEXO_IV,
+    nome: "Anexo IV gerado pelo sistema",
+    nomeArquivo: `anexo-iv-inscricao-${inscricao.id}-flatten.pdf`,
+    urlArquivo: buildCandidateAnexoIvUrl(inscricao.id),
+    content,
+  };
+}
+
+async function buildPacoteDocumentosFontes(inscricao: InscricaoWithRelations, input: {
+  documentos: Array<{ tipo: string; nome: string; nomeArquivo: string; urlArquivo: string }>;
+  pagamentoDispensado: boolean;
+}) {
+  const anexoIvGerado = await buildAnexoIvGeradoParaPacote(inscricao, input.pagamentoDispensado);
+  const documentosSemAnexoIv = input.documentos.filter((documento) => documento.tipo !== TipoDocumentoInscricao.ANEXO_IV);
+
+  if (!anexoIvGerado) {
+    return input.documentos;
+  }
+
+  return [anexoIvGerado, ...documentosSemAnexoIv];
+}
+
 function wrapPdfText(value: string, maxLength = 88) {
   if (value.length <= maxLength) {
     return [value];
@@ -423,12 +512,32 @@ function wrapPdfText(value: string, maxLength = 88) {
   return chunks;
 }
 
+function sanitizePdfTextForWinAnsi(value: string, font: PDFFont) {
+  const normalized = value
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\uFFFD/g, "?");
+
+  let sanitized = "";
+
+  for (const character of normalized) {
+    try {
+      font.encodeText(character);
+      sanitized += character;
+    } catch {
+      sanitized += "?";
+    }
+  }
+
+  return sanitized;
+}
+
 async function buildAutomaticPacoteDocumentalPdf(input: {
   edital: { numero: string; titulo: string; cursoNivel: string };
   candidato: { nomeCompleto: string; email: string };
   inscricao: { id: string; modalidadeConcorrencia: string; linhaPesquisaNome: string | null; versaoSubmissao: number; pagamentoDispensado: boolean };
   checklist: Array<{ tipo: string; label: string; presente: boolean; pendencia: string | null }>;
-  documentos: Array<{ tipo: string; nome: string; nomeArquivo: string; urlArquivo: string }>;
+  documentos: PacoteDocumentoFonte[];
   redacao: { tema: string; caracteres: number };
 }) {
   async function createTextPage(lines: string[], title?: string) {
@@ -439,7 +548,7 @@ async function buildAutomaticPacoteDocumentalPdf(input: {
       let y = 800;
 
       if (title && index === 0) {
-        page.drawText(title, {
+        page.drawText(sanitizePdfTextForWinAnsi(title, bold), {
           x: 40,
           y,
           size: 14,
@@ -450,7 +559,7 @@ async function buildAutomaticPacoteDocumentalPdf(input: {
       }
 
       while (index < lines.length && y >= 45) {
-        page.drawText(lines[index], {
+        page.drawText(sanitizePdfTextForWinAnsi(lines[index] ?? "", regular), {
           x: 40,
           y,
           size: 9,
@@ -466,7 +575,13 @@ async function buildAutomaticPacoteDocumentalPdf(input: {
     }
   }
 
-  async function readDocumentoBytes(urlArquivo: string) {
+  async function readDocumentoBytes(documento: PacoteDocumentoFonte) {
+    if (documento.content) {
+      return documento.content;
+    }
+
+    const urlArquivo = documento.urlArquivo;
+
     if (urlArquivo.startsWith("/v1/uploads/private/")) {
       const match = urlArquivo.match(/^\/v1\/uploads\/private\/([^/]+)\/(.+)$/);
       if (!match) return null;
@@ -487,8 +602,8 @@ async function buildAutomaticPacoteDocumentalPdf(input: {
     }
   }
 
-  async function appendDocumento(documento: { tipo: string; nome: string; nomeArquivo: string; urlArquivo: string }) {
-    const bytes = await readDocumentoBytes(documento.urlArquivo);
+  async function appendDocumento(documento: PacoteDocumentoFonte) {
+    const bytes = await readDocumentoBytes(documento);
 
     if (!bytes) {
       await createTextPage([
@@ -564,6 +679,10 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
   pagamentoDispensado: boolean;
 }) {
   const pacoteDocumentalNomeArquivo = `inscricao-${inscricao.id}-v${input.versaoSubmissao}.pdf`;
+  const documentosPacote = await buildPacoteDocumentosFontes(inscricao, {
+    documentos: input.documentos.filter((documento) => Boolean(documento.urlArquivo)),
+    pagamentoDispensado: input.pagamentoDispensado,
+  });
   const pacoteDocumentalBuffer = await buildAutomaticPacoteDocumentalPdf({
     edital: {
       numero: inscricao.participacaoEdital.edital.numero,
@@ -582,7 +701,7 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
       pagamentoDispensado: input.pagamentoDispensado,
     },
     checklist: input.checklist,
-    documentos: input.documentos.filter((documento) => Boolean(documento.urlArquivo)),
+    documentos: documentosPacote,
     redacao: input.redacao,
   });
 
@@ -636,6 +755,9 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
       tamanhoBytes: pacoteDocumentalBuffer.length,
       geradoEm: new Date().toISOString(),
       geradoPorId: input.geradoPorId,
+      origem: "AUTOMATICO",
+      schemaVersao: PACOTE_DOCUMENTAL_SCHEMA_VERSION,
+      anexoIvOrigem: PACOTE_DOCUMENTAL_ANEXO_IV_ORIGEM,
     },
   };
 
@@ -649,6 +771,55 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
     pacoteDocumentalGeradoEm: new Date(),
     pacoteDocumentalGeradoPorId: input.geradoPorId,
   };
+}
+
+async function ensurePacoteDocumentalAtualizado(inscricao: InscricaoWithRelations, geradoPorId: string) {
+  if (!inscricao.submetidaEm || inscricao.versaoSubmissao <= 0 || !inscricao.submissaoSnapshot) {
+    return inscricao;
+  }
+
+  if (inscricao.pacoteDocumentalUrl && isPacoteDocumentalAtual(inscricao) && await pacoteDocumentalArquivoExiste(inscricao)) {
+    return inscricao;
+  }
+
+  const checklist = getChecklistFromSnapshot(inscricao.submissaoSnapshot);
+  const documentos = getDocumentosFromSnapshot(inscricao.submissaoSnapshot, inscricao);
+  const redacao = getRedacaoFromSnapshot(inscricao.submissaoSnapshot, inscricao);
+  const pagamentoDispensado = inscricao.statusPagamento === StatusPagamentoInscricao.DISPENSADO || inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL";
+
+  const pacoteDocumentalData = await persistAutomaticPacoteDocumental(inscricao, {
+    ownerUserId: inscricao.participacaoEdital.usuario.id,
+    geradoPorId,
+    status: inscricao.status,
+    statusPagamento: inscricao.statusPagamento,
+    versaoSubmissao: inscricao.versaoSubmissao,
+    submetidaEm: inscricao.submetidaEm,
+    checklist,
+    documentos,
+    redacao,
+    submissaoSnapshot: inscricao.submissaoSnapshot,
+    pagamentoDispensado,
+  });
+
+  return await prisma.inscricao.update({
+    where: { id: inscricao.id },
+    data: pacoteDocumentalData,
+    include: {
+      participacaoEdital: {
+        include: {
+          usuario: true,
+          edital: {
+            include: {
+              temasRedacao: true,
+            },
+          },
+          pedidoIsencao: true,
+        },
+      },
+      documentos: true,
+      linhaPesquisa: true,
+    },
+  });
 }
 
 export async function saveInscricaoDraft(input: SaveDraftInput) {
@@ -1087,6 +1258,7 @@ export async function registrarPacoteDocumentalConsolidado(input: RegistrarPacot
       tamanhoBytes: input.tamanhoBytes ?? null,
       geradoEm: new Date().toISOString(),
       geradoPorId: input.geradoPorId,
+      origem: "MANUAL",
     },
   };
 
@@ -1110,11 +1282,13 @@ export async function registrarPacoteDocumentalConsolidado(input: RegistrarPacot
 }
 
 export async function getPacoteDocumentalDaInscricao(inscricaoId: string, usuarioId: string) {
-  const inscricao = await getOwnedInscricao(inscricaoId, usuarioId);
+  const inscricaoAtual = await getOwnedInscricao(inscricaoId, usuarioId);
 
-  if (!inscricao) {
+  if (!inscricaoAtual) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
+
+  const inscricao = await ensurePacoteDocumentalAtualizado(inscricaoAtual, usuarioId);
 
   const pacoteDocumental = buildPacoteDocumentalResumo(inscricao);
 
@@ -1128,12 +1302,14 @@ export async function getPacoteDocumentalDaInscricao(inscricaoId: string, usuari
   };
 }
 
-export async function getPacoteDocumentalDaInscricaoAdmin(inscricaoId: string) {
-  const inscricao = await getInscricaoById(inscricaoId);
+export async function getPacoteDocumentalDaInscricaoAdmin(inscricaoId: string, geradoPorId: string) {
+  const inscricaoAtual = await getInscricaoById(inscricaoId);
 
-  if (!inscricao) {
+  if (!inscricaoAtual) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
+
+  const inscricao = await ensurePacoteDocumentalAtualizado(inscricaoAtual, geradoPorId);
 
   const pacoteDocumental = buildPacoteDocumentalResumo(inscricao);
 

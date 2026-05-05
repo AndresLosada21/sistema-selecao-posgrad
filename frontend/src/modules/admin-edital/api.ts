@@ -1,11 +1,14 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/http/client";
 
 import type {
+  AdminTemaRedacaoPacotesResponse,
   AdminCronogramaPayload,
   AdminEditalDetalhe,
   AdminEditalPayload,
   AdminEditaisResponse,
   AdminLinhaPesquisaPayload,
+  ApplyTemaRedacaoPacotePayload,
+  ApplyTemaRedacaoPacoteResponse,
   AdminTemaRedacaoPayload,
 } from "./types";
 
@@ -82,6 +85,14 @@ export function deleteCronogramaAdmin(editalId: string, cronogramaId: string, to
 
 export function createTemaRedacaoAdmin(editalId: string, payload: AdminTemaRedacaoPayload, token: string) {
   return apiPost<Record<string, unknown>>(`/v1/admin/editais/${editalId}/temas-redacao`, payload, token);
+}
+
+export function listTemaRedacaoPacotesAdmin(token: string) {
+  return apiGet<AdminTemaRedacaoPacotesResponse>("/v1/admin/temas-redacao/pacotes", token);
+}
+
+export function applyTemaRedacaoPacoteAdmin(editalId: string, payload: ApplyTemaRedacaoPacotePayload, token: string) {
+  return apiPost<ApplyTemaRedacaoPacoteResponse>(`/v1/admin/editais/${editalId}/temas-redacao/pacote`, payload, token);
 }
 
 export function updateTemaRedacaoAdmin(temaId: string, payload: AdminTemaRedacaoPayload, token: string) {

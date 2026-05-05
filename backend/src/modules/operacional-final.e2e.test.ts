@@ -335,7 +335,7 @@ test("recurso com impacto em politicas afirmativas reprocessa classificacao e re
   }
 });
 
-test("downloads do anexo iv formulario e flattened funcionam com pdf generico sem campos interativos", async () => {
+test("downloads do anexo iv formulario preenchivel e flattened usam template oficial", async () => {
   const suffix = `e2e-anexoiv-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const { admin, candidato } = await createUsers(suffix);
 
@@ -418,7 +418,16 @@ test("downloads do anexo iv formulario e flattened funcionam com pdf generico se
       .parse(parseBinaryResponse);
     assert.equal(formResponse.status, 200);
     const formPdf = await PDFDocument.load(formResponse.body);
-    assert.equal(formPdf.getForm().getFields().length, 0);
+    const form = formPdf.getForm();
+    assert.ok(form.getFields().length > 0);
+    assert.equal(form.getTextField("dados_nome_completo").getText(), candidato.nomeCompleto);
+    assert.equal(form.getTextField("dados_email").getText(), candidato.email);
+    assert.equal(form.getTextField("dados_nacionalidade").getText(), "Brasileira");
+    assert.equal(form.getRadioGroup("dados_genero").getSelected(), "masculino");
+    assert.equal(form.getRadioGroup("dados_pcd").getSelected(), "nao");
+    assert.equal(form.getRadioGroup("dados_acoes_afirmativas").getSelected(), "nao");
+    assert.equal(form.getRadioGroup("trab_empregado").getSelected(), "sim");
+    assert.equal(form.getRadioGroup("trab_regime").getSelected(), "integral");
 
     const flattenResponse = await request(app)
       .get(`/v1/admin/inscricoes/${inscricaoId}/anexo-iv/flatten`)

@@ -14,6 +14,7 @@ import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { getCandidateDashboard } from "@/modules/candidato/api";
 import type { CandidateDashboardResponse } from "@/modules/candidato/types";
 import { formatIsoDate } from "@/modules/edital/formatters";
+import { getPacoteDocumental } from "@/modules/inscricao/api";
 
 /* ---- icons (Pencil-aligned) ---- */
 
@@ -156,13 +157,19 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
   const inscricao = item.inscricao;
   const hasInscricao = !!inscricao;
   const pacoteNomeArquivo = inscricao?.pacoteDocumental?.nomeArquivo ?? "pacote-documental.pdf";
+  const pacoteDocumentalDisponivel = Boolean(inscricao?.id && inscricao.submetidaEm);
 
   async function handleDownloadPacote() {
-    if (!session.token || !pacoteDocumentalUrl) return;
+    if (!session.token || !inscricao) return;
     setDownloadingPacote(true);
     setMessage(null);
     try {
-      await downloadAuthenticatedFile(pacoteDocumentalUrl, session.token, pacoteNomeArquivo);
+      const pacoteAtual = await getPacoteDocumental(inscricao.id, session.token);
+      await downloadAuthenticatedFile(
+        pacoteAtual.pacoteDocumental.urlArquivo,
+        session.token,
+        pacoteAtual.pacoteDocumental.nomeArquivo ?? pacoteNomeArquivo,
+      );
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setMessage(getErrorMessage(error));
@@ -288,8 +295,8 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
         ) : (
           <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} {item.elegibilidade?.motivoBloqueioRecurso ?? "Ainda nao ha recurso disponivel para este edital."}</span>
         )}
-        <button type="button" onClick={pacoteDocumentalUrl ? handleDownloadPacote : undefined} disabled={!pacoteDocumentalUrl || downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: pacoteDocumentalUrl ? "pointer" : "default", padding: 0, font: "inherit", opacity: pacoteDocumentalUrl ? 1 : 0.5 }}>
-          {iconDownload} {pacoteDocumentalUrl ? (downloadingPacote ? "Baixando..." : "Baixar pacote documental") : "Pacote documental indisponivel"}
+        <button type="button" onClick={pacoteDocumentalDisponivel ? handleDownloadPacote : undefined} disabled={!pacoteDocumentalDisponivel || downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: pacoteDocumentalDisponivel ? "pointer" : "default", padding: 0, font: "inherit", opacity: pacoteDocumentalDisponivel ? 1 : 0.5 }}>
+          {iconDownload} {pacoteDocumentalDisponivel ? (downloadingPacote ? "Baixando..." : pacoteDocumentalUrl ? "Baixar pacote documental" : "Gerar e baixar pacote documental") : "Pacote documental indisponivel"}
         </button>
       </div>
 

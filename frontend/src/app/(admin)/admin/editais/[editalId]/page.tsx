@@ -15,11 +15,12 @@ import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { cursoNivelOptions, statusEditalOptions, tipoCronogramaEditalOptions, type CursoNivel, type StatusEdital, type TipoCronogramaEdital } from "@/lib/enums";
 import {
+  applyTemaRedacaoPacoteAdmin,
   createCronogramaAdmin, createLinhaPesquisaAdmin, createTemaRedacaoAdmin,
   deleteCronogramaAdmin, deleteLinhaPesquisaAdmin, deleteAdminEdital, deleteTemaRedacaoAdmin,
-  getAdminEditalById, updateCronogramaAdmin, updateAdminEdital, updateLinhaPesquisaAdmin, updateTemaRedacaoAdmin,
+  getAdminEditalById, listTemaRedacaoPacotesAdmin, updateCronogramaAdmin, updateAdminEdital, updateLinhaPesquisaAdmin, updateTemaRedacaoAdmin,
 } from "@/modules/admin-edital/api";
-import type { AdminEditalDetalhe } from "@/modules/admin-edital/types";
+import type { AdminEditalDetalhe, AdminTemaRedacaoPacoteModo, AdminTemaRedacaoPacoteResumo } from "@/modules/admin-edital/types";
 
 type Props = { params: Promise<{ editalId: string }> };
 
@@ -53,13 +54,27 @@ export default function AdminEditalDetailPage({ params }: Props) {
   const [editingTemaId, setEditingTemaId] = useState<string | null>(null);
   const [temaForm, setTemaForm] = useState({ titulo: "", descricao: "", ordem: "0", ativo: true });
   const [showTemaForm, setShowTemaForm] = useState(false);
+  const [temaPacotes, setTemaPacotes] = useState<AdminTemaRedacaoPacoteResumo[]>([]);
+  const [temaPacoteSlug, setTemaPacoteSlug] = useState("");
+  const [temaPacoteModo, setTemaPacoteModo] = useState<AdminTemaRedacaoPacoteModo>("MERGE");
+  const [temaPacotesError, setTemaPacotesError] = useState<string | null>(null);
 
   useEffect(() => { let c = false; params.then((r) => { if (!c) setEditalId(r.editalId); }); return () => { c = true; }; }, [params]);
 
   const load = useCallback(async () => {
     if (!editalId || !token) return;
-    const r = await getAdminEditalById(editalId, token);
+    let pacoteLoadFailed = false;
+    const [r, pacotes] = await Promise.all([
+      getAdminEditalById(editalId, token),
+      listTemaRedacaoPacotesAdmin(token).catch(() => {
+        pacoteLoadFailed = true;
+        return { items: [], total: 0 };
+      }),
+    ]);
     setData(r);
+    setTemaPacotes(pacotes.items);
+    setTemaPacoteSlug((current) => current || pacotes.items[0]?.slug || "");
+    setTemaPacotesError(pacoteLoadFailed ? "Nao foi possivel carregar os pacotes padrao agora. As edicoes manuais continuam disponiveis quando a estrutura do edital estiver liberada." : null);
     setEditalForm({
       numero: r.numero, titulo: r.titulo, descricao: r.descricao ?? "",
       ano: String(r.ano), semestre: String(r.semestre ?? 1),
@@ -152,6 +167,30 @@ export default function AdminEditalDetailPage({ params }: Props) {
     });
   }
 
+  async function applyTemaPacote() {
+    if (!token || !editalId) return;
+    if (!temaPacoteSlug) {
+      setFeedback({ type: "error", text: "Selecione um pacote de temas antes de aplicar." });
+      return;
+    }
+
+    if (temaPacoteModo === "REPLACE_INACTIVE") {
+      const confirmed = window.confirm("O modo substituir vai inativar os temas ativos fora do pacote padrao. Deseja continuar?");
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setFieldErrors({}); setFieldErrorScope("tema");
+    await wrap(async () => {
+      const result = await applyTemaRedacaoPacoteAdmin(editalId, { slug: temaPacoteSlug, modo: temaPacoteModo }, token);
+      setFeedback({
+        type: "success",
+        text: `Pacote ${result.pacote.nome} aplicado. ${result.criados.length} criado(s), ${result.reativados.length} reativado(s), ${result.atualizados.length} atualizado(s), ${result.inativados.length} inativado(s) e ${result.jaExistentes.length} ja alinhado(s).`,
+      });
+    });
+  }
+
   function handleEditLinha(id: string) {
     const l = data?.linhasPesquisa.find((i) => i.id === id); if (!l) return;
     setEditingLinhaId(id); setShowLinhaForm(true);
@@ -176,6 +215,9 @@ export default function AdminEditalDetailPage({ params }: Props) {
   if (!editalId || !token) return <LoadingState title="Carregando sessao" description="Validando acesso administrativo." />;
 
   const cursoLabel = data.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
+  const temaPacoteSelecionado = temaPacotes.find((pacote) => pacote.slug === temaPacoteSlug) ?? null;
+  const estruturaBloqueada = !data.permiteMutacaoEstrutural;
+  const motivoBloqueioEstrutural = data.motivoBloqueioEstrutural ?? "Estrutura bloqueada para evitar alteracoes em edital ja operacionalizado.";
 
   function formatDateRange(inicio: string, fim: string) {
     return `${formatIsoDate(inicio)} – ${formatIsoDate(fim)}`;
@@ -209,6 +251,10 @@ export default function AdminEditalDetailPage({ params }: Props) {
         </button>
       </div>
 
+      {estruturaBloqueada ? (
+        <PageFeedback type="warning" title="Estrutura bloqueada" description={motivoBloqueioEstrutural} />
+      ) : null}
+
       {/* Metadados card */}
       <div className="admin-form-card">
         <h2 className="admin-form-card-title">Metadados</h2>
@@ -237,17 +283,17 @@ export default function AdminEditalDetailPage({ params }: Props) {
       <div className="admin-form-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <h2 className="admin-form-card-title" style={{ flex: 1 }}>Linhas de pesquisa</h2>
-          <button className="admin-pub-btn-preview" onClick={() => { setShowLinhaForm(true); setEditingLinhaId(null); setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" }); }} type="button">+ Adicionar</button>
+          <button className="admin-pub-btn-preview" disabled={estruturaBloqueada} onClick={() => { setShowLinhaForm(true); setEditingLinhaId(null); setLinhaForm({ nome: "", descricao: "", vagasAmplaConcorrencia: "0", vagasAcoesAfirmativas: "0", vagasPcd: "0" }); }} type="button">+ Adicionar</button>
         </div>
 
         {data.linhasPesquisa.map((l, i) => (
           <div className="admin-line-row" key={l.id} style={i % 2 === 0 ? { background: "#F8FAFC" } : undefined}>
             <span className="admin-line-name">{l.nome}</span>
             <span className="admin-line-meta">{l.vagasAmplaConcorrencia} ampla &middot; {l.vagasAcoesAfirmativas} cotas &middot; {l.vagasPcd} PCD = {l.totalVagas}</span>
-            <button className="admin-line-edit" onClick={() => handleEditLinha(l.id)} title="Editar" type="button">
+            <button className="admin-line-edit" disabled={estruturaBloqueada} onClick={() => handleEditLinha(l.id)} title="Editar" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
             </button>
-            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteLinhaPesquisaAdmin(editalId, l.id, token!); setFeedback({ type: "success", text: "Linha removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+            <button className="admin-line-edit" disabled={estruturaBloqueada} onClick={() => wrap(async () => { await deleteLinhaPesquisaAdmin(editalId, l.id, token!); setFeedback({ type: "success", text: "Linha removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
           </div>
@@ -267,7 +313,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
               <div className="admin-eval-field"><label>PCD</label><input aria-invalid={!!fieldErrors.vagasPcd} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasPcd: e.target.value })); setFieldErrors((current) => ({ ...current, vagasPcd: null })); }} required type="number" value={linhaForm.vagasPcd} />{fieldErrors.vagasPcd ? <span className="field-error-text">{fieldErrors.vagasPcd}</span> : null}</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingLinhaId ? "Salvar" : "Criar"}</button>
+               <button className="admin-page-cta" disabled={busy || estruturaBloqueada} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingLinhaId ? "Salvar" : "Criar"}</button>
               <button className="admin-pub-btn-preview" onClick={() => { setShowLinhaForm(false); setEditingLinhaId(null); }} type="button">Cancelar</button>
             </div>
           </form>
@@ -278,7 +324,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       <div className="admin-form-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <h2 className="admin-form-card-title" style={{ flex: 1 }}>Cronogramas</h2>
-          <button className="admin-pub-btn-preview" onClick={() => { setShowCronogramaForm(true); setEditingCronogramaId(null); setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" }); }} type="button">+ Adicionar</button>
+          <button className="admin-pub-btn-preview" disabled={estruturaBloqueada} onClick={() => { setShowCronogramaForm(true); setEditingCronogramaId(null); setCronogramaForm({ tipo: "INSCRICAO", titulo: "", descricao: "", inicioEm: "", fimEm: "" }); }} type="button">+ Adicionar</button>
         </div>
 
         {data.cronogramas.map((c, i) => (
@@ -286,10 +332,10 @@ export default function AdminEditalDetailPage({ params }: Props) {
             <span className="admin-line-name">{c.titulo || getStatusLabel(c.tipo)}</span>
             <span className="admin-line-meta">{formatDateRange(c.inicioEm, c.fimEm)}</span>
             <StatusBadge variant={getStatusVariant(c.tipo)} shape="pill">{getCronoBadgeVariant(c.tipo) === "warning" ? "Em andamento" : getCronoBadgeVariant(c.tipo) === "info" ? "Agendado" : "Encerrado"}</StatusBadge>
-            <button className="admin-line-edit" onClick={() => handleEditCronograma(c.id)} title="Editar" type="button">
+            <button className="admin-line-edit" disabled={estruturaBloqueada} onClick={() => handleEditCronograma(c.id)} title="Editar" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
             </button>
-            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteCronogramaAdmin(editalId, c.id, token!); setFeedback({ type: "success", text: "Fase removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+            <button className="admin-line-edit" disabled={estruturaBloqueada} onClick={() => wrap(async () => { await deleteCronogramaAdmin(editalId, c.id, token!); setFeedback({ type: "success", text: "Fase removida." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
           </div>
@@ -309,7 +355,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
               <div className="admin-eval-field"><label>Fim</label><input aria-invalid={!!fieldErrors.fimEm} onChange={(e) => { setCronogramaForm((c) => ({ ...c, fimEm: e.target.value })); setFieldErrors((current) => ({ ...current, fimEm: null })); }} required type="datetime-local" value={cronogramaForm.fimEm} />{fieldErrors.fimEm ? <span className="field-error-text">{fieldErrors.fimEm}</span> : null}</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingCronogramaId ? "Salvar" : "Criar"}</button>
+               <button className="admin-page-cta" disabled={busy || estruturaBloqueada} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingCronogramaId ? "Salvar" : "Criar"}</button>
               <button className="admin-pub-btn-preview" onClick={() => { setShowCronogramaForm(false); setEditingCronogramaId(null); }} type="button">Cancelar</button>
             </div>
           </form>
@@ -320,7 +366,56 @@ export default function AdminEditalDetailPage({ params }: Props) {
       <div className="admin-form-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <h2 className="admin-form-card-title" style={{ flex: 1 }}>Temas de redacao</h2>
-          <button className="admin-pub-btn-preview" onClick={() => { setShowTemaForm(true); setEditingTemaId(null); setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true }); }} type="button">+ Adicionar</button>
+          <button className="admin-pub-btn-preview" disabled={estruturaBloqueada} onClick={() => { setShowTemaForm(true); setEditingTemaId(null); setTemaForm({ titulo: "", descricao: "", ordem: "0", ativo: true }); }} type="button">+ Adicionar</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0", marginBottom: 12 }}>
+          <div>
+            <strong style={{ display: "block", fontSize: 13, color: "#0F172A" }}>Aplicar pacote padrao</strong>
+            <span style={{ display: "block", fontSize: 12, color: "#64748B", marginTop: 4 }}>
+              Use um pacote fixo para popular o edital rapidamente. Depois voce ainda pode adicionar temas extras ou inativar temas individualmente.
+            </span>
+          </div>
+          <div className="admin-form-row">
+            <div className="admin-eval-field">
+              <label>Pacote</label>
+              <select className="select-field" onChange={(e) => setTemaPacoteSlug(e.target.value)} value={temaPacoteSlug}>
+                {temaPacotes.map((pacote) => <option key={pacote.slug} value={pacote.slug}>{pacote.nome} ({pacote.versao})</option>)}
+              </select>
+            </div>
+            <div className="admin-eval-field">
+              <label>Modo</label>
+              <select className="select-field" onChange={(e) => setTemaPacoteModo(e.target.value as AdminTemaRedacaoPacoteModo)} value={temaPacoteModo}>
+                <option value="MERGE">Mesclar com os temas atuais</option>
+                <option value="REPLACE_INACTIVE">Substituir ativos e inativar extras</option>
+              </select>
+            </div>
+          </div>
+          {temaPacoteSelecionado ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "#475569" }}>
+                {temaPacoteSelecionado.totalTemas} tema(s) no pacote. {temaPacoteSelecionado.descricao ?? "Pacote sem descricao adicional."}
+              </span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {temaPacoteSelecionado.temasPreview.map((titulo) => (
+                  <span key={titulo} style={{ fontSize: 11, color: "#334155", background: "#E2E8F0", borderRadius: 999, padding: "4px 8px" }}>{titulo}</span>
+                ))}
+              </div>
+              <span style={{ fontSize: 12, color: temaPacoteModo === "REPLACE_INACTIVE" ? "#B45309" : "#64748B" }}>
+                {temaPacoteModo === "REPLACE_INACTIVE"
+                  ? "Atencao: este modo inativa os temas ativos que nao pertencem ao pacote selecionado."
+                  : "Modo mesclar: mantem temas extras ativos e adiciona ou reativa apenas os temas do pacote."}
+              </span>
+            </div>
+          ) : (
+            <span style={{ fontSize: 12, color: "#94A3B8" }}>Nenhum pacote padrao disponivel no momento.</span>
+          )}
+          {temaPacotesError ? <span style={{ fontSize: 12, color: "#B45309" }}>{temaPacotesError}</span> : null}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="admin-page-cta" disabled={busy || estruturaBloqueada || !temaPacoteSelecionado} onClick={applyTemaPacote} type="button" style={{ fontSize: 13, padding: "8px 16px" }}>
+              Aplicar pacote
+            </button>
+          </div>
         </div>
 
         {data.temasRedacao.map((t, i) => (
@@ -328,10 +423,10 @@ export default function AdminEditalDetailPage({ params }: Props) {
             <span className="admin-line-name">{t.titulo}</span>
             <span className="admin-line-meta">Ordem: {t.ordem}</span>
             <StatusBadge variant={t.ativo ? "success" : "neutral"}>{t.ativo ? "Ativo" : "Inativo"}</StatusBadge>
-            <button className="admin-line-edit" onClick={() => handleEditTema(t.id)} title="Editar" type="button">
+            <button className="admin-line-edit" disabled={estruturaBloqueada} onClick={() => handleEditTema(t.id)} title="Editar" type="button">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z"/></svg>
             </button>
-            <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteTemaRedacaoAdmin(t.id, token!); setFeedback({ type: "success", text: "Tema removido." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
+            <button className="admin-line-edit" disabled={estruturaBloqueada} onClick={() => wrap(async () => { await deleteTemaRedacaoAdmin(t.id, token!); setFeedback({ type: "success", text: "Tema removido." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
           </div>
@@ -348,7 +443,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
             </div>
             <div className="admin-eval-field"><label>Descricao</label><textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setTemaForm((c) => ({ ...c, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricao: null })); }} style={{ minHeight: 60 }} value={temaForm.descricao} />{fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingTemaId ? "Salvar" : "Criar"}</button>
+               <button className="admin-page-cta" disabled={busy || estruturaBloqueada} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>{editingTemaId ? "Salvar" : "Criar"}</button>
               <button className="admin-pub-btn-preview" onClick={() => { setShowTemaForm(false); setEditingTemaId(null); }} type="button">Cancelar</button>
             </div>
           </form>

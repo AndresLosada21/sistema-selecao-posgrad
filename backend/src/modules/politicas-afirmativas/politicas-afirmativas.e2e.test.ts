@@ -25,6 +25,13 @@ process.env.JWT_SECRET = process.env.JWT_SECRET ?? "change-me-in-real-environmen
 const { prisma } = await import("../../lib/prisma.js");
 const { app } = await import("../../app.js");
 
+function parseBinaryResponse(response: any, callback: (error: Error | null, body?: Buffer) => void) {
+  const chunks: Buffer[] = [];
+  response.on("data", (chunk: Buffer | string) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+  response.on("end", () => callback(null, Buffer.concat(chunks)));
+  response.on("error", (error: Error) => callback(error));
+}
+
 type E2eContext = {
   adminId: string;
   candidatoId: string;
@@ -237,6 +244,16 @@ test("admin gerencia etapa de politicas afirmativas e publica resultado final", 
     assert.equal(createPublicacaoResponse.status, 201);
     assert.equal(createPublicacaoResponse.body.publicacao.versao, 1);
     assert.equal(createPublicacaoResponse.body.preview.itens[0].candidato.email, undefined);
+
+    const pdfResponse = await request(app)
+      .get(`/v1/publicacoes/${createPublicacaoResponse.body.publicacao.id}/arquivo.pdf`)
+      .buffer(true)
+      .parse(parseBinaryResponse);
+
+    assert.equal(pdfResponse.status, 200);
+    assert.equal(pdfResponse.headers["content-type"], "application/pdf");
+    assert.equal(pdfResponse.body.subarray(0, 4).toString(), "%PDF");
+    assert.equal(pdfResponse.body.toString("latin1").includes(candidato.email), false);
 
     const dashboardResponse = await request(app)
       .get("/v1/candidato/area")

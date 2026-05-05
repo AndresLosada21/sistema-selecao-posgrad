@@ -1,8 +1,12 @@
 import { TipoDocumentoInscricao } from "@prisma/client";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { PDFCheckBox, PDFDocument, PDFRadioGroup, PDFTextField, StandardFonts, rgb } from "pdf-lib";
 
 import { prisma } from "../../lib/prisma.js";
 import { type FichaInscricao } from "./inscricao.rules.js";
+
+const ANEXO_IV_TEMPLATE_PATH = path.resolve(process.cwd(), "assets", "pdf", "anexo-iv-ficha-inscricao-ufam.pdf");
 
 function parseFicha(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -16,153 +20,213 @@ function hasDocument(documentos: Array<{ tipo: TipoDocumentoInscricao }>, tipo: 
   return documentos.some((documento) => documento.tipo === tipo);
 }
 
-function wrapText(value: string, maxLength = 88) {
-  if (value.length <= maxLength) {
-    return [value];
-  }
-
-  const words = value.split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-
-  for (const word of words) {
-    const candidate = current ? `${current} ${word}` : word;
-
-    if (candidate.length <= maxLength) {
-      current = candidate;
-      continue;
-    }
-
-    if (current) {
-      lines.push(current);
-    }
-
-    current = word;
-  }
-
-  if (current) {
-    lines.push(current);
-  }
-
-  return lines;
+function normalizeTemplateText(value: string | null | undefined) {
+  return value?.trim() ?? "";
 }
 
-function buildFichaLines(input: {
-  ficha: FichaInscricao;
-  documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
-  pagamentoDispensado: boolean;
-  linhaNome: string;
-  inscricaoId: string;
-  editalNumero: string;
-  editalTitulo: string;
-}) {
-  const documentosObrigatorios = [
-    { label: "Anexo IV assinado", present: hasDocument(input.documentos, TipoDocumentoInscricao.ANEXO_IV) },
-    { label: "Documento de identificacao", present: hasDocument(input.documentos, TipoDocumentoInscricao.DOCUMENTO_IDENTIFICACAO) },
-    { label: "RNE ou passaporte", present: hasDocument(input.documentos, TipoDocumentoInscricao.RNE_PASSAPORTE) },
-    { label: "Comprovante de pagamento", present: input.pagamentoDispensado || hasDocument(input.documentos, TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO) },
-    { label: "Diploma ou declaracao de conclusao", present: hasDocument(input.documentos, TipoDocumentoInscricao.DIPLOMA) },
-    { label: "Historico escolar", present: hasDocument(input.documentos, TipoDocumentoInscricao.HISTORICO) },
-    { label: "Curriculo Lattes com comprovacoes", present: hasDocument(input.documentos, TipoDocumentoInscricao.CURRICULO) },
-  ];
+function withFallbackWhenBlank(value: string | null | undefined, fallback: string | null) {
+  const normalized = normalizeTemplateText(value);
 
-  const lines = [
-    "ANEXO IV - FICHA DE INSCRICAO",
-    "",
-    `inscricaoId: ${input.inscricaoId}`,
-    `edital: ${input.editalNumero} - ${input.editalTitulo}`,
-    `linhaPesquisa: ${input.linhaNome || "-"}`,
-    "",
-    "DADOS PESSOAIS",
-    `nomeCompleto: ${input.ficha.nomeCompleto ?? "-"}`,
-    `rg: ${input.ficha.rg ?? "-"}`,
-    `dataExpedicaoRG: ${input.ficha.rgDataExpedicao ?? "-"}`,
-    `cpf: ${input.ficha.cpf ?? "-"}`,
-    `passaporte: ${input.ficha.passaporte ?? "-"}`,
-    `nacionalidade: ${input.ficha.nacionalidade ?? "-"}`,
-    `naturalidade: ${input.ficha.naturalidade ?? "-"}`,
-    `email: ${input.ficha.email ?? "-"}`,
-    `telefoneWhatsapp: ${input.ficha.telefoneWhatsapp ?? "-"}`,
-    `dataNascimento: ${input.ficha.dataNascimento ?? "-"}`,
-    `estadoCivil: ${input.ficha.estadoCivil ?? "-"}`,
-    `genero: ${input.ficha.genero ?? "-"}`,
-    `tipoSanguineo: ${input.ficha.tipoSanguineo ?? "-"}`,
-    `fatorRh: ${input.ficha.fatorRh ?? "-"}`,
-    `racaCor: ${input.ficha.racaCor ?? "-"}`,
-    `pcd: ${input.ficha.pessoaComDeficiencia === true ? "SIM" : input.ficha.pessoaComDeficiencia === false ? "NAO" : "-"}`,
-    `acoesAfirmativas: ${input.ficha.concorreAcoesAfirmativas === true ? "SIM" : input.ficha.concorreAcoesAfirmativas === false ? "NAO" : "-"}`,
-    `solicitaBolsa: ${input.ficha.vaiSolicitarBolsa === true ? "SIM" : input.ficha.vaiSolicitarBolsa === false ? "NAO" : "-"}`,
-    `nomePai: ${input.ficha.nomePai ?? "-"}`,
-    `nomeMae: ${input.ficha.nomeMae ?? "-"}`,
-    `enderecoResidencial: ${input.ficha.enderecoResidencial ?? "-"}`,
-    `cepResidencial: ${input.ficha.cepResidencial ?? "-"}`,
-    `bairroResidencial: ${input.ficha.bairroResidencial ?? "-"}`,
-    `ufResidencial: ${input.ficha.ufResidencial ?? "-"}`,
-    `cidadeResidencial: ${input.ficha.cidadeResidencial ?? "-"}`,
-    "",
-    "TRABALHO",
-    `situacaoEmprego: ${input.ficha.empregadoSituacao ?? "-"}`,
-    `regimeTrabalho: ${input.ficha.regimeTrabalho ?? "-"}`,
-    `instituicaoTrabalho: ${input.ficha.instituicaoTrabalho ?? "-"}`,
-    `unidadeDepartamentoTrabalho: ${input.ficha.unidadeDepartamentoTrabalho ?? "-"}`,
-    `enderecoTrabalho: ${input.ficha.enderecoTrabalho ?? "-"}`,
-    `cepTrabalho: ${input.ficha.cepTrabalho ?? "-"}`,
-    `cidadeBairroTrabalho: ${input.ficha.cidadeBairroTrabalho ?? "-"}`,
-    "",
-    "DOCUMENTOS",
-    ...documentosObrigatorios.map((documento) => `- ${documento.label}: ${documento.present ? "SIM" : "NAO"}`),
-    "",
-    "ARQUIVOS RECEBIDOS",
-    ...input.documentos.map((documento) => `- ${documento.tipo}: ${documento.nomeArquivo}`),
-  ];
+  if (normalized) {
+    return normalized;
+  }
 
-  return lines.flatMap((line) => wrapText(line));
+  return fallback;
 }
 
-async function buildGenericPdfBytes(input: {
-  ficha: FichaInscricao;
-  documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
-  pagamentoDispensado: boolean;
-  linhaNome: string;
-  inscricaoId: string;
-  editalNumero: string;
-  editalTitulo: string;
-}) {
-  const pdfDoc = await PDFDocument.create();
-  const regular = await pdfDoc.embedFont(StandardFonts.Courier);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const lines = buildFichaLines(input);
+function booleanRadio(value: boolean | null | undefined) {
+  if (value === true) {
+    return "sim";
+  }
 
-  let page = pdfDoc.addPage([595.28, 841.89]);
-  let y = 800;
+  if (value === false) {
+    return "nao";
+  }
 
-  page.drawText("ANEXO IV - FICHA DE INSCRICAO", {
-    x: 40,
-    y,
-    size: 14,
-    font: bold,
-    color: rgb(0, 0, 0),
+  return null;
+}
+
+function selectRadioValue<T extends string>(value: T | null | undefined, mapping: Record<T, string>) {
+  return value ? mapping[value] ?? null : null;
+}
+
+function resolveLinhaPesquisaTemplateOption(linhaNome: string) {
+  const normalized = linhaNome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (normalized.includes("microeletronica") || normalized.includes("sistemas inteligentes")) {
+    return "linha_1";
+  }
+
+  if (normalized.includes("controle") || normalized.includes("automacao")) {
+    return "linha_2";
+  }
+
+  return null;
+}
+
+function setTextField(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string | null | undefined) {
+  const field = form.getFieldMaybe(name);
+
+  if (field instanceof PDFTextField) {
+    field.setText(normalizeTemplateText(value));
+  }
+}
+
+function selectRadioField(form: ReturnType<PDFDocument["getForm"]>, name: string, value: string | null | undefined) {
+  if (!value) {
+    return;
+  }
+
+  const field = form.getFieldMaybe(name);
+
+  if (field instanceof PDFRadioGroup && field.getOptions().includes(value)) {
+    field.select(value);
+  }
+}
+
+function setCheckboxField(form: ReturnType<PDFDocument["getForm"]>, name: string, checked: boolean) {
+  const field = form.getFieldMaybe(name);
+
+  if (!(field instanceof PDFCheckBox)) {
+    return;
+  }
+
+  if (checked) {
+    field.check();
+    return;
+  }
+
+  field.uncheck();
+}
+
+function drawLinhaPesquisaFallback(pdfDoc: PDFDocument, linhaNome: string, selectedOption: string | null) {
+  if (!linhaNome || selectedOption) {
+    return;
+  }
+
+  const page = pdfDoc.getPages()[1];
+
+  if (!page) {
+    return;
+  }
+
+  page.drawText(`Linha selecionada no sistema: ${linhaNome.slice(0, 88)}`, {
+    x: 44,
+    y: 248,
+    size: 7.2,
+    font: pdfDoc.embedStandardFont(StandardFonts.Helvetica),
+    color: rgb(31 / 255, 41 / 255, 55 / 255),
+    maxWidth: 505,
   });
+}
 
-  y -= 26;
+function drawTrabalhoRegimeFallback(pdfDoc: PDFDocument, shouldDraw: boolean) {
+  if (!shouldDraw) {
+    return;
+  }
 
-  for (const line of lines.slice(1)) {
-    if (y < 45) {
-      page = pdfDoc.addPage([595.28, 841.89]);
-      y = 800;
-    }
+  const page = pdfDoc.getPages()[1];
 
-    page.drawText(line, {
-      x: 40,
-      y,
-      size: 9,
-      font: regular,
-      color: rgb(0, 0, 0),
-      maxWidth: 515,
-      lineHeight: 11,
-    });
+  if (!page) {
+    return;
+  }
 
-    y -= 12;
+  const font = pdfDoc.embedStandardFont(StandardFonts.Helvetica);
+
+  page.drawText("Nao se aplica para candidato nao empregado.", {
+    x: 303,
+    y: 608,
+    size: 7,
+    font,
+    color: rgb(31 / 255, 41 / 255, 55 / 255),
+    maxWidth: 240,
+  });
+}
+
+export async function buildAnexoIvTemplatePdfBytes(input: {
+  ficha: FichaInscricao;
+  documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
+  pagamentoDispensado: boolean;
+  linhaNome: string;
+  flatten: boolean;
+}) {
+  const template = await readFile(ANEXO_IV_TEMPLATE_PATH);
+  const pdfDoc = await PDFDocument.load(template);
+  const form = pdfDoc.getForm();
+  const textFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const trabalhoNaoAplicavel = input.ficha.empregadoSituacao === "NAO_EMPREGADO" || input.ficha.empregadoSituacao === "APOSENTADO";
+  const trabalhoNaoAplicavelText = trabalhoNaoAplicavel ? "NAO SE APLICA" : null;
+
+  setTextField(form, "dados_nome_completo", input.ficha.nomeCompleto);
+  setTextField(form, "dados_rg", input.ficha.rg);
+  setTextField(form, "dados_rg_data_expedicao", input.ficha.rgDataExpedicao);
+  setTextField(form, "dados_cpf", input.ficha.cpf);
+  setTextField(form, "dados_passaporte", input.ficha.passaporte);
+  setTextField(form, "dados_nacionalidade", input.ficha.nacionalidade);
+  setTextField(form, "dados_naturalidade", input.ficha.naturalidade);
+  setTextField(form, "dados_email", input.ficha.email);
+  setTextField(form, "dados_telefone", input.ficha.telefoneWhatsapp);
+  setTextField(form, "dados_data_nascimento", input.ficha.dataNascimento);
+  setTextField(form, "dados_estado_civil", input.ficha.estadoCivil);
+  setTextField(form, "dados_tipo_sanguineo", input.ficha.tipoSanguineo);
+  setTextField(form, "dados_fator_rh", input.ficha.fatorRh);
+  setTextField(form, "dados_pai", input.ficha.nomePai);
+  setTextField(form, "dados_mae", input.ficha.nomeMae);
+  setTextField(form, "dados_endereco_residencial", input.ficha.enderecoResidencial);
+  setTextField(form, "dados_cep", input.ficha.cepResidencial);
+  setTextField(form, "dados_bairro", input.ficha.bairroResidencial);
+  setTextField(form, "dados_uf", input.ficha.ufResidencial);
+  setTextField(form, "dados_cidade", input.ficha.cidadeResidencial);
+  setTextField(form, "trab_instituicao_local_sigla", withFallbackWhenBlank(input.ficha.instituicaoTrabalho, trabalhoNaoAplicavelText));
+  setTextField(form, "trab_unidade_departamento", withFallbackWhenBlank(input.ficha.unidadeDepartamentoTrabalho, trabalhoNaoAplicavelText));
+  setTextField(form, "trab_endereco", withFallbackWhenBlank(input.ficha.enderecoTrabalho, trabalhoNaoAplicavelText));
+  setTextField(form, "trab_cep", withFallbackWhenBlank(input.ficha.cepTrabalho, trabalhoNaoAplicavelText));
+  setTextField(form, "trab_cidade_bairro", withFallbackWhenBlank(input.ficha.cidadeBairroTrabalho, trabalhoNaoAplicavelText));
+
+  selectRadioField(form, "dados_genero", selectRadioValue(input.ficha.genero, { MASCULINO: "masculino", FEMININO: "feminino" }));
+  selectRadioField(form, "dados_pcd", booleanRadio(input.ficha.pessoaComDeficiencia));
+  selectRadioField(form, "dados_solicitar_bolsa", booleanRadio(input.ficha.vaiSolicitarBolsa));
+  selectRadioField(form, "dados_raca_cor", selectRadioValue(input.ficha.racaCor, {
+    BRANCA: "branca",
+    PRETA: "preta",
+    PARDA: "parda",
+    AMARELA: "amarela",
+    INDIGENA: "indigena",
+    QUILOMBOLA: "quilombola",
+    NAO_DECLARADA: "nao_declarada",
+  }));
+  selectRadioField(form, "dados_acoes_afirmativas", booleanRadio(input.ficha.concorreAcoesAfirmativas));
+  selectRadioField(form, "trab_empregado", selectRadioValue(input.ficha.empregadoSituacao, {
+    EMPREGADO: "sim",
+    NAO_EMPREGADO: "nao",
+    APOSENTADO: "aposentado",
+  }));
+  selectRadioField(form, "trab_regime", selectRadioValue(input.ficha.regimeTrabalho, {
+    PARCIAL: "parcial",
+    INTEGRAL: "integral",
+    DEDICACAO_EXCLUSIVA: "dedicacao_exclusiva",
+  }));
+
+  setCheckboxField(form, "doc_formulario_inscricao", hasDocument(input.documentos, TipoDocumentoInscricao.ANEXO_IV));
+  setCheckboxField(form, "doc_carteira_identidade", hasDocument(input.documentos, TipoDocumentoInscricao.DOCUMENTO_IDENTIFICACAO));
+  setCheckboxField(form, "doc_rne_passaporte", hasDocument(input.documentos, TipoDocumentoInscricao.RNE_PASSAPORTE));
+  setCheckboxField(form, "doc_comprovante_pagamento", input.pagamentoDispensado || hasDocument(input.documentos, TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO));
+  setCheckboxField(form, "doc_diploma_declaracao", hasDocument(input.documentos, TipoDocumentoInscricao.DIPLOMA));
+  setCheckboxField(form, "doc_historico_graduacao", hasDocument(input.documentos, TipoDocumentoInscricao.HISTORICO));
+  setCheckboxField(form, "doc_curriculo_lattes", hasDocument(input.documentos, TipoDocumentoInscricao.CURRICULO));
+
+  const linhaOption = resolveLinhaPesquisaTemplateOption(input.linhaNome);
+  selectRadioField(form, "linha_pesquisa", linhaOption);
+  drawLinhaPesquisaFallback(pdfDoc, input.linhaNome, linhaOption);
+  drawTrabalhoRegimeFallback(pdfDoc, trabalhoNaoAplicavel);
+  form.updateFieldAppearances(textFont);
+
+  if (input.flatten) {
+    form.flatten();
   }
 
   return Buffer.from(await pdfDoc.save({ useObjectStreams: false }));
@@ -197,7 +261,7 @@ async function buildInscricaoAnexoIvResponse(inscricao: InscricaoForDocument, fl
   const pagamentoDispensado =
     inscricao.statusPagamento === "DISPENSADO" || inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL";
 
-  const content = await buildGenericPdfBytes({
+  const content = await buildAnexoIvTemplatePdfBytes({
     ficha: {
       ...ficha,
       nomeCompleto: ficha.nomeCompleto ?? inscricao.participacaoEdital.usuario.nomeCompleto,
@@ -206,9 +270,7 @@ async function buildInscricaoAnexoIvResponse(inscricao: InscricaoForDocument, fl
     documentos: inscricao.documentos.map((documento) => ({ tipo: documento.tipo, nomeArquivo: documento.nomeArquivo })),
     pagamentoDispensado,
     linhaNome: inscricao.linhaPesquisa?.nome ?? "",
-    inscricaoId: inscricao.id,
-    editalNumero: inscricao.participacaoEdital.edital.numero,
-    editalTitulo: inscricao.participacaoEdital.edital.titulo,
+    flatten,
   });
 
   return {

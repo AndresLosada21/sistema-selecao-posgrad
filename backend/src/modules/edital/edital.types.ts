@@ -55,6 +55,39 @@ export type TemaRedacaoResumo = Pick<
   "id" | "titulo" | "descricao" | "ordem" | "ativo"
 >;
 
+export type TemaRedacaoPacoteModo = "MERGE" | "REPLACE_INACTIVE";
+
+export type TemaRedacaoPacoteResumo = {
+  slug: string;
+  nome: string;
+  versao: string;
+  descricao?: string;
+  totalTemas: number;
+  temasPreview: string[];
+};
+
+export type TemaRedacaoPacoteListResult = {
+  items: TemaRedacaoPacoteResumo[];
+  total: number;
+};
+
+export type ApplyTemaRedacaoPacoteInput = {
+  slug: string;
+  modo?: TemaRedacaoPacoteModo;
+};
+
+export type ApplyTemaRedacaoPacoteResult = {
+  editalId: string;
+  pacote: TemaRedacaoPacoteResumo;
+  modo: TemaRedacaoPacoteModo;
+  criados: string[];
+  reativados: string[];
+  atualizados: string[];
+  inativados: string[];
+  jaExistentes: string[];
+  totalAtivosDepois: number;
+};
+
 export type EditalResumo = {
   id: string;
   numero: string;
@@ -77,6 +110,11 @@ export type EditalDetalhe = EditalResumo & {
   temasRedacaoConfigurados: boolean;
 };
 
+export type AdminEditalDetalhe = EditalDetalhe & {
+  permiteMutacaoEstrutural: boolean;
+  motivoBloqueioEstrutural: string | null;
+};
+
 export type UpsertEditalInput = {
   numero: string;
   titulo: string;
@@ -86,6 +124,8 @@ export type UpsertEditalInput = {
   cursoNivel: CursoNivel;
   status: StatusEdital;
   publicadoEm?: string;
+  temaPacoteInicialSlug?: string;
+  temasRedacaoIniciais?: UpsertTemaRedacaoInput[];
 };
 
 export type UpsertLinhaPesquisaInput = {

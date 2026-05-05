@@ -4,6 +4,9 @@ import { prisma } from "../../lib/prisma.js";
 import { toIsoOrNull } from "../../lib/serialization.js";
 
 import type {
+  AdminEditalDetalhe,
+  ApplyTemaRedacaoPacoteInput,
+  ApplyTemaRedacaoPacoteResult,
   EditalDetalhe,
   EditalFaseResumo,
   EditalListFilters,
@@ -11,6 +14,7 @@ import type {
   EditalResumo,
   EditalWithRelations,
   LinhaPesquisaResumo,
+  TemaRedacaoPacoteListResult,
   TemaRedacaoResumo,
   UpsertCronogramaInput,
   UpsertEditalInput,
@@ -18,6 +22,11 @@ import type {
   UpsertTemaRedacaoInput,
 } from "./edital.types.js";
 import { conflict, notFound } from "../../lib/http-errors.js";
+import {
+  getTemaRedacaoPacoteBySlug,
+  listTemaRedacaoPacoteSummaries,
+  normalizeTemaRedacaoKey,
+} from "./temas-redacao-padroes.js";
 
 function buildEditalWhere(filters: EditalListFilters): Prisma.EditalWhereInput {
   const where: Prisma.EditalWhereInput = {
@@ -179,13 +188,23 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
   };
 }
 
-export async function getAdminEditalById(editalId: string): Promise<EditalDetalhe | null> {
+function getMotivoBloqueioEstrutural(input: { status: string; hasParticipacoes: boolean; hasPublicacoes: boolean }) {
+  if (["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"].includes(input.status) && (input.hasParticipacoes || input.hasPublicacoes)) {
+    return "Nao e permitido alterar estrutura de linhas, cronogramas ou temas em edital ja operacionalizado. Use retificacao/publicacao apropriada.";
+  }
+
+  return null;
+}
+
+export async function getAdminEditalById(editalId: string): Promise<AdminEditalDetalhe | null> {
   const edital = await prisma.edital.findUnique({
     where: { id: editalId },
     include: {
       cronogramas: true,
       linhasPesquisa: true,
       temasRedacao: true,
+      participacoes: { select: { id: true }, take: 1 },
+      publicacoesOficiais: { select: { id: true }, take: 1 },
     },
   });
 
@@ -195,12 +214,19 @@ export async function getAdminEditalById(editalId: string): Promise<EditalDetalh
 
   const now = new Date();
   const resumo = mapEditalResumo(edital, now);
+  const motivoBloqueioEstrutural = getMotivoBloqueioEstrutural({
+    status: edital.status,
+    hasParticipacoes: edital.participacoes.length > 0,
+    hasPublicacoes: edital.publicacoesOficiais.length > 0,
+  });
 
   return {
     ...resumo,
     cronogramas: [...edital.cronogramas].sort(sortCronogramas).map((item) => mapCronograma(item, now)),
     temasRedacao: [...edital.temasRedacao].sort(sortTemasRedacao).map(mapTemaRedacao),
     temasRedacaoConfigurados: edital.temasRedacao.length > 0,
+    permiteMutacaoEstrutural: !motivoBloqueioEstrutural,
+    motivoBloqueioEstrutural,
   };
 }
 
@@ -293,11 +319,160 @@ async function assertEditalPodeReceberMutacaoEstrutural(editalId: string) {
     throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
   }
 
-  if (["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"].includes(edital.status) && (edital.participacoes.length > 0 || edital.publicacoesOficiais.length > 0)) {
-    throw conflict("Nao e permitido alterar estrutura de linhas ou cronogramas em edital ja operacionalizado. Use retificacao/publicacao apropriada.", "EDITAL_ESTRUTURA_BLOQUEADA");
+  const motivoBloqueioEstrutural = getMotivoBloqueioEstrutural({
+    status: edital.status,
+    hasParticipacoes: edital.participacoes.length > 0,
+    hasPublicacoes: edital.publicacoesOficiais.length > 0,
+  });
+
+  if (motivoBloqueioEstrutural) {
+    throw conflict(motivoBloqueioEstrutural, "EDITAL_ESTRUTURA_BLOQUEADA");
   }
 
   return edital;
+}
+
+type TemaRedacaoRepository = Pick<Prisma.TransactionClient, "temaRedacaoEdital">;
+
+async function assertNoActiveTemaRedacaoDuplicadoInRepository(
+  db: TemaRedacaoRepository,
+  input: { editalId: string; titulo: string; ignoreId?: string; ativo: boolean },
+) {
+  if (!input.ativo) {
+    return;
+  }
+
+  const existentes = await db.temaRedacaoEdital.findMany({
+    where: {
+      editalId: input.editalId,
+      ativo: true,
+      ...(input.ignoreId ? { id: { not: input.ignoreId } } : {}),
+    },
+    select: { titulo: true },
+  });
+
+  const incomingKey = normalizeTemaRedacaoKey(input.titulo);
+  const existente = existentes.find((tema) => normalizeTemaRedacaoKey(tema.titulo) === incomingKey);
+
+  if (existente) {
+    throw conflict("Ja existe um tema de redacao ativo com este titulo neste edital.", "TEMA_REDACAO_DUPLICADO");
+  }
+}
+
+async function applyTemaRedacaoPacoteInRepository(
+  db: Prisma.TransactionClient,
+  editalId: string,
+  pacoteSlug: string,
+  modo: "MERGE" | "REPLACE_INACTIVE",
+) {
+  const pacote = getTemaRedacaoPacoteBySlug(pacoteSlug);
+
+  if (!pacote) {
+    throw notFound("Pacote de temas de redacao nao encontrado.", "TEMA_REDACAO_PACOTE_NAO_ENCONTRADO");
+  }
+
+  const pacoteResumo = listTemaRedacaoPacoteSummaries().find((item) => item.slug === pacote.slug)!;
+  const existentes = await db.temaRedacaoEdital.findMany({
+    where: { editalId },
+    orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+  });
+
+  const existentesByKey = new Map(existentes.map((tema) => [normalizeTemaRedacaoKey(tema.titulo), tema]));
+  const pacoteKeys = new Set(pacote.temas.map((tema) => normalizeTemaRedacaoKey(tema.titulo)));
+
+  const criados: string[] = [];
+  const reativados: string[] = [];
+  const atualizados: string[] = [];
+  const inativados: string[] = [];
+  const jaExistentes: string[] = [];
+
+  if (modo === "REPLACE_INACTIVE") {
+    for (const temaExistente of existentes) {
+      if (!temaExistente.ativo) {
+        continue;
+      }
+
+      const normalizedKey = normalizeTemaRedacaoKey(temaExistente.titulo);
+
+      if (pacoteKeys.has(normalizedKey)) {
+        continue;
+      }
+
+      await db.temaRedacaoEdital.update({
+        where: { id: temaExistente.id },
+        data: { ativo: false },
+      });
+      inativados.push(temaExistente.titulo);
+    }
+  }
+
+  for (const temaPacote of pacote.temas) {
+    const normalizedKey = normalizeTemaRedacaoKey(temaPacote.titulo);
+    const existente = existentesByKey.get(normalizedKey);
+
+    if (!existente) {
+      await db.temaRedacaoEdital.create({
+        data: {
+          editalId,
+          titulo: temaPacote.titulo,
+          descricao: temaPacote.descricao,
+          ordem: temaPacote.ordem,
+          ativo: true,
+        },
+      });
+      criados.push(temaPacote.titulo);
+      continue;
+    }
+
+    if (!existente.ativo) {
+      await db.temaRedacaoEdital.update({
+        where: { id: existente.id },
+        data: {
+          titulo: temaPacote.titulo,
+          descricao: temaPacote.descricao,
+          ordem: temaPacote.ordem,
+          ativo: true,
+        },
+      });
+      reativados.push(temaPacote.titulo);
+      continue;
+    }
+
+    const precisaAtualizar = existente.titulo !== temaPacote.titulo
+      || (existente.descricao ?? null) !== (temaPacote.descricao ?? null)
+      || existente.ordem !== temaPacote.ordem;
+
+    if (precisaAtualizar) {
+      await db.temaRedacaoEdital.update({
+        where: { id: existente.id },
+        data: {
+          titulo: temaPacote.titulo,
+          descricao: temaPacote.descricao,
+          ordem: temaPacote.ordem,
+        },
+      });
+      atualizados.push(temaPacote.titulo);
+      continue;
+    }
+
+    jaExistentes.push(existente.titulo);
+  }
+
+  const totalAtivosDepois = await db.temaRedacaoEdital.count({
+    where: { editalId, ativo: true },
+  });
+
+  return {
+    editalId,
+    pacote: pacoteResumo,
+    modo,
+    criados,
+    reativados,
+    atualizados,
+    inativados,
+    jaExistentes,
+    totalAtivosDepois,
+  } satisfies ApplyTemaRedacaoPacoteResult;
 }
 
 export async function createEdital(input: UpsertEditalInput, criadoPorId: string) {
@@ -305,18 +480,44 @@ export async function createEdital(input: UpsertEditalInput, criadoPorId: string
     throw conflict("Crie o edital primeiro em rascunho e publique apenas depois de cadastrar linhas e cronogramas minimos.", "EDITAL_ESTRUTURA_MINIMA_PENDENTE");
   }
 
-  return await prisma.edital.create({
-    data: {
-      numero: input.numero,
-      titulo: input.titulo,
-      descricao: input.descricao,
-      ano: input.ano,
-      semestre: input.semestre,
-      cursoNivel: input.cursoNivel,
-      status: input.status,
-      publicadoEm: resolvePublicadoEm(input),
-      criadoPorId,
-    },
+  return await prisma.$transaction(async (tx) => {
+    const edital = await tx.edital.create({
+      data: {
+        numero: input.numero,
+        titulo: input.titulo,
+        descricao: input.descricao,
+        ano: input.ano,
+        semestre: input.semestre,
+        cursoNivel: input.cursoNivel,
+        status: input.status,
+        publicadoEm: resolvePublicadoEm(input),
+        criadoPorId,
+      },
+    });
+
+    if (input.temaPacoteInicialSlug) {
+      await applyTemaRedacaoPacoteInRepository(tx, edital.id, input.temaPacoteInicialSlug, "MERGE");
+    }
+
+    for (const tema of input.temasRedacaoIniciais ?? []) {
+      await assertNoActiveTemaRedacaoDuplicadoInRepository(tx, {
+        editalId: edital.id,
+        titulo: tema.titulo,
+        ativo: tema.ativo ?? true,
+      });
+
+      await tx.temaRedacaoEdital.create({
+        data: {
+          editalId: edital.id,
+          titulo: tema.titulo,
+          descricao: tema.descricao,
+          ordem: tema.ordem ?? 0,
+          ativo: tema.ativo ?? true,
+        },
+      });
+    }
+
+    return edital;
   });
 }
 
@@ -470,25 +671,16 @@ export async function deleteCronograma(editalId: string, cronogramaId: string) {
 }
 
 async function assertNoActiveTemaRedacaoDuplicado(input: { editalId: string; titulo: string; ignoreId?: string; ativo: boolean }) {
-  if (!input.ativo) {
-    return;
-  }
+  await assertNoActiveTemaRedacaoDuplicadoInRepository(prisma, input);
+}
 
-  const existente = await prisma.temaRedacaoEdital.findFirst({
-    where: {
-      editalId: input.editalId,
-      ativo: true,
-      titulo: {
-        equals: input.titulo.trim(),
-        mode: "insensitive",
-      },
-      ...(input.ignoreId ? { id: { not: input.ignoreId } } : {}),
-    },
-  });
+export async function listTemaRedacaoPacotes(): Promise<TemaRedacaoPacoteListResult> {
+  const items = listTemaRedacaoPacoteSummaries();
 
-  if (existente) {
-    throw conflict("Ja existe um tema de redacao ativo com este titulo neste edital.", "TEMA_REDACAO_DUPLICADO");
-  }
+  return {
+    items,
+    total: items.length,
+  };
 }
 
 export async function createTemaRedacao(editalId: string, input: UpsertTemaRedacaoInput) {
@@ -497,6 +689,8 @@ export async function createTemaRedacao(editalId: string, input: UpsertTemaRedac
   if (!edital) {
     throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
   }
+
+  await assertEditalPodeReceberMutacaoEstrutural(editalId);
 
   await assertNoActiveTemaRedacaoDuplicado({
     editalId,
@@ -522,6 +716,8 @@ export async function updateTemaRedacao(temaId: string, input: UpsertTemaRedacao
     throw notFound("Tema de redacao nao encontrado.", "TEMA_REDACAO_NAO_ENCONTRADO");
   }
 
+  await assertEditalPodeReceberMutacaoEstrutural(tema.editalId);
+
   await assertNoActiveTemaRedacaoDuplicado({
     editalId: tema.editalId,
     titulo: input.titulo,
@@ -540,6 +736,29 @@ export async function updateTemaRedacao(temaId: string, input: UpsertTemaRedacao
   });
 }
 
+export async function applyTemaRedacaoPacote(
+  editalId: string,
+  input: ApplyTemaRedacaoPacoteInput,
+): Promise<ApplyTemaRedacaoPacoteResult> {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId }, select: { id: true } });
+
+  if (!edital) {
+    throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
+  }
+
+  await assertEditalPodeReceberMutacaoEstrutural(editalId);
+
+  const pacote = getTemaRedacaoPacoteBySlug(input.slug);
+
+  if (!pacote) {
+    throw notFound("Pacote de temas de redacao nao encontrado.", "TEMA_REDACAO_PACOTE_NAO_ENCONTRADO");
+  }
+
+  const modo = input.modo ?? "MERGE";
+
+  return await prisma.$transaction(async (tx) => applyTemaRedacaoPacoteInRepository(tx, editalId, pacote.slug, modo));
+}
+
 export async function deleteTemaRedacao(temaId: string) {
   const tema = await prisma.temaRedacaoEdital.findUnique({
     where: { id: temaId },
@@ -554,6 +773,8 @@ export async function deleteTemaRedacao(temaId: string) {
   if (!tema) {
     throw notFound("Tema de redacao nao encontrado.", "TEMA_REDACAO_NAO_ENCONTRADO");
   }
+
+  await assertEditalPodeReceberMutacaoEstrutural(tema.editalId);
 
   const inscricaoLegada = await prisma.inscricao.findFirst({
     where: {

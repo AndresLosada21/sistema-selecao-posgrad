@@ -11,8 +11,8 @@ import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, getFirstFormError, pickFirstFieldErrors, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { cursoNivelOptions, statusEditalOptions, type CursoNivel, type StatusEdital } from "@/lib/enums";
-import { createAdminEdital, createTemaRedacaoAdmin, listAdminEditais } from "@/modules/admin-edital/api";
-import type { AdminEditaisResponse } from "@/modules/admin-edital/types";
+import { createAdminEdital, listAdminEditais, listTemaRedacaoPacotesAdmin } from "@/modules/admin-edital/api";
+import type { AdminEditaisResponse, AdminTemaRedacaoPacoteResumo } from "@/modules/admin-edital/types";
 
 const iconPlus = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>;
 const iconPencil = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855z" /></svg>;
@@ -30,12 +30,25 @@ export default function AdminEditaisPage() {
   const [form, setForm] = useState({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO" as CursoNivel, status: "RASCUNHO" as StatusEdital });
   const [temaForm, setTemaForm] = useState({ titulo: "", descricao: "" });
   const [temasRedacao, setTemasRedacao] = useState<Array<{ id: string; titulo: string; descricao: string; ordem: number }>>([]);
+  const [temaPacotes, setTemaPacotes] = useState<AdminTemaRedacaoPacoteResumo[]>([]);
+  const [temaPacoteSlug, setTemaPacoteSlug] = useState("");
+  const [temaPacotesError, setTemaPacotesError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   const load = useCallback(async () => {
     if (!session.token) return;
-    const response = await listAdminEditais(session.token, { page, pageSize: 20 });
+    let pacoteLoadFailed = false;
+    const [response, pacotes] = await Promise.all([
+      listAdminEditais(session.token, { page, pageSize: 20 }),
+      listTemaRedacaoPacotesAdmin(session.token).catch(() => {
+        pacoteLoadFailed = true;
+        return { items: [], total: 0 };
+      }),
+    ]);
     setData(response);
+    setTemaPacotes(pacotes.items);
+    setTemaPacoteSlug((current) => current || pacotes.items[0]?.slug || "");
+    setTemaPacotesError(pacoteLoadFailed ? "Nao foi possivel carregar os pacotes padrao de temas agora. Voce ainda pode criar o edital e cadastrar temas manualmente." : null);
   }, [page, session.token]);
 
   useAbortableEffect(async (signal) => {
@@ -56,19 +69,27 @@ export default function AdminEditaisPage() {
     if (!session.token) return;
     setBusy(true); setMessage(null); setFieldErrors({});
     try {
-      const created = await createAdminEdital({ numero: form.numero, titulo: form.titulo, descricao: form.descricao || undefined, ano: Number(form.ano), semestre: form.semestre ? Number(form.semestre) : undefined, cursoNivel: form.cursoNivel, status: form.status }, session.token) as { id?: string };
+      const created = await createAdminEdital({
+        numero: form.numero,
+        titulo: form.titulo,
+        descricao: form.descricao || undefined,
+        ano: Number(form.ano),
+        semestre: form.semestre ? Number(form.semestre) : undefined,
+        cursoNivel: form.cursoNivel,
+        status: form.status,
+        temaPacoteInicialSlug: temaPacoteSlug || undefined,
+        temasRedacaoIniciais: temasRedacao.map((tema) => ({ titulo: tema.titulo, descricao: tema.descricao || undefined, ordem: tema.ordem, ativo: true })),
+      }, session.token) as { id?: string };
       if (!created.id) {
         throw new Error("Nao foi possivel identificar o edital criado para vincular os temas de redacao.");
-      }
-      for (const tema of temasRedacao) {
-        await createTemaRedacaoAdmin(created.id, { titulo: tema.titulo, descricao: tema.descricao || undefined, ordem: tema.ordem, ativo: true }, session.token);
       }
       await load();
       setForm({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO" });
       setTemaForm({ titulo: "", descricao: "" });
       setTemasRedacao([]);
+      setTemaPacoteSlug((current) => current || temaPacotes[0]?.slug || "");
       setShowForm(false);
-      setMessage({ type: "success", text: "Edital criado com sucesso." });
+      setMessage({ type: "success", text: `Edital criado com sucesso.${temaPacoteSlug ? " Pacote padrao aplicado no mesmo fluxo de criacao." : ""}` });
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
       setFieldErrors(pickFirstFieldErrors(error, ["numero", "titulo", "descricao", "ano", "semestre", "cursoNivel", "status", "temasRedacao", "tituloTema", "descricaoTema"] as const));
@@ -101,6 +122,7 @@ export default function AdminEditaisPage() {
   }
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
+  const temaPacoteSelecionado = temaPacotes.find((pacote) => pacote.slug === temaPacoteSlug) ?? null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -136,7 +158,35 @@ export default function AdminEditaisPage() {
             <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <h4 style={{ margin: 0, fontSize: 14, color: "#1E293B" }}>Temas de redacao iniciais</h4>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748B" }}>Cadastre os temas que ficarao disponiveis para o candidato escolher na redacao.</p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748B" }}>Aplique um pacote padrao para ganhar velocidade e, se quiser, complemente abaixo com temas extras do edital.</p>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+                <div className="admin-form-row">
+                  <div className="wiz-field">
+                    <label className="wiz-field-label">Pacote inicial</label>
+                    <select value={temaPacoteSlug} onChange={(e) => setTemaPacoteSlug(e.target.value)}>
+                      <option value="">Nenhum pacote automatico</option>
+                      {temaPacotes.map((pacote) => <option key={pacote.slug} value={pacote.slug}>{pacote.nome} ({pacote.versao})</option>)}
+                    </select>
+                  </div>
+                </div>
+                {temaPacoteSelecionado ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: "#475569" }}>{temaPacoteSelecionado.totalTemas} tema(s) serao aplicados automaticamente ao criar o edital.</span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {temaPacoteSelecionado.temasPreview.map((titulo) => (
+                        <span key={titulo} style={{ fontSize: 11, color: "#334155", background: "#E2E8F0", borderRadius: 999, padding: "4px 8px" }}>{titulo}</span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 12, color: "#64748B" }}>Sem pacote automatico. O edital sera criado apenas com os temas extras adicionados abaixo.</span>
+                )}
+                {temaPacotesError ? <span style={{ fontSize: 12, color: "#B45309" }}>{temaPacotesError}</span> : null}
+              </div>
+              <div>
+                <strong style={{ display: "block", fontSize: 13, color: "#0F172A" }}>Temas extras</strong>
+                <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#64748B" }}>Use esta parte so para complementar o pacote ou montar um edital totalmente manual.</span>
               </div>
               <div className="admin-form-row">
                 <div className="wiz-field"><label className="wiz-field-label">Titulo do tema</label><input aria-invalid={!!fieldErrors.tituloTema} value={temaForm.titulo} onChange={(e) => { setTemaForm((current) => ({ ...current, titulo: e.target.value })); setFieldErrors((current) => ({ ...current, tituloTema: null })); }} />{fieldErrors.tituloTema ? <span className="field-error-text">{fieldErrors.tituloTema}</span> : null}</div>
