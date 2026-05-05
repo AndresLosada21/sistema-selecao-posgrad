@@ -47,6 +47,7 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
     const totalAmpla = edital.linhasPesquisa.reduce((sum, l) => sum + l.vagasAmplaConcorrencia, 0);
     const totalCotas = edital.linhasPesquisa.reduce((sum, l) => sum + l.vagasAcoesAfirmativas, 0);
     const totalPcd = edital.linhasPesquisa.reduce((sum, l) => sum + l.vagasPcd, 0);
+    const temasPreview = edital.temasRedacao.slice(0, 12);
 
     return (
       <div className="stack-layout">
@@ -140,6 +141,41 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
             </table>
           ) : (
             <EmptyState title="Linhas de pesquisa indisponiveis" description="Este edital ainda nao possui linhas de pesquisa publicadas." />
+          )}
+        </SectionCard>
+
+        <SectionCard title="Temas de redacao" description={edital.temasRedacao.length ? `${edital.temasRedacao.length} tema(s) ativo(s) para a proposta de pesquisa deste edital.` : "Este edital nao possui temas ativos publicados no momento."}>
+          {edital.temasRedacao.length ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                {temasPreview.map((tema) => (
+                  <div key={tema.id} style={{ flex: "1 1 320px", minWidth: 260, border: "1px solid #E2E8F0", borderRadius: 12, padding: "12px 14px", background: "#fff" }}>
+                    <strong style={{ display: "block", fontSize: 13, color: "#0F172A" }}>{tema.titulo}</strong>
+                    {tema.descricao ? <span style={{ display: "block", marginTop: 6, fontSize: 12, color: "#64748B" }}>{tema.descricao}</span> : null}
+                  </div>
+                ))}
+              </div>
+              {edital.temasRedacao.length > temasPreview.length ? (
+                <details style={{ border: "1px solid #E2E8F0", borderRadius: 12, background: "#F8FAFC", padding: "12px 14px" }}>
+                  <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#334155" }}>
+                    Ver os {edital.temasRedacao.length - temasPreview.length} temas restantes
+                  </summary>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                    {edital.temasRedacao.slice(temasPreview.length).map((tema) => (
+                      <div key={tema.id} style={{ borderTop: "1px solid #E2E8F0", paddingTop: 10 }}>
+                        <strong style={{ display: "block", fontSize: 13, color: "#0F172A" }}>{tema.titulo}</strong>
+                        {tema.descricao ? <span style={{ display: "block", marginTop: 4, fontSize: 12, color: "#64748B" }}>{tema.descricao}</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+              <span style={{ fontSize: 12, color: "#64748B" }}>
+                Na inscricao, o candidato pode buscar por palavra-chave antes de selecionar o tema.
+              </span>
+            </div>
+          ) : (
+            <EmptyState title="Temas ainda indisponiveis" description="A administracao ainda nao publicou temas ativos para a redacao deste edital." />
           )}
         </SectionCard>
       </div>

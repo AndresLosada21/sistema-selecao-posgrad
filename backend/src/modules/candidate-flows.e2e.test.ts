@@ -114,15 +114,20 @@ async function registerCandidate(input: { suffix: string; cpf: string }) {
     });
 }
 
-async function addDocumento(token: string, inscricaoId: string, tipo: TipoDocumentoInscricao) {
-  const uploaded = await uploadPrivatePdf(token, `${tipo.toLowerCase()}.pdf`);
+async function addDocumento(
+  token: string,
+  inscricaoId: string,
+  tipo: TipoDocumentoInscricao,
+  options?: { nome?: string; filename?: string },
+) {
+  const uploaded = await uploadPrivatePdf(token, options?.filename ?? `${tipo.toLowerCase()}.pdf`);
 
   return request(app)
     .post(`/v1/inscricoes/${inscricaoId}/documentos`)
     .set("Authorization", `Bearer ${token}`)
     .send({
       tipo,
-      nome: `Documento ${tipo}`,
+      nome: options?.nome ?? `Documento ${tipo}`,
       urlArquivo: uploaded.urlArquivo,
       nomeArquivo: uploaded.nomeArquivo,
       mimeType: uploaded.mimeType,
@@ -259,7 +264,12 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
       TipoDocumentoInscricao.CURRICULO,
       TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO,
     ]) {
-      const documentoResponse = await addDocumento(token, inscricaoId, tipo);
+      const documentoResponse = await addDocumento(
+        token,
+        inscricaoId,
+        tipo,
+        tipo === TipoDocumentoInscricao.ANEXO_IV ? { nome: `Documento ${tipo} com caracter \uFFFD` } : undefined,
+      );
       assert.equal(documentoResponse.status, 201);
     }
 
@@ -276,9 +286,36 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
     assert.equal(candidatePacoteResponse.body.pacoteDocumental.versaoSubmissao, 1);
     assert.match(candidatePacoteResponse.body.pacoteDocumental.nomeArquivo, new RegExp(`^inscricao-${inscricaoId}-v1\\.pdf$`));
     assert.match(candidatePacoteResponse.body.pacoteDocumental.urlArquivo, new RegExp(`^/v1/uploads/private/${candidateId}/`));
+    assert.equal(candidatePacoteResponse.body.snapshot.pacoteDocumental.schemaVersao, 2);
+    assert.equal(candidatePacoteResponse.body.snapshot.pacoteDocumental.anexoIvOrigem, "TEMPLATE_OFICIAL_FLATTEN");
+
+    const pacoteOriginalUrl = candidatePacoteResponse.body.pacoteDocumental.urlArquivo as string;
+
+    await prisma.inscricao.update({
+      where: { id: inscricaoId },
+      data: {
+        pacoteDocumentalSnapshot: {
+          pacoteDocumental: {
+            urlArquivo: pacoteOriginalUrl,
+            nomeArquivo: candidatePacoteResponse.body.pacoteDocumental.nomeArquivo,
+            mimeType: "application/pdf",
+            geradoEm: new Date().toISOString(),
+            geradoPorId: candidateId,
+          },
+        },
+      },
+    });
+
+    const pacoteRegeradoResponse = await request(app)
+      .get(`/v1/inscricoes/${inscricaoId}/pacote-documental`)
+      .set("Authorization", `Bearer ${token}`);
+    assert.equal(pacoteRegeradoResponse.status, 200);
+    assert.equal(pacoteRegeradoResponse.body.snapshot.pacoteDocumental.schemaVersao, 2);
+    assert.equal(pacoteRegeradoResponse.body.snapshot.pacoteDocumental.anexoIvOrigem, "TEMPLATE_OFICIAL_FLATTEN");
+    assert.notEqual(pacoteRegeradoResponse.body.pacoteDocumental.urlArquivo, pacoteOriginalUrl);
 
     const pacotePdfDownload = await request(app)
-      .get(candidatePacoteResponse.body.pacoteDocumental.urlArquivo)
+      .get(pacoteRegeradoResponse.body.pacoteDocumental.urlArquivo)
       .set("Authorization", `Bearer ${token}`);
     assert.equal(pacotePdfDownload.status, 200);
     const pacotePdf = await PDFDocument.load(pacotePdfDownload.body);

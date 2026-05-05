@@ -276,6 +276,38 @@ export const TemaRedacaoResumoSchema = z
   })
   .openapi("TemaRedacaoResumo");
 
+export const TemaRedacaoPacoteResumoSchema = z
+  .object({
+    slug: z.string(),
+    nome: z.string(),
+    versao: z.string(),
+    descricao: z.string().optional(),
+    totalTemas: z.number().int().min(0),
+    temasPreview: z.array(z.string()),
+  })
+  .openapi("TemaRedacaoPacoteResumo");
+
+export const TemaRedacaoPacoteListResponseSchema = z
+  .object({
+    items: z.array(TemaRedacaoPacoteResumoSchema),
+    total: z.number().int().min(0),
+  })
+  .openapi("TemaRedacaoPacoteListResponse");
+
+export const AplicarTemaRedacaoPacoteResponseSchema = z
+  .object({
+    editalId: z.string(),
+    pacote: TemaRedacaoPacoteResumoSchema,
+    modo: z.enum(["MERGE", "REPLACE_INACTIVE"]),
+    criados: z.array(z.string()),
+    reativados: z.array(z.string()),
+    atualizados: z.array(z.string()),
+    inativados: z.array(z.string()),
+    jaExistentes: z.array(z.string()),
+    totalAtivosDepois: z.number().int().min(0),
+  })
+  .openapi("AplicarTemaRedacaoPacoteResponse");
+
 export const EditalResumoSchema = z
   .object({
     id: z.string(),
@@ -297,6 +329,7 @@ export const EditalResumoSchema = z
 export const EditalDetalheSchema = EditalResumoSchema.extend({
   cronogramas: z.array(EditalFaseResumoSchema),
   temasRedacao: z.array(TemaRedacaoResumoSchema),
+  temasRedacaoConfigurados: z.boolean(),
 }).openapi("EditalDetalhe");
 
 export const PedidoIsencaoCriadoSchema = z
@@ -1304,6 +1337,18 @@ export const UpsertTemaRedacaoRequestSchema = z
       descricao: "Tema orientador para a proposta de pesquisa do certame.",
       ordem: 0,
       ativo: true,
+    },
+  });
+
+export const AplicarTemaRedacaoPacoteRequestSchema = z
+  .object({
+    slug: z.string().min(1),
+    modo: z.enum(["MERGE", "REPLACE_INACTIVE"]).optional(),
+  })
+  .openapi("AplicarTemaRedacaoPacoteRequest", {
+    example: {
+      slug: "ppgee-v1",
+      modo: "MERGE",
     },
   });
 

@@ -13,6 +13,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET ?? "change-me-in-real-environmen
 
 const { prisma } = await import("../../lib/prisma.js");
 const { app } = await import("../../app.js");
+const { getTemaRedacaoPacoteBySlug } = await import("./temas-redacao-padroes.js");
 
 function createToken(userId: string, email: string) {
   return jwt.sign({ email }, process.env.JWT_SECRET!, { subject: userId, expiresIn: "7d" });
@@ -247,12 +248,214 @@ test("admin recebe codigo e mensagem especificos ao editar cronograma de edital 
 
     assert.equal(response.status, 409);
     assert.equal(response.body.code, "EDITAL_ESTRUTURA_BLOQUEADA");
-    assert.equal(response.body.message, "Nao e permitido alterar estrutura de linhas ou cronogramas em edital ja operacionalizado. Use retificacao/publicacao apropriada.");
+    assert.equal(response.body.message, "Nao e permitido alterar estrutura de linhas, cronogramas ou temas em edital ja operacionalizado. Use retificacao/publicacao apropriada.");
   } finally {
     await prisma.participacaoEdital.deleteMany({ where: { id: participacao.id } });
     await prisma.cronogramaEdital.deleteMany({ where: { id: cronograma.id } });
     await prisma.edital.deleteMany({ where: { id: edital.id } });
     await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
     await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, candidato.id] } } });
+  }
+});
+
+test("admin lista e aplica pacote padrao de temas de redacao com merge e replace", async () => {
+  const suffix = `edital-pacote-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+  const pacote = getTemaRedacaoPacoteBySlug("ppgee-v1");
+
+  assert.ok(pacote);
+
+  let editalId = "";
+  let temaExtraId = "";
+
+  try {
+    const created = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `PAC-${suffix}`,
+        titulo: `Edital pacote ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.RASCUNHO,
+      });
+
+    assert.equal(created.status, 201);
+    editalId = created.body.id;
+
+    const pacotesResponse = await request(app)
+      .get("/v1/admin/temas-redacao/pacotes")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    assert.equal(pacotesResponse.status, 200);
+    assert.equal(pacotesResponse.body.total >= 1, true);
+    assert.equal(pacotesResponse.body.items.some((item: { slug: string; totalTemas: number }) => item.slug === "ppgee-v1" && item.totalTemas === pacote!.temas.length), true);
+
+    const firstApply = await request(app)
+      .post(`/v1/admin/editais/${editalId}/temas-redacao/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-v1", modo: "MERGE" });
+
+    assert.equal(firstApply.status, 200);
+    assert.equal(firstApply.body.criados.length, pacote.temas.length);
+    assert.equal(firstApply.body.reativados.length, 0);
+    assert.equal(firstApply.body.totalAtivosDepois, pacote.temas.length);
+
+    const temasAtivosAposPrimeiraAplicacao = await prisma.temaRedacaoEdital.count({ where: { editalId, ativo: true } });
+    assert.equal(temasAtivosAposPrimeiraAplicacao, pacote.temas.length);
+
+    const primeiroTema = await prisma.temaRedacaoEdital.findFirstOrThrow({ where: { editalId }, orderBy: { ordem: "asc" } });
+    const segundoTema = await prisma.temaRedacaoEdital.findFirstOrThrow({ where: { editalId, id: { not: primeiroTema.id } }, orderBy: { ordem: "asc" } });
+    await prisma.temaRedacaoEdital.update({ where: { id: primeiroTema.id }, data: { ativo: false } });
+    await prisma.temaRedacaoEdital.update({ where: { id: segundoTema.id }, data: { descricao: "Descricao stale", ordem: 999 } });
+
+    const temaExtra = await prisma.temaRedacaoEdital.create({
+      data: {
+        editalId,
+        titulo: `Tema extra ${suffix}`,
+        descricao: "Tema fora do pacote padrao.",
+        ordem: 999,
+        ativo: true,
+      },
+    });
+    temaExtraId = temaExtra.id;
+
+    const replaceApply = await request(app)
+      .post(`/v1/admin/editais/${editalId}/temas-redacao/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-v1", modo: "REPLACE_INACTIVE" });
+
+    assert.equal(replaceApply.status, 200);
+    assert.equal(replaceApply.body.reativados.includes(primeiroTema.titulo), true);
+    assert.equal(replaceApply.body.atualizados.includes(segundoTema.titulo), true);
+    assert.equal(replaceApply.body.inativados.includes(temaExtra.titulo), true);
+    assert.equal(replaceApply.body.totalAtivosDepois, pacote.temas.length);
+
+    const temaExtraAtualizado = await prisma.temaRedacaoEdital.findUniqueOrThrow({ where: { id: temaExtraId } });
+    const segundoTemaAtualizado = await prisma.temaRedacaoEdital.findUniqueOrThrow({ where: { id: segundoTema.id } });
+    assert.equal(temaExtraAtualizado.ativo, false);
+    assert.notEqual(segundoTemaAtualizado.ordem, 999);
+  } finally {
+    if (editalId) await prisma.temaRedacaoEdital.deleteMany({ where: { editalId } });
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: admin.id } });
+  }
+});
+
+test("backend bloqueia mutacao de temas em edital operacionalizado", async () => {
+  const suffix = `edital-tema-guard-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const candidato = await createCandidate(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  const edital = await prisma.edital.create({
+    data: {
+      numero: `TOP-${suffix}`,
+      titulo: `Edital temas operacionalizado ${suffix}`,
+      ano: 2026,
+      semestre: 1,
+      cursoNivel: CursoNivel.MESTRADO,
+      status: StatusEdital.EM_ANDAMENTO,
+      publicadoEm: new Date(),
+      criadoPorId: admin.id,
+    },
+  });
+
+  const participacao = await prisma.participacaoEdital.create({ data: { usuarioId: candidato.id, editalId: edital.id } });
+
+  try {
+    const createTema = await request(app)
+      .post(`/v1/admin/editais/${edital.id}/temas-redacao`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ titulo: "Tema bloqueado operacionalmente", descricao: "Descricao suficiente para validar o tema.", ordem: 0, ativo: true });
+
+    assert.equal(createTema.status, 409);
+    assert.equal(createTema.body.code, "EDITAL_ESTRUTURA_BLOQUEADA");
+
+    const applyPacote = await request(app)
+      .post(`/v1/admin/editais/${edital.id}/temas-redacao/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-v1", modo: "MERGE" });
+
+    assert.equal(applyPacote.status, 409);
+    assert.equal(applyPacote.body.code, "EDITAL_ESTRUTURA_BLOQUEADA");
+  } finally {
+    await prisma.participacaoEdital.deleteMany({ where: { id: participacao.id } });
+    await prisma.temaRedacaoEdital.deleteMany({ where: { editalId: edital.id } });
+    await prisma.edital.deleteMany({ where: { id: edital.id } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, candidato.id] } } });
+  }
+});
+
+test("criacao de edital com pacote inicial e temas extras e transacional", async () => {
+  const suffix = `edital-create-pacote-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+  const pacote = getTemaRedacaoPacoteBySlug("ppgee-v1");
+
+  assert.ok(pacote);
+
+  try {
+    const created = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `CRT-${suffix}`,
+        titulo: `Edital com pacote ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.RASCUNHO,
+        temaPacoteInicialSlug: "ppgee-v1",
+        temasRedacaoIniciais: [
+          {
+            titulo: `Tema extra ${suffix}`,
+            descricao: "Tema complementar do edital.",
+            ordem: 1000,
+            ativo: true,
+          },
+        ],
+      });
+
+    assert.equal(created.status, 201);
+
+    const temasCount = await prisma.temaRedacaoEdital.count({ where: { editalId: created.body.id } });
+    assert.equal(temasCount, pacote!.temas.length + 1);
+
+    const duplicado = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `CRT-DUP-${suffix}`,
+        titulo: `Edital com pacote duplicado ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.RASCUNHO,
+        temaPacoteInicialSlug: "ppgee-v1",
+        temasRedacaoIniciais: [
+          {
+            titulo: pacote!.temas[0].titulo,
+            descricao: "Duplicado do pacote.",
+            ordem: 1001,
+            ativo: true,
+          },
+        ],
+      });
+
+    assert.equal(duplicado.status, 409);
+
+    const editalDuplicadoPersistido = await prisma.edital.findFirst({ where: { numero: `CRT-DUP-${suffix}` } });
+    assert.equal(editalDuplicadoPersistido, null);
+
+    await prisma.temaRedacaoEdital.deleteMany({ where: { editalId: created.body.id } });
+    await prisma.edital.deleteMany({ where: { id: created.body.id } });
+  } finally {
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: admin.id } });
   }
 });

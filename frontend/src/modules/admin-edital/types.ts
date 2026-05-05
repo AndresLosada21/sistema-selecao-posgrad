@@ -10,6 +10,8 @@ export type AdminEditalPayload = {
   cursoNivel: CursoNivel;
   status: StatusEdital;
   publicadoEm?: string;
+  temaPacoteInicialSlug?: string;
+  temasRedacaoIniciais?: AdminTemaRedacaoPayload[];
 };
 
 export type AdminTemaRedacaoPayload = {
@@ -17,6 +19,39 @@ export type AdminTemaRedacaoPayload = {
   descricao?: string;
   ordem?: number;
   ativo?: boolean;
+};
+
+export type AdminTemaRedacaoPacoteModo = "MERGE" | "REPLACE_INACTIVE";
+
+export type AdminTemaRedacaoPacoteResumo = {
+  slug: string;
+  nome: string;
+  versao: string;
+  descricao?: string;
+  totalTemas: number;
+  temasPreview: string[];
+};
+
+export type AdminTemaRedacaoPacotesResponse = {
+  items: AdminTemaRedacaoPacoteResumo[];
+  total: number;
+};
+
+export type ApplyTemaRedacaoPacotePayload = {
+  slug: string;
+  modo?: AdminTemaRedacaoPacoteModo;
+};
+
+export type ApplyTemaRedacaoPacoteResponse = {
+  editalId: string;
+  pacote: AdminTemaRedacaoPacoteResumo;
+  modo: AdminTemaRedacaoPacoteModo;
+  criados: string[];
+  reativados: string[];
+  atualizados: string[];
+  inativados: string[];
+  jaExistentes: string[];
+  totalAtivosDepois: number;
 };
 
 export type AdminLinhaPesquisaPayload = {
@@ -36,4 +71,7 @@ export type AdminCronogramaPayload = {
 };
 
 export type AdminEditaisResponse = EditaisResponse;
-export type AdminEditalDetalhe = EditalDetalhe;
+export type AdminEditalDetalhe = EditalDetalhe & {
+  permiteMutacaoEstrutural: boolean;
+  motivoBloqueioEstrutural: string | null;
+};

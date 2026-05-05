@@ -54,6 +54,8 @@ export const temaRedacaoParamsSchema = z.object({
   temaId: z.string().min(1),
 });
 
+export const temaRedacaoPacoteModoSchema = z.enum(["MERGE", "REPLACE_INACTIVE"]);
+
 const optionalIsoDate = z
   .string()
   .datetime()
@@ -70,6 +72,13 @@ export const upsertEditalSchema = z.object({
   cursoNivel: z.nativeEnum(CursoNivel),
   status: z.nativeEnum(StatusEdital),
   publicadoEm: optionalIsoDate,
+  temaPacoteInicialSlug: z.string().trim().min(1).optional(),
+  temasRedacaoIniciais: z.array(z.object({
+    titulo: z.string().trim().min(5),
+    descricao: z.string().trim().min(5).optional(),
+    ordem: z.number().int().min(0).default(0),
+    ativo: z.boolean().optional(),
+  })).optional(),
 });
 
 export const upsertLinhaPesquisaSchema = z.object({
@@ -103,4 +112,9 @@ export const upsertTemaRedacaoSchema = z.object({
   descricao: z.string().trim().min(5).optional(),
   ordem: z.number().int().min(0).default(0),
   ativo: z.boolean().optional(),
+});
+
+export const applyTemaRedacaoPacoteSchema = z.object({
+  slug: z.string().trim().min(1),
+  modo: temaRedacaoPacoteModoSchema.default("MERGE"),
 });

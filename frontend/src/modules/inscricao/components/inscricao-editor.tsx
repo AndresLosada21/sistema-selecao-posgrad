@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { FileField } from "@/components/shared/file-field";
 import { PageFeedback } from "@/components/shared/page-feedback";
@@ -1479,6 +1479,8 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
   const pct = Math.min((redacaoLength / 1500) * 100, 100);
   const withinRange = redacaoLength === 0 || (redacaoLength >= 500 && redacaoLength <= 1500);
   const legacyTemaSelecionado = Boolean(formState.temaRedacao && !formState.temaRedacaoEditalId);
+  const [temaSearch, setTemaSearch] = useState("");
+  const deferredTemaSearch = useDeferredValue(temaSearch);
   const temaSelecionado = edital.temasRedacao.find((tema) => tema.id === formState.temaRedacaoEditalId) ?? null;
   const temaOptions = useMemo(() => {
     if (!legacyTemaSelecionado && temaSelecionado) {
@@ -1510,6 +1512,30 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
     ];
   }, [edital.temasRedacao, formState.temaRedacao, formState.temaRedacaoEditalId, legacyTemaSelecionado, temaSelecionado]);
   const temaSelectValue = legacyTemaSelecionado ? "__legacy__" : formState.temaRedacaoEditalId;
+  const filteredTemaOptions = useMemo(() => {
+    const query = deferredTemaSearch.trim().toLowerCase();
+
+    if (!query) {
+      return temaOptions;
+    }
+
+    const filtered = temaOptions.filter((tema) => {
+      const haystack = `${tema.titulo} ${tema.descricao ?? ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+
+    if (!temaSelectValue) {
+      return filtered;
+    }
+
+    const selectedOption = temaOptions.find((tema) => tema.id === temaSelectValue);
+
+    if (!selectedOption || filtered.some((tema) => tema.id === selectedOption.id)) {
+      return filtered;
+    }
+
+    return [selectedOption, ...filtered];
+  }, [deferredTemaSearch, temaOptions, temaSelectValue]);
 
   return (
     <>
@@ -1539,31 +1565,47 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
             <span style={{ fontSize: 10, fontWeight: 600, color: "#000", background: "#FEF2F2", borderRadius: 4, padding: "2px 6px" }}>Obrigatorio</span>
           </div>
           {edital.temasRedacao.length ? (
-            <select
-              style={{ height: 44, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13 }}
-              value={temaSelectValue}
-              onChange={(e) => {
-                if (e.target.value === "__legacy__") {
-                  return;
-                }
+            <>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, borderRadius: 10, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                <span style={{ fontSize: 12, color: "#475569" }}>{edital.temasRedacao.length} tema(s) ativos neste edital. Use uma palavra-chave para reduzir a lista antes de escolher.</span>
+                <input
+                  style={{ height: 40, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13, background: "#fff" }}
+                  value={temaSearch}
+                  onChange={(e) => setTemaSearch(e.target.value)}
+                  placeholder="Buscar por controle, energia, blockchain, visao..."
+                />
+                <span style={{ fontSize: 11, color: "#64748B" }}>
+                  {filteredTemaOptions.length === temaOptions.length
+                    ? "Mostrando todos os temas ativos."
+                    : `${filteredTemaOptions.length} tema(s) encontrados para a busca atual.`}
+                </span>
+              </div>
+              <select
+                style={{ height: 44, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13 }}
+                value={temaSelectValue}
+                onChange={(e) => {
+                  if (e.target.value === "__legacy__") {
+                    return;
+                  }
 
-                const tema = temaOptions.find((item) => item.id === e.target.value) ?? null;
-                setFieldErrors((current) => {
-                  const next = { ...current };
-                  delete next.temaRedacao;
-                  return next;
-                });
-                setFormState((s) => ({
-                  ...s,
-                  temaRedacaoEditalId: e.target.value,
-                  temaRedacao: tema?.titulo ?? "",
-                }));
-              }}
-              disabled={!temaOptions.length}
-            >
-              <option value="">{temaOptions.length ? "Selecione o tema" : "Nenhum tema disponivel"}</option>
-              {temaOptions.map((tema) => <option key={tema.id} value={tema.id}>{tema.titulo}{tema.ativo ? "" : " (inativo)"}</option>)}
-            </select>
+                  const tema = temaOptions.find((item) => item.id === e.target.value) ?? null;
+                  setFieldErrors((current) => {
+                    const next = { ...current };
+                    delete next.temaRedacao;
+                    return next;
+                  });
+                  setFormState((s) => ({
+                    ...s,
+                    temaRedacaoEditalId: e.target.value,
+                    temaRedacao: tema?.titulo ?? "",
+                  }));
+                }}
+                disabled={!filteredTemaOptions.length}
+              >
+                <option value="">{filteredTemaOptions.length ? "Selecione o tema" : "Nenhum tema encontrado"}</option>
+                {filteredTemaOptions.map((tema) => <option key={tema.id} value={tema.id}>{tema.titulo}{tema.ativo ? "" : " (inativo)"}</option>)}
+              </select>
+            </>
           ) : !edital.temasRedacaoConfigurados ? (
             <input
               style={{ height: 44, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13 }}

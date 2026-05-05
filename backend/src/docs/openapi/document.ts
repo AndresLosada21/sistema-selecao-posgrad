@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import {
   AddDocumentoRequestSchema,
+  AplicarTemaRedacaoPacoteRequestSchema,
+  AplicarTemaRedacaoPacoteResponseSchema,
   AuthResponseSchema,
   AuthenticatedUserSchema,
   AuthorizationHeaderSchema,
@@ -74,6 +76,7 @@ import {
   ResultadoEtapa1RequestSchema,
   ResultadoEtapa2RequestSchema,
   SaveDraftRequestSchema,
+  TemaRedacaoPacoteListResponseSchema,
   TemaRedacaoIdParamSchema,
   TemaRedacaoResumoSchema,
   TooManyRequestsResponseSchema,
@@ -269,6 +272,22 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/v1/admin/temas-redacao/pacotes",
+  tags: ["Editais"],
+  operationId: "listTemaRedacaoPacotes",
+  summary: "Lista pacotes padrao de temas de redacao",
+  description: withAuthDescription("Lista os pacotes fixos de temas de redacao disponiveis para aplicacao rapida em editais."),
+  security: bearerAuth,
+  request: withAuthHeaders(),
+  responses: {
+    200: { description: "Pacotes retornados com sucesso.", content: jsonContent(TemaRedacaoPacoteListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
   method: "post",
   path: "/v1/admin/editais/{editalId}/temas-redacao",
   tags: ["Editais"],
@@ -287,6 +306,28 @@ registry.registerPath({
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
     409: { description: "Conflito ao criar tema.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/temas-redacao/pacote",
+  tags: ["Editais"],
+  operationId: "applyTemaRedacaoPacote",
+  summary: "Aplica pacote padrao de temas de redacao em um edital",
+  description: withAuthDescription("Aplica um pacote fixo de temas de redacao no edital, permitindo complementar ou substituir o conjunto ativo sem perder historico."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(AplicarTemaRedacaoPacoteRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Pacote aplicado com sucesso.", content: jsonContent(AplicarTemaRedacaoPacoteResponseSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital ou pacote nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Conflito ao aplicar pacote.", content: jsonContent(ConflictErrorResponseSchema) },
   },
 });
 

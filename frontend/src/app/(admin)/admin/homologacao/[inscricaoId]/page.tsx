@@ -110,22 +110,20 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     setDownloadingPacote(true);
     setMessage(null);
     try {
-      let pacoteAtual = pacote;
+      let pacoteAtual: typeof pacote | null = null;
 
-      if (!pacoteAtual) {
-        try {
-          pacoteAtual = (await getPacoteDocumentalAdmin(item.id, session.token)).pacoteDocumental;
-        } catch (error) {
-          if (error instanceof ApiError && error.code === "PACOTE_DOCUMENTAL_NAO_GERADO") {
-            pacoteAtual = await regenerarPacoteDocumentalAdmin(item.id, session.token);
-            setMessage({
-              type: "success",
-              title: "Pacote documental gerado",
-              description: "O pacote nao existia e foi gerado automaticamente antes do download.",
-            });
-          } else {
-            throw error;
-          }
+      try {
+        pacoteAtual = (await getPacoteDocumentalAdmin(item.id, session.token)).pacoteDocumental;
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "PACOTE_DOCUMENTAL_NAO_GERADO") {
+          pacoteAtual = await regenerarPacoteDocumentalAdmin(item.id, session.token);
+          setMessage({
+            type: "success",
+            title: "Pacote documental gerado",
+            description: "O pacote nao existia e foi gerado automaticamente antes do download.",
+          });
+        } else {
+          throw error;
         }
       }
 

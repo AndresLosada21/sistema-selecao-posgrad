@@ -314,7 +314,7 @@ inscricaoRouter.get("/v1/admin/inscricoes/:inscricaoId/pacote-documental", requi
     return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
   }
 
-  const result = await getPacoteDocumentalDaInscricaoAdmin(parsedParams.data.inscricaoId);
+  const result = await getPacoteDocumentalDaInscricaoAdmin(parsedParams.data.inscricaoId, request.auth!.userId);
 
   if ("error" in result) {
     const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;

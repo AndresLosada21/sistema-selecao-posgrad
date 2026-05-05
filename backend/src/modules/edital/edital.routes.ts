@@ -5,6 +5,7 @@ import { conflict, forbidden, notFound, validationError } from "../../lib/http-e
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 import {
+  applyTemaRedacaoPacote,
   createCronograma,
   createEdital,
   createLinhaPesquisa,
@@ -17,12 +18,14 @@ import {
   getEditalById,
   listAdminEditais,
   listEditais,
+  listTemaRedacaoPacotes,
   updateCronograma,
   updateEdital,
   updateLinhaPesquisa,
   updateTemaRedacao,
 } from "./edital.service.js";
 import {
+  applyTemaRedacaoPacoteSchema,
   editalCronogramaParamsSchema,
   editalLinhaPesquisaParamsSchema,
   editalParamsSchema,
@@ -111,6 +114,11 @@ editalRouter.get("/v1/editais/:editalId", async (request, response) => {
   }
 
   return response.status(200).json(edital);
+});
+
+editalRouter.get("/v1/admin/temas-redacao/pacotes", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
+  const pacotes = await listTemaRedacaoPacotes();
+  return response.status(200).json(pacotes);
 });
 
 editalRouter.get("/v1/admin/editais", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
@@ -326,6 +334,27 @@ editalRouter.post("/v1/admin/editais/:editalId/temas-redacao", requireAuth, requ
     return response.status(201).json(tema);
   } catch (error) {
     const result = buildAdminEditalError(error, "Nao foi possivel criar o tema de redacao.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.post("/v1/admin/editais/:editalId/temas-redacao/pacote", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+  const parsedBody = applyTemaRedacaoPacoteSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para aplicar pacote de temas de redacao.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const result = await applyTemaRedacaoPacote(parsedParams.data.editalId, parsedBody.data);
+    return response.status(200).json(result);
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel aplicar o pacote de temas de redacao.");
     return response.status(result.status).json(result.body);
   }
 });

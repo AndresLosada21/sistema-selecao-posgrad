@@ -145,23 +145,16 @@ export async function createOperationalEdital(request: APIRequestContext, option
   const editalResponse = await postJson(request, "/v1/admin/editais", {
     numero: `UI-${suffix}`,
     titulo: `Edital UI ${suffix}`,
-      descricao: "Edital tecnico para fluxos E2E reais.",
-      ano: 2026,
-      semestre: 1,
-      cursoNivel,
-      status: "RASCUNHO",
-    }, adminToken);
+    descricao: "Edital tecnico para fluxos E2E reais.",
+    ano: 2026,
+    semestre: 1,
+    cursoNivel,
+    status: "RASCUNHO",
+    temaPacoteInicialSlug: "ppgee-v1",
+  }, adminToken);
 
   expect(editalResponse.ok()).toBeTruthy();
   const edital = await editalResponse.json();
-
-  const temaResponse = await postJson(request, `/v1/admin/editais/${edital.id}/temas-redacao`, {
-    titulo: "Controle e automacao aplicada a sistemas energeticos",
-    descricao: "Tema tecnico padrao para fluxos E2E.",
-    ordem: 0,
-    ativo: true,
-  }, adminToken);
-  expect(temaResponse.ok()).toBeTruthy();
 
   const linhaResponse = await postJson(request, `/v1/admin/editais/${edital.id}/linhas`, {
     nome: `Linha UI ${suffix}`,
