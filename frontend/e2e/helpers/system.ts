@@ -240,7 +240,7 @@ export async function createSubmittedInscricaoApi(request: APIRequestContext, in
   const draftResponse = await putJson(request, `/v1/editais/${input.editalId}/inscricao/rascunho`, {
     linhaPesquisaId: input.linhaId,
     modalidadeConcorrencia: "AMPLA_CONCORRENCIA",
-    temaRedacao: "Controle e automacao aplicada a sistemas energeticos",
+    temaRedacao: "Controle de processos",
     resumoCurriculo: "Experiencia em pesquisa e desenvolvimento na area.",
     redacaoTexto: "A".repeat(600),
     fichaInscricao: {
