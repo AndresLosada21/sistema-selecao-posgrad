@@ -62,6 +62,8 @@ function getPublicacaoMessage(errorCode: string) {
       return "O PDF informado para a publicacao nao foi encontrado no storage configurado.";
     case "ISENCAO_SEM_DADOS":
       return "Nao ha pedidos de isencao avaliados para gerar a publicacao deste edital.";
+    case "ISENCAO_INCOMPLETA":
+      return "Ainda ha pedidos de isencao sem decisao na fase solicitada. Conclua a avaliacao de todos os pedidos antes de publicar.";
     case "ETAPA1_SEM_DADOS":
       return "Nao ha avaliacoes publicadas da etapa 1 para gerar a publicacao deste edital.";
     case "ETAPA2_SEM_DADOS":

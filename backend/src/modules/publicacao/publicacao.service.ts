@@ -993,6 +993,27 @@ export async function buildIsencaoPublicacaoPreview(editalId: string, fase: Fase
     return { error: "ISENCAO_SEM_DADOS" as const };
   }
 
+  const pendencias = pedidos
+    .filter((pedido) => {
+      const statusFase = fase === "PRELIMINAR"
+        ? !["DEFERIDA_PRELIMINAR", "INDEFERIDA_PRELIMINAR"].includes(pedido.status) ? null : pedido.status
+        : !["DEFERIDA_FINAL", "INDEFERIDA_FINAL"].includes(pedido.status) ? null : pedido.status;
+
+      return !statusFase;
+    })
+    .map((pedido) => ({
+      pedidoIsencaoId: pedido.id,
+      candidatoNome: pedido.participacaoEdital.usuario.nomeCompleto,
+      statusAtual: pedido.status,
+    }));
+
+  if (pendencias.length > 0) {
+    return {
+      error: "ISENCAO_INCOMPLETA" as const,
+      details: pendencias,
+    };
+  }
+
   const tipoPublicacao = resolveIsencaoTipoPublicacao(fase);
   const versionamento = await getPublicacaoVersionamento(editalId, tipoPublicacao);
 
