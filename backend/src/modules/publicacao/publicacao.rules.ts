@@ -57,3 +57,35 @@ export function buildPoliticasAfirmativasPublicacaoTitulo(fase: FasePoliticasAfi
     ? "Resultado preliminar da etapa de politicas afirmativas"
     : "Resultado final da etapa de politicas afirmativas";
 }
+
+export type FaseIsencaoPublicacao = "PRELIMINAR" | "FINAL";
+export type FaseEtapa1Publicacao = "FINAL";
+export type FaseEtapa2Publicacao = "FINAL";
+
+export function resolveIsencaoTipoPublicacao(fase: FaseIsencaoPublicacao) {
+  return fase === "PRELIMINAR"
+    ? TipoPublicacaoOficial.ISENCAO_PRELIMINAR
+    : TipoPublicacaoOficial.ISENCAO_FINAL;
+}
+
+export function buildIsencaoPublicacaoTitulo(fase: FaseIsencaoPublicacao) {
+  return fase === "PRELIMINAR"
+    ? "Resultado preliminar da isencao"
+    : "Resultado final da isencao";
+}
+
+export function resolveEtapa1TipoPublicacao() {
+  return TipoPublicacaoOficial.RESULTADO_ETAPA_1;
+}
+
+export function buildEtapa1PublicacaoTitulo() {
+  return "Resultado oficial da etapa 1";
+}
+
+export function resolveEtapa2TipoPublicacao() {
+  return TipoPublicacaoOficial.RESULTADO_ETAPA_2;
+}
+
+export function buildEtapa2PublicacaoTitulo() {
+  return "Resultado oficial da etapa 2";
+}

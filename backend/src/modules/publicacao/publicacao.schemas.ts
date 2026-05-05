@@ -62,3 +62,29 @@ export const createClassificacaoPublicacaoSchema = z.object({
   arquivoUrl: pdfFileUrlSchema.optional(),
   arquivoMetadados: publicacaoArquivoMetadataSchema.optional(),
 });
+
+export const previewIsencaoPublicacaoQuerySchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+});
+
+export const createIsencaoPublicacaoSchema = z.object({
+  fase: z.enum(["PRELIMINAR", "FINAL"]),
+  titulo: z.string().trim().min(1).optional(),
+  descricao: z.string().trim().min(1).optional(),
+  arquivoUrl: pdfFileUrlSchema.optional(),
+  arquivoMetadados: publicacaoArquivoMetadataSchema.optional(),
+});
+
+export const createEtapa1PublicacaoSchema = z.object({
+  titulo: z.string().trim().min(1).optional(),
+  descricao: z.string().trim().min(1).optional(),
+  arquivoUrl: pdfFileUrlSchema.optional(),
+  arquivoMetadados: publicacaoArquivoMetadataSchema.optional(),
+});
+
+export const createEtapa2PublicacaoSchema = z.object({
+  titulo: z.string().trim().min(1).optional(),
+  descricao: z.string().trim().min(1).optional(),
+  arquivoUrl: pdfFileUrlSchema.optional(),
+  arquivoMetadados: publicacaoArquivoMetadataSchema.optional(),
+});

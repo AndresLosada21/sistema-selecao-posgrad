@@ -290,6 +290,18 @@ function isPoliticasTipo(tipo: string) {
   return tipo === "POLITICAS_AFIRMATIVAS_PRELIMINAR" || tipo === "POLITICAS_AFIRMATIVAS_FINAL";
 }
 
+function isIsencaoTipo(tipo: string) {
+  return tipo === "ISENCAO_PRELIMINAR" || tipo === "ISENCAO_FINAL";
+}
+
+function isEtapa1Tipo(tipo: string) {
+  return tipo === "RESULTADO_ETAPA_1";
+}
+
+function isEtapa2Tipo(tipo: string) {
+  return tipo === "RESULTADO_ETAPA_2";
+}
+
 function drawHeader(ctx: PdfContext) {
   ctx.page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 8, width: PAGE_WIDTH, height: 8, color: NAVY });
   ctx.page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 8, width: 142, height: 8, color: YELLOW });
@@ -752,6 +764,56 @@ function drawPoliticasAfirmativasPdf(ctx: PdfContext, snapshot: SnapshotRecord) 
   drawTableRows(ctx, columns, sections);
 }
 
+function drawIsencaoPdf(ctx: PdfContext, snapshot: SnapshotRecord) {
+  const items = asArray(snapshot.itens).map(asRecord).filter(Boolean) as SnapshotRecord[];
+  drawSummary(ctx, buildSummaryEntries(snapshot, [
+    { label: "Fase", value: asString(snapshot.fase) ?? "-" },
+    { label: "Tipo", value: formatTipo(asString(snapshot.tipo) ?? ctx.tipo) },
+  ]));
+
+  const sections = [{ title: "Isencoes", rows: items }];
+  const columns: TableColumn<SnapshotRecord>[] = [
+    { key: "candidato", header: "Candidato", width: 200, getValue: (item) => asString(asRecord(item.candidato)?.nomeCompleto) ?? "-" },
+    { key: "situacao", header: "Situacao", width: 110, tone: "status", getValue: (item) => asString(item.situacaoPublica) ?? "-" },
+    { key: "parecer", header: "Parecer", width: 213, getValue: (item) => asString(item.parecer) ?? "-" },
+  ];
+
+  drawTableRows(ctx, columns, sections);
+}
+
+function drawEtapa1Pdf(ctx: PdfContext, snapshot: SnapshotRecord) {
+  const items = asArray(snapshot.itens).map(asRecord).filter(Boolean) as SnapshotRecord[];
+  drawSummary(ctx, buildSummaryEntries(snapshot, [
+    { label: "Tipo", value: formatTipo(asString(snapshot.tipo) ?? ctx.tipo) },
+  ]));
+
+  const sections = groupRowsBySection(items, (item) => `Linha de pesquisa: ${getLinhaNome(item)}`);
+  const columns: TableColumn<SnapshotRecord>[] = [
+    { key: "candidato", header: "Candidato", width: 230, getValue: (item) => asString(asRecord(item.candidato)?.nomeCompleto) ?? "-" },
+    { key: "nota", header: "Nota", width: 64, align: "center", tone: "score", getValue: (item) => item.nota === null || item.nota === undefined ? "-" : String(item.nota) },
+    { key: "situacao", header: "Situacao", width: 229, tone: "status", getValue: (item) => asString(item.situacaoPublica) ?? "-" },
+  ];
+
+  drawTableRows(ctx, columns, sections);
+}
+
+function drawEtapa2Pdf(ctx: PdfContext, snapshot: SnapshotRecord) {
+  const items = asArray(snapshot.itens).map(asRecord).filter(Boolean) as SnapshotRecord[];
+  drawSummary(ctx, buildSummaryEntries(snapshot, [
+    { label: "Tipo", value: formatTipo(asString(snapshot.tipo) ?? ctx.tipo) },
+  ]));
+
+  const sections = groupRowsBySection(items, (item) => `Linha de pesquisa: ${getLinhaNome(item)}`);
+  const columns: TableColumn<SnapshotRecord>[] = [
+    { key: "candidato", header: "Candidato", width: 172, getValue: (item) => asString(asRecord(item.candidato)?.nomeCompleto) ?? "-" },
+    { key: "pontuacaoBruta", header: "Pont. Bruta", width: 66, align: "center", tone: "score", getValue: (item) => item.pontuacaoBruta === null || item.pontuacaoBruta === undefined ? "-" : String(item.pontuacaoBruta) },
+    { key: "notaNormalizada", header: "Nota", width: 66, align: "center", tone: "score", getValue: (item) => item.notaNormalizada === null || item.notaNormalizada === undefined ? "-" : String(item.notaNormalizada) },
+    { key: "situacao", header: "Situacao", width: 219, tone: "status", getValue: (item) => asString(item.situacaoPublica) ?? asString(item.status) ?? "-" },
+  ];
+
+  drawTableRows(ctx, columns, sections);
+}
+
 function isLargeSnapshotField(label: string) {
   return ["snapshotSubmissao", "submissaoSnapshot", "dadosConsolidados"].includes(label);
 }
@@ -946,6 +1008,12 @@ export async function generatePublicacaoPdfBuffer(input: PdfInput) {
     drawHomologacaoPdf(ctx, snapshot);
   } else if (snapshot && isPoliticasTipo(input.tipo)) {
     drawPoliticasAfirmativasPdf(ctx, snapshot);
+  } else if (snapshot && isIsencaoTipo(input.tipo)) {
+    drawIsencaoPdf(ctx, snapshot);
+  } else if (snapshot && isEtapa1Tipo(input.tipo)) {
+    drawEtapa1Pdf(ctx, snapshot);
+  } else if (snapshot && isEtapa2Tipo(input.tipo)) {
+    drawEtapa2Pdf(ctx, snapshot);
   } else {
     drawGenericFallbackPdf(ctx, snapshot, input);
   }

@@ -14,13 +14,20 @@ import {
   buildClassificacaoPublicacaoTitulo,
   buildHomologacaoPublicacaoTitulo,
   buildPoliticasAfirmativasPublicacaoTitulo,
+  buildIsencaoPublicacaoTitulo,
+  buildEtapa1PublicacaoTitulo,
+  buildEtapa2PublicacaoTitulo,
   resolvePublicacaoVersionamento,
   resolveClassificacaoTipoPublicacao,
   resolveHomologacaoTipoPublicacao,
   resolvePoliticasAfirmativasTipoPublicacao,
+  resolveIsencaoTipoPublicacao,
+  resolveEtapa1TipoPublicacao,
+  resolveEtapa2TipoPublicacao,
   type FaseClassificacaoPublicacao,
   type FaseHomologacaoPublicacao,
   type FasePoliticasAfirmativasPublicacao,
+  type FaseIsencaoPublicacao,
 } from "./publicacao.rules.js";
 import { toInputJsonOrUndefined, toIsoOrNull } from "../../lib/serialization.js";
 import { isPrivateUploadOwnedByUser, parsePrivateUploadUrl, privateUploadExists, statPrivateUpload } from "../upload/upload.service.js";
@@ -961,4 +968,309 @@ export async function getPublicacaoById(publicacaoId: string) {
   }
 
   return { publicacao };
+}
+
+// ─── Isenção ────────────────────────────────────────────────
+
+export async function buildIsencaoPublicacaoPreview(editalId: string, fase: FaseIsencaoPublicacao) {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId } });
+
+  if (!edital) {
+    return { error: "EDITAL_NAO_ENCONTRADO" as const };
+  }
+
+  const pedidos = await prisma.pedidoIsencao.findMany({
+    where: { participacaoEdital: { editalId }, status: { not: "SOLICITADA" } },
+    include: {
+      participacaoEdital: {
+        include: { usuario: true, inscricao: { include: { linhaPesquisa: true } } },
+      },
+    },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  if (pedidos.length === 0) {
+    return { error: "ISENCAO_SEM_DADOS" as const };
+  }
+
+  const tipoPublicacao = resolveIsencaoTipoPublicacao(fase);
+  const versionamento = await getPublicacaoVersionamento(editalId, tipoPublicacao);
+
+  const itens = pedidos.map((pedido) => {
+    const status = pedido.status;
+    const parecer = fase === "PRELIMINAR" ? pedido.parecerPreliminar : pedido.parecerFinal;
+
+    return {
+      pedidoIsencaoId: pedido.id,
+      candidato: { nomeCompleto: pedido.participacaoEdital.usuario.nomeCompleto },
+      linhaPesquisa: pedido.participacaoEdital.inscricao?.linhaPesquisa
+        ? { nome: pedido.participacaoEdital.inscricao.linhaPesquisa.nome }
+        : null,
+      situacaoPublica: status,
+      parecer,
+    };
+  });
+
+  const resumo = {
+    total: itens.length,
+    deferidas: itens.filter((item) => item.situacaoPublica === "DEFERIDA_PRELIMINAR" || item.situacaoPublica === "DEFERIDA_FINAL").length,
+    indeferidas: itens.filter((item) => item.situacaoPublica === "INDEFERIDA_PRELIMINAR" || item.situacaoPublica === "INDEFERIDA_FINAL").length,
+  };
+
+  return {
+    preview: {
+      edital: { id: edital.id, numero: edital.numero, titulo: edital.titulo, cursoNivel: edital.cursoNivel },
+      fase,
+      tipo: tipoPublicacao,
+      tituloSugerido: buildIsencaoPublicacaoTitulo(fase),
+      geradoEm: new Date().toISOString(),
+      versionamento,
+      resumo,
+      itens,
+    },
+  };
+}
+
+export async function createIsencaoPublicacao(input: {
+  editalId: string;
+  criadoPorId: string;
+  fase: FaseIsencaoPublicacao;
+  titulo?: string;
+  descricao?: string;
+  arquivoUrl?: string;
+  arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
+}) {
+  const previewResult = await buildIsencaoPublicacaoPreview(input.editalId, input.fase);
+
+  if ("error" in previewResult) {
+    return previewResult;
+  }
+
+  const arquivoValidation = await validatePublicacaoArquivoUrl(input.arquivoUrl, input.criadoPorId);
+
+  if (arquivoValidation) {
+    return arquivoValidation;
+  }
+
+  const versionamento = previewResult.preview.versionamento;
+  const publicacao = await prisma.publicacaoOficial.create({
+    data: {
+      editalId: input.editalId,
+      criadoPorId: input.criadoPorId,
+      republicacaoDeId: versionamento.republicacaoDeId,
+      tipo: resolveIsencaoTipoPublicacao(input.fase),
+      titulo: input.titulo?.trim() || buildIsencaoPublicacaoTitulo(input.fase),
+      descricao: input.descricao,
+      versao: versionamento.versao,
+      versaoFinal: input.fase === "FINAL",
+      arquivoUrl: input.arquivoUrl,
+      dadosConsolidados: buildStoredPublicacaoSnapshot(previewResult.preview as Record<string, unknown>, input.arquivoMetadados),
+      publicadoEm: new Date(),
+    },
+  });
+
+  return { publicacao, preview: previewResult.preview };
+}
+
+// ─── Etapa 1 ────────────────────────────────────────────────
+
+export async function buildEtapa1PublicacaoPreview(editalId: string) {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId } });
+
+  if (!edital) {
+    return { error: "EDITAL_NAO_ENCONTRADO" as const };
+  }
+
+  const avaliacoes = await prisma.avaliacaoEtapa1.findMany({
+    where: { editalId, status: { in: ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"] } },
+    include: {
+      inscricao: {
+        include: {
+          participacaoEdital: {
+            include: { usuario: true },
+          },
+          linhaPesquisa: true,
+        },
+      },
+    },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  if (avaliacoes.length === 0) {
+    return { error: "ETAPA1_SEM_DADOS" as const };
+  }
+
+  const tipoPublicacao = resolveEtapa1TipoPublicacao();
+  const versionamento = await getPublicacaoVersionamento(editalId, tipoPublicacao);
+
+  const itens = avaliacoes.map((avaliacao) => ({
+    inscricaoId: avaliacao.inscricaoId,
+    candidato: { nomeCompleto: avaliacao.inscricao.participacaoEdital.usuario.nomeCompleto },
+    linhaPesquisa: avaliacao.inscricao.linhaPesquisa
+      ? { nome: avaliacao.inscricao.linhaPesquisa.nome }
+      : null,
+    nota: avaliacao.nota?.toNumber() ?? null,
+    situacaoPublica: avaliacao.nota && avaliacao.nota.toNumber() >= 7 ? "APTA_ETAPA_2" : "ELIMINADA_ETAPA_1",
+    status: avaliacao.status,
+  }));
+
+  const resumo = {
+    total: itens.length,
+    aptosEtapa2: itens.filter((item) => item.situacaoPublica === "APTA_ETAPA_2").length,
+    eliminados: itens.filter((item) => item.situacaoPublica === "ELIMINADA_ETAPA_1").length,
+  };
+
+  return {
+    preview: {
+      edital: { id: edital.id, numero: edital.numero, titulo: edital.titulo, cursoNivel: edital.cursoNivel },
+      tipo: tipoPublicacao,
+      tituloSugerido: buildEtapa1PublicacaoTitulo(),
+      geradoEm: new Date().toISOString(),
+      versionamento,
+      resumo,
+      itens,
+    },
+  };
+}
+
+export async function createEtapa1Publicacao(input: {
+  editalId: string;
+  criadoPorId: string;
+  titulo?: string;
+  descricao?: string;
+  arquivoUrl?: string;
+  arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
+}) {
+  const previewResult = await buildEtapa1PublicacaoPreview(input.editalId);
+
+  if ("error" in previewResult) {
+    return previewResult;
+  }
+
+  const arquivoValidation = await validatePublicacaoArquivoUrl(input.arquivoUrl, input.criadoPorId);
+
+  if (arquivoValidation) {
+    return arquivoValidation;
+  }
+
+  const versionamento = previewResult.preview.versionamento;
+  const publicacao = await prisma.publicacaoOficial.create({
+    data: {
+      editalId: input.editalId,
+      criadoPorId: input.criadoPorId,
+      republicacaoDeId: versionamento.republicacaoDeId,
+      tipo: resolveEtapa1TipoPublicacao(),
+      titulo: input.titulo?.trim() || buildEtapa1PublicacaoTitulo(),
+      descricao: input.descricao,
+      versao: versionamento.versao,
+      versaoFinal: true,
+      arquivoUrl: input.arquivoUrl,
+      dadosConsolidados: buildStoredPublicacaoSnapshot(previewResult.preview as Record<string, unknown>, input.arquivoMetadados),
+      publicadoEm: new Date(),
+    },
+  });
+
+  return { publicacao, preview: previewResult.preview };
+}
+
+// ─── Etapa 2 ────────────────────────────────────────────────
+
+export async function buildEtapa2PublicacaoPreview(editalId: string) {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId } });
+
+  if (!edital) {
+    return { error: "EDITAL_NAO_ENCONTRADO" as const };
+  }
+
+  const avaliacoes = await prisma.avaliacaoEtapa2.findMany({
+    where: { editalId, status: { in: ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"] } },
+    include: {
+      inscricao: {
+        include: {
+          participacaoEdital: {
+            include: { usuario: true },
+          },
+          linhaPesquisa: true,
+        },
+      },
+    },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  if (avaliacoes.length === 0) {
+    return { error: "ETAPA2_SEM_DADOS" as const };
+  }
+
+  const tipoPublicacao = resolveEtapa2TipoPublicacao();
+  const versionamento = await getPublicacaoVersionamento(editalId, tipoPublicacao);
+  const maiorPontuacaoBruta = Math.max(...avaliacoes.map((avaliacao) => avaliacao.pontuacaoBruta?.toNumber() ?? 0));
+
+  const itens = avaliacoes.map((avaliacao) => ({
+    inscricaoId: avaliacao.inscricaoId,
+    candidato: { nomeCompleto: avaliacao.inscricao.participacaoEdital.usuario.nomeCompleto },
+    linhaPesquisa: avaliacao.inscricao.linhaPesquisa
+      ? { nome: avaliacao.inscricao.linhaPesquisa.nome }
+      : null,
+    pontuacaoBruta: avaliacao.pontuacaoBruta?.toNumber() ?? null,
+    notaNormalizada: avaliacao.notaNormalizada?.toNumber() ?? null,
+    situacaoPublica: "PUBLICADA",
+    status: avaliacao.status,
+  }));
+
+  const resumo = {
+    total: itens.length,
+    maiorPontuacaoBruta,
+  };
+
+  return {
+    preview: {
+      edital: { id: edital.id, numero: edital.numero, titulo: edital.titulo, cursoNivel: edital.cursoNivel },
+      tipo: tipoPublicacao,
+      tituloSugerido: buildEtapa2PublicacaoTitulo(),
+      geradoEm: new Date().toISOString(),
+      versionamento,
+      resumo,
+      itens,
+    },
+  };
+}
+
+export async function createEtapa2Publicacao(input: {
+  editalId: string;
+  criadoPorId: string;
+  titulo?: string;
+  descricao?: string;
+  arquivoUrl?: string;
+  arquivoMetadados?: { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number };
+}) {
+  const previewResult = await buildEtapa2PublicacaoPreview(input.editalId);
+
+  if ("error" in previewResult) {
+    return previewResult;
+  }
+
+  const arquivoValidation = await validatePublicacaoArquivoUrl(input.arquivoUrl, input.criadoPorId);
+
+  if (arquivoValidation) {
+    return arquivoValidation;
+  }
+
+  const versionamento = previewResult.preview.versionamento;
+  const publicacao = await prisma.publicacaoOficial.create({
+    data: {
+      editalId: input.editalId,
+      criadoPorId: input.criadoPorId,
+      republicacaoDeId: versionamento.republicacaoDeId,
+      tipo: resolveEtapa2TipoPublicacao(),
+      titulo: input.titulo?.trim() || buildEtapa2PublicacaoTitulo(),
+      descricao: input.descricao,
+      versao: versionamento.versao,
+      versaoFinal: true,
+      arquivoUrl: input.arquivoUrl,
+      dadosConsolidados: buildStoredPublicacaoSnapshot(previewResult.preview as Record<string, unknown>, input.arquivoMetadados),
+      publicadoEm: new Date(),
+    },
+  });
+
+  return { publicacao, preview: previewResult.preview };
 }

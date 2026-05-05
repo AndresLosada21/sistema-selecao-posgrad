@@ -8,19 +8,29 @@ import { requireRole } from "../../middleware/role.middleware.js";
 import {
   createClassificacaoPublicacaoSchema,
   createHomologacaoPublicacaoSchema,
+  createIsencaoPublicacaoSchema,
+  createEtapa1PublicacaoSchema,
+  createEtapa2PublicacaoSchema,
   createPublicacaoSchema,
   editalIdParamSchema,
   listPublicacoesAdminQuerySchema,
   publicacaoIdParamSchema,
   previewClassificacaoPublicacaoQuerySchema,
   previewHomologacaoPublicacaoQuerySchema,
+  previewIsencaoPublicacaoQuerySchema,
 } from "./publicacao.schemas.js";
 import {
   getPublicacaoById,
   buildClassificacaoPublicacaoPreview,
   buildHomologacaoPublicacaoPreview,
+  buildIsencaoPublicacaoPreview,
+  buildEtapa1PublicacaoPreview,
+  buildEtapa2PublicacaoPreview,
   createClassificacaoPublicacao,
   createHomologacaoPublicacao,
+  createIsencaoPublicacao,
+  createEtapa1Publicacao,
+  createEtapa2Publicacao,
   createPublicacao,
   listPublicacoesByEdital,
   listPublicacoesAdminByEdital,
@@ -50,6 +60,12 @@ function getPublicacaoMessage(errorCode: string) {
       return "O PDF informado para a publicacao precisa ter sido enviado pelo mesmo usuario administrador autenticado.";
     case "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO":
       return "O PDF informado para a publicacao nao foi encontrado no storage configurado.";
+    case "ISENCAO_SEM_DADOS":
+      return "Nao ha pedidos de isencao avaliados para gerar a publicacao deste edital.";
+    case "ETAPA1_SEM_DADOS":
+      return "Nao ha avaliacoes publicadas da etapa 1 para gerar a publicacao deste edital.";
+    case "ETAPA2_SEM_DADOS":
+      return "Nao ha avaliacoes publicadas da etapa 2 para gerar a publicacao deste edital.";
     default:
       return errorCode;
   }
@@ -367,4 +383,133 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/classificacao", r
     publicacao: result.publicacao,
     preview: result.preview,
   });
+});
+
+publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/isencao/preview", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalIdParamSchema.safeParse(request.params);
+  const parsedQuery = previewIsencaoPublicacaoQuerySchema.safeParse(request.query);
+
+  if (!parsedParams.success || !parsedQuery.success) {
+    return response.status(400).json(requestValidationError("Dados para preview da publicacao de isencao invalidos.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
+    }));
+  }
+
+  const result = await buildIsencaoPublicacaoPreview(parsedParams.data.editalId, parsedQuery.data.fase);
+
+  if ("error" in result) {
+    const errorCode = result.error as string;
+    const message = getPublicacaoMessage(errorCode);
+    if (errorCode === "EDITAL_NAO_ENCONTRADO") return response.status(404).json(notFound(message, errorCode));
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
+  }
+
+  return response.status(200).json(result.preview);
+});
+
+publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/isencao", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalIdParamSchema.safeParse(request.params);
+  const parsedBody = createIsencaoPublicacaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json(requestValidationError("Dados para publicacao de isencao invalidos.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    }));
+  }
+
+  const result = await createIsencaoPublicacao({
+    editalId: parsedParams.data.editalId,
+    criadoPorId: request.auth!.userId,
+    fase: parsedBody.data.fase,
+    titulo: parsedBody.data.titulo as string | undefined,
+    descricao: parsedBody.data.descricao as string | undefined,
+    arquivoUrl: parsedBody.data.arquivoUrl as string | undefined,
+    arquivoMetadados: parsedBody.data.arquivoMetadados as { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number } | undefined,
+  });
+
+  if ("error" in result) {
+    const errorCode = result.error as string;
+    const message = getPublicacaoMessage(errorCode);
+    if (errorCode === "EDITAL_NAO_ENCONTRADO") return response.status(404).json(notFound(message, errorCode));
+    if (errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
+  }
+
+  if (!("publicacao" in result)) {
+    return response.status(500).json(internalError("PUBLICACAO_ISENCAO_INVALIDA"));
+  }
+
+  return response.status(201).json({ publicacao: result.publicacao, preview: result.preview });
+});
+
+publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/etapa-1", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalIdParamSchema.safeParse(request.params);
+  const parsedBody = createEtapa1PublicacaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json(requestValidationError("Dados para publicacao de etapa 1 invalidos.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    }));
+  }
+
+  const result = await createEtapa1Publicacao({
+    editalId: parsedParams.data.editalId,
+    criadoPorId: request.auth!.userId,
+    titulo: parsedBody.data.titulo as string | undefined,
+    descricao: parsedBody.data.descricao as string | undefined,
+    arquivoUrl: parsedBody.data.arquivoUrl as string | undefined,
+    arquivoMetadados: parsedBody.data.arquivoMetadados as { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number } | undefined,
+  });
+
+  if ("error" in result) {
+    const errorCode = result.error as string;
+    const message = getPublicacaoMessage(errorCode);
+    if (errorCode === "EDITAL_NAO_ENCONTRADO") return response.status(404).json(notFound(message, errorCode));
+    if (errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
+  }
+
+  if (!("publicacao" in result)) {
+    return response.status(500).json(internalError("PUBLICACAO_ETAPA1_INVALIDA"));
+  }
+
+  return response.status(201).json({ publicacao: result.publicacao, preview: result.preview });
+});
+
+publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/etapa-2", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalIdParamSchema.safeParse(request.params);
+  const parsedBody = createEtapa2PublicacaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json(requestValidationError("Dados para publicacao de etapa 2 invalidos.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    }));
+  }
+
+  const result = await createEtapa2Publicacao({
+    editalId: parsedParams.data.editalId,
+    criadoPorId: request.auth!.userId,
+    titulo: parsedBody.data.titulo as string | undefined,
+    descricao: parsedBody.data.descricao as string | undefined,
+    arquivoUrl: parsedBody.data.arquivoUrl as string | undefined,
+    arquivoMetadados: parsedBody.data.arquivoMetadados as { nomeOriginal: string; mimeType?: string; tamanhoBytes?: number } | undefined,
+  });
+
+  if ("error" in result) {
+    const errorCode = result.error as string;
+    const message = getPublicacaoMessage(errorCode);
+    if (errorCode === "EDITAL_NAO_ENCONTRADO") return response.status(404).json(notFound(message, errorCode));
+    if (errorCode === "ARQUIVO_PUBLICACAO_SEM_PERMISSAO") return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
+    return response.status(409).json(conflict(message, errorCode, { details: "details" in result ? result.details : undefined }));
+  }
+
+  if (!("publicacao" in result)) {
+    return response.status(500).json(internalError("PUBLICACAO_ETAPA2_INVALIDA"));
+  }
+
+  return response.status(201).json({ publicacao: result.publicacao, preview: result.preview });
 });
