@@ -4,7 +4,7 @@ import { writeFile } from "node:fs/promises";
 import express from "express";
 import multer from "multer";
 
-import { forbidden, notFound, validationError } from "../../lib/http-errors.js";
+import { forbidden, internalError, notFound, validationError } from "../../lib/http-errors.js";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import {
   assertUploadFile,
@@ -45,6 +45,14 @@ uploadRouter.post("/v1/uploads", requireAuth, uploadMiddleware.single("file"), a
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha ao processar upload.";
+
+    if (error && typeof error === "object") {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EACCES" || code === "EPERM" || code === "EROFS") {
+        return response.status(500).json(internalError("Storage de upload indisponivel no servidor.", "UPLOAD_STORAGE_UNAVAILABLE"));
+      }
+    }
+
     return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
   }
 });
