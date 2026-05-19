@@ -23,11 +23,11 @@ test("selecionar UF em naturalidade habilita a escolha do municipio", async ({ p
   await page.getByRole("button", { name: "Entrar neste edital" }).first().click();
   await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });
 
-  await page.getByRole("link", { name: "Nova inscricao" }).click();
+  await page.getByRole("link", { name: "Nova inscrição" }).click();
   await expect(page).toHaveURL(/\/candidato\/editais\/.+\/inscricao$/, { timeout: 20_000 });
 
   await expect(page.getByRole("button", { name: /Salvar Rascunho/i })).toBeEnabled();
-  await expect(page.getByRole("button", { name: /Proximo: Dados Academicos/i })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Próximo: Dados Acadêmicos/i })).toBeEnabled();
 
   const nacionalidadeField = page.locator(".wiz-field", { hasText: "Nacionalidade" }).first();
   await nacionalidadeField.locator("select").selectOption("Brasileira");

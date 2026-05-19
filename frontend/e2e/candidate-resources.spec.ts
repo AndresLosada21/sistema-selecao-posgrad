@@ -33,7 +33,7 @@ test("candidato registra recurso real pela UI apos resultado preliminar", async 
   await page.goto(`/candidato/recursos?editalId=${fixture.editalId}&fase=HOMOLOGACAO`);
   await expect(page.getByRole("heading", { name: "Novo recurso" })).toBeVisible({ timeout: 20_000 });
 
-  await page.getByLabel("Fundamentacao").fill("Apresento recurso administrativo contra o resultado preliminar da homologacao.");
+  await page.getByLabel("Fundamentação").fill("Apresento recurso administrativo contra o resultado preliminar da homologação.");
   await page.locator('input[type="file"]').first().setInputFiles({
     name: "anexo-recurso.pdf",
     mimeType: "application/pdf",
@@ -43,7 +43,7 @@ test("candidato registra recurso real pela UI apos resultado preliminar", async 
   await expect(page.getByRole("button", { name: "Enviar recurso" })).toBeEnabled({ timeout: 20_000 });
   await page.getByRole("button", { name: "Enviar recurso" }).click();
 
-  await expect(page.getByText("Recurso — Homologacao")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText("Apresento recurso administrativo contra o resultado preliminar da homologacao.")).toBeVisible();
+  await expect(page.getByText("Recurso — Homologação")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Apresento recurso administrativo contra o resultado preliminar da homologação.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Baixar anexo enviado" })).toBeVisible();
 });

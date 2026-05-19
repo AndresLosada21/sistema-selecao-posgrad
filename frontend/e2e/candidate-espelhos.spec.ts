@@ -30,13 +30,13 @@ test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", a
 
   await page.goto(`/candidato/editais/${fixture.editalId}/espelhos`);
   await page.getByRole("button", { name: "Solicitar espelho" }).click();
-  await expect(page.getByText("Solicitacao registrada")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Solicitação registrada")).toBeVisible({ timeout: 20_000 });
 
   await liberarEspelhoEtapa1Api(request, adminToken, fixture.inscricaoId);
   await page.reload();
   await page.getByRole("button", { name: "Ver espelho" }).click();
   await expect(page.getByText("Espelho estruturado da etapa 1.")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText("Adequacao e dominio do tema")).toBeVisible();
+  await expect(page.getByText("Adequação e domínio do tema")).toBeVisible();
 
   const etapa2Fixture = await setupCandidateSubmissionFixture(request, [
     { tipo: "INSCRICAO", titulo: "Inscricao aberta" },
@@ -54,7 +54,7 @@ test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", a
 
   await page.goto(`/candidato/editais/${etapa2Fixture.editalId}/espelhos`);
   await page.getByRole("button", { name: "Solicitar espelho" }).click();
-  await expect(page.getByText("Solicitacao registrada")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Solicitação registrada")).toBeVisible({ timeout: 20_000 });
 
   await liberarEspelhoEtapa2Api(request, adminToken, etapa2Fixture.inscricaoId);
   await page.reload();
