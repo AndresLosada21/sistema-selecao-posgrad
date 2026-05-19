@@ -201,7 +201,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 1 atualizada" : feedback.type === "warning" ? "Atencao na etapa 1" : "Nao foi possivel salvar a etapa 1"} type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 1 atualizada" : feedback.type === "warning" ? "Atenção na etapa 1" : "Não foi possível salvar a etapa 1"} type={feedback.type} />}
 
       <AdminBreadcrumb items={[{ label: "Etapa 1", href: "/admin/etapa-1" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
@@ -226,7 +226,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         </div>
         <div className="admin-summary-card">
           <span className="admin-summary-card-label">Espelho</span>
-          <span style={{ fontSize: 13, color: "#475569" }}>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "Nao liberado"}</span>
+          <span style={{ fontSize: 13, color: "#475569" }}>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "Não liberado"}</span>
         </div>
       </div>
 
@@ -272,7 +272,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
               onChange={(e) => setUsoIaComprovado(e.target.value === "sim")}
               value={usoIaComprovado ? "sim" : "nao"}
             >
-              <option value="nao">Nao</option>
+              <option value="nao">Não</option>
               <option value="sim">Sim</option>
             </select>
           </div>
@@ -280,7 +280,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             <label>Espelho</label>
             <div className="admin-espelho-info">
               <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
-                {espelhoLiberado ? "Liberado" : "Nao liberado"}
+                {espelhoLiberado ? "Liberado" : "Não liberado"}
               </StatusBadge>
             </div>
           </div>
@@ -410,7 +410,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             <label>Status do espelho</label>
             <div className="admin-espelho-info">
               <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
-                {espelhoLiberado ? "Liberado" : "Nao liberado"}
+                {espelhoLiberado ? "Liberado" : "Não liberado"}
               </StatusBadge>
               <span>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "O candidato ainda nao pode visualizar o espelho."}</span>
             </div>

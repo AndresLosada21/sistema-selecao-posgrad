@@ -30,19 +30,19 @@ export const politicasAfirmativasRouter = Router();
 function getPoliticasMessage(errorCode: string) {
   switch (errorCode) {
     case "ETAPA_POLITICAS_AFIRMATIVAS_NAO_ENCONTRADA":
-      return "A etapa de politicas afirmativas nao foi encontrada para a inscricao informada.";
+      return "A etapa de políticas afirmativas não foi encontrada para a inscrição informada.";
     case "CLASSIFICACAO_CONTEXTO_INCOMPLETO":
-      return "Nao foi possivel atualizar o resultado porque a classificacao derivada do edital ainda esta incompleta.";
+      return "Não foi possível atualizar o resultado porque a classificação derivada do edital ainda está incompleta.";
     case "CLASSIFICACAO_ESTADO_MISTO":
-      return "Nao foi possivel atualizar o resultado porque a classificacao derivada do edital esta em estado misto entre preliminar e final.";
+      return "Não foi possível atualizar o resultado porque a classificação derivada do edital está em estado misto entre preliminar e final.";
     case "EDITAL_NAO_ENCONTRADO":
-      return "Edital nao encontrado para o fluxo de publicacao de politicas afirmativas.";
+      return "Edital não encontrado para o fluxo de publicação de políticas afirmativas.";
     case "ARQUIVO_PUBLICACAO_INVALIDO":
-      return "O arquivo informado para a publicacao deve ser um PDF valido do proprio sistema ou uma URL HTTPS terminada em .pdf.";
+      return "O arquivo informado para a publicação deve ser um PDF válido do próprio sistema ou uma URL HTTPS terminada em .pdf.";
     case "ARQUIVO_PUBLICACAO_SEM_PERMISSAO":
-      return "O PDF informado para a publicacao precisa ter sido enviado pelo mesmo usuario administrador autenticado.";
+      return "O PDF informado para a publicação precisa ter sido enviado pelo mesmo usuário administrador autenticado.";
     case "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO":
-      return "O PDF informado para a publicacao nao foi encontrado no storage configurado.";
+      return "O PDF informado para a publicação não foi encontrado no storage configurado.";
     default:
       return errorCode;
   }
@@ -57,11 +57,11 @@ politicasAfirmativasRouter.get(
       const parsedQuery = listPoliticasQuerySchema.safeParse(request.query);
 
       if (!parsedParams.success) {
-        return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
+        return response.status(400).json(validationError("Edital inválido.", parsedParams.error.flatten()));
       }
 
       if (!parsedQuery.success) {
-        return response.status(400).json(validationError("Parametros de paginacao invalidos.", parsedQuery.error.flatten()));
+        return response.status(400).json(validationError("Parâmetros de paginação inválidos.", parsedQuery.error.flatten()));
       }
 
       const result = await listEtapasPoliticasAfirmativasByEdital(parsedParams.data.editalId, parsedQuery.data);
@@ -78,7 +78,7 @@ politicasAfirmativasRouter.get(
     const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
 
     if (!parsedParams.success) {
-      return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
+      return response.status(400).json(validationError("Inscrição inválida.", parsedParams.error.flatten()));
     }
 
     const result = await getEtapaPoliticasAfirmativasByInscricaoId(parsedParams.data.inscricaoId);
@@ -101,7 +101,7 @@ politicasAfirmativasRouter.put(
     const parsedBody = encaminhamentoPoliticasAfirmativasSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json(requestValidationError("Dados de encaminhamento invalidos.", {
+      return response.status(400).json(requestValidationError("Dados de encaminhamento inválidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
       }));
@@ -131,7 +131,7 @@ politicasAfirmativasRouter.put(
     const parsedBody = resultadoPoliticasAfirmativasSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json(requestValidationError("Dados do resultado preliminar invalidos.", {
+      return response.status(400).json(requestValidationError("Dados do resultado preliminar inválidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
       }));
@@ -164,7 +164,7 @@ politicasAfirmativasRouter.put(
     const parsedBody = resultadoPoliticasAfirmativasSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json(requestValidationError("Dados do resultado final invalidos.", {
+      return response.status(400).json(requestValidationError("Dados do resultado final inválidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
       }));
@@ -197,7 +197,7 @@ politicasAfirmativasRouter.get(
     const parsedQuery = previewPoliticasAfirmativasPublicacaoQuerySchema.safeParse(request.query);
 
     if (!parsedParams.success || !parsedQuery.success) {
-      return response.status(400).json(requestValidationError("Dados para preview da publicacao de politicas afirmativas invalidos.", {
+      return response.status(400).json(requestValidationError("Dados para preview da publicação de políticas afirmativas inválidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
       }));
@@ -233,7 +233,7 @@ politicasAfirmativasRouter.post(
     const parsedBody = createPoliticasAfirmativasPublicacaoSchema.safeParse(request.body);
 
     if (!parsedParams.success || !parsedBody.success) {
-      return response.status(400).json(requestValidationError("Dados para publicacao de politicas afirmativas invalidos.", {
+      return response.status(400).json(requestValidationError("Dados para publicação de políticas afirmativas inválidos.", {
         paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
         bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
       }));

@@ -152,7 +152,7 @@ export default function CandidateRecursosPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div className="part-header"><h1>Recursos</h1><p>Envie um recurso ou acompanhe as respostas ja registradas.</p></div>
+      <div className="part-header"><h1>Recursos</h1><p>Envie um recurso ou acompanhe as respostas já registradas.</p></div>
 
       {message ? <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>{message}</div> : null}
 
@@ -177,7 +177,7 @@ export default function CandidateRecursosPage() {
           </div>
           {!fasesElegiveis.length ? (
             <div style={{ fontSize: 12, color: "#B45309", display: "flex", flexDirection: "column", gap: 4 }}>
-              <span>No momento nao ha recurso aberto para o edital selecionado.</span>
+              <span>No momento não há recurso aberto para o edital selecionado.</span>
               {participacaoSelecionada?.elegibilidade?.motivoBloqueioRecurso ? <span>{participacaoSelecionada.elegibilidade.motivoBloqueioRecurso}</span> : null}
               {participacaoSelecionada?.acompanhamento?.motivoResumo ? <span>{participacaoSelecionada.acompanhamento.motivoResumo}</span> : null}
               {participacaoSelecionada?.acompanhamento?.proximoPasso ? <span>{participacaoSelecionada.acompanhamento.proximoPasso}</span> : null}
@@ -188,14 +188,14 @@ export default function CandidateRecursosPage() {
               <label className="wiz-field-label">Tipo da etapa *</label>
               <select aria-invalid={!!fieldErrors.tipoPoliticasAfirmativasReferencia} value={formTipoPoliticas} onChange={(e) => { setFormTipoPoliticas(e.target.value); setFieldErrors((current) => ({ ...current, tipoPoliticasAfirmativasReferencia: null })); }} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                 <option value="">Selecione o tipo</option>
-                {tiposPoliticasElegiveis.map((tipo) => <option key={tipo} value={tipo}>{tipo === "PCD" ? "PCD" : "Heteroidentificacao"}</option>)}
+                {tiposPoliticasElegiveis.map((tipo) => <option key={tipo} value={tipo}>{tipo === "PCD" ? "PCD" : "Heteroidentificação"}</option>)}
               </select>
               {fieldErrors.tipoPoliticasAfirmativasReferencia ? <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 4 }}>{fieldErrors.tipoPoliticasAfirmativasReferencia}</div> : null}
             </div>
           ) : null}
           <div className="wiz-field">
-            <label className="wiz-field-label">Fundamentacao *</label>
-            <textarea aria-label="Fundamentacao" placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => { setFormFundamentacao(e.target.value); setFieldErrors((current) => ({ ...current, fundamentacao: null })); }}
+            <label className="wiz-field-label">Fundamentação *</label>
+            <textarea aria-label="Fundamentação" placeholder="Descreva os fundamentos do recurso..." value={formFundamentacao} onChange={(e) => { setFormFundamentacao(e.target.value); setFieldErrors((current) => ({ ...current, fundamentacao: null })); }}
               style={{ height: 100, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
             {fieldErrors.fundamentacao ? <div style={{ fontSize: 12, color: "#B91C1C", marginTop: 4 }}>{fieldErrors.fundamentacao}</div> : null}
           </div>
@@ -223,7 +223,7 @@ export default function CandidateRecursosPage() {
           <div key={rec.id} style={{ padding: "14px 24px", borderBottom: "1px solid #F1F5F9" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: "#1E293B" }}>
-                Recurso — {getStatusLabel(rec.fase)}{rec.fase === "HOMOLOGACAO" && rec.faseHomologacaoReferencia ? ` (${rec.faseHomologacaoReferencia.toLowerCase()})` : ""}{rec.fase === "POLITICAS_AFIRMATIVAS" && rec.tipoPoliticasAfirmativasReferencia ? ` (${rec.tipoPoliticasAfirmativasReferencia === "PCD" ? "PCD" : "heteroidentificacao"})` : ""}
+                Recurso — {getStatusLabel(rec.fase)}{rec.fase === "HOMOLOGACAO" && rec.faseHomologacaoReferencia ? ` (${rec.faseHomologacaoReferencia.toLowerCase()})` : ""}{rec.fase === "POLITICAS_AFIRMATIVAS" && rec.tipoPoliticasAfirmativasReferencia ? ` (${rec.tipoPoliticasAfirmativasReferencia === "PCD" ? "PCD" : "heteroidentificação"})` : ""}
               </span>
               <StatusBadge variant={getStatusVariant(rec.status)}>{getStatusLabel(rec.status)}</StatusBadge>
             </div>
@@ -235,12 +235,12 @@ export default function CandidateRecursosPage() {
             </div>
             {rec.decisao ? (
               <div style={{ marginTop: 8, padding: "10px 14px", background: "#F8FAFC", borderRadius: 6, fontSize: 13, color: "#334155" }}>
-                <strong>Decisao:</strong> {rec.decisao}
+                <strong>Decisão:</strong> {rec.decisao}
               </div>
             ) : null}
             {rec.efeitoPraticoResumo ? (
               <div style={{ marginTop: 8, padding: "10px 14px", background: "#EFF6FF", borderRadius: 6, fontSize: 13, color: "#1D4ED8" }}>
-                <strong>Efeito pratico:</strong> {rec.efeitoPraticoResumo}
+                <strong>Efeito prático:</strong> {rec.efeitoPraticoResumo}
               </div>
             ) : null}
             {rec.anexoUrl ? (

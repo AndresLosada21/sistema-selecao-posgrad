@@ -40,7 +40,7 @@ export default function AdminPoliticasPage() {
   }, [filter, page, signOut, token]);
 
   if (status === "loading") return <LoadingState title="Carregando politicas afirmativas" description="Consultando a fila de heteroidentificacao e PCD." />;
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de politicas afirmativas" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar a fila de políticas afirmativas" description={message ?? undefined} />;
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
@@ -83,7 +83,7 @@ export default function AdminPoliticasPage() {
                   return (
                     <tr key={item.id}>
                       <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
-                      <td className="admin-homologacao-table-muted">{item.tipo === "PCD" ? "PCD" : "Acoes afirmativas"}</td>
+                      <td className="admin-homologacao-table-muted">{item.tipo === "PCD" ? "PCD" : "Ações afirmativas"}</td>
                       <td className="admin-homologacao-table-center">
                         <StatusBadge variant={getStatusVariant(item.statusOperacao)}>{getStatusLabel(item.statusOperacao)}</StatusBadge>
                       </td>

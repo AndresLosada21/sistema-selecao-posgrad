@@ -268,7 +268,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {feedback && (
         <div style={{ position: "relative" }}>
-          <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 2 atualizada" : feedback.type === "warning" ? "Atencao na etapa 2" : "Nao foi possivel salvar a etapa 2"} type={feedback.type} />
+          <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 2 atualizada" : feedback.type === "warning" ? "Atenção na etapa 2" : "Não foi possível salvar a etapa 2"} type={feedback.type} />
           <button onClick={() => setFeedback(null)} type="button" style={{ position: "absolute", top: 12, right: 12, border: "none", background: "none", cursor: "pointer", fontSize: 18, color: "#64748B", lineHeight: 1 }} aria-label="Fechar">&times;</button>
         </div>
       )}
@@ -333,7 +333,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
                   <th scope="col">Valor</th>
                   <th scope="col">Glosa</th>
                   <th scope="col">Liquido</th>
-                  <th scope="col" style={{ width: 60 }}>Acoes</th>
+                  <th scope="col" style={{ width: 60 }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -529,7 +529,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
                 <span>Status do espelho</span>
                 <div className="admin-espelho-info">
                   <StatusBadge variant={espelhoLiberado ? "success" : espelhoSolicitado ? "warning" : "neutral"}>
-                    {espelhoLiberado ? "Liberado" : espelhoSolicitado ? "Solicitado" : "Nao solicitado"}
+                    {espelhoLiberado ? "Liberado" : espelhoSolicitado ? "Solicitado" : "Não solicitado"}
                   </StatusBadge>
                   <span>
                     {espelhoLiberado

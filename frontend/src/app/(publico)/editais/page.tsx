@@ -131,10 +131,10 @@ export default function EditaisPage() {
     <div className="stack-layout">
       <PageFeedback
         type="info"
-        title="Consulta publica do processo seletivo"
+        title="Consulta pública do processo seletivo"
         description={session.isAuthenticated
           ? "Consulte os editais publicados. Para participar, abra um edital e clique em 'Entrar neste edital'."
-          : "Consulte editais, cronogramas e publicacoes oficiais. Para se inscrever ou pedir isencao, entre com sua conta."}
+          : "Consulte editais, cronogramas e publicações oficiais. Para se inscrever ou pedir isenção, entre com sua conta."}
         action={<PublicAccessCta candidateLabel="Abrir painel do candidato" />}
       />
 
@@ -187,7 +187,7 @@ export default function EditaisPage() {
                   onClick={() => handlePageChange(currentPage + 1)}
                   type="button"
                 >
-                  Proximo
+                  Próximo
                 </button>
               </div>
             </div>

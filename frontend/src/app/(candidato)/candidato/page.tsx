@@ -50,12 +50,12 @@ const STEP_STYLES: Record<StepVariant, { iconColor: string; textClass: string }>
 };
 
 function resolveStepLabel(status: string | null | undefined): string {
-  if (status === "SEM_INSCRICAO") return "Sem inscricao";
+  if (status === "SEM_INSCRICAO") return "Sem inscrição";
   if (status === "SEM_RESULTADO") return "Sem resultado";
-  if (status === "SEM_CLASSIFICACAO") return "Sem classificacao";
+  if (status === "SEM_CLASSIFICACAO") return "Sem classificação";
   if (status === "SEM_PEDIDO") return "Sem pedido";
   if (!status || status.startsWith("SEM_") || PENDING_STATUSES.has(status)) return "Pendente";
-  if (status === "NAO_SOLICITADA") return "Nao solicitada";
+  if (status === "NAO_SOLICITADA") return "Não solicitada";
   return getStatusLabel(status);
 }
 
@@ -160,10 +160,10 @@ export default function CandidateDashboardPage() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <EmptyState title="Voce ainda nao entrou em nenhum edital" description="Abra um edital publicado para acompanhar o processo, pedir isencao ou iniciar sua inscricao." />
+        <EmptyState title="Você ainda não entrou em nenhum edital" description="Abra um edital publicado para acompanhar o processo, pedir isenção ou iniciar sua inscrição." />
         <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px 18px", borderRadius: 10, background: "#EFF6FF", color: "#1E3A8A" }}>
-          {contaAdministrativaSemPerfilCandidato ? <strong>Esta conta tambem possui perfil administrativo, mas voce ainda pode participar de editais pela area publica.</strong> : null}
-          <span>Abra um edital e clique em <strong>Entrar neste edital</strong>. Depois disso, os botoes de inscricao e isencao ficam disponiveis no acompanhamento.</span>
+          {contaAdministrativaSemPerfilCandidato ? <strong>Esta conta também possui perfil administrativo, mas você ainda pode participar de editais pela área pública.</strong> : null}
+          <span>Abra um edital e clique em <strong>Entrar neste edital</strong>. Depois disso, os botões de inscrição e isenção ficam disponíveis no acompanhamento.</span>
         </div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <Link href="/editais" className="dash-greeting-cta">
@@ -171,7 +171,7 @@ export default function CandidateDashboardPage() {
             <span>Ver editais</span>
           </Link>
           <Link href="/candidato/participacoes" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 999, border: "1px solid #CBD5E1", color: "#0F172A", textDecoration: "none", fontSize: 13, fontWeight: 600 }}>
-            Ver participacoes
+            Ver participações
           </Link>
         </div>
       </div>
@@ -182,9 +182,9 @@ export default function CandidateDashboardPage() {
   const hasInscricao = !!inscricao;
 
   const steps = [
-    { label: "Isencao", status: active?.isencao?.status ?? "NAO_SOLICITADA" },
-    { label: "Inscricao", status: inscricao?.status ?? "SEM_INSCRICAO" },
-    { label: "Homologacao", status: inscricao?.homologacao?.vigente?.statusVigente ?? inscricao?.homologacao?.statusFinal ?? inscricao?.homologacao?.statusPreliminar ?? null },
+    { label: "Isenção", status: active?.isencao?.status ?? "NAO_SOLICITADA" },
+    { label: "Inscrição", status: inscricao?.status ?? "SEM_INSCRICAO" },
+    { label: "Homologação", status: inscricao?.homologacao?.vigente?.statusVigente ?? inscricao?.homologacao?.statusFinal ?? inscricao?.homologacao?.statusPreliminar ?? null },
     { label: "Etapa 1", status: inscricao?.etapa1?.status ?? null },
     { label: "Etapa 2", status: inscricao?.etapa2?.status ?? null },
   ];
@@ -193,7 +193,7 @@ export default function CandidateDashboardPage() {
   const anexoIvUrl = active?.inscricao?.anexoIvDisponivel ? (active.inscricao.anexoIvGeradoUrl ?? null) : null;
 
   const editalLabel = active
-    ? `${active.edital.numero} — ${active.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado"} em Engenharia Eletrica`
+    ? `${active.edital.numero} — ${active.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado"} em Engenharia Elétrica`
     : "";
 
   const acompanhamento = active?.acompanhamento;
@@ -218,18 +218,18 @@ export default function CandidateDashboardPage() {
       {/* Greeting */}
       <div className="dash-greeting">
         <div>
-          <h2>Ola, {session.user?.nomeCompleto?.split(" ")[0] ?? "Candidato"}</h2>
-          <p>Acompanhe seus editais, inscricoes, recursos e resultados.</p>
+          <h2>Olá, {session.user?.nomeCompleto?.split(" ")[0] ?? "Candidato"}</h2>
+          <p>Acompanhe seus editais, inscrições, recursos e resultados.</p>
         </div>
         {active?.elegibilidade?.podeEditarInscricao || active?.elegibilidade?.podeCancelarSubmissao ? (
           <Link href={`/candidato/editais/${active.edital.id}/inscricao`} className="dash-greeting-cta">
             {iconPlus}
-            <span>{active?.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissao para editar" : hasInscricao ? "Editar inscricao" : "Nova inscricao"}</span>
+            <span>{active?.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissão para editar" : hasInscricao ? "Editar inscrição" : "Nova inscrição"}</span>
           </Link>
         ) : active ? (
           <span className="dash-greeting-cta" style={{ opacity: 0.65, cursor: "default" }} title={active.elegibilidade?.motivoBloqueioInscricao ?? undefined}>
             {iconPlus}
-            <span>{active.elegibilidade?.motivoBloqueioInscricao ?? "Inscricao bloqueada"}</span>
+            <span>{active.elegibilidade?.motivoBloqueioInscricao ?? "Inscrição bloqueada"}</span>
           </span>
         ) : null}
       </div>
@@ -270,7 +270,7 @@ export default function CandidateDashboardPage() {
       {acompanhamento ? (
         <div className="dash-pub-card">
           <div className="dash-pub-hdr">
-            <span className="dash-pub-hdr-title">Situacao atual</span>
+            <span className="dash-pub-hdr-title">Situação atual</span>
           </div>
           <div className="dash-pub-divider" />
           <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -284,15 +284,15 @@ export default function CandidateDashboardPage() {
       ) : null}
 
       {/* Quick actions */}
-      <h3 className="dash-section-title">Acoes rapidas</h3>
+      <h3 className="dash-section-title">Ações rápidas</h3>
       {active ? (
         <div className="dash-qa-row">
           {active.elegibilidade?.podeEditarInscricao || active.elegibilidade?.podeCancelarSubmissao ? (
             <Link href={`/candidato/editais/${active.edital.id}/inscricao`} className="dash-qa-card">
               <div className="dash-qa-icon dash-qa-icon--blue">{iconPencil("#2563EB")}</div>
               <div className="dash-qa-text">
-                <strong>{active.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissao para editar" : hasInscricao ? "Editar inscricao" : "Iniciar inscricao"}</strong>
-                <span>{active.elegibilidade?.podeCancelarSubmissao ? "A inscricao foi enviada. Cancele a submissao durante a janela para voltar ao rascunho." : "Continuar rascunho ou revisar dados"}</span>
+                <strong>{active.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissão para editar" : hasInscricao ? "Editar inscrição" : "Iniciar inscrição"}</strong>
+                <span>{active.elegibilidade?.podeCancelarSubmissao ? "A inscrição foi enviada. Cancele a submissão durante a janela para voltar ao rascunho." : "Continuar rascunho ou revisar dados"}</span>
               </div>
               {iconChevronRight}
             </Link>
@@ -300,8 +300,8 @@ export default function CandidateDashboardPage() {
             <div className="dash-qa-card" style={{ opacity: 0.7 }}>
               <div className="dash-qa-icon dash-qa-icon--blue">{iconPencil("#2563EB")}</div>
               <div className="dash-qa-text">
-                <strong>Edicao indisponivel</strong>
-                <span>{active.elegibilidade?.motivoBloqueioInscricao ?? (active.elegibilidade?.janelaInscricaoAberta ? "A inscricao atual nao pode mais ser editada neste status." : "A janela de inscricao deste edital esta encerrada.")}</span>
+                <strong>Edição indisponível</strong>
+                <span>{active.elegibilidade?.motivoBloqueioInscricao ?? (active.elegibilidade?.janelaInscricaoAberta ? "A inscrição atual não pode mais ser editada neste status." : "A janela de inscrição deste edital está encerrada.")}</span>
               </div>
             </div>
           )}
@@ -309,7 +309,7 @@ export default function CandidateDashboardPage() {
             <Link href="/candidato/isencoes" className="dash-qa-card">
               <div className="dash-qa-icon dash-qa-icon--emerald">{iconShieldCheck("#10B981")}</div>
               <div className="dash-qa-text">
-                <strong>Ver isencao</strong>
+                <strong>Ver isenção</strong>
                 <span>Consultar status do pedido</span>
               </div>
               {iconChevronRight}
@@ -318,8 +318,8 @@ export default function CandidateDashboardPage() {
             <Link href={`/candidato/editais/${active.edital.id}/isencao/nova`} className="dash-qa-card">
               <div className="dash-qa-icon dash-qa-icon--emerald">{iconShieldCheck("#10B981")}</div>
               <div className="dash-qa-text">
-                <strong>Solicitar isencao</strong>
-                <span>Registrar pedido de isencao</span>
+                <strong>Solicitar isenção</strong>
+                <span>Registrar pedido de isenção</span>
               </div>
               {iconChevronRight}
             </Link>
@@ -327,8 +327,8 @@ export default function CandidateDashboardPage() {
             <div className="dash-qa-card" style={{ opacity: 0.7 }}>
               <div className="dash-qa-icon dash-qa-icon--emerald">{iconShieldCheck("#10B981")}</div>
               <div className="dash-qa-text">
-                <strong>Isencao indisponivel</strong>
-                <span>{active.elegibilidade?.motivoBloqueioIsencao ?? "Nao ha acao de isencao disponivel para este edital."}</span>
+                <strong>Isenção indisponível</strong>
+                <span>{active.elegibilidade?.motivoBloqueioIsencao ?? "Não há ação de isenção disponível para este edital."}</span>
               </div>
             </div>
           )}
@@ -341,8 +341,8 @@ export default function CandidateDashboardPage() {
           >
             <div className="dash-qa-icon dash-qa-icon--blue">{iconFileText("#3B82F6")}</div>
             <div className="dash-qa-text">
-              <strong>{anexoIvUrl ? "Baixar Anexo IV" : "Anexo IV indisponivel"}</strong>
-              <span>{anexoIvUrl ? "Ficha cadastral preenchida (PDF)" : "Preencha e salve a inscricao para gerar o Anexo IV."}</span>
+              <strong>{anexoIvUrl ? "Baixar Anexo IV" : "Anexo IV indisponível"}</strong>
+              <span>{anexoIvUrl ? "Ficha cadastral preenchida (PDF)" : "Preencha e salve a inscrição para gerar o Anexo IV."}</span>
             </div>
             {anexoIvUrl ? iconDownloadTrailing : null}
           </button>
@@ -359,7 +359,7 @@ export default function CandidateDashboardPage() {
             <div className="dash-qa-card" style={{ opacity: 0.7 }}>
               <div className="dash-qa-icon dash-qa-icon--violet">{iconEye("#8B5CF6")}</div>
               <div className="dash-qa-text">
-                <strong>Espelhos indisponiveis</strong>
+                <strong>Espelhos indisponíveis</strong>
                 <span>{active.elegibilidade?.motivoBloqueioEspelhoEtapa1 ?? active.elegibilidade?.motivoBloqueioEspelhoEtapa2 ?? "Nenhum espelho pode ser solicitado ou visualizado no momento."}</span>
               </div>
             </div>
@@ -369,7 +369,7 @@ export default function CandidateDashboardPage() {
               <div className="dash-qa-icon dash-qa-icon--amber">{iconMessageSquare("#F59E0B")}</div>
               <div className="dash-qa-text">
                 <strong>Recursos</strong>
-                <span>Fases disponiveis: {active.elegibilidade.fasesRecursoElegiveis.map((fase) => getStatusLabel(fase)).join(", ")}</span>
+                <span>Fases disponíveis: {active.elegibilidade.fasesRecursoElegiveis.map((fase) => getStatusLabel(fase)).join(", ")}</span>
               </div>
               {iconChevronRight}
             </Link>
@@ -377,8 +377,8 @@ export default function CandidateDashboardPage() {
             <div className="dash-qa-card" style={{ opacity: 0.7 }}>
               <div className="dash-qa-icon dash-qa-icon--amber">{iconMessageSquare("#F59E0B")}</div>
               <div className="dash-qa-text">
-                <strong>Recursos indisponiveis</strong>
-                <span>{active.elegibilidade?.motivoBloqueioRecurso ?? "Nenhuma fase esta elegivel para recurso no momento."}</span>
+                <strong>Recursos indisponíveis</strong>
+                <span>{active.elegibilidade?.motivoBloqueioRecurso ?? "Nenhuma fase está elegível para recurso no momento."}</span>
               </div>
             </div>
           )}
@@ -389,7 +389,7 @@ export default function CandidateDashboardPage() {
       <div className="dash-pub-card">
         <div className="dash-pub-hdr">
           {iconMegaphone}
-          <span className="dash-pub-hdr-title">Publicacoes em destaque</span>
+          <span className="dash-pub-hdr-title">Publicações em destaque</span>
           {active ? (
             <Link href={`/candidato/editais/${active.edital.id}`} className="dash-pub-hdr-link">Ver todas</Link>
           ) : null}
@@ -401,7 +401,7 @@ export default function CandidateDashboardPage() {
             <div className="dash-pub-row">
               <div className="dash-pub-row-text">
                 <span className="dash-pub-row-title">{pub.titulo}</span>
-                <span className="dash-pub-row-meta">{formatIsoDate(pub.publicadoEm ?? null)} · Versao {pub.versao}{pub.isVersaoAtualDoTipo ? " · vigente" : ""}{pub.versaoFinal ? " · final" : ""}{pub.republicacaoDaVersao ? ` · republica v${pub.republicacaoDaVersao}` : ""}</span>
+                <span className="dash-pub-row-meta">{formatIsoDate(pub.publicadoEm ?? null)} · Versão {pub.versao}{pub.isVersaoAtualDoTipo ? " · vigente" : ""}{pub.versaoFinal ? " · final" : ""}{pub.republicacaoDaVersao ? ` · republicação da v${pub.republicacaoDaVersao}` : ""}</span>
               </div>
               <Link href={resolveApiUrl(pub.arquivoUrl)} target="_blank" rel="noreferrer" className="dash-pdf-badge">
                 {iconFileTextSm}
@@ -411,7 +411,7 @@ export default function CandidateDashboardPage() {
           </span>
         )) : (
           <div style={{ padding: "24px", textAlign: "center", color: "#94A3B8", fontSize: 13 }}>
-            Nenhuma publicacao oficial disponivel para este edital.
+            Nenhuma publicação oficial disponível para este edital.
           </div>
         )}
       </div>

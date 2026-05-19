@@ -13,7 +13,7 @@ usuarioAdminRouter.get("/v1/admin/usuarios", requireAuth, requireRole(Role.ADMIN
   const parsedQuery = listUsuariosQuerySchema.safeParse(request.query);
 
   if (!parsedQuery.success) {
-    return response.status(400).json(requestValidationError("Parametros invalidos para listar usuarios.", { queryErrors: parsedQuery.error.flatten() }));
+    return response.status(400).json(requestValidationError("Parâmetros inválidos para listar usuários.", { queryErrors: parsedQuery.error.flatten() }));
   }
 
   const usuarios = await listUsuariosAdmin(parsedQuery.data);
@@ -25,7 +25,7 @@ usuarioAdminRouter.put("/v1/admin/usuarios/:usuarioId/status", requireAuth, requ
   const parsedBody = updateUsuarioStatusSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados invalidos para atualizar status do usuario.", {
+    return response.status(400).json(requestValidationError("Dados inválidos para atualizar o status do usuário.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -35,7 +35,7 @@ usuarioAdminRouter.put("/v1/admin/usuarios/:usuarioId/status", requireAuth, requ
     const usuario = await updateUsuarioStatus(parsedParams.data.usuarioId, parsedBody.data.statusConta);
     return response.status(200).json(usuario);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar status do usuario.";
+    const message = error instanceof Error ? error.message : "Não foi possível atualizar o status do usuário.";
     return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
   }
 });
@@ -45,7 +45,7 @@ usuarioAdminRouter.put("/v1/admin/usuarios/:usuarioId/perfis", requireAuth, requ
   const parsedBody = updateUsuarioPerfisSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados invalidos para atualizar perfis do usuario.", {
+    return response.status(400).json(requestValidationError("Dados inválidos para atualizar os perfis do usuário.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -55,7 +55,7 @@ usuarioAdminRouter.put("/v1/admin/usuarios/:usuarioId/perfis", requireAuth, requ
     const usuario = await updateUsuarioPerfis(parsedParams.data.usuarioId, parsedBody.data.perfis, request.auth!.userId);
     return response.status(200).json(usuario);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar perfis do usuario.";
+    const message = error instanceof Error ? error.message : "Não foi possível atualizar os perfis do usuário.";
     return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
   }
 });
@@ -65,7 +65,7 @@ usuarioAdminRouter.put("/v1/admin/usuarios/:usuarioId/escopos-avaliacao", requir
   const parsedBody = updateUsuarioEscoposSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados invalidos para atualizar escopos do avaliador.", {
+    return response.status(400).json(requestValidationError("Dados inválidos para atualizar os escopos do avaliador.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -75,7 +75,7 @@ usuarioAdminRouter.put("/v1/admin/usuarios/:usuarioId/escopos-avaliacao", requir
     const usuario = await updateUsuarioEscoposAvaliacao(parsedParams.data.usuarioId, parsedBody.data.escopos);
     return response.status(200).json(usuario);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nao foi possivel atualizar escopos do avaliador.";
+    const message = error instanceof Error ? error.message : "Não foi possível atualizar os escopos do avaliador.";
     return response.status(message.includes("nao encontrado") ? 404 : 409).json(message.includes("nao encontrado") ? notFound(message) : conflict(message));
   }
 });

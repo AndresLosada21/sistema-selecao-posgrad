@@ -67,9 +67,9 @@ type HubColor = "success" | "warning" | "error" | "active" | "neutral";
 function resolveHubValue(status: string | null | undefined): { text: string; color: HubColor } {
   const s = status ?? "";
   if (s === "SEM_RESULTADO") return { text: "Sem resultado", color: "neutral" };
-  if (s === "SEM_CLASSIFICACAO") return { text: "Sem classificacao", color: "neutral" };
+  if (s === "SEM_CLASSIFICACAO") return { text: "Sem classificação", color: "neutral" };
   if (s === "SEM_PEDIDO") return { text: "Sem pedido", color: "neutral" };
-  if (s === "NAO_SOLICITADA") return { text: "Nao solicitada", color: "neutral" };
+  if (s === "NAO_SOLICITADA") return { text: "Não solicitada", color: "neutral" };
   if (!s || PENDING_STATUSES.has(s)) return { text: "Pendente", color: "neutral" };
   if (SUCCESS_STATUSES.has(s)) return { text: getStatusLabel(s), color: "success" };
   if (WARNING_STATUSES.has(s)) return { text: getStatusLabel(s), color: "warning" };
@@ -87,22 +87,22 @@ function getReservasConcorrenciaLabel(input: { acoesAfirmativas?: boolean; pcd?:
   }
 
   if (input.acoesAfirmativas && input.pcd) {
-    return "Acoes afirmativas + PCD";
+    return "Ações afirmativas + PCD";
   }
 
   if (input.acoesAfirmativas) {
-    return "Acoes afirmativas";
+    return "Ações afirmativas";
   }
 
   if (input.pcd) {
     return "PCD";
   }
 
-  return "Ampla concorrencia";
+  return "Ampla concorrência";
 }
 
 function getPoliticasTipoLabel(tipo: string | undefined) {
-  return tipo === "PCD" ? "PCD" : "Heteroidentificacao";
+  return tipo === "PCD" ? "PCD" : "Heteroidentificação";
 }
 
 /* ---- page ---- */
@@ -143,12 +143,12 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
   if (status === "loading") return <LoadingState title="Carregando edital" description="Montando seu acompanhamento neste edital." />;
 
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar este edital" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar este edital" description={message ?? undefined} />;
 
   if (!item) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <EmptyState title="Voce ainda nao entrou neste edital" description="Abra a lista de participacoes ou volte aos editais publicados para entrar neste processo seletivo." />
+        <EmptyState title="Você ainda não entrou neste edital" description="Abra a lista de participações ou volte aos editais publicados para entrar neste processo seletivo." />
         <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#2563EB" }}>Ver editais da sua conta</Link>
       </div>
     );
@@ -184,16 +184,16 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
   const publicacaoClassificacaoVigente = publicacaoClassificacaoFinalVigente ?? publicacaoClassificacaoPreliminarVigente;
 
   /* Status cards data */
-  const inscricaoHub = inscricao ? resolveHubValue(inscricao.status) : { text: "Sem inscricao", color: "neutral" as HubColor };
+  const inscricaoHub = inscricao ? resolveHubValue(inscricao.status) : { text: "Sem inscrição", color: "neutral" as HubColor };
   const cards: Array<{ label: string; text: string; color: HubColor; badge?: { text: string } | null }> = [
-    { label: "Isencao", ...resolveHubValue(item.isencao?.status ?? "NAO_SOLICITADA") },
-    { label: "Inscricao", ...inscricaoHub, badge: inscricao?.status === "RASCUNHO" ? { text: "Rascunho" } : null },
-    { label: "Homologacao", ...resolveHubValue(homologacaoVigente?.statusVigente ?? null) },
+    { label: "Isenção", ...resolveHubValue(item.isencao?.status ?? "NAO_SOLICITADA") },
+    { label: "Inscrição", ...inscricaoHub, badge: inscricao?.status === "RASCUNHO" ? { text: "Rascunho" } : null },
+    { label: "Homologação", ...resolveHubValue(homologacaoVigente?.statusVigente ?? null) },
     { label: "Etapa 1", ...resolveHubValue(inscricao?.etapa1?.status ?? null) },
     { label: "Etapa 2", ...resolveHubValue(inscricao?.etapa2?.status ?? null) },
-    { label: "Classificacao", ...resolveHubValue(item.classificacao?.status ?? null) },
+    { label: "Classificação", ...resolveHubValue(item.classificacao?.status ?? null) },
     { label: "Recursos", text: (item.recursos?.length ?? 0) === 0 ? "Nenhum recurso enviado" : `${item.recursos.length} recurso(s) enviado(s)`, color: (item.recursos?.length ?? 0) > 0 ? "active" : "neutral" },
-    { label: "Publicacoes", text: `${(item.publicacoes?.length ?? 0)} disponiveis`, color: (item.publicacoes?.length ?? 0) > 0 ? "active" : "neutral" },
+    { label: "Publicações", text: `${(item.publicacoes?.length ?? 0)} disponíveis`, color: (item.publicacoes?.length ?? 0) > 0 ? "active" : "neutral" },
   ];
 
   return (
@@ -203,24 +203,24 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
       <div className="hub-header">
         <div className="hub-header-left">
           <h1>{item.edital.numero}</h1>
-          <p>{cursoLabel} em Engenharia Eletrica · Veja o que ja foi concluido e o que ainda pode ser feito neste edital.</p>
+          <p>{cursoLabel} em Engenharia Elétrica · Veja o que já foi concluído e o que ainda pode ser feito neste edital.</p>
         </div>
         {item.elegibilidade?.podeEditarInscricao || item.elegibilidade?.podeCancelarSubmissao ? (
           hasInscricao ? (
             <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
               {iconPencil}
-              <span>{item.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissao para editar" : "Editar inscricao"}</span>
+              <span>{item.elegibilidade?.podeCancelarSubmissao ? "Cancelar submissão para editar" : "Editar inscrição"}</span>
             </Link>
           ) : (
             <Link href={`/candidato/editais/${item.edital.id}/inscricao`} className="hub-cta">
               {iconPencil}
-              <span>Nova inscricao</span>
+              <span>Nova inscrição</span>
             </Link>
           )
         ) : (
           <span className="hub-cta" style={{ opacity: 0.65, cursor: "default" }} title={item.elegibilidade?.motivoBloqueioInscricao ?? undefined}>
             {iconPencil}
-            <span>{item.elegibilidade?.motivoBloqueioInscricao ?? "A inscricao nao pode ser alterada neste momento."}</span>
+            <span>{item.elegibilidade?.motivoBloqueioInscricao ?? "A inscrição não pode ser alterada neste momento."}</span>
           </span>
         )}
       </div>
@@ -245,7 +245,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
       {item.acompanhamento ? (
         <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span className="hub-status-label">Situacao operacional</span>
+          <span className="hub-status-label">Situação operacional</span>
           <strong style={{ fontSize: 14, color: "#0F172A" }}>{getStatusLabel(item.acompanhamento.faseAtual)}</strong>
           <span className="hub-status-value">{getStatusLabel(item.acompanhamento.situacaoAtual)}</span>
           {item.acompanhamento.etapaBloqueio ? <span style={{ fontSize: 12, color: "#B45309" }}>Etapa de bloqueio/indeferimento: {getStatusLabel(item.acompanhamento.etapaBloqueio)}</span> : null}
@@ -272,37 +272,37 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
       <div className="hub-links">
         {item.isencao ? (
           <Link href="/candidato/isencoes" className="hub-link">
-            {iconShieldCheck} Ver isencao
+            {iconShieldCheck} Ver isenção
           </Link>
         ) : item.elegibilidade?.podeCriarIsencao ? (
           <Link href={`/candidato/editais/${item.edital.id}/isencao/nova`} className="hub-link">
-            {iconShieldCheck} Solicitar isencao
+            {iconShieldCheck} Solicitar isenção
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconShieldCheck} {item.elegibilidade?.motivoBloqueioIsencao ?? (item.elegibilidade?.janelaIsencaoAberta ? "A isencao ainda nao pode ser solicitada." : "A janela de isencao ja foi encerrada.")}</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconShieldCheck} {item.elegibilidade?.motivoBloqueioIsencao ?? (item.elegibilidade?.janelaIsencaoAberta ? "A isenção ainda não pode ser solicitada." : "A janela de isenção já foi encerrada.")}</span>
         )}
         {(item.elegibilidade?.podeSolicitarEspelhoEtapa1 || item.elegibilidade?.podeSolicitarEspelhoEtapa2 || item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2) ? (
           <Link href={`/candidato/editais/${item.edital.id}/espelhos`} className="hub-link">
             {iconEye} {item.elegibilidade?.podeVerEspelhoEtapa1 || item.elegibilidade?.podeVerEspelhoEtapa2 ? "Ver espelhos" : "Solicitar espelho"}
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ?? item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ?? "Os espelhos ainda nao estao disponiveis."}</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconEye} {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ?? item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ?? "Os espelhos ainda não estão disponíveis."}</span>
         )}
         {(item.elegibilidade?.fasesRecursoElegiveis?.length ?? 0) > 0 ? (
           <Link href={`/candidato/recursos?editalId=${item.edital.id}`} className="hub-link">
             {iconMessageSquare} Interpor recurso
           </Link>
         ) : (
-          <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} {item.elegibilidade?.motivoBloqueioRecurso ?? "Ainda nao ha recurso disponivel para este edital."}</span>
+          <span className="hub-link" style={{ opacity: 0.6 }}>{iconMessageSquare} {item.elegibilidade?.motivoBloqueioRecurso ?? "Ainda não há recurso disponível para este edital."}</span>
         )}
         <button type="button" onClick={pacoteDocumentalDisponivel ? handleDownloadPacote : undefined} disabled={!pacoteDocumentalDisponivel || downloadingPacote} className="hub-link" style={{ background: "none", border: "none", cursor: pacoteDocumentalDisponivel ? "pointer" : "default", padding: 0, font: "inherit", opacity: pacoteDocumentalDisponivel ? 1 : 0.5 }}>
-          {iconDownload} {pacoteDocumentalDisponivel ? (downloadingPacote ? "Baixando..." : pacoteDocumentalUrl ? "Baixar pacote documental" : "Gerar e baixar pacote documental") : "Pacote documental indisponivel"}
+          {iconDownload} {pacoteDocumentalDisponivel ? (downloadingPacote ? "Baixando..." : pacoteDocumentalUrl ? "Baixar pacote documental" : "Gerar e baixar pacote documental") : "Pacote documental indisponível"}
         </button>
       </div>
 
       {homologacaoVigente ? (
         <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span className="hub-status-label">Homologacao vigente</span>
+          <span className="hub-status-label">Homologação vigente</span>
           <strong style={{ fontSize: 14, color: "#0F172A" }}>{homologacaoVigente.faseVigente ? `Fase ${homologacaoVigente.faseVigente.toLowerCase()}` : "Sem fase vigente"}</strong>
           <span className="hub-status-value">{homologacaoVigente.statusVigente ? getStatusLabel(homologacaoVigente.statusVigente) : "Pendente"}</span>
           {homologacaoVigente.motivoResumoVigente ? <span style={{ fontSize: 12, color: "#64748B" }}>{homologacaoVigente.motivoResumoVigente}</span> : null}
@@ -312,7 +312,7 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
       {item.inscricao?.politicasAfirmativas?.itens?.length ? (
         <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span className="hub-status-label">Politicas afirmativas</span>
+          <span className="hub-status-label">Políticas afirmativas</span>
           {item.inscricao.politicasAfirmativas.itens.map((etapa) => (
             <div key={etapa.id ?? etapa.tipo} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <strong style={{ fontSize: 13, color: "#0F172A" }}>{getPoliticasTipoLabel(etapa.tipo)}</strong>
@@ -325,34 +325,34 @@ export default function CandidateEditalPage({ params }: CandidateEditalPageProps
 
       {item.classificacao ? (
         <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span className="hub-status-label">Classificacao {publicacaoClassificacaoVigente ? "oficial vigente" : "calculada"}</span>
+          <span className="hub-status-label">Classificação {publicacaoClassificacaoVigente ? "oficial vigente" : "calculada"}</span>
           <strong style={{ fontSize: 14, color: "#0F172A" }}>{getStatusLabel(item.classificacao.status)}</strong>
           <span className="hub-status-value">NF: {item.classificacao.notaFinal != null ? item.classificacao.notaFinal.toFixed(2) : "—"}</span>
-          <span style={{ fontSize: 12, color: "#64748B" }}>Posicao geral: {item.classificacao.posicaoGeral ?? "—"} · Posicao na linha: {item.classificacao.posicaoLinha ?? "—"}</span>
+          <span style={{ fontSize: 12, color: "#64748B" }}>Posição geral: {item.classificacao.posicaoGeral ?? "—"} · Posição na linha: {item.classificacao.posicaoLinha ?? "—"}</span>
           {reservasConcorrenciaLabel ? <span style={{ fontSize: 12, color: "#64748B" }}>Reservas declaradas: {reservasConcorrenciaLabel}</span> : null}
           {item.classificacao.modalidadeConcorrencia ? <span style={{ fontSize: 12, color: "#64748B" }}>Modalidade: {getStatusLabel(item.classificacao.modalidadeConcorrencia)}</span> : null}
-          {publicacaoClassificacaoVigente ? <span style={{ fontSize: 12, color: "#2563EB" }}>{getStatusLabel(publicacaoClassificacaoVigente.tipo)} · versao {publicacaoClassificacaoVigente.versao}{publicacaoClassificacaoVigente.republicacaoDaVersao ? ` · republica v${publicacaoClassificacaoVigente.republicacaoDaVersao}` : ""}</span> : <span style={{ fontSize: 12, color: "#B45309" }}>A classificacao ainda nao foi publicada oficialmente.</span>}
+          {publicacaoClassificacaoVigente ? <span style={{ fontSize: 12, color: "#2563EB" }}>{getStatusLabel(publicacaoClassificacaoVigente.tipo)} · versão {publicacaoClassificacaoVigente.versao}{publicacaoClassificacaoVigente.republicacaoDaVersao ? ` · republicação da v${publicacaoClassificacaoVigente.republicacaoDaVersao}` : ""}</span> : <span style={{ fontSize: 12, color: "#B45309" }}>A classificação ainda não foi publicada oficialmente.</span>}
           {publicacaoClassificacaoVigente?.publicadoEm ? <span style={{ fontSize: 12, color: "#2563EB" }}>Publicado em: {formatIsoDate(publicacaoClassificacaoVigente.publicadoEm)}</span> : null}
         </div>
       ) : null}
 
       {item.publicacoesDestaque.length ? (
         <div className="hub-status-card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <span className="hub-status-label">Publicacoes oficiais vigentes</span>
+          <span className="hub-status-label">Publicações oficiais vigentes</span>
           {item.publicacoesDestaque.slice(0, 4).map((publicacao) => (
             <div key={publicacao.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <strong style={{ fontSize: 13, color: "#0F172A" }}>{publicacao.titulo}</strong>
                 <span style={{ fontSize: 12, color: "#64748B" }}>
-                  {getStatusLabel(publicacao.tipo)} · Versao {publicacao.versao}
-                  {publicacao.republicacaoDaVersao ? ` · republica v${publicacao.republicacaoDaVersao}` : ""}
+                  {getStatusLabel(publicacao.tipo)} · Versão {publicacao.versao}
+                  {publicacao.republicacaoDaVersao ? ` · republicação da v${publicacao.republicacaoDaVersao}` : ""}
                   {publicacao.publicadoEm ? ` · ${formatIsoDate(publicacao.publicadoEm)}` : ""}
                 </span>
                 <span style={{ fontSize: 12, color: "#64748B" }}>{getOrigemArquivoLabel(publicacao.origemArquivo)}</span>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <Link href={resolveApiUrl(publicacao.arquivoUrl)} className="hub-link" rel="noreferrer" target="_blank">Abrir PDF</Link>
-                <Link href={`/editais/${item.edital.id}/publicacoes`} className="hub-link">Historico</Link>
+                <Link href={`/editais/${item.edital.id}/publicacoes`} className="hub-link">Histórico</Link>
               </div>
             </div>
           ))}

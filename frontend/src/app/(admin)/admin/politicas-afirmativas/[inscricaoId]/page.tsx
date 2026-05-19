@@ -45,7 +45,7 @@ function getReservasResumo(detail: PoliticasInscricaoDetail | null) {
   const labels: string[] = [];
 
   if (detail.inscricao.reservasConcorrencia.acoesAfirmativas) {
-    labels.push("Acoes afirmativas");
+    labels.push("Ações afirmativas");
   }
 
   if (detail.inscricao.reservasConcorrencia.pcd) {
@@ -279,7 +279,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback ? <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Politicas afirmativas atualizadas" : feedback.type === "warning" ? "Atencao na etapa" : "Nao foi possivel salvar esta etapa"} type={feedback.type} /> : null}
+      {feedback ? <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Políticas afirmativas atualizadas" : feedback.type === "warning" ? "Atenção na etapa" : "Não foi possível salvar esta etapa"} type={feedback.type} /> : null}
 
       <AdminBreadcrumb items={[{ label: "Politicas afirmativas", href: "/admin/politicas-afirmativas" }, { label: detail.edital.numero }, { label: detail.candidato.nomeCompleto }]} />
 
@@ -299,7 +299,7 @@ export default function AdminPoliticasDetailPage({ params }: Props) {
         </div>
         <div className="admin-summary-card">
           <span className="admin-summary-card-label">Linha</span>
-          <span style={{ fontSize: 14, fontWeight: 500, color: "#1E293B" }}>{detail.linhaPesquisa?.nome ?? "Nao definida"}</span>
+          <span style={{ fontSize: 14, fontWeight: 500, color: "#1E293B" }}>{detail.linhaPesquisa?.nome ?? "Não definida"}</span>
         </div>
       </div>
 

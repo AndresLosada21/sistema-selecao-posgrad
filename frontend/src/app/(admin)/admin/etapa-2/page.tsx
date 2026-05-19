@@ -84,7 +84,7 @@ export default function AdminEtapa2Page() {
   }, [filter, page, signOut, statusFilter, token]);
 
   if (status === "loading") return <LoadingState title="Carregando etapa 2" description="Consultando as inscricoes prontas para analise curricular." />;
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila da etapa 2" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar a fila da etapa 2" description={message ?? undefined} />;
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 

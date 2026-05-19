@@ -44,7 +44,7 @@ export default function AdminIsencaoPage() {
   }, [filter, page, session.signOut, session.token, statusFilter]);
 
   if (status === "loading") return <LoadingState title="Carregando isencoes" description="Consultando os pedidos de isencao da fila." />;
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de isencao" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar a fila de isenção" description={message ?? undefined} />;
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 
@@ -92,7 +92,7 @@ export default function AdminIsencaoPage() {
                   <tr key={item.id}>
                     <td className="admin-homologacao-table-primary">{item.candidato.nomeCompleto}</td>
                     <td className="admin-homologacao-table-muted">{item.edital.numero}</td>
-                    <td className="admin-homologacao-table-center">{item.inscritoCadUnico ? "Sim" : "Nao"}</td>
+                    <td className="admin-homologacao-table-center">{item.inscritoCadUnico ? "Sim" : "Não"}</td>
                     <td className="admin-homologacao-table-center">
                       <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
                     </td>
@@ -117,7 +117,7 @@ export default function AdminIsencaoPage() {
             </div>
           </div>
         </div>
-      ) : <EmptyState title="Nenhum pedido na fila" description="Nao ha pedidos de isencao aguardando consulta nesta pagina." />}
+      ) : <EmptyState title="Nenhum pedido na fila" description="Não há pedidos de isenção aguardando consulta nesta página." />}
     </div>
   );
 }

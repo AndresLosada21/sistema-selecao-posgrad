@@ -51,8 +51,8 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
     if (!publicacoes.items.length) {
       return (
         <EmptyState
-          title={`Sem publicacoes para ${edital.numero}`}
-          description="As publicacoes oficiais deste edital ainda nao foram disponibilizadas."
+          title={`Sem publicações para ${edital.numero}`}
+          description="As publicações oficiais deste edital ainda não foram disponibilizadas."
         />
       );
     }
@@ -63,16 +63,16 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
           breadcrumb={[
             { label: "Editais", href: "/editais" },
             { label: edital.numero, href: `/editais/${edital.id}` },
-            { label: "Publicacoes" },
+            { label: "Publicações" },
           ]}
-          title={`Publicacoes oficiais — ${edital.numero}`}
-          description="Historico versionado de publicacoes e acesso aos PDFs oficiais."
+          title={`Publicações oficiais — ${edital.numero}`}
+          description="Histórico versionado de publicações e acesso aos PDFs oficiais."
         />
 
-        <SectionCard title={`Publicacoes de ${edital.numero}`}>
+        <SectionCard title={`Publicações de ${edital.numero}`}>
           {publicacoesVigentes.length ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-              <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A" }}>Versoes vigentes</h3>
+              <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A" }}>Versões vigentes</h3>
               <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Atalhos para os documentos oficiais mais recentes de cada tipo.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {publicacoesVigentes.map((publicacao) => (
@@ -84,9 +84,9 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
                         <StatusBadge variant="info">Vigente</StatusBadge>
                         <StatusBadge variant={getOrigemArquivoVariant(publicacao.origemArquivo)}>{getOrigemArquivoLabel(publicacao.origemArquivo)}</StatusBadge>
                       </div>
-                      <p className="pub-item-desc">{publicacao.descricao ?? "Sem descricao publica cadastrada."}</p>
+                      <p className="pub-item-desc">{publicacao.descricao ?? "Sem descrição pública cadastrada."}</p>
                       <div className="pub-item-meta">
-                        <span>Versao: {publicacao.versao}</span>
+                        <span>Versão: {publicacao.versao}</span>
                         <span>Publicado em: {formatIsoDate(publicacao.publicadoEm)}</span>
                         {publicacao.arquivoNomeOriginal ? <span>Arquivo: {publicacao.arquivoNomeOriginal}</span> : null}
                         {formatFileSize(publicacao.arquivoTamanhoBytes) ? <span>Tamanho: {formatFileSize(publicacao.arquivoTamanhoBytes)}</span> : null}
@@ -103,7 +103,7 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
           ) : null}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A" }}>Historico completo</h3>
+            <h3 style={{ margin: 0, fontSize: 16, color: "#0F172A" }}>Histórico completo</h3>
             {publicacoes.items.map((publicacao) => (
               <div className="pub-item" key={publicacao.id}>
                 <div className="pub-item-content">
@@ -114,17 +114,17 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
                       <StatusBadge variant="info">Vigente</StatusBadge>
                     ) : null}
                     {publicacao.versaoFinal ? (
-                      <StatusBadge variant="success">Versao final</StatusBadge>
+                        <StatusBadge variant="success">Versão final</StatusBadge>
                     ) : null}
                     <StatusBadge variant={getOrigemArquivoVariant(publicacao.origemArquivo)}>{getOrigemArquivoLabel(publicacao.origemArquivo)}</StatusBadge>
                   </div>
-                  <p className="pub-item-desc">{publicacao.descricao ?? "Sem descricao publica cadastrada."}</p>
+                  <p className="pub-item-desc">{publicacao.descricao ?? "Sem descrição pública cadastrada."}</p>
                   <div className="pub-item-meta">
-                    <span>Versao: {publicacao.versao}</span>
+                    <span>Versão: {publicacao.versao}</span>
                     <span>Publicado em: {formatIsoDate(publicacao.publicadoEm)}</span>
                     {publicacao.arquivoNomeOriginal ? <span>Arquivo: {publicacao.arquivoNomeOriginal}</span> : null}
                     {formatFileSize(publicacao.arquivoTamanhoBytes) ? <span>Tamanho: {formatFileSize(publicacao.arquivoTamanhoBytes)}</span> : null}
-                    {publicacao.republicacaoDaVersao ? <em>Republicacao da v{publicacao.republicacaoDaVersao}</em> : null}
+                    {publicacao.republicacaoDaVersao ? <em>Republicação da v{publicacao.republicacaoDaVersao}</em> : null}
                   </div>
                 </div>
                 <Link className="pub-pdf-btn" href={resolveApiUrl(publicacao.arquivoUrl)} rel="noreferrer" target="_blank">
@@ -144,7 +144,7 @@ export default async function PublicacoesPage({ params }: PublicacoesPageProps) 
           <div className="edital-card-footer-spacer" />
           <Link className="edital-card-link" href="/candidato/participacoes">
             <span className="edital-card-link-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg></span>
-            Abrir area do candidato
+            Abrir área do candidato
           </Link>
         </div>
       </div>

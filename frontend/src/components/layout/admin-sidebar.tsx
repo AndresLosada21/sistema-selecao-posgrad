@@ -13,7 +13,7 @@ type AdminNavItem = {
   icon: ReactNode;
 };
 
-/* Icones lucide distintos por modulo — 18px para legibilidade */
+/* Ícones lucide distintos por módulo — 18px para legibilidade */
 const iconDashboard = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
@@ -89,22 +89,22 @@ const iconLogout = (
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { href: "/admin", label: "Painel Geral", section: "principal", icon: iconDashboard },
   { href: "/admin/editais", label: "Editais", section: "processo", icon: iconEditais },
-  { href: "/admin/isencao", label: "Isencao", section: "processo", icon: iconIsencao },
-  { href: "/admin/homologacao", label: "Homologacao", section: "processo", icon: iconHomologacao },
-  { href: "/admin/etapa-1", label: "Etapa 1 — Redacao", section: "avaliacao", icon: iconEtapa1 },
-  { href: "/admin/etapa-2", label: "Etapa 2 — Titulos", section: "avaliacao", icon: iconEtapa2 },
-  { href: "/admin/classificacao", label: "Classificacao Final", section: "avaliacao", icon: iconClassificacao },
-  { href: "/admin/politicas-afirmativas", label: "Pol. Afirmativas", section: "avaliacao", icon: iconPoliticas },
+  { href: "/admin/isencao", label: "Isenção", section: "processo", icon: iconIsencao },
+  { href: "/admin/homologacao", label: "Homologação", section: "processo", icon: iconHomologacao },
+  { href: "/admin/etapa-1", label: "Etapa 1 — Redação", section: "avaliacao", icon: iconEtapa1 },
+  { href: "/admin/etapa-2", label: "Etapa 2 — Títulos", section: "avaliacao", icon: iconEtapa2 },
+  { href: "/admin/classificacao", label: "Classificação Final", section: "avaliacao", icon: iconClassificacao },
+  { href: "/admin/politicas-afirmativas", label: "Políticas Afirmativas", section: "avaliacao", icon: iconPoliticas },
   { href: "/admin/recursos", label: "Recursos", section: "avaliacao", icon: iconRecursos },
-  { href: "/admin/usuarios", label: "Usuarios", section: "administracao", icon: iconUsuarios },
-  { href: "/admin/publicacoes", label: "Publicacoes Oficiais", section: "administracao", icon: iconPublicacoes },
+  { href: "/admin/usuarios", label: "Usuários", section: "administracao", icon: iconUsuarios },
+  { href: "/admin/publicacoes", label: "Publicações Oficiais", section: "administracao", icon: iconPublicacoes },
 ];
 
 const SECTIONS: Array<{ key: AdminNavItem["section"]; label?: string }> = [
   { key: "principal" },
   { key: "processo", label: "PROCESSO SELETIVO" },
-  { key: "avaliacao", label: "AVALIACAO" },
-  { key: "administracao", label: "ADMINISTRACAO" },
+  { key: "avaliacao", label: "AVALIAÇÃO" },
+  { key: "administracao", label: "ADMINISTRAÇÃO" },
 ];
 
 export function AdminSidebar() {

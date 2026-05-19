@@ -34,24 +34,24 @@ export const decidirRecursoSchema = z.object({
   novaPontuacaoBrutaEtapa2: z.number().min(0).optional(),
   novoEspelhoEtapa2: z.string().trim().min(5).optional(),
   novoResultadoFinalPoliticasAfirmativas: z.nativeEnum(ResultadoPoliticasAfirmativas).refine((value) => value !== ResultadoPoliticasAfirmativas.PENDENTE, {
-    message: "Resultado final de politicas afirmativas nao pode permanecer pendente.",
+    message: "O resultado final de políticas afirmativas não pode permanecer pendente.",
   }).optional(),
   novoParecerFinalPoliticasAfirmativas: z.string().trim().min(5).optional(),
   novosResultadosFinaisPoliticasAfirmativas: z.array(z.object({
     tipo: z.nativeEnum(TipoEtapaPoliticasAfirmativas),
     resultado: z.nativeEnum(ResultadoPoliticasAfirmativas).refine((value) => value !== ResultadoPoliticasAfirmativas.PENDENTE, {
-      message: "Resultado final de politicas afirmativas nao pode permanecer pendente.",
+      message: "O resultado final de políticas afirmativas não pode permanecer pendente.",
     }),
     parecer: z.string().trim().min(5),
   })).min(1).refine((items) => new Set(items.map((item) => item.tipo)).size === items.length, {
-    message: "Nao repita o mesmo tipo de politicas afirmativas na mesma decisao recursal.",
+    message: "Não repita o mesmo tipo de políticas afirmativas na mesma decisão recursal.",
   }).optional(),
 }).superRefine((data, context) => {
   if (!data.deferido && data.impactoResultado) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["impactoResultado"],
-      message: "Impacto em resultado so pode ser informado em recurso deferido.",
+      message: "Impacto em resultado só pode ser informado em recurso deferido.",
     });
   }
 

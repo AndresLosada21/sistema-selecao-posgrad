@@ -76,7 +76,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
 
   if (status === "loading") return <LoadingState title="Carregando pedido de isencao" description="Consultando detalhe administrativo." />;
   if (status === "error") return <ErrorState title="Falha ao carregar pedido" description={message?.text} />;
-  if (!item) return <EmptyState title="Pedido indisponivel" description="O pedido de isencao nao foi encontrado." />;
+  if (!item) return <EmptyState title="Pedido indisponível" description="O pedido de isenção não foi encontrado." />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -102,11 +102,11 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{ fontSize: 11, fontWeight: 500, color: "#94A3B8" }}>CadUnico</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{item.inscritoCadUnico ? "Sim" : "Nao"}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{item.inscritoCadUnico ? "Sim" : "Não"}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{ fontSize: 11, fontWeight: 500, color: "#94A3B8" }}>NIS</span>
-            <span style={{ fontSize: 13, color: "#1E293B" }}>{item.nis ?? "Nao informado"}</span>
+            <span style={{ fontSize: 13, color: "#1E293B" }}>{item.nis ?? "Não informado"}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{ fontSize: 11, fontWeight: 500, color: "#94A3B8" }}>Comprovante</span>

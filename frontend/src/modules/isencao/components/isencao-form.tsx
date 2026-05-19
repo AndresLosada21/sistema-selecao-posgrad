@@ -38,7 +38,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
   const comprovanteValido = inscritoCadUnico || Boolean(comprovanteUrl && comprovanteNomeArquivo);
   const canSubmit = status !== "loading" && justificativaValida && comprovanteValido;
 
-  const cursoLabel = cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
+  const cursoLabel = cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Elétrica" : "Doutorado em Engenharia Elétrica";
 
   async function handleComprovanteSelect(file: File) {
     if (!session.token) return;
@@ -68,7 +68,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
         comprovanteNomeArquivo: inscritoCadUnico ? undefined : comprovanteNomeArquivo || undefined,
       }), session.token);
       setStatus("idle");
-      setMessage({ type: "success", text: "Pedido de isencao enviado. Voce sera redirecionado para acompanhar o status." });
+      setMessage({ type: "success", text: "Pedido de isenção enviado. Você será redirecionado para acompanhar o status." });
       redirectTimeoutRef.current = setTimeout(() => router.replace(`/candidato/editais/${editalId}`), 900);
     } catch (error) {
       if (isUnauthorizedError(error)) { session.signOut(); return; }
@@ -92,7 +92,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
 
       <div style={{ width: 560, maxWidth: "100%", background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", boxShadow: "0 4px 16px rgba(0,0,0,0.06)", padding: 36, display: "flex", flexDirection: "column", gap: 24 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Solicitar isencao da taxa</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Solicitar isenção da taxa</h2>
           <p style={{ fontSize: 14, color: "#64748B", margin: 0 }}>Edital {editalNumero ?? ""} — {cursoLabel}</p>
         </div>
 
@@ -117,7 +117,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
               <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                 <span style={{ width: 18, height: 18, borderRadius: "50%", border: !inscritoCadUnico ? "none" : "2px solid #CBD5E1", background: !inscritoCadUnico ? "#2563EB" : "#fff", display: "inline-block" }} />
                 <input type="radio" name="cadUnico" checked={!inscritoCadUnico} onChange={() => setInscritoCadUnico(false)} style={{ display: "none" }} />
-                <span style={{ fontSize: 14, color: "#334155" }}>Nao</span>
+                 <span style={{ fontSize: 14, color: "#334155" }}>Não</span>
               </label>
             </div>
           </div>
@@ -128,14 +128,14 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
             <input aria-invalid={false} placeholder="12345678901" value={nis} onChange={(e) => setNis(e.target.value)} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }} />
           </div>
 
-          {/* Justificativa + Comprovante (apenas quando nao CadUnico) */}
+          {/* Justificativa + Comprovante (apenas quando não CadÚnico) */}
           {!inscritoCadUnico ? (
             <>
               <div className="wiz-field">
                 <label className="wiz-field-label">Justificativa *</label>
                 <textarea aria-invalid={!!fieldErrors.justificativa} aria-label="Justificativa" minLength={10} value={justificativa} onChange={(e) => { setJustificativa(e.target.value); setFieldErrors((current) => ({ ...current, justificativa: null })); }}
                   style={{ minHeight: 80, borderRadius: 6, border: "1px solid #CBD5E1", padding: "12px 14px", fontSize: 14, resize: "vertical" }}
-                  placeholder="Justifique o pedido de isencao (minimo 10 caracteres)"
+                  placeholder="Justifique o pedido de isenção (mínimo 10 caracteres)"
                 />
                 {fieldErrors.justificativa ? <span className="auth-field-hint auth-field-hint--error">{fieldErrors.justificativa}</span> : null}
               </div>
@@ -155,7 +155,7 @@ export function IsencaoForm({ editalId, editalNumero, cursoNivel }: IsencaoFormP
           {/* Submit */}
           <button type="submit" disabled={!canSubmit}
             style={{ height: 44, borderRadius: 8, background: canSubmit ? "#2563EB" : "#94A3B8", border: "none", color: "#fff", fontSize: 14, fontWeight: 600, cursor: canSubmit ? "pointer" : "not-allowed", width: "100%" }}>
-            {status === "loading" ? "Enviando..." : "Solicitar isencao"}
+            {status === "loading" ? "Enviando..." : "Solicitar isenção"}
           </button>
         </form>
 

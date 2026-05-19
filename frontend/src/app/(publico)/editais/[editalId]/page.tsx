@@ -75,7 +75,7 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
               <div className="edital-detail-meta-col">
                 <MetaItem icon={iconCap} label="Curso / Nivel" value={getStatusLabel(edital.cursoNivel)} />
                 <MetaItem icon={iconCal} label="Publicado em" value={formatIsoDate(edital.publicadoEm)} />
-                <MetaItem icon={iconHash} label="Edicao" value={formatSemestre(edital.ano, edital.semestre)} />
+                <MetaItem icon={iconHash} label="Edição" value={formatSemestre(edital.ano, edital.semestre)} />
               </div>
               <div className="edital-detail-meta-col">
                 <MetaItem icon={iconDot} label="Fase atual" value={edital.faseAtual?.titulo ?? "sem fase ativa"} />
@@ -140,11 +140,11 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
               </tfoot>
             </table>
           ) : (
-            <EmptyState title="Linhas de pesquisa indisponiveis" description="Este edital ainda nao possui linhas de pesquisa publicadas." />
+            <EmptyState title="Linhas de pesquisa indisponíveis" description="Este edital ainda não possui linhas de pesquisa publicadas." />
           )}
         </SectionCard>
 
-        <SectionCard title="Temas de redacao" description={edital.temasRedacao.length ? `${edital.temasRedacao.length} tema(s) ativo(s) para a proposta de pesquisa deste edital.` : "Este edital nao possui temas ativos publicados no momento."}>
+        <SectionCard title="Temas de redação" description={edital.temasRedacao.length ? `${edital.temasRedacao.length} tema(s) ativo(s) para a proposta de pesquisa deste edital.` : "Este edital não possui temas ativos publicados no momento."}>
           {edital.temasRedacao.length ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -171,11 +171,11 @@ export default async function EditalDetailPage({ params }: EditalPageProps) {
                 </details>
               ) : null}
               <span style={{ fontSize: 12, color: "#64748B" }}>
-                Na inscricao, o candidato pode buscar por palavra-chave antes de selecionar o tema.
+                Na inscrição, o candidato pode buscar por palavra-chave antes de selecionar o tema.
               </span>
             </div>
           ) : (
-            <EmptyState title="Temas ainda indisponiveis" description="A administracao ainda nao publicou temas ativos para a redacao deste edital." />
+            <EmptyState title="Temas ainda indisponíveis" description="A administração ainda não publicou temas ativos para a redação deste edital." />
           )}
         </SectionCard>
       </div>
