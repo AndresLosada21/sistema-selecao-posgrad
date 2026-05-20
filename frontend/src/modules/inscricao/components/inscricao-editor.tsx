@@ -993,10 +993,10 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           {svgSave} {savingDraft ? "Salvando..." : "Salvar Rascunho"}
         </button>
         <span className="wiz-footer-spacer" />
-        <span className="wiz-auto-save">{svgCloud} {autosaveState === "saving" ? "Salvando automaticamente..." : autosaveState === "saved" ? `Salvo automaticamente${autosaveAt ? ` as ${new Date(autosaveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : autosaveState === "error" ? "Falha no salvamento automatico" : "Salvamento automatico ativo"}</span>
+        <span className="wiz-auto-save">{svgCloud} {autosaveState === "saving" ? "Salvando automaticamente..." : autosaveState === "saved" ? `Salvo automaticamente${autosaveAt ? ` as ${new Date(autosaveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : autosaveState === "error" ? "Falha no salvamento automático" : "Salvamento automático ativo"}</span>
         {step < 4 ? (
           <button type="button" className="wiz-btn-next" disabled={savingDraft || !inscricaoEditavel} onClick={goNext}>
-            Proximo: {STEP_LABELS[step + 1]} {svgArrowRight}
+            Próximo: {STEP_LABELS[step + 1]} {svgArrowRight}
           </button>
         ) : (
           <>
@@ -1129,7 +1129,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <FieldError message={fieldErrors.rg} />
           </div>
           <div className="wiz-field">
-            <label className="wiz-field-label">Data de Expedicao do RG</label>
+            <label className="wiz-field-label">Data de Expedição do RG</label>
             <input aria-invalid={!!fieldErrors.rgDataExpedicao} inputMode="numeric" placeholder="DD/MM/AAAA" value={v("rgDataExpedicao")} onChange={(e) => updateFicha("rgDataExpedicao", formatDateBR(e.target.value))} />
             <FieldError message={fieldErrors.rgDataExpedicao} />
           </div>
@@ -1141,7 +1141,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <FieldError message={fieldErrors.dataNascimento} />
           </div>
           <div className="wiz-field">
-            <label className="wiz-field-label">Genero</label>
+            <label className="wiz-field-label">Gênero</label>
             <select aria-invalid={!!fieldErrors.genero} value={v("genero")} onChange={(e) => updateFicha("genero", e.target.value)}>
               <option value="">Selecione</option>
               {generoOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}
@@ -1179,7 +1179,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
                   )}
                 </div>
               </div>
-              {cidadeNaturalidadeFailed ? <span className="wiz-field-hint">Nao foi possivel carregar as cidades agora. Preencha manualmente.</span> : null}
+              {cidadeNaturalidadeFailed ? <span className="wiz-field-hint">Não foi possível carregar as cidades agora. Preencha manualmente.</span> : null}
               <FieldError message={fieldErrors.naturalidade} />
             </div>
           ) : null}
@@ -1191,8 +1191,8 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <option value="SOLTEIRO">Solteiro</option>
             <option value="CASADO">Casado</option>
             <option value="DIVORCIADO">Divorciado</option>
-            <option value="VIUVO">Viuvo</option>
-            <option value="UNIAO_ESTAVEL">Uniao estavel</option>
+            <option value="VIUVO">Viúvo</option>
+            <option value="UNIAO_ESTAVEL">União estável</option>
           </select>
           <FieldError message={fieldErrors.estadoCivil} />
         </div>
@@ -1206,7 +1206,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             value={v("email")}
             onChange={(e) => updateFicha("email", e.target.value.trim().toLowerCase())}
           />
-          <span className="wiz-field-hint">O e-mail e o mesmo da sua conta. Para alterar, acesse as configuracoes da sua conta.</span>
+          <span className="wiz-field-hint">O e-mail é o mesmo da sua conta. Para alterar, acesse as configurações da sua conta.</span>
           <FieldError message={fieldErrors.email} />
         </div>
         <div className="wiz-field">
@@ -1216,8 +1216,8 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         </div>
 
         <div className="wiz-card-divider" />
-        <h3 className="wiz-section-title">Endereco Residencial</h3>
-        <p className="wiz-section-hint">Informe seu endereco atual de residencia.</p>
+        <h3 className="wiz-section-title">Endereço Residencial</h3>
+        <p className="wiz-section-hint">Informe seu endereço atual de residência.</p>
 
         <div className="wiz-field" style={{ maxWidth: 200 }}>
           <label className="wiz-field-label">CEP</label>
@@ -1228,13 +1228,13 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         <div className="wiz-field">
           <label className="wiz-field-label">Logradouro</label>
           <input aria-invalid={!!fieldErrors.enderecoResidencial} placeholder="Ex: Av. Djalma Batista, 1000, Apto 202" value={v("enderecoResidencial")} onChange={(e) => updateFicha("enderecoResidencial", normalizeTextName(e.target.value))} />
-          <span className="wiz-field-hint">Inclua numero e complemento no mesmo campo. Ex: Av. Djalma Batista, 1000, Apto 202</span>
+            <span className="wiz-field-hint">Inclua número e complemento no mesmo campo. Ex: Av. Djalma Batista, 1000, Apto 202</span>
           <FieldError message={fieldErrors.enderecoResidencial} />
         </div>
         <div className="wiz-field-row">
           <div className="wiz-field">
             <label className="wiz-field-label">Bairro</label>
-            <input aria-invalid={!!fieldErrors.bairroResidencial} placeholder="Ex: Adrianopolis" value={v("bairroResidencial")} onChange={(e) => updateFicha("bairroResidencial", normalizeTextName(e.target.value))} />
+            <input aria-invalid={!!fieldErrors.bairroResidencial} placeholder="Ex: Adrianópolis" value={v("bairroResidencial")} onChange={(e) => updateFicha("bairroResidencial", normalizeTextName(e.target.value))} />
             <FieldError message={fieldErrors.bairroResidencial} />
           </div>
           <div className="wiz-field">
@@ -1247,7 +1247,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
                 {cidadeResidencialSelectOptions.map((cidade) => <option key={cidade} value={cidade}>{cidade}</option>)}
               </select>
             )}
-            {cidadeResidencialFailed ? <span className="wiz-field-hint">Nao foi possivel carregar as cidades agora. Preencha manualmente.</span> : null}
+            {cidadeResidencialFailed ? <span className="wiz-field-hint">Não foi possível carregar as cidades agora. Preencha manualmente.</span> : null}
             <FieldError message={fieldErrors.cidadeResidencial} />
           </div>
           <div className="wiz-field" style={{ maxWidth: 90 }}>
@@ -1266,12 +1266,12 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
 
       {/* Card 2: Complementares */}
       <div className="wiz-card">
-        <h2 className="wiz-card-title">Dados Complementares e Declaracoes</h2>
-        <p className="wiz-card-subtitle">Informacoes complementares, declaracoes e vinculo empregaticio</p>
+        <h2 className="wiz-card-title">Dados Complementares e Declarações</h2>
+        <p className="wiz-card-subtitle">Informações complementares, declarações e vínculo empregatício</p>
         <div className="wiz-card-divider" />
 
         <div className="wiz-field" style={{ maxWidth: 200 }}>
-          <label className="wiz-field-label">Tipo Sanguineo</label>
+          <label className="wiz-field-label">Tipo Sanguíneo</label>
           <select
             aria-invalid={!!fieldErrors.tipoSanguineo}
             value={v("tipoSanguineo") && v("fatorRh") ? `${v("tipoSanguineo")}${v("fatorRh")}` : ""}
@@ -1292,7 +1292,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
           <FieldError message={fieldErrors.tipoSanguineo} />
         </div>
         <div className="wiz-field">
-          <label className="wiz-field-label">Raca/Cor</label>
+          <label className="wiz-field-label">Raça/Cor</label>
           <select aria-invalid={!!fieldErrors.racaCor} value={v("racaCor")} onChange={(e) => updateFicha("racaCor", e.target.value)}>
             <option value="">Selecione</option>
             {racaCorOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}

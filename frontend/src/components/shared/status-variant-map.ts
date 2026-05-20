@@ -131,6 +131,13 @@ export function getStatusLabel(status: string): string {
     CLASSIFICACAO_PRELIMINAR: "Classificação preliminar",
     CLASSIFICACAO_FINAL: "Classificação final",
     COMUNICADO: "Comunicado",
+    // Fases recursais e operacionais
+    ISENCAO: "Isenção",
+    HOMOLOGACAO: "Homologação",
+    ETAPA_1: "Etapa 1",
+    ETAPA_2: "Etapa 2",
+    CLASSIFICACAO: "Classificação",
+    POLITICAS_AFIRMATIVAS: "Políticas afirmativas",
     // Confirmação de reserva
     CONFIRMADA: "Confirmada",
     NAO_CONFIRMADA: "Não confirmada",

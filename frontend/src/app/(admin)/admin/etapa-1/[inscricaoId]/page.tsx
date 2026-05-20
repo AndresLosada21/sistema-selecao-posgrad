@@ -18,11 +18,11 @@ import type { Etapa1AdminItem, Etapa1Espelho } from "@/modules/admin-etapas/type
 type Props = { params: Promise<{ inscricaoId: string }> };
 
 const CRITERIOS = [
-  { key: "adequacaoDominioTema", label: "Adequacao e dominio do tema", peso: 50 },
+  { key: "adequacaoDominioTema", label: "Adequação e domínio do tema", peso: 50 },
   { key: "estrutura", label: "Estrutura", peso: 10 },
-  { key: "organizacaoCoerencia", label: "Organizacao textual e coerencia", peso: 15 },
-  { key: "objetividadeSintese", label: "Objetividade e capacidade de sintese", peso: 15 },
-  { key: "grafiaGramatica", label: "Grafia, acentuacao e gramatica", peso: 10 },
+  { key: "organizacaoCoerencia", label: "Organização textual e coerência", peso: 15 },
+  { key: "objetividadeSintese", label: "Objetividade e capacidade de síntese", peso: 15 },
+  { key: "grafiaGramatica", label: "Grafia, acentuação e gramática", peso: 10 },
 ] as const;
 
 type CriterioKey = (typeof CRITERIOS)[number]["key"];

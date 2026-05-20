@@ -22,11 +22,11 @@ type Props = { params: Promise<{ editalId: string }> };
 
 /* Maps backend keys to display labels */
 const CRITERIA_LABELS: Record<string, string> = {
-  adequacaoDominioTema: "Adequacao e dominio do tema",
+  adequacaoDominioTema: "Adequação e domínio do tema",
   estrutura: "Estrutura",
-  organizacaoCoerencia: "Organizacao e coerencia",
-  objetividadeSintese: "Objetividade e sintese",
-  grafiaGramatica: "Grafia e gramatica",
+  organizacaoCoerencia: "Organização e coerência",
+  objetividadeSintese: "Objetividade e síntese",
+  grafiaGramatica: "Grafia e gramática",
 };
 
 type RubricaCriterio = { notaAtribuida: number; pesoPercentual: number; contribuicao: number; observacao?: string | null };
