@@ -497,8 +497,8 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
 
           {/* Espelho de correção */}
           <div className="admin-form-card" style={{ gap: 12 }}>
-            <h2 className="admin-form-card-title">Espelho de correcao</h2>
-            <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>Visivel ao candidato apos liberacao do espelho.</p>
+            <h2 className="admin-form-card-title">Espelho de correção</h2>
+            <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>Visível ao candidato após liberação do espelho.</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
               {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
@@ -555,8 +555,8 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
 
             {espelho && (
               <div className="admin-soft-note" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span><strong>Espelho de correcao:</strong> {espelho.espelhoCorrecao ?? "—"}</span>
-                <span><strong>Pontuacao bruta:</strong> {espelho.pontuacaoBruta ?? "—"}</span>
+                <span><strong>Espelho de correção:</strong> {espelho.espelhoCorrecao ?? "—"}</span>
+                <span><strong>Pontuação bruta:</strong> {espelho.pontuacaoBruta ?? "—"}</span>
                 <span><strong>Nota normalizada:</strong> {espelho.notaNormalizada ?? "—"}</span>
                 <span><strong>Solicitado:</strong> {formatIsoDate(espelho.espelhoSolicitadoEm)}</span>
                 <span><strong>Liberado:</strong> {formatIsoDate(espelho.espelhoLiberadoEm)}</span>

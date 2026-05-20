@@ -330,19 +330,19 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         ))}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Observacao geral</label>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Observação geral</label>
           <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setObservacoes((prev) => ({ ...prev, geral: e.target.value }))} value={observacoes.geral} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
-          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} aria-label="Espelho de correcao" disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correção</label>
+          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} aria-label="Espelho de correção" disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
           {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
         </div>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
-            <label>Publicacao</label>
+            <label>Publicação</label>
             <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={!podeAlternarPublicacao || busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
               <option value="PRELIMINAR">Preliminar</option>
               <option value="FINAL">Final</option>
@@ -350,23 +350,23 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
-            <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a acao confirmada de liberacao abaixo."}</span>
+            <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a ação confirmada de liberação abaixo."}</span>
           </div>
         </div>
 
         <button className="admin-page-cta" disabled={busy || !podeSalvarResultado} style={{ width: 200 }} type="submit">
-          Salvar avaliacao
+          Salvar avaliação
         </button>
       </form>
       </div>
 
       {/* Criterios da rubrica (readonly preview table) */}
       <div className="admin-form-card">
-        <h2 className="admin-form-card-title">Criterios da rubrica</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Distribuicao de notas por criterio de avaliacao.</p>
+        <h2 className="admin-form-card-title">Critérios da rubrica</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Distribuição de notas por critério de avaliação.</p>
 
         <table className="admin-rubrica-table">
-          <caption className="sr-only">Rubrica de correcao da etapa 1</caption>
+          <caption className="sr-only">Rubrica de correção da etapa 1</caption>
           <thead>
             <tr>
               <th scope="col">Criterio</th>
@@ -430,7 +430,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         {espelho && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16, background: "#F8FAFC", borderRadius: 6 }}>
             <small><strong>Tema:</strong> {espelho.tema ?? "—"}</small>
-            <small><strong>Espelho de correcao:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
+              <small><strong>Espelho de correção:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
             <small><strong>Solicitado em:</strong> {formatIsoDate(espelho.espelhoSolicitadoEm)}</small>
             <small><strong>Liberado em:</strong> {formatIsoDate(espelho.espelhoLiberadoEm)}</small>
             <small><strong>Resultado preliminar em:</strong> {formatIsoDate(espelho.resultadoPreliminarEm)}</small>

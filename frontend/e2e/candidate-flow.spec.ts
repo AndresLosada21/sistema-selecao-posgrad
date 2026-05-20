@@ -188,8 +188,8 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   await expect(cidadeResidencial).toBeEnabled({ timeout: 15_000 });
   await cidadeResidencial.selectOption({ label: "Manaus" });
 
-  await selectWizardField(page, "Tipo Sanguineo", "O+");
-  await selectWizardField(page, "Raca/Cor", "NAO_DECLARADA");
+  await selectWizardField(page, "Tipo Sanguíneo", "O+");
+  await selectWizardField(page, "Raça/Cor", "NAO_DECLARADA");
   await fillWizardField(page, "Nome do Pai", "Pai Teste");
   await fillWizardField(page, "Nome da Mãe", "Mãe Teste");
   await selectWizardField(page, "Situação de Trabalho", "EMPREGADO");
