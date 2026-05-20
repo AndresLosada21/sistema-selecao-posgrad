@@ -167,7 +167,7 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   await fillWizardField(page, "RG", "1234567");
   await fillWizardField(page, "Data de Expedição do RG", "01012020");
   await fillWizardField(page, "Data de Nascimento", "01011990");
-  await selectWizardField(page, "Genero", "MASCULINO");
+  await selectWizardField(page, "Gênero", "MASCULINO");
   await selectWizardField(page, "Nacionalidade", "Brasileira");
 
   const naturalidadeField = wizardField(page, "Naturalidade");

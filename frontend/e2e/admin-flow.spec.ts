@@ -34,7 +34,7 @@ test("admin percorre isencao, homologacao e etapa 1 pela UI real", async ({ page
   await expect(page.getByText("Resultado preliminar salvo.")).toBeVisible({ timeout: 20_000 });
   await homologacaoFinalCard.locator("select").first().selectOption("HOMOLOGADA");
   await page.getByLabel("Parecer final").fill("Documentação final homologada para seguir na etapa 1.");
-  await homologacaoFinalCard.getByRole("button", { name: "Registrar homologação" }).click();
+  await homologacaoFinalCard.getByRole("button", { name: "Registrar homologação final" }).click();
   await expect(page.getByText("Resultado final salvo.")).toBeVisible({ timeout: 20_000 });
 
   await page.goto(`/admin/etapa-1/${fixture.inscricaoId}`);

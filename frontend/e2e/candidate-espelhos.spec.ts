@@ -60,7 +60,7 @@ test("candidato solicita e visualiza espelhos reais das etapas 1 e 2 pela UI", a
   await page.reload();
   await page.getByRole("button", { name: "Ver espelho" }).nth(1).click();
   await expect(page.getByText("Espelho estruturado da etapa 2.")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText("Pontuacao bruta:")).toBeVisible();
+  await expect(page.getByText("Pontuação bruta:")).toBeVisible();
   await expect(page.getByText("titulo").first()).toBeVisible();
   await expect(page.getByText("Glosas aplicadas:")).toBeVisible();
 });

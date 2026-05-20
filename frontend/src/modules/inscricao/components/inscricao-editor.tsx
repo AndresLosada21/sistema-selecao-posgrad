@@ -196,7 +196,7 @@ function validateDateBRExpedicao(value: string): string | null {
   if (!date) return "Data invalida. Use o formato DD/MM/AAAA.";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  if (date > today) return "A data de expedicao nao pode ser no futuro.";
+  if (date > today) return "A data de expedição não pode ser no futuro.";
   return null;
 }
 

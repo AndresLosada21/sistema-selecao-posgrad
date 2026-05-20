@@ -325,10 +325,10 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Decisao preliminar */}
+      {/* Decisão preliminar */}
       <div className="admin-form-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h3 className="admin-form-card-title">Resultado preliminar da homologacao</h3>
+          <h3 className="admin-form-card-title">Resultado preliminar da homologação</h3>
           {hasPrelim ? <StatusBadge variant={getStatusVariant(homolog?.statusPreliminar ?? "")}>{getStatusLabel(homolog?.statusPreliminar ?? "")}</StatusBadge> : null}
         </div>
         {!item.edicaoHomologacao.podeEditarPreliminar && item.edicaoHomologacao.bloqueioPreliminar ? (
@@ -379,10 +379,10 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
         </form>
       </div>
 
-      {/* Decisao final */}
+      {/* Decisão final */}
       <div className="admin-form-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h3 className="admin-form-card-title">Resultado final da homologacao</h3>
+          <h3 className="admin-form-card-title">Resultado final da homologação</h3>
           {hasFinal ? <StatusBadge variant={getStatusVariant(homolog?.statusFinal ?? "")}>{getStatusLabel(homolog?.statusFinal ?? "")}</StatusBadge> : null}
         </div>
         {!item.edicaoHomologacao.podeEditarFinal && item.edicaoHomologacao.bloqueioFinal ? (
@@ -427,7 +427,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             <button type="button" disabled={!item.edicaoHomologacao.podeEditarFinal || busy} onClick={() => addMotivo("final")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
           </div>
           <button type="submit" disabled={busy || !item.edicaoHomologacao.podeEditarFinal} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 240 }}>
-            {busy ? "Registrando..." : "Registrar homologacao final"}
+            {busy ? "Registrando..." : "Registrar homologação final"}
           </button>
         </form>
       </div>
