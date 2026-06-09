@@ -209,8 +209,8 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
 
   await page.getByRole("button", { name: "Próximo: Redação" }).click();
   await expect(page.getByRole("heading", { name: "Redação — Proposta de Pesquisa" })).toBeVisible({ timeout: 20_000 });
-  await page.getByPlaceholder("Buscar por controle, energia, blockchain, visão...").fill("energia");
-  const temaSelect = page.locator("div", { hasText: "Tema da Redacao" }).locator("select").first();
+  await page.getByPlaceholder("Buscar por controle, energia, blockchain, visão...").fill("controle");
+  const temaSelect = page.locator("div", { hasText: "Tema da Redação" }).locator("select").first();
   const temaOptionValue = await temaSelect.locator("option").evaluateAll((options) => {
     const matchingOption = options.find((option, index) => index > 0 && option.getAttribute("value"));
     return matchingOption?.getAttribute("value") ?? null;
