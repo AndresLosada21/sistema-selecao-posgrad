@@ -42,6 +42,6 @@ test("admin percorre isencao, homologacao e etapa 1 pela UI real", async ({ page
     await page.locator(".admin-eval-field", { hasText: criterio }).locator('input[type="number"]').fill("8");
   }
   await page.getByLabel("Espelho de correção").fill("Espelho administrativo da etapa 1 via UI.");
-  await page.getByRole("button", { name: "Salvar avaliacao" }).click();
+  await page.getByRole("button", { name: "Salvar avaliação" }).click();
   await expect(page.getByText("Resultado da etapa 1 salvo.")).toBeVisible({ timeout: 20_000 });
 });
