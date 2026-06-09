@@ -52,7 +52,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
     e.preventDefault();
     if (!session.token || !pedidoId) return;
     setBusy(true); setMessage(null); setFieldErrors({});
-    try { await decidirIsencaoPreliminarAdmin(pedidoId, preliminar, session.token); await load(); setMessage({ type: "success", text: "Decisao preliminar registrada." }); }
+    try { await decidirIsencaoPreliminarAdmin(pedidoId, preliminar, session.token); await load(); setMessage({ type: "success", text: "Decisão preliminar registrada." }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickLabeledFieldErrors(error, { deferida: "o resultado", parecer: "o parecer" })); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
@@ -61,7 +61,7 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
     e.preventDefault();
     if (!session.token || !pedidoId) return;
     setBusy(true); setMessage(null); setFieldErrors({});
-    try { await decidirIsencaoFinalAdmin(pedidoId, finalDecision, session.token); await load(); setMessage({ type: "success", text: "Decisao final registrada." }); }
+    try { await decidirIsencaoFinalAdmin(pedidoId, finalDecision, session.token); await load(); setMessage({ type: "success", text: "Decisão final registrada." }); }
     catch (error) { if (isUnauthorizedError(error)) { session.signOut(); return; } setFieldErrors(pickLabeledFieldErrors(error, { deferida: "o resultado final", parecer: "o parecer final" })); setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) }); }
     finally { setBusy(false); }
   }
@@ -74,20 +74,20 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
     finally { setDownloadingComprovante(false); }
   }
 
-  if (status === "loading") return <LoadingState title="Carregando pedido de isencao" description="Consultando detalhe administrativo." />;
+  if (status === "loading") return <LoadingState title="Carregando pedido de isenção" description="Consultando detalhe administrativo." />;
   if (status === "error") return <ErrorState title="Falha ao carregar pedido" description={message?.text} />;
-  if (!item) return <EmptyState title="Pedido indisponivel" description="O pedido de isencao nao foi encontrado." />;
+  if (!item) return <EmptyState title="Pedido indisponível" description="O pedido de isenção não foi encontrado." />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {message ? <PageFeedback type={message.type} title={message.type === "success" ? "Sucesso" : "Erro"} description={message.text} /> : null}
 
-      <AdminBreadcrumb items={[{ label: "Isencao", href: "/admin/isencao" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
+      <AdminBreadcrumb items={[{ label: "Isenção", href: "/admin/isencao" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
       {/* Header */}
       <div className="admin-page-header">
         <div className="admin-page-header-left">
-          <h1>Isencao — {item.candidato.nomeCompleto}</h1>
+          <h1>Isenção — {item.candidato.nomeCompleto}</h1>
           <p>Edital {item.edital.numero} · Analise administrativa do pedido</p>
         </div>
       </div>
@@ -102,11 +102,11 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{ fontSize: 11, fontWeight: 500, color: "#94A3B8" }}>CadUnico</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{item.inscritoCadUnico ? "Sim" : "Nao"}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{item.inscritoCadUnico ? "Sim" : "Não"}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{ fontSize: 11, fontWeight: 500, color: "#94A3B8" }}>NIS</span>
-            <span style={{ fontSize: 13, color: "#1E293B" }}>{item.nis ?? "Nao informado"}</span>
+            <span style={{ fontSize: 13, color: "#1E293B" }}>{item.nis ?? "Não informado"}</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{ fontSize: 11, fontWeight: 500, color: "#94A3B8" }}>Comprovante</span>
@@ -153,20 +153,20 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field">
               <label className="wiz-field-label">Parecer *</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer preliminar" placeholder="Explique de forma objetiva a decisao preliminar." value={preliminar.parecer} onChange={(e) => { setPreliminar((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer preliminar" placeholder="Explique de forma objetiva a decisão preliminar." value={preliminar.parecer} onChange={(e) => { setPreliminar((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
                 style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>
           <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 200 }}>
-            {busy ? "Registrando..." : "Registrar decisao"}
+            {busy ? "Registrando..." : "Registrar decisão"}
           </button>
         </form>
       </div>
 
-      {/* Card 3: Decisao final */}
+      {/* Card 3: Decisão final */}
       <div className="admin-form-card">
-        <h3 className="admin-form-card-title">Decisao final</h3>
+        <h3 className="admin-form-card-title">Decisão final</h3>
         <form onSubmit={handleFinal} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="admin-form-row">
             <div className="wiz-field">
@@ -181,13 +181,13 @@ export default function AdminIsencaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field">
               <label className="wiz-field-label">Parecer *</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer final" placeholder="Explique de forma objetiva a decisao final." value={finalDecision.parecer} onChange={(e) => { setFinalDecision((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer final" placeholder="Explique de forma objetiva a decisão final." value={finalDecision.parecer} onChange={(e) => { setFinalDecision((c) => ({ ...c, parecer: e.target.value })); setFieldErrors((current) => ({ ...current, parecer: null })); }}
                 style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>
           <button type="submit" disabled={busy} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 200 }}>
-            {busy ? "Registrando..." : "Registrar decisao final"}
+            {busy ? "Registrando..." : "Registrar decisão final"}
           </button>
         </form>
       </div>

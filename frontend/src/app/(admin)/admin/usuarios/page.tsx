@@ -92,13 +92,13 @@ export default function AdminUsuariosPage() {
   }
 
   if (status === "loading") return <LoadingState title="Carregando usuarios" description="Consultando contas, perfis e escopos." />;
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar os usuarios" description={message?.text} />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar os usuários" description={message?.text} />;
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {message ? <PageFeedback type={message.type} title={message.type === "success" ? "Usuarios atualizados" : "Nao foi possivel concluir a acao"} description={message.text} /> : null}
+      {message ? <PageFeedback type={message.type} title={message.type === "success" ? "Usuários atualizados" : "Não foi possível concluir a ação"} description={message.text} /> : null}
 
       <div className="admin-page-header">
         <div className="admin-page-header-left">
@@ -119,7 +119,7 @@ export default function AdminUsuariosPage() {
                   <th scope="col" style={{ minWidth: 240 }}>E-mail</th>
                   <th scope="col" style={{ minWidth: 140 }}>Perfis</th>
                   <th scope="col" style={{ width: 100, textAlign: "center" }}>Conta</th>
-                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Acoes</th>
+                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -222,7 +222,7 @@ export default function AdminUsuariosPage() {
             </div>
           </div>
         </div>
-      ) : <EmptyState title="Nenhum usuario encontrado" description="Nao houve retorno para a pagina atual de usuarios." />}
+      ) : <EmptyState title="Nenhum usuário encontrado" description="Não houve retorno para a página atual de usuários." />}
     </div>
   );
 }

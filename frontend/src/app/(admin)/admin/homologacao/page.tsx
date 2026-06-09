@@ -58,7 +58,7 @@ export default function AdminHomologacaoPage() {
   }, [data]);
 
   if (status === "loading") return <LoadingState title="Carregando homologacao" description="Consultando a fila de inscricoes para analise." />;
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de homologacao" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar a fila de homologação" description={message ?? undefined} />;
 
   const totalPages = Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 20));
 

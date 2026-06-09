@@ -131,7 +131,7 @@ export function AuthForm({ mode, nextPath }: AuthFormProps) {
         <strong className="auth-card-title">{isLogin ? "Entrar" : "Criar conta"}</strong>
         <p className="auth-card-desc">
           {isLogin
-            ? "Entre para acompanhar sua inscricao e acessar seus editais."
+            ? "Entre para acompanhar sua inscrição e acessar seus editais."
             : "Crie sua conta para participar dos editais."}
         </p>
       </div>

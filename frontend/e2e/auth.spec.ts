@@ -19,7 +19,7 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
     return page.url();
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
-  await expect(page.getByText("Voce ainda nao entrou em nenhum edital")).toBeVisible();
+  await expect(page.getByText("Você ainda não entrou em nenhum edital")).toBeVisible();
   await expect(page.getByRole("link", { name: "Ver editais" })).toBeVisible();
   await signOutViaPublicHeader(page);
 
@@ -34,7 +34,7 @@ test("cadastro e login do candidato funcionam pela UI", async ({ page }) => {
     return page.url();
   }, { timeout: 20_000 }).toMatch(/\/candidato(\/|$)/);
   await page.goto("/candidato");
-  await expect(page.getByText("Voce ainda nao entrou em nenhum edital")).toBeVisible();
+  await expect(page.getByText("Você ainda não entrou em nenhum edital")).toBeVisible();
   await expect(page.getByRole("link", { name: "Ver editais" })).toBeVisible();
 });
 
@@ -83,7 +83,7 @@ test("candidato autenticado consegue aderir a um edital pela UI publica", async 
   await page.getByRole("button", { name: "Entrar neste edital" }).first().click();
 
   await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });
-  await expect(page.getByText(/Veja o que ja foi concluido e o que ainda pode ser feito neste edital/)).toBeVisible();
+  await expect(page.getByText(/Veja o que já foi concluído e o que ainda pode ser feito neste edital/)).toBeVisible();
 });
 
 test("conta administrativa autenticada tambem consegue aderir a um edital pela UI publica", async ({ page, request }) => {
@@ -92,7 +92,7 @@ test("conta administrativa autenticada tambem consegue aderir a um edital pela U
   await page.goto("/editais");
   const entrarButton = page.getByRole("button", { name: "Entrar neste edital" }).first();
   await expect(entrarButton).toBeVisible();
-  await expect(page.getByText("Entre neste edital para ver os proximos passos disponiveis.").first()).toBeVisible();
+  await expect(page.getByText("Entre neste edital para ver os próximos passos disponíveis.").first()).toBeVisible();
   await entrarButton.click();
 
   await expect(page).toHaveURL(/\/candidato\/editais\//, { timeout: 20_000 });

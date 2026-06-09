@@ -62,7 +62,7 @@ const PREVIEW_COLUMNS: Record<string, { key: string; label: string }[]> = {
 /** Extrai valor legivel de um campo de preview. Objetos aninhados retornam o campo mais relevante. */
 function extractDisplayValue(val: unknown): string {
   if (val === null || val === undefined) return "—";
-  if (typeof val === "boolean") return val ? "Sim" : "Nao";
+  if (typeof val === "boolean") return val ? "Sim" : "Não";
   if (typeof val === "number") return String(val);
   if (typeof val === "string") {
     // Se parece status/enum (SNAKE_CASE), tenta getStatusLabel
@@ -341,7 +341,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {feedback && (
-        <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Publicacao atualizada" : feedback.type === "warning" ? "Atencao na publicacao" : "Nao foi possivel concluir a acao"} type={feedback.type}>
+        <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Publicação atualizada" : feedback.type === "warning" ? "Atenção na publicação" : "Não foi possível concluir a ação"} type={feedback.type}>
           {errorDetails && errorDetails.length > 0 && (
             <div style={{ marginTop: 8 }}>
               <strong style={{ fontSize: 12 }}>Inscricoes pendentes:</strong>
@@ -401,7 +401,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
           <PageFeedback
             type="warning"
             title={`Confirmar publicacao ${confirmPublish.fase.toLowerCase()}`}
-            description={`Voce esta prestes a criar uma publicacao oficial de ${confirmPublish.type}. Esta acao gera um PDF oficial e um registro auditavel no historico do edital.`}
+            description={`Você está prestes a criar uma publicação oficial de ${confirmPublish.type}. Esta ação gera um PDF oficial e um registro auditável no histórico do edital.`}
           />
           <div style={{ display: "flex", gap: 8 }}>
             <button className="admin-pub-btn-publish" disabled={busy} onClick={() => publish(confirmPublish.type)} type="button">
@@ -653,9 +653,9 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         </div>
       </form>
 
-      {/* Historico table */}
+        {/* Histórico table */}
       <div className="admin-form-card">
-        <h2 className="admin-form-card-title">Historico publicado</h2>
+        <h2 className="admin-form-card-title">Histórico publicado</h2>
         <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Acompanhe o que esta vigente, o que foi republicado e quais arquivos foram enviados manualmente.</p>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -680,13 +680,13 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
         {pagedHistoryItems.length ? (
           <div className="admin-homologacao-table-wrap">
             <table className="admin-homologacao-table">
-              <caption className="sr-only">Historico administrativo de publicacoes oficiais</caption>
+              <caption className="sr-only">Histórico administrativo de publicações oficiais</caption>
               <thead>
                 <tr>
                   <th scope="col" style={{ minWidth: 260 }}>Publicacao</th>
                   <th scope="col" style={{ minWidth: 140 }}>Tipo</th>
                   <th scope="col" style={{ minWidth: 120 }}>Origem</th>
-                  <th scope="col" style={{ width: 120, textAlign: "center" }}>Versao</th>
+                  <th scope="col" style={{ width: 120, textAlign: "center" }}>Versão</th>
                   <th scope="col" style={{ minWidth: 140 }}>Data</th>
                   <th scope="col" style={{ width: 90, textAlign: "center" }}>PDF</th>
                 </tr>
@@ -724,7 +724,7 @@ export default function AdminPublicacoesDetailPage({ params }: Props) {
                       <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
                         <span>v{item.versao}</span>
                         <span style={{ fontSize: 12, color: item.republicacaoDeId ? "#B45309" : "#94A3B8", fontWeight: item.republicacaoDeId ? 600 : 500 }}>
-                          {item.republicacaoDaVersao ? `Republica v${item.republicacaoDaVersao}` : "Original"}
+                          {item.republicacaoDaVersao ? `Republicação da v${item.republicacaoDaVersao}` : "Original"}
                         </span>
                       </div>
                     </td>

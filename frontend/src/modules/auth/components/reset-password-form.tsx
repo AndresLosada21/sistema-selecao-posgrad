@@ -39,7 +39,7 @@ export function ResetPasswordForm({ initialToken }: ResetPasswordFormProps) {
     setBusy(true); setMessage(null); setFieldErrors({});
     try {
       await confirmPasswordReset({ token, senha });
-      setMessage({ type: "success", text: "Senha redefinida. Voce ja pode entrar com a nova senha." });
+      setMessage({ type: "success", text: "Senha redefinida. Você já pode entrar com a nova senha." });
       redirectTimeoutRef.current = setTimeout(() => router.replace("/entrar"), 1200);
     } catch (error) {
       setFieldErrors(pickLabeledFieldErrors(error, {

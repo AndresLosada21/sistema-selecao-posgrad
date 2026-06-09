@@ -48,7 +48,7 @@ export default function AdminEditaisPage() {
     setData(response);
     setTemaPacotes(pacotes.items);
     setTemaPacoteSlug((current) => current || pacotes.items[0]?.slug || "");
-    setTemaPacotesError(pacoteLoadFailed ? "Nao foi possivel carregar os pacotes padrao de temas agora. Voce ainda pode criar o edital e cadastrar temas manualmente." : null);
+    setTemaPacotesError(pacoteLoadFailed ? "Não foi possível carregar os pacotes padrão de temas agora. Você ainda pode criar o edital e cadastrar temas manualmente." : null);
   }, [page, session.token]);
 
   useAbortableEffect(async (signal) => {
@@ -81,7 +81,7 @@ export default function AdminEditaisPage() {
         temasRedacaoIniciais: temasRedacao.map((tema) => ({ titulo: tema.titulo, descricao: tema.descricao || undefined, ordem: tema.ordem, ativo: true })),
       }, session.token) as { id?: string };
       if (!created.id) {
-        throw new Error("Nao foi possivel identificar o edital criado para vincular os temas de redacao.");
+        throw new Error("Não foi possível identificar o edital criado para vincular os temas de redação.");
       }
       await load();
       setForm({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO", status: "RASCUNHO" });
@@ -157,7 +157,7 @@ export default function AdminEditaisPage() {
             </div>
             <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
-                <h4 style={{ margin: 0, fontSize: 14, color: "#1E293B" }}>Temas de redacao iniciais</h4>
+                <h4 style={{ margin: 0, fontSize: 14, color: "#1E293B" }}>Temas de redação iniciais</h4>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748B" }}>Aplique um pacote padrao para ganhar velocidade e, se quiser, complemente abaixo com temas extras do edital.</p>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, background: "#F8FAFC", borderRadius: 8, border: "1px solid #E2E8F0" }}>
@@ -236,7 +236,7 @@ export default function AdminEditaisPage() {
                   <th scope="col">Titulo</th>
                   <th scope="col" style={{ minWidth: 200 }}>Curso/Nivel</th>
                   <th scope="col" style={{ width: 120, textAlign: "center" }}>Status</th>
-                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Acoes</th>
+                  <th scope="col" style={{ width: 80, textAlign: "center" }}>Ações</th>
                 </tr>
               </thead>
               <tbody>

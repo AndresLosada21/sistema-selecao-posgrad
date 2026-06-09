@@ -45,29 +45,29 @@ const publicVisibleEditalStatuses = ["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "
 function getPublicacaoMessage(errorCode: string) {
   switch (errorCode) {
     case "EDITAL_NAO_ENCONTRADO":
-      return "Edital nao encontrado para o fluxo de publicacoes.";
+      return "Edital não encontrado para o fluxo de publicações.";
     case "PUBLICACAO_NAO_ENCONTRADA":
-      return "Publicacao oficial nao encontrada.";
+      return "Publicação oficial não encontrada.";
     case "CLASSIFICACAO_CONTEXTO_INCOMPLETO":
-      return "Nao foi possivel gerar a publicacao porque a classificacao do edital ainda esta incompleta.";
+      return "Não foi possível gerar a publicação porque a classificação do edital ainda está incompleta.";
     case "CLASSIFICACAO_FINAL_JA_CONSOLIDADA":
-      return "Nao e permitido gerar/publicar classificacao preliminar depois que a classificacao final ja foi consolidada.";
+      return "Não é permitido gerar/publicar classificação preliminar depois que a classificação final já foi consolidada.";
     case "CLASSIFICACAO_ESTADO_MISTO":
-      return "Nao foi possivel gerar a publicacao porque a classificacao do edital esta em estado misto entre preliminar e final.";
+      return "Não foi possível gerar a publicação porque a classificação do edital está em estado misto entre preliminar e final.";
     case "ARQUIVO_PUBLICACAO_INVALIDO":
-      return "O arquivo informado para a publicacao deve ser um PDF valido do proprio sistema ou uma URL HTTPS terminada em .pdf.";
+      return "O arquivo informado para a publicação deve ser um PDF válido do próprio sistema ou uma URL HTTPS terminada em .pdf.";
     case "ARQUIVO_PUBLICACAO_SEM_PERMISSAO":
-      return "O PDF informado para a publicacao precisa ter sido enviado pelo mesmo usuario administrador autenticado.";
+      return "O PDF informado para a publicação precisa ter sido enviado pelo mesmo usuário administrador autenticado.";
     case "ARQUIVO_PUBLICACAO_NAO_ENCONTRADO":
-      return "O PDF informado para a publicacao nao foi encontrado no storage configurado.";
+      return "O PDF informado para a publicação não foi encontrado no storage configurado.";
     case "ISENCAO_SEM_DADOS":
-      return "Nao ha pedidos de isencao avaliados para gerar a publicacao deste edital.";
+      return "Não há pedidos de isenção avaliados para gerar a publicação deste edital.";
     case "ISENCAO_INCOMPLETA":
-      return "Ainda ha pedidos de isencao sem decisao na fase solicitada. Conclua a avaliacao de todos os pedidos antes de publicar.";
+      return "Ainda há pedidos de isenção sem decisão na fase solicitada. Conclua a avaliação de todos os pedidos antes de publicar.";
     case "ETAPA1_SEM_DADOS":
-      return "Nao ha avaliacoes publicadas da etapa 1 para gerar a publicacao deste edital.";
+      return "Não há avaliações publicadas da etapa 1 para gerar a publicação deste edital.";
     case "ETAPA2_SEM_DADOS":
-      return "Nao ha avaliacoes publicadas da etapa 2 para gerar a publicacao deste edital.";
+      return "Não há avaliações publicadas da etapa 2 para gerar a publicação deste edital.";
     default:
       return errorCode;
   }
@@ -89,7 +89,7 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/homologacao/previe
   const parsedQuery = previewHomologacaoPublicacaoQuerySchema.safeParse(request.query);
 
   if (!parsedParams.success || !parsedQuery.success) {
-    return response.status(400).json(requestValidationError("Dados para preview da publicacao de homologacao invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para preview da publicação de homologação inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
     }));
@@ -120,7 +120,7 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/classificacao/prev
   const parsedQuery = previewClassificacaoPublicacaoQuerySchema.safeParse(request.query);
 
   if (!parsedParams.success || !parsedQuery.success) {
-    return response.status(400).json(requestValidationError("Dados para preview da publicacao de classificacao invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para preview da publicação de classificação inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
     }));
@@ -150,7 +150,7 @@ publicacaoRouter.get("/v1/editais/:editalId/publicacoes", async (request, respon
   const parsedParams = editalIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json(validationError("Edital invalido.", parsedParams.error.flatten()));
+    return response.status(400).json(validationError("Edital inválido.", parsedParams.error.flatten()));
   }
 
   const edital = await getPublicEditalById(parsedParams.data.editalId);
@@ -172,7 +172,7 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes", requireAuth, req
   const parsedQuery = listPublicacoesAdminQuerySchema.safeParse(request.query);
 
   if (!parsedParams.success || !parsedQuery.success) {
-    return response.status(400).json(requestValidationError("Edital invalido.", {
+    return response.status(400).json(requestValidationError("Edital inválido.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
     }));
@@ -200,7 +200,7 @@ publicacaoRouter.get("/v1/publicacoes/:publicacaoId/arquivo.pdf", async (request
   const parsedParams = publicacaoIdParamSchema.safeParse(request.params);
 
   if (!parsedParams.success) {
-    return response.status(400).json(validationError("Publicacao invalida.", parsedParams.error.flatten()));
+    return response.status(400).json(validationError("Publicação inválida.", parsedParams.error.flatten()));
   }
 
   const result = await getPublicacaoById(parsedParams.data.publicacaoId);
@@ -265,7 +265,7 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes", requireAuth, re
   const parsedBody = createPublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados de publicacao invalidos.", {
+    return response.status(400).json(requestValidationError("Dados de publicação inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -300,7 +300,7 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/homologacao", req
   const parsedBody = createHomologacaoPublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados para publicacao de homologacao invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para publicação de homologação inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -346,7 +346,7 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/classificacao", r
   const parsedBody = createClassificacaoPublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados para publicacao de classificacao invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para publicação de classificação inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -392,7 +392,7 @@ publicacaoRouter.get("/v1/admin/editais/:editalId/publicacoes/isencao/preview", 
   const parsedQuery = previewIsencaoPublicacaoQuerySchema.safeParse(request.query);
 
   if (!parsedParams.success || !parsedQuery.success) {
-    return response.status(400).json(requestValidationError("Dados para preview da publicacao de isencao invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para preview da publicação de isenção inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       queryErrors: parsedQuery.success ? null : parsedQuery.error.flatten(),
     }));
@@ -415,7 +415,7 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/isencao", require
   const parsedBody = createIsencaoPublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados para publicacao de isencao invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para publicação de isenção inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -451,7 +451,7 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/etapa-1", require
   const parsedBody = createEtapa1PublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados para publicacao de etapa 1 invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para publicação de etapa 1 inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));
@@ -486,7 +486,7 @@ publicacaoRouter.post("/v1/admin/editais/:editalId/publicacoes/etapa-2", require
   const parsedBody = createEtapa2PublicacaoSchema.safeParse(request.body);
 
   if (!parsedParams.success || !parsedBody.success) {
-    return response.status(400).json(requestValidationError("Dados para publicacao de etapa 2 invalidos.", {
+    return response.status(400).json(requestValidationError("Dados para publicação de etapa 2 inválidos.", {
       paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
       bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
     }));

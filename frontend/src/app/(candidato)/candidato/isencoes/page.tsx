@@ -44,7 +44,7 @@ export default function CandidateIsencoesPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, fetchKey]);
 
-  if (status === "loading") return <LoadingState title="Carregando pedidos de isencao" description="Consultando seus pedidos..." />;
+  if (status === "loading") return <LoadingState title="Carregando pedidos de isenção" description="Consultando seus pedidos..." />;
   if (status === "error") return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <ErrorState title="Falha ao carregar isencoes" description={message ?? undefined} />
@@ -53,7 +53,7 @@ export default function CandidateIsencoesPage() {
   );
   if (!data?.items.length) return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <EmptyState title="Voce ainda nao pediu isencao" description="Entre em um edital publicado para verificar se ainda ha prazo para solicitar isencao da taxa." />
+      <EmptyState title="Você ainda não pediu isenção" description="Entre em um edital publicado para verificar se ainda há prazo para solicitar isenção da taxa." />
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Ver editais</Link>
         <Link href="/candidato/participacoes" style={{ fontSize: 13, fontWeight: 500, color: "#475569" }}>Ver participacoes</Link>
@@ -63,7 +63,7 @@ export default function CandidateIsencoesPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div className="part-header"><h1>Meus pedidos de isencao</h1><p>Acompanhe os pedidos de isencao enviados em cada edital.</p></div>
+      <div className="part-header"><h1>Meus pedidos de isenção</h1><p>Acompanhe os pedidos de isenção enviados em cada edital.</p></div>
       {data.items.map((pedido, i) => {
         const curso = pedido.edital.cursoNivel === "MESTRADO" ? "Mestrado em Eng. Eletrica" : "Doutorado em Eng. Eletrica";
         return (
@@ -77,7 +77,7 @@ export default function CandidateIsencoesPage() {
               <div className="part-card-meta">{iconGradCap}<span className="part-card-meta-text">{curso}</span></div>
               <div className="part-card-meta">
                 {pedido.inscritoCadUnico ? iconCircleCheck : iconShield}
-                <span className="part-card-meta-text">CadUnico: {pedido.inscritoCadUnico ? "Sim" : "Nao"}</span>
+                <span className="part-card-meta-text">CadÚnico: {pedido.inscritoCadUnico ? "Sim" : "Não"}</span>
               </div>
               <div className="part-card-meta">{iconCalendar}<span className="part-card-meta-text">Resultado: {formatIsoDate(pedido.atualizadoEm)}</span></div>
             </div>

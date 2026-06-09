@@ -22,11 +22,11 @@ type Props = { params: Promise<{ editalId: string }> };
 
 /* Maps backend keys to display labels */
 const CRITERIA_LABELS: Record<string, string> = {
-  adequacaoDominioTema: "Adequacao e dominio do tema",
+  adequacaoDominioTema: "Adequação e domínio do tema",
   estrutura: "Estrutura",
-  organizacaoCoerencia: "Organizacao e coerencia",
-  objetividadeSintese: "Objetividade e sintese",
-  grafiaGramatica: "Grafia e gramatica",
+  organizacaoCoerencia: "Organização e coerência",
+  objetividadeSintese: "Objetividade e síntese",
+  grafiaGramatica: "Grafia e gramática",
 };
 
 type RubricaCriterio = { notaAtribuida: number; pesoPercentual: number; contribuicao: number; observacao?: string | null };
@@ -103,14 +103,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
   }
 
   if (status === "loading") return <LoadingState title="Carregando espelhos" description="Consultando o status das etapas e dos espelhos." />;
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar os espelhos" description={message ?? undefined} />;
-  if (!item) return <EmptyState title="Edital nao vinculado" description="Voce ainda nao entrou neste edital para consultar espelhos." />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar os espelhos" description={message ?? undefined} />;
+  if (!item) return <EmptyState title="Edital não vinculado" description="Você ainda não entrou neste edital para consultar espelhos." />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div className="part-header">
-        <h1>Espelhos de correcao</h1>
-          <p>{item.edital.numero} — Solicite ou acompanhe a liberacao dos espelhos das etapas 1 e 2.</p>
+        <h1>Espelhos de correção</h1>
+          <p>{item.edital.numero} — Solicite ou acompanhe a liberação dos espelhos das etapas 1 e 2.</p>
       </div>
 
       {message ? <div style={{ padding: "12px 16px", background: "#FEF2F2", borderRadius: 6, color: "#991B1B", fontSize: 13 }}>{message}</div> : null}
@@ -119,9 +119,9 @@ export default function CandidateEspelhosPage({ params }: Props) {
       <div className="part-card">
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
           {iconFilePen}
-          <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 1 — Redacao</span>
+          <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 1 — Redação</span>
           <StatusBadge variant={e1Released ? "success" : e1CanRequest ? "info" : "neutral"}>
-              {e1Released ? "Liberado" : etapa1?.espelhoSolicitadoEm ? "Solicitacao registrada" : "Ainda nao solicitado"}
+              {e1Released ? "Liberado" : etapa1?.espelhoSolicitadoEm ? "Solicitação registrada" : "Ainda não solicitado"}
           </StatusBadge>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
@@ -152,7 +152,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
                   {entries.length > 0 ? (
                     <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
                       <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
-                        <span style={{ flex: 1 }}>Criterio</span>
+                        <span style={{ flex: 1 }}>Critério</span>
                         <span style={{ width: 60, textAlign: "center" }}>Peso</span>
                         <span style={{ width: 60, textAlign: "center" }}>Nota</span>
                         <span style={{ width: 80, textAlign: "center" }}>Contrib.</span>
@@ -174,7 +174,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
                   {/* Espelho de correcao */}
                   {espelho1.espelhoCorrecao ? (
                     <div style={{ background: "#F8FAFC", borderRadius: 6, padding: "12px 16px", fontSize: 13, color: "#334155" }}>
-                      <strong>Espelho de correcao:</strong> {espelho1.espelhoCorrecao}
+                      <strong>Espelho de correção:</strong> {espelho1.espelhoCorrecao}
                     </div>
                   ) : null}
 
@@ -222,14 +222,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
             </button>
           ) : e1CanRequest ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Voce ja pode registrar o pedido do espelho da etapa 1. A visualizacao fica disponivel quando houver liberacao administrativa.</span>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Você já pode registrar o pedido do espelho da etapa 1. A visualização fica disponível quando houver liberação administrativa.</span>
               <button type="button" onClick={() => handleSolicitar("1")} disabled={soliciting === "1"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 {soliciting === "1" ? "Solicitando..." : "Solicitar espelho"}
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#64748B" }}>
-              <span>{etapa1?.espelhoSolicitadoEm ? "Seu pedido ja foi registrado. Aguarde a liberacao administrativa para visualizar o espelho." : "O espelho da etapa 1 ainda nao pode ser consultado nesta fase."}</span>
+              <span>{etapa1?.espelhoSolicitadoEm ? "Seu pedido já foi registrado. Aguarde a liberação administrativa para visualizar o espelho." : "O espelho da etapa 1 ainda não pode ser consultado nesta fase."}</span>
               {item.elegibilidade?.motivoBloqueioEspelhoEtapa1 ? <span>{item.elegibilidade.motivoBloqueioEspelhoEtapa1}</span> : null}
               {item.acompanhamento?.proximoPasso ? <span>{item.acompanhamento.proximoPasso}</span> : null}
             </div>
@@ -241,9 +241,9 @@ export default function CandidateEspelhosPage({ params }: Props) {
       <div style={{ background: "#fff", borderRadius: 8, border: "1px solid #E2E8F0", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 24px" }}>
           {iconAward(e2Released ? "#2563EB" : "#94A3B8")}
-          <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 2 — Titulos</span>
+          <span style={{ flex: 1, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Etapa 2 — Títulos</span>
           <StatusBadge variant={e2Released ? "success" : e2CanRequest ? "info" : "neutral"}>
-              {e2Released ? "Liberado" : etapa2?.espelhoSolicitadoEm ? "Solicitacao registrada" : "Ainda nao solicitado"}
+              {e2Released ? "Liberado" : etapa2?.espelhoSolicitadoEm ? "Solicitação registrada" : "Ainda não solicitado"}
           </StatusBadge>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
@@ -251,17 +251,17 @@ export default function CandidateEspelhosPage({ params }: Props) {
           {e2Released && espelho2 ? (
             <>
               <div style={{ display: "flex", gap: 24, fontSize: 14 }}>
-                <span>Pontuacao bruta: <strong>{espelho2.pontuacaoBruta ?? "—"}</strong></span>
+                <span>Pontuação bruta: <strong>{espelho2.pontuacaoBruta ?? "—"}</strong></span>
                 <span>Nota normalizada: <strong>{espelho2.notaNormalizada ?? "—"}</strong></span>
               </div>
               <div style={{ fontSize: 12, color: "#64748B" }}>
-                A nota normalizada da etapa 2 e calculada automaticamente por regra de tres simples a partir da pontuacao bruta e da maior pontuacao bruta da etapa.
+                A nota normalizada da etapa 2 é calculada automaticamente por regra de três simples a partir da pontuação bruta e da maior pontuação bruta da etapa.
               </div>
               {espelho2.pontuacaoItens ? (
                 <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
                   <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
                     <span style={{ flex: 1 }}>Item</span>
-                    <span style={{ width: 80, textAlign: "center" }}>Pontuacao</span>
+                     <span style={{ width: 80, textAlign: "center" }}>Pontuação</span>
                   </div>
                   {Object.entries(espelho2.pontuacaoItens).map(([key, val], i) => (
                     <div key={key} style={{ display: "flex", padding: "10px 16px", background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9", fontSize: 13 }}>
@@ -274,7 +274,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
               {/* Espelho de correcao */}
               {espelho2.espelhoCorrecao ? (
                 <div style={{ background: "#F8FAFC", borderRadius: 6, padding: "12px 16px", fontSize: 13, color: "#334155" }}>
-                  <strong>Espelho de correcao:</strong> {espelho2.espelhoCorrecao}
+                  <strong>Espelho de correção:</strong> {espelho2.espelhoCorrecao}
                 </div>
               ) : null}
               {/* Glosas */}
@@ -307,7 +307,7 @@ export default function CandidateEspelhosPage({ params }: Props) {
                   const itens = mc.itensPontuados as Record<string, number> | null | undefined;
                   return (
                     <details style={{ fontSize: 13, color: "#64748B" }}>
-                      <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver memoria de calculo</summary>
+                      <summary style={{ cursor: "pointer", fontWeight: 500, color: "#334155" }}>Ver memória de cálculo</summary>
                       <div style={{ marginTop: 8, background: "#F8FAFC", borderRadius: 6, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                         {/* Formula */}
                         {formula ? (
@@ -317,8 +317,8 @@ export default function CandidateEspelhosPage({ params }: Props) {
                         ) : null}
                         {/* Key values */}
                         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                          {pBruta != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Pontuacao bruta</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(pBruta)}</strong></div> : null}
-                          {maiorPB != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Maior pontuacao bruta</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(maiorPB)}</strong></div> : null}
+                          {pBruta != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Pontuação bruta</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(pBruta)}</strong></div> : null}
+                          {maiorPB != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Maior pontuação bruta</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(maiorPB)}</strong></div> : null}
                           {nNorm != null ? <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, padding: "8px 14px", display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontSize: 11, color: "#94A3B8" }}>Nota normalizada</span><strong style={{ fontSize: 14, color: "#1E293B" }}>{String(nNorm)}</strong></div> : null}
                         </div>
                         {/* Itens pontuados */}
@@ -352,14 +352,14 @@ export default function CandidateEspelhosPage({ params }: Props) {
             </button>
           ) : e2CanRequest ? (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Voce ja pode registrar o pedido do espelho da etapa 2. A visualizacao fica disponivel quando houver liberacao administrativa.</span>
+              <span style={{ flex: 1, fontSize: 13, color: "#64748B" }}>Você já pode registrar o pedido do espelho da etapa 2. A visualização fica disponível quando houver liberação administrativa.</span>
               <button type="button" onClick={() => handleSolicitar("2")} disabled={soliciting === "2"} style={{ background: "#2563EB", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 {soliciting === "2" ? "Solicitando..." : "Solicitar espelho"}
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#64748B" }}>
-              <span>{etapa2?.espelhoSolicitadoEm ? "Seu pedido ja foi registrado. Aguarde a liberacao administrativa para visualizar o espelho." : "O espelho da etapa 2 ainda nao pode ser consultado nesta fase."}</span>
+              <span>{etapa2?.espelhoSolicitadoEm ? "Seu pedido já foi registrado. Aguarde a liberação administrativa para visualizar o espelho." : "O espelho da etapa 2 ainda não pode ser consultado nesta fase."}</span>
               {item.elegibilidade?.motivoBloqueioEspelhoEtapa2 ? <span>{item.elegibilidade.motivoBloqueioEspelhoEtapa2}</span> : null}
               {item.acompanhamento?.proximoPasso ? <span>{item.acompanhamento.proximoPasso}</span> : null}
             </div>

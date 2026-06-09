@@ -68,7 +68,7 @@ type InscricaoEditorState = {
 
 const documentoTipoOptionsSemAnexoIv = documentoTipoOptions.filter((t) => t !== "ANEXO_IV");
 
-const STEP_LABELS = ["Dados Pessoais", "Dados Academicos", "Redacao", "Documentos", "Revisao"];
+const STEP_LABELS = ["Dados Pessoais", "Dados Acadêmicos", "Redação", "Documentos", "Revisão"];
 
 function mergeDocumentosPreservandoAtuais(current: InscricaoDocumentoView[], incoming: InscricaoDocumentoView[]) {
   const byTipo = new Map<string, InscricaoDocumentoView>();
@@ -196,7 +196,7 @@ function validateDateBRExpedicao(value: string): string | null {
   if (!date) return "Data invalida. Use o formato DD/MM/AAAA.";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  if (date > today) return "A data de expedicao nao pode ser no futuro.";
+  if (date > today) return "A data de expedição não pode ser no futuro.";
   return null;
 }
 
@@ -283,7 +283,7 @@ function getRequiredDocumentRules(input: {
     { tipo: "ANEXO_IV", label: "Anexo IV assinado" },
     { tipo: "ANEXO_V", label: "Declaracao de titulos" },
     { tipo: "DIPLOMA", label: "Diploma ou declaracao de conclusao/finalista" },
-    { tipo: "HISTORICO", label: "Historico escolar de graduacao" },
+    { tipo: "HISTORICO", label: "Histórico escolar de graduação" },
     { tipo: "CURRICULO", label: "Curriculo Lattes com documentacao comprobatoria" },
   ];
 
@@ -341,7 +341,7 @@ function getStepFieldErrors(input: {
       ["bairroResidencial", "Informe o bairro residencial."],
       ["ufResidencial", "Informe a UF residencial."],
       ["cidadeResidencial", "Informe a cidade residencial."],
-      ["empregadoSituacao", "Selecione a situacao de trabalho."],
+      ["empregadoSituacao", "Selecione a situação de trabalho."],
     ];
 
     for (const [key, message] of requiredTextFields) {
@@ -352,7 +352,7 @@ function getStepFieldErrors(input: {
 
     if (hasText(ficha.nomeCompleto)) {
       if (/\d/.test(String(ficha.nomeCompleto))) {
-        errors.nomeCompleto = "Nome completo nao pode conter numeros.";
+        errors.nomeCompleto = "Nome completo não pode conter números.";
       } else if (!hasMinWords(String(ficha.nomeCompleto), 2)) {
         errors.nomeCompleto = "Informe nome e sobrenome.";
       }
@@ -377,11 +377,11 @@ function getStepFieldErrors(input: {
     }
 
     if (hasText(ficha.nomePai) && !hasNoDigits(String(ficha.nomePai))) {
-      errors.nomePai = "Nome do pai nao pode conter numeros.";
+      errors.nomePai = "Nome do pai não pode conter números.";
     }
 
     if (hasText(ficha.nomeMae) && !hasNoDigits(String(ficha.nomeMae))) {
-      errors.nomeMae = "Nome da mae nao pode conter numeros.";
+      errors.nomeMae = "Nome da mãe não pode conter números.";
     }
 
     if (hasText(ficha.cepResidencial) && !isValidCep(String(ficha.cepResidencial))) {
@@ -413,7 +413,7 @@ function getStepFieldErrors(input: {
         errors.cpf = "Informe um CPF valido.";
       }
     } else if (!hasText(ficha.passaporte)) {
-      errors.passaporte = "Informe o passaporte para inscricao de estrangeiro.";
+      errors.passaporte = "Informe o passaporte para inscrição de estrangeiro.";
     }
 
     if (ficha.empregadoSituacao === "EMPREGADO") {
@@ -449,17 +449,17 @@ function getStepFieldErrors(input: {
 
   if (input.step === 2) {
     if (!input.temasRedacaoConfigurados && !hasText(input.state.temaRedacao)) {
-      errors.temaRedacao = "Informe o tema da redacao.";
+      errors.temaRedacao = "Informe o tema da redação.";
     } else if (input.temasRedacaoConfigurados && input.editalTemasRedacao.length === 0 && !hasText(input.state.temaRedacaoEditalId)) {
-      errors.temaRedacao = "Este edital nao possui temas ativos disponiveis no momento. Contate a administracao.";
+      errors.temaRedacao = "Este edital não possui temas ativos disponíveis no momento. Contate a administração.";
     } else if (input.editalTemasRedacao.length > 0 && !hasText(input.state.temaRedacaoEditalId)) {
       errors.temaRedacao = "Selecione um dos temas atuais do edital para continuar.";
     } else if (!hasText(input.state.temaRedacao)) {
-      errors.temaRedacao = "Selecione o tema da redacao.";
+      errors.temaRedacao = "Selecione o tema da redação.";
     }
     const redacaoLength = input.state.redacaoTexto.trim().length;
     if (redacaoLength < 500 || redacaoLength > 1500) {
-      errors.redacaoTexto = "A redacao deve ter entre 500 e 1500 caracteres contando espacos.";
+      errors.redacaoTexto = "A redação deve ter entre 500 e 1500 caracteres contando espaços.";
     }
   }
 
@@ -472,7 +472,7 @@ function getStepFieldErrors(input: {
 
     for (const rule of requiredRules) {
       if (!docsByType.has(rule.tipo)) {
-        errors[`documento:${rule.tipo}`] = `${rule.label} e obrigatorio para prosseguir.`;
+        errors[`documento:${rule.tipo}`] = `${rule.label} é obrigatório para prosseguir.`;
       }
     }
   }
@@ -701,7 +701,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       const payload = await response.json() as { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string };
 
       if (!response.ok || payload.erro) {
-        setCepLookupMessage("CEP nao encontrado. Preencha os campos manualmente.");
+        setCepLookupMessage("CEP não encontrado. Preencha os campos manualmente.");
         return;
       }
 
@@ -715,9 +715,9 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           ...(ufKey ? { [ufKey]: hasText(current.fichaInscricao[ufKey]) ? current.fichaInscricao[ufKey] : (payload.uf ?? "") } : {}),
         },
       }));
-      setCepLookupMessage("Endereco preenchido automaticamente pelo CEP. Revise e ajuste se necessario.");
+      setCepLookupMessage("Endereço preenchido automaticamente pelo CEP. Revise e ajuste se necessário.");
     } catch {
-      setCepLookupMessage("Nao foi possivel consultar o CEP agora. Continue o preenchimento manualmente.");
+      setCepLookupMessage("Não foi possível consultar o CEP agora. Continue o preenchimento manualmente.");
     }
   }
 
@@ -753,7 +753,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
-      setMessage({ title: "Pendencias na etapa atual", description: "Corrija os campos destacados antes de seguir para a proxima etapa.", type: "warning" });
+      setMessage({ title: "Pendências na etapa atual", description: "Corrija os campos destacados antes de seguir para a próxima etapa.", type: "warning" });
       return;
     }
 
@@ -780,7 +780,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     if (!session.token) return false;
     if (!inscricaoEditavel) {
       if (!options?.silent) {
-        setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao dentro da janela do edital para voltar ao rascunho antes de editar a inscricao.", type: "warning" });
+        setMessage({ title: "Edição bloqueada", description: "Cancele a submissão dentro da janela do edital para voltar ao rascunho antes de editar a inscrição.", type: "warning" });
       }
       return false;
     }
@@ -801,7 +801,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       setAutosaveState("saved");
       setAutosaveAt(new Date().toISOString());
       if (!options?.silent) {
-        setMessage({ title: "Rascunho salvo", description: "Os dados da inscricao foram salvos com sucesso." });
+        setMessage({ title: "Rascunho salvo", description: "Os dados da inscrição foram salvos com sucesso." });
       }
       return true;
     } catch (error) {
@@ -840,7 +840,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleDocumentoFileSelect(file: File) {
     if (!session.token) return;
-    if (!inscricaoEmRascunho) { setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao para alterar documentos da inscricao.", type: "warning" }); return; }
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edição bloqueada", description: "Cancele a submissão para alterar documentos da inscrição.", type: "warning" }); return; }
     setUploadingDocumento(true); resetMessage();
     try {
       const uploaded = await uploadPrivateFile(file, session.token);
@@ -855,7 +855,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleAddDocumento(event: FormEvent) {
     event.preventDefault();
-    if (!inscricaoEmRascunho) { setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao para registrar novos documentos.", type: "warning" }); return; }
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edição bloqueada", description: "Cancele a submissão para registrar novos documentos.", type: "warning" }); return; }
     if (!session.token || !inscricaoId) { setMessage({ title: "Salve o rascunho primeiro", description: "O rascunho precisa existir para registrar documentos.", type: "warning" }); return; }
     resetMessage();
     try {
@@ -871,9 +871,9 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   async function handleAnexoIvUpload(file: File) {
     if (!session.token) return;
-    if (!inscricaoEmRascunho) { setMessage({ title: "Edicao bloqueada", description: "Cancele a submissao para reenviar o Anexo IV assinado.", type: "warning" }); return; }
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edição bloqueada", description: "Cancele a submissão para reenviar o Anexo IV assinado.", type: "warning" }); return; }
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setMessage({ title: "Arquivo invalido", description: "O Anexo IV assinado deve ser reenviado em PDF.", type: "error" }); return;
+      setMessage({ title: "Arquivo inválido", description: "O Anexo IV assinado deve ser reenviado em PDF.", type: "error" }); return;
     }
     if (!inscricaoId) { setMessage({ title: "Salve o rascunho primeiro", description: "Crie o rascunho antes de reenviar o Anexo IV.", type: "warning" }); return; }
     setUploadingAnexoIv(true); resetMessage();
@@ -884,7 +884,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       setMessage({ title: "Anexo IV assinado reenviado", description: "O PDF assinado foi registrado." });
     } catch (error) {
       if (handleUnauthorized(error)) return;
-      setMessage({ title: "Nao foi possivel reenviar o Anexo IV", description: getErrorMessage(error), type: "error" });
+      setMessage({ title: "Não foi possível reenviar o Anexo IV", description: getErrorMessage(error), type: "error" });
     } finally { setUploadingAnexoIv(false); }
   }
 
@@ -907,7 +907,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       const response = await submitInscricao(inscricaoId, session.token);
       const r = response as Record<string, unknown>;
       setInscricaoStatus(typeof r.status === "string" ? r.status : "SUBMETIDA");
-      setMessage({ title: "Inscricao enviada", description: "Sua inscricao foi enviada com sucesso." });
+      setMessage({ title: "Inscrição enviada", description: "Sua inscrição foi enviada com sucesso." });
     } catch (error) {
       if (handleUnauthorized(error)) return;
        if (error instanceof ApiError) {
@@ -936,7 +936,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       const response = await cancelInscricao(inscricaoId, session.token);
       const r = response as Record<string, unknown>;
       setInscricaoStatus(typeof r.status === "string" ? r.status : "RASCUNHO");
-      setMessage({ title: "Submissao cancelada", description: "A inscricao voltou para rascunho." });
+      setMessage({ title: "Submissão cancelada", description: "A inscrição voltou para rascunho." });
     } catch (error) {
       if (handleUnauthorized(error)) return;
       setMessage({ title: "Falha ao cancelar", description: getErrorMessage(error), type: "error" });
@@ -954,7 +954,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     <div className="wiz-shell">
       <StepBar current={step} maxReachedStep={maxReachedStep} onSelectStep={navigateToStep} />
 
-      {/* Notificacoes fora do scroll — nao afetam o layout do conteudo */}
+      {/* Notificações fora do scroll — não afetam o layout do conteúdo */}
       {message ? (
         <div className="wiz-notice">
           <PageFeedback type={message.type ?? "success"} title={message.title} description={message.description} />
@@ -993,10 +993,10 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           {svgSave} {savingDraft ? "Salvando..." : "Salvar Rascunho"}
         </button>
         <span className="wiz-footer-spacer" />
-        <span className="wiz-auto-save">{svgCloud} {autosaveState === "saving" ? "Salvando automaticamente..." : autosaveState === "saved" ? `Salvo automaticamente${autosaveAt ? ` as ${new Date(autosaveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : autosaveState === "error" ? "Falha no salvamento automatico" : "Salvamento automatico ativo"}</span>
+        <span className="wiz-auto-save">{svgCloud} {autosaveState === "saving" ? "Salvando automaticamente..." : autosaveState === "saved" ? `Salvo automaticamente${autosaveAt ? ` as ${new Date(autosaveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : autosaveState === "error" ? "Falha no salvamento automático" : "Salvamento automático ativo"}</span>
         {step < 4 ? (
           <button type="button" className="wiz-btn-next" disabled={savingDraft || !inscricaoEditavel} onClick={goNext}>
-            Proximo: {STEP_LABELS[step + 1]} {svgArrowRight}
+            Próximo: {STEP_LABELS[step + 1]} {svgArrowRight}
           </button>
         ) : (
           <>
@@ -1006,7 +1006,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
               </button>
             ) : null}
             <button type="button" className="wiz-btn-submit" disabled={submitting || !allConfirmed || !inscricaoId || !inscricaoEmRascunho} onClick={handleSubmit}>
-              {svgSend} {submitting ? "Processando..." : "Enviar inscricao"}
+              {svgSend} {submitting ? "Processando..." : "Enviar inscrição"}
             </button>
           </>
         )}
@@ -1129,7 +1129,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <FieldError message={fieldErrors.rg} />
           </div>
           <div className="wiz-field">
-            <label className="wiz-field-label">Data de Expedicao do RG</label>
+            <label className="wiz-field-label">Data de Expedição do RG</label>
             <input aria-invalid={!!fieldErrors.rgDataExpedicao} inputMode="numeric" placeholder="DD/MM/AAAA" value={v("rgDataExpedicao")} onChange={(e) => updateFicha("rgDataExpedicao", formatDateBR(e.target.value))} />
             <FieldError message={fieldErrors.rgDataExpedicao} />
           </div>
@@ -1141,7 +1141,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <FieldError message={fieldErrors.dataNascimento} />
           </div>
           <div className="wiz-field">
-            <label className="wiz-field-label">Genero</label>
+            <label className="wiz-field-label">Gênero</label>
             <select aria-invalid={!!fieldErrors.genero} value={v("genero")} onChange={(e) => updateFicha("genero", e.target.value)}>
               <option value="">Selecione</option>
               {generoOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}
@@ -1179,7 +1179,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
                   )}
                 </div>
               </div>
-              {cidadeNaturalidadeFailed ? <span className="wiz-field-hint">Nao foi possivel carregar as cidades agora. Preencha manualmente.</span> : null}
+              {cidadeNaturalidadeFailed ? <span className="wiz-field-hint">Não foi possível carregar as cidades agora. Preencha manualmente.</span> : null}
               <FieldError message={fieldErrors.naturalidade} />
             </div>
           ) : null}
@@ -1191,8 +1191,8 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <option value="SOLTEIRO">Solteiro</option>
             <option value="CASADO">Casado</option>
             <option value="DIVORCIADO">Divorciado</option>
-            <option value="VIUVO">Viuvo</option>
-            <option value="UNIAO_ESTAVEL">Uniao estavel</option>
+            <option value="VIUVO">Viúvo</option>
+            <option value="UNIAO_ESTAVEL">União estável</option>
           </select>
           <FieldError message={fieldErrors.estadoCivil} />
         </div>
@@ -1206,7 +1206,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             value={v("email")}
             onChange={(e) => updateFicha("email", e.target.value.trim().toLowerCase())}
           />
-          <span className="wiz-field-hint">O e-mail e o mesmo da sua conta. Para alterar, acesse as configuracoes da sua conta.</span>
+          <span className="wiz-field-hint">O e-mail é o mesmo da sua conta. Para alterar, acesse as configurações da sua conta.</span>
           <FieldError message={fieldErrors.email} />
         </div>
         <div className="wiz-field">
@@ -1216,8 +1216,8 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         </div>
 
         <div className="wiz-card-divider" />
-        <h3 className="wiz-section-title">Endereco Residencial</h3>
-        <p className="wiz-section-hint">Informe seu endereco atual de residencia.</p>
+        <h3 className="wiz-section-title">Endereço Residencial</h3>
+        <p className="wiz-section-hint">Informe seu endereço atual de residência.</p>
 
         <div className="wiz-field" style={{ maxWidth: 200 }}>
           <label className="wiz-field-label">CEP</label>
@@ -1228,13 +1228,13 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
         <div className="wiz-field">
           <label className="wiz-field-label">Logradouro</label>
           <input aria-invalid={!!fieldErrors.enderecoResidencial} placeholder="Ex: Av. Djalma Batista, 1000, Apto 202" value={v("enderecoResidencial")} onChange={(e) => updateFicha("enderecoResidencial", normalizeTextName(e.target.value))} />
-          <span className="wiz-field-hint">Inclua numero e complemento no mesmo campo. Ex: Av. Djalma Batista, 1000, Apto 202</span>
+            <span className="wiz-field-hint">Inclua número e complemento no mesmo campo. Ex: Av. Djalma Batista, 1000, Apto 202</span>
           <FieldError message={fieldErrors.enderecoResidencial} />
         </div>
         <div className="wiz-field-row">
           <div className="wiz-field">
             <label className="wiz-field-label">Bairro</label>
-            <input aria-invalid={!!fieldErrors.bairroResidencial} placeholder="Ex: Adrianopolis" value={v("bairroResidencial")} onChange={(e) => updateFicha("bairroResidencial", normalizeTextName(e.target.value))} />
+            <input aria-invalid={!!fieldErrors.bairroResidencial} placeholder="Ex: Adrianópolis" value={v("bairroResidencial")} onChange={(e) => updateFicha("bairroResidencial", normalizeTextName(e.target.value))} />
             <FieldError message={fieldErrors.bairroResidencial} />
           </div>
           <div className="wiz-field">
@@ -1247,7 +1247,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
                 {cidadeResidencialSelectOptions.map((cidade) => <option key={cidade} value={cidade}>{cidade}</option>)}
               </select>
             )}
-            {cidadeResidencialFailed ? <span className="wiz-field-hint">Nao foi possivel carregar as cidades agora. Preencha manualmente.</span> : null}
+            {cidadeResidencialFailed ? <span className="wiz-field-hint">Não foi possível carregar as cidades agora. Preencha manualmente.</span> : null}
             <FieldError message={fieldErrors.cidadeResidencial} />
           </div>
           <div className="wiz-field" style={{ maxWidth: 90 }}>
@@ -1266,12 +1266,12 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
 
       {/* Card 2: Complementares */}
       <div className="wiz-card">
-        <h2 className="wiz-card-title">Dados Complementares e Declaracoes</h2>
-        <p className="wiz-card-subtitle">Informacoes complementares, declaracoes e vinculo empregaticio</p>
+        <h2 className="wiz-card-title">Dados Complementares e Declarações</h2>
+        <p className="wiz-card-subtitle">Informações complementares, declarações e vínculo empregatício</p>
         <div className="wiz-card-divider" />
 
         <div className="wiz-field" style={{ maxWidth: 200 }}>
-          <label className="wiz-field-label">Tipo Sanguineo</label>
+          <label className="wiz-field-label">Tipo Sanguíneo</label>
           <select
             aria-invalid={!!fieldErrors.tipoSanguineo}
             value={v("tipoSanguineo") && v("fatorRh") ? `${v("tipoSanguineo")}${v("fatorRh")}` : ""}
@@ -1292,7 +1292,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
           <FieldError message={fieldErrors.tipoSanguineo} />
         </div>
         <div className="wiz-field">
-          <label className="wiz-field-label">Raca/Cor</label>
+          <label className="wiz-field-label">Raça/Cor</label>
           <select aria-invalid={!!fieldErrors.racaCor} value={v("racaCor")} onChange={(e) => updateFicha("racaCor", e.target.value)}>
             <option value="">Selecione</option>
             {racaCorOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}
@@ -1300,7 +1300,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
           <FieldError message={fieldErrors.racaCor} />
           <div className="wiz-info-box" style={{ marginTop: 4 }}>
             {svgInfo}
-            <span>Autodeclaracao conforme IBGE</span>
+            <span>Autodeclaração conforme IBGE</span>
           </div>
         </div>
         <div className="wiz-field-row">
@@ -1310,14 +1310,14 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
             <FieldError message={fieldErrors.nomePai} />
           </div>
           <div className="wiz-field">
-            <label className="wiz-field-label">Nome da Mae</label>
-            <input placeholder="Nome completo da mae" value={v("nomeMae")} onChange={(e) => updateFicha("nomeMae", normalizeTextName(e.target.value))} />
+            <label className="wiz-field-label">Nome da Mãe</label>
+            <input placeholder="Nome completo da mãe" value={v("nomeMae")} onChange={(e) => updateFicha("nomeMae", normalizeTextName(e.target.value))} />
             <FieldError message={fieldErrors.nomeMae} />
           </div>
         </div>
 
         <div className="wiz-field">
-          <label className="wiz-field-label">Situacao de Trabalho</label>
+          <label className="wiz-field-label">Situação de Trabalho</label>
           <select value={v("empregadoSituacao")} onChange={(e) => updateFicha("empregadoSituacao", e.target.value)}>
             <option value="">Selecione</option>
             {empregadoSituacaoOptions.map((o) => <option key={o} value={o}>{getStatusLabel(o)}</option>)}
@@ -1327,8 +1327,8 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
 
         {v("empregadoSituacao") === "EMPREGADO" ? (
           <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-            <h4 style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", margin: 0 }}>Dados do Vinculo Empregaticio</h4>
-            <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>Preencha quando a situacao de trabalho for Empregado</p>
+            <h4 style={{ fontSize: 14, fontWeight: 700, color: "#1E293B", margin: 0 }}>Dados do Vínculo Empregatício</h4>
+            <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>Preencha quando a situação de trabalho for Empregado</p>
             <div className="wiz-field">
               <label className="wiz-field-label">Regime de Trabalho</label>
                <select value={v("regimeTrabalho")} onChange={(e) => updateFicha("regimeTrabalho", e.target.value)}>
@@ -1337,9 +1337,9 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
                </select>
                <FieldError message={fieldErrors.regimeTrabalho} />
              </div>
-            <div className="wiz-field"><label className="wiz-field-label">Instituicao / Local de Trabalho</label><input placeholder="Nome da instituicao ou local" value={v("instituicaoTrabalho")} onChange={(e) => updateFicha("instituicaoTrabalho", e.target.value)} /><FieldError message={fieldErrors.instituicaoTrabalho} /></div>
+            <div className="wiz-field"><label className="wiz-field-label">Instituição / Local de Trabalho</label><input placeholder="Nome da instituição ou local" value={v("instituicaoTrabalho")} onChange={(e) => updateFicha("instituicaoTrabalho", e.target.value)} /><FieldError message={fieldErrors.instituicaoTrabalho} /></div>
             <div className="wiz-field"><label className="wiz-field-label">Unidade / Departamento</label><input placeholder="Ex.: Departamento de Engenharia" value={v("unidadeDepartamentoTrabalho")} onChange={(e) => updateFicha("unidadeDepartamentoTrabalho", e.target.value)} /><FieldError message={fieldErrors.unidadeDepartamentoTrabalho} /></div>
-            <div className="wiz-field"><label className="wiz-field-label">Endereco do Trabalho</label><input placeholder="Rua, numero, complemento" value={v("enderecoTrabalho")} onChange={(e) => updateFicha("enderecoTrabalho", e.target.value)} /><FieldError message={fieldErrors.enderecoTrabalho} /></div>
+            <div className="wiz-field"><label className="wiz-field-label">Endereço do Trabalho</label><input placeholder="Rua, número, complemento" value={v("enderecoTrabalho")} onChange={(e) => updateFicha("enderecoTrabalho", e.target.value)} /><FieldError message={fieldErrors.enderecoTrabalho} /></div>
             <div className="wiz-field-row">
               <div className="wiz-field"><label className="wiz-field-label">CEP do Trabalho</label><input aria-invalid={!!fieldErrors.cepTrabalho} inputMode="numeric" placeholder="00000-000" value={v("cepTrabalho")} onChange={(e) => updateFicha("cepTrabalho", formatCep(e.target.value))} onBlur={() => void onCepBlur("trabalho")} /><FieldError message={fieldErrors.cepTrabalho} /></div>
               <div className="wiz-field"><label className="wiz-field-label">Cidade/Bairro do Trabalho</label><input value={v("cidadeBairroTrabalho")} onChange={(e) => updateFicha("cidadeBairroTrabalho", e.target.value)} /><FieldError message={fieldErrors.cidadeBairroTrabalho} /></div>
@@ -1352,7 +1352,7 @@ function Step1DadosPessoais({ formState, setFormState, updateFicha, fieldErrors,
 }
 
 /* ================================================================
-   Step 2 — Dados Academicos
+   Step 2 — Dados Acadêmicos
    ================================================================ */
 
 function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fieldErrors, setFieldErrors }: {
@@ -1361,11 +1361,11 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
   return (
     <>
       <div className="wiz-card" style={{ gap: 28 }}>
-        <h2 className="wiz-card-title" style={{ fontSize: 24 }}>Dados Academicos e Linha de Pesquisa</h2>
+        <h2 className="wiz-card-title" style={{ fontSize: 24 }}>Dados Acadêmicos e Linha de Pesquisa</h2>
         <div className="wiz-card-divider" />
 
         <div className="wiz-field">
-          <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>Curso / Nivel</label>
+          <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>Curso / Nível</label>
           <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, padding: "14px 16px" }}>
             {svgGradCap}
             <div style={{ flex: 1 }}>
@@ -1396,7 +1396,7 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
           <FieldError message={fieldErrors.linhaPesquisaId} />
           <div className="wiz-info-box">
             {svgInfo}
-            <span>A linha de pesquisa escolhida e definitiva apos a submissao. Escolha com atencao conforme o edital vigente.</span>
+            <span>A linha de pesquisa escolhida é definitiva após a submissão. Escolha com atenção conforme o edital vigente.</span>
           </div>
         </div>
       </div>
@@ -1408,40 +1408,40 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
         <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 16, borderRadius: 8, border: "1px solid #E2E8F0", background: "#F8FAFC" }}>
           <strong style={{ fontSize: 13, color: "#0F172A" }}>Reservas declaradas no edital</strong>
           <span style={{ fontSize: 12, color: "#475569" }}>
-            Se o seu caso se enquadrar nas duas hipoteses do edital, voce pode marcar PCD e acoes afirmativas ao mesmo tempo. O sistema nao deve tratar essas declaracoes como exclusivas.
+            Se o seu caso se enquadrar nas duas hipóteses do edital, você pode marcar PCD e ações afirmativas ao mesmo tempo. O sistema não deve tratar essas declarações como exclusivas.
           </span>
           <div className="wiz-warn-box" style={{ borderRadius: 6, padding: "10px 12px", gap: 10 }}>
             {svgTriangleAlert("#F59E0B")}
-            <span style={{ fontSize: 12, fontWeight: 500, color: "#92400E" }}>Se nenhuma reserva for marcada, a inscricao segue em ampla concorrencia.</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: "#92400E" }}>Se nenhuma reserva for marcada, a inscrição segue em ampla concorrência.</span>
           </div>
           <div className="wiz-toggle-row">
-            <span className="wiz-toggle-label">Pessoa com Deficiencia (PCD)?</span>
+            <span className="wiz-toggle-label">Pessoa com Deficiência (PCD)?</span>
             <div className="wiz-toggle-pills">
               <button type="button" className={`wiz-toggle-pill ${formState.fichaInscricao.pessoaComDeficiencia ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, pessoaComDeficiencia: true } }))}>Sim</button>
-              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.pessoaComDeficiencia ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, pessoaComDeficiencia: false } }))}>Nao</button>
+              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.pessoaComDeficiencia ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, pessoaComDeficiencia: false } }))}>Não</button>
             </div>
           </div>
           <div className="wiz-toggle-row">
-            <span className="wiz-toggle-label">Concorrer a vaga de acoes afirmativas?</span>
+            <span className="wiz-toggle-label">Concorrer a vaga de ações afirmativas?</span>
             <div className="wiz-toggle-pills">
               <button type="button" className={`wiz-toggle-pill ${formState.fichaInscricao.concorreAcoesAfirmativas ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, concorreAcoesAfirmativas: true } }))}>Sim</button>
-              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.concorreAcoesAfirmativas ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, concorreAcoesAfirmativas: false } }))}>Nao</button>
+              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.concorreAcoesAfirmativas ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, concorreAcoesAfirmativas: false } }))}>Não</button>
             </div>
           </div>
           <div style={{ fontSize: 12, color: "#64748B" }}>
             Enquadramento atual: {formState.fichaInscricao.pessoaComDeficiencia && formState.fichaInscricao.concorreAcoesAfirmativas
-              ? "Acoes afirmativas + PCD"
+              ? "Ações afirmativas + PCD"
               : formState.fichaInscricao.concorreAcoesAfirmativas
-                ? "Acoes afirmativas"
+                ? "Ações afirmativas"
                 : formState.fichaInscricao.pessoaComDeficiencia
                   ? "PCD"
-                  : "Ampla concorrencia"}
+                  : "Ampla concorrência"}
           </div>
           <div className="wiz-toggle-row" style={{ marginTop: 4 }}>
             <span className="wiz-toggle-label">Vai solicitar Bolsa?</span>
             <div className="wiz-toggle-pills">
               <button type="button" className={`wiz-toggle-pill ${formState.fichaInscricao.vaiSolicitarBolsa ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, vaiSolicitarBolsa: true } }))}>Sim</button>
-              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.vaiSolicitarBolsa ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, vaiSolicitarBolsa: false } }))}>Nao</button>
+              <button type="button" className={`wiz-toggle-pill ${!formState.fichaInscricao.vaiSolicitarBolsa ? "wiz-toggle-pill--on" : "wiz-toggle-pill--off"}`} onClick={() => setFormState((current) => ({ ...current, fichaInscricao: { ...current.fichaInscricao, vaiSolicitarBolsa: false } }))}>Não</button>
             </div>
           </div>
         </div>
@@ -1449,13 +1449,13 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
         <div className="wiz-card-divider" />
 
         <div className="wiz-field">
-          <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>Resumo do Curriculo</label>
-          <textarea placeholder="Descreva brevemente sua formacao, experiencias e principais publicacoes..." style={{ minHeight: 120 }}
+          <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>Resumo do Currículo</label>
+          <textarea placeholder="Descreva brevemente sua formação, experiências e principais publicações..." style={{ minHeight: 120 }}
             value={formState.resumoCurriculo} onChange={(e) => setFormState((s) => ({ ...s, resumoCurriculo: e.target.value }))}
           />
           <FieldError message={fieldErrors.resumoCurriculo} />
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#94A3B8" }}>
-            <span>Minimo de 10 caracteres</span>
+            <span>Mínimo de 10 caracteres</span>
             <span>{formState.resumoCurriculo.length} / 2000 caracteres</span>
           </div>
         </div>
@@ -1465,7 +1465,7 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
 }
 
 /* ================================================================
-   Step 3 — Redacao
+   Step 3 — Redação
    ================================================================ */
 
 function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErrors, setFieldErrors }: {
@@ -1542,27 +1542,27 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
       <div className="wiz-warn-box" style={{ width: 760, maxWidth: "100%" }}>
         {svgTriangleAlert("#F59E0B")}
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span className="wiz-warn-box-title">Instrucoes Importantes — Leia antes de escrever</span>
+          <span className="wiz-warn-box-title">Instruções Importantes — Leia antes de escrever</span>
           <ul style={{ margin: 0, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 4 }}>
-            <li className="wiz-warn-box-text">A redacao deve ser escrita diretamente neste campo — nao serao aceitos arquivos externos</li>
-            <li className="wiz-warn-box-text">Minimo de 500 e maximo de 1.500 caracteres incluindo espacos</li>
-            <li className="wiz-warn-box-text">Texto comprovadamente elaborado por IA recebera nota zero</li>
-            <li className="wiz-warn-box-text">Revise antes de passar para a proxima etapa — a redacao e salva junto ao rascunho</li>
+            <li className="wiz-warn-box-text">A redação deve ser escrita diretamente neste campo — não serão aceitos arquivos externos</li>
+            <li className="wiz-warn-box-text">Mínimo de 500 e máximo de 1.500 caracteres incluindo espaços</li>
+            <li className="wiz-warn-box-text">Texto comprovadamente elaborado por IA receberá nota zero</li>
+            <li className="wiz-warn-box-text">Revise antes de passar para a próxima etapa — a redação é salva junto ao rascunho</li>
           </ul>
         </div>
       </div>
 
       <div style={{ width: 760, maxWidth: "100%", background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", overflow: "hidden" }}>
         <div style={{ padding: "24px 28px 20px" }}>
-          <h2 className="wiz-card-title">Redacao — Proposta de Pesquisa</h2>
-          <p style={{ fontSize: 13, color: "#94A3B8", margin: "4px 0 0" }}>{edital.temasRedacaoConfigurados ? (edital.temasRedacao.length ? "Selecione um dos temas cadastrados pela administracao para este edital." : "Este edital possui cadastro de temas, mas nenhum esta ativo no momento.") : "Este edital ainda nao possui temas cadastrados. Informe manualmente o tema da sua proposta."}</p>
+          <h2 className="wiz-card-title">Redação — Proposta de Pesquisa</h2>
+          <p style={{ fontSize: 13, color: "#94A3B8", margin: "4px 0 0" }}>{edital.temasRedacaoConfigurados ? (edital.temasRedacao.length ? "Selecione um dos temas cadastrados pela administração para este edital." : "Este edital possui cadastro de temas, mas nenhum está ativo no momento.") : "Este edital ainda não possui temas cadastrados. Informe manualmente o tema da sua proposta."}</p>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 
         <div style={{ padding: "20px 28px", display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label className="wiz-field-label" style={{ fontSize: 13, fontWeight: 600 }}>Tema da Redacao</label>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#000", background: "#FEF2F2", borderRadius: 4, padding: "2px 6px" }}>Obrigatorio</span>
+            <label className="wiz-field-label" style={{ fontSize: 13, fontWeight: 600 }}>Tema da Redação</label>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#000", background: "#FEF2F2", borderRadius: 4, padding: "2px 6px" }}>Obrigatório</span>
           </div>
           {edital.temasRedacao.length ? (
             <>
@@ -1572,7 +1572,7 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
                   style={{ height: 40, borderRadius: 8, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 13, background: "#fff" }}
                   value={temaSearch}
                   onChange={(e) => setTemaSearch(e.target.value)}
-                  placeholder="Buscar por controle, energia, blockchain, visao..."
+                  placeholder="Buscar por controle, energia, blockchain, visão..."
                 />
                 <span style={{ fontSize: 11, color: "#64748B" }}>
                   {filteredTemaOptions.length === temaOptions.length
@@ -1626,11 +1626,11 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
               value={formState.temaRedacao}
               disabled
               readOnly
-              placeholder="Nenhum tema ativo disponivel"
+              placeholder="Nenhum tema ativo disponível"
             />
           )}
           <FieldError message={fieldErrors.temaRedacao} />
-          <span className="wiz-field-hint">{edital.temasRedacao.length ? "O tema e definido pela administracao do edital." : edital.temasRedacaoConfigurados ? "A administracao precisa reativar ao menos um tema para novas escolhas." : "Fallback temporario enquanto o edital nao tiver temas cadastrados."}</span>
+          <span className="wiz-field-hint">{edital.temasRedacao.length ? "O tema é definido pela administração do edital." : edital.temasRedacaoConfigurados ? "A administração precisa reativar ao menos um tema para novas escolhas." : "Fallback temporário enquanto o edital não tiver temas cadastrados."}</span>
           {legacyTemaSelecionado ? <span className="wiz-field-hint">Este rascunho ainda referencia um tema legado. Selecione um dos temas atuais do edital para continuar.</span> : null}
           {temaSelecionado?.descricao ? <span className="wiz-field-hint">{temaSelecionado.descricao}</span> : null}
         </div>
@@ -1639,8 +1639,8 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
 
         <div style={{ padding: "20px 28px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <label className="wiz-field-label" style={{ fontSize: 13, fontWeight: 600 }}>Texto da Redacao</label>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#000", background: "#FEF2F2", borderRadius: 4, padding: "2px 6px" }}>Obrigatorio</span>
+            <label className="wiz-field-label" style={{ fontSize: 13, fontWeight: 600 }}>Texto da Redação</label>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#000", background: "#FEF2F2", borderRadius: 4, padding: "2px 6px" }}>Obrigatório</span>
           </div>
           <textarea style={{ minHeight: 240, borderRadius: 8, border: "1px solid #CBD5E1", padding: "16px 16px 40px", lineHeight: 1.65, fontSize: 13, resize: "vertical" }}
             value={formState.redacaoTexto} onChange={(e) => { setFieldErrors((current) => { const next = { ...current }; delete next.redacaoTexto; return next; }); setFormState((s) => ({ ...s, redacaoTexto: e.target.value })); }}
@@ -1651,8 +1651,8 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
             <span className="wiz-char-pill"><strong>{redacaoLength}</strong><span>/ 1500</span></span>
           </div>
           <div style={{ display: "flex", gap: 16, fontSize: 11, fontWeight: 500 }}>
-            <span style={{ color: "#334155" }}>Minimo: 500</span>
-            <span style={{ color: "#94A3B8" }}>Maximo: 1.500</span>
+            <span style={{ color: "#334155" }}>Mínimo: 500</span>
+            <span style={{ color: "#94A3B8" }}>Máximo: 1.500</span>
             <span style={{ flex: 1 }} />
             <span style={{ color: withinRange ? "#334155" : "#DC2626" }}>{redacaoLength} caracteres · {withinRange ? "dentro do limite" : "fora do limite"}</span>
           </div>
@@ -1662,16 +1662,16 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
 
         <div style={{ padding: "20px 28px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#334155" }}>
-            Criterios de Avaliacao — Etapa 1
+            Critérios de Avaliação — Etapa 1
             <span style={{ flex: 1 }} />
-            <span style={{ fontSize: 12, fontWeight: 500, color: "#64748B" }}>Nota minima: 7,0</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: "#64748B" }}>Nota mínima: 7,0</span>
           </div>
           {[
-            { name: "Adequacao e Dominio do Tema", w: "50%", primary: true },
-            { name: "Organizacao Textual e Coerencia", w: "15%", primary: false },
-            { name: "Objetividade e Capacidade de Sintese", w: "15%", primary: false },
+            { name: "Adequação e Domínio do Tema", w: "50%", primary: true },
+            { name: "Organização Textual e Coerência", w: "15%", primary: false },
+            { name: "Objetividade e Capacidade de Síntese", w: "15%", primary: false },
             { name: "Estrutura", w: "10%", primary: false },
-            { name: "Grafia, Acentuacao e Gramatica", w: "10%", primary: false },
+            { name: "Grafia, Acentuação e Gramática", w: "10%", primary: false },
           ].map((c) => (
             <div key={c.name} className="wiz-rubric-row">
               {c.name}
@@ -1683,7 +1683,7 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
         <div style={{ height: 1, background: "#F1F5F9" }} />
         <div className="wiz-ai-warn" style={{ margin: "0 28px 24px", marginTop: 16 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="m4.9 4.9 14.2 14.2" /></svg>
-          Redacao identificada como gerada por IA recebe nota 0,0 — conforme regras do edital
+          Redação identificada como gerada por IA recebe nota 0,0 — conforme regras do edital
         </div>
       </div>
     </>
@@ -1712,8 +1712,8 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
     <>
       <div style={{ width: 760, maxWidth: "100%", background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", overflow: "hidden" }}>
         <div style={{ padding: "28px 28px 20px", display: "flex", flexDirection: "column", gap: 4 }}>
-          <h2 className="wiz-card-title">Documentos da Inscricao</h2>
-          <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>Envie todos os documentos obrigatorios em formato PDF. O sistema ira consolidar o pacote ao final.</p>
+          <h2 className="wiz-card-title">Documentos da Inscrição</h2>
+          <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>Envie todos os documentos obrigatórios em formato PDF. O sistema irá consolidar o pacote ao final.</p>
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 
@@ -1722,9 +1722,9 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {svgFileBadge}
             <span className="wiz-annex-title">Anexo IV — Ficha Cadastral</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", background: "#1B3A6B", borderRadius: 99, padding: "3px 10px" }}>Obrigatorio</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", background: "#1B3A6B", borderRadius: 99, padding: "3px 10px" }}>Obrigatório</span>
           </div>
-          <span className="wiz-annex-desc">Baixe o Anexo IV preenchido com os dados do formulario, assine o PDF fora da plataforma e reenvie o arquivo assinado.</span>
+          <span className="wiz-annex-desc">Baixe o Anexo IV preenchido com os dados do formulário, assine o PDF fora da plataforma e reenvie o arquivo assinado.</span>
           <div className="wiz-annex-steps">
             <span className="wiz-annex-step-num">1</span><span className="wiz-annex-step-label">Baixar PDF</span>
             <span className="wiz-annex-connector" />
@@ -1744,16 +1744,16 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
               onFileSelect={onUploadAnexoIv}
             />
           </div>
-          <span className="wiz-annex-hint">O PDF ja contem seus dados preenchidos nas etapas anteriores</span>
+          <span className="wiz-annex-hint">O PDF já contém seus dados preenchidos nas etapas anteriores</span>
         </div>
 
         <div style={{ borderTop: "1px solid #F1F5F9", padding: "20px 28px", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <div>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: "#334155", margin: 0 }}>Checklist dinamico de obrigatorios</h3>
-              <p style={{ fontSize: 12, color: "#64748B", margin: "4px 0 0" }}>Os documentos obrigatorios mudam conforme sua modalidade, nacionalidade, pagamento e declaracoes da ficha.</p>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: "#334155", margin: 0 }}>Checklist dinâmico de obrigatórios</h3>
+              <p style={{ fontSize: 12, color: "#64748B", margin: "4px 0 0" }}>Os documentos obrigatórios mudam conforme sua modalidade, nacionalidade, pagamento e declarações da ficha.</p>
             </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{obrigatoriosEnviados}/{totalObrigatorios} obrigatorios prontos</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#1E293B" }}>{obrigatoriosEnviados}/{totalObrigatorios} obrigatórios prontos</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {requiredDocumentRules.map((rule) => {
@@ -1764,7 +1764,7 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
                   <div className={`wiz-doc-icon ${presente ? "wiz-doc-icon--green" : "wiz-doc-icon--amber"}`}>{presente ? svgCircleCheck("#22C55E") : svgTriangleAlert("#F59E0B")}</div>
                   <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                     <strong style={{ fontSize: 13, color: "#1E293B" }}>{rule.label}</strong>
-                    <span style={{ fontSize: 12, color: presente ? "#166534" : "#9A3412" }}>{presente ? `Registrado: ${documento?.nomeArquivo ?? getStatusLabel(rule.tipo)}` : "Pendente para esta inscricao."}</span>
+                    <span style={{ fontSize: 12, color: presente ? "#166534" : "#9A3412" }}>{presente ? `Registrado: ${documento?.nomeArquivo ?? getStatusLabel(rule.tipo)}` : "Pendente para esta inscrição."}</span>
                   </div>
                 </div>
               );
@@ -1798,7 +1798,7 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
                 <label className="wiz-field-label">Tipo</label>
                 <select disabled={!allowEdits} value={docFormTipo} onChange={(e) => setDocFormTipo(e.target.value)}>
                   {requiredRulesWithoutAnexoIv.length ? (
-                    <optgroup label="Obrigatorios para esta inscricao">
+                    <optgroup label="Obrigatórios para esta inscrição">
                       {requiredRulesWithoutAnexoIv.map((rule) => <option key={rule.tipo} value={rule.tipo}>{rule.label}</option>)}
                     </optgroup>
                   ) : null}
@@ -1830,7 +1830,7 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
           </div>
         ) : null}
         <div className="wiz-progress-label">
-          <strong>Obrigatorios enviados</strong>
+          <strong>Obrigatórios enviados</strong>
           <span>{obrigatoriosEnviados} de {totalObrigatorios}</span>
         </div>
         <div className="wiz-progress-track">
@@ -1852,7 +1852,7 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
   checklist: SubmissionChecklistViewItem[]; inscricaoStatus: string; goToStep: (s: number) => void;
 }) {
   const f = formState.fichaInscricao;
-  const linhaLabel = edital.linhasPesquisa.find((l) => l.id === formState.linhaPesquisaId)?.nome ?? "Nao definida";
+  const linhaLabel = edital.linhasPesquisa.find((l) => l.id === formState.linhaPesquisaId)?.nome ?? "Não definida";
 
   function toggleCheck(i: number) {
     setConfirmChecks((c) => c.map((v, j) => j === i ? !v : v));
@@ -1861,22 +1861,22 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
   return (
     <>
       <div style={{ width: 760, maxWidth: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Revisao da Inscricao</h1>
-        <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>Confira todos os dados antes de submeter. Apos a submissao, a inscricao podera ser cancelada para edicao dentro do prazo do edital.</p>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0F172A", margin: 0 }}>Revisão da Inscrição</h1>
+        <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>Confira todos os dados antes de submeter. Após a submissão, a inscrição poderá ser cancelada para edição dentro do prazo do edital.</p>
       </div>
 
       {inscricaoStatus === "SUBMETIDA" ? (
         <div className="wiz-info-box" style={{ width: 760, maxWidth: "100%" }}>
           {svgInfo}
-          <span style={{ fontWeight: 600 }}>Inscricao ja submetida. Voce pode cancelar a submissao para editar dentro do prazo do edital.</span>
+          <span style={{ fontWeight: 600 }}>Inscrição já submetida. Você pode cancelar a submissão para editar dentro do prazo do edital.</span>
         </div>
       ) : null}
 
       <div className="wiz-warn-box" style={{ width: 760, maxWidth: "100%", borderRadius: 8, padding: "14px 16px" }}>
         {svgTriangleAlert("#F59E0B")}
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>Atencao — Leia antes de submeter</span>
-          <span style={{ fontSize: 12, color: "#92400E" }}>Voce podera cancelar a inscricao para edicao ate o prazo final do edital. Todos os dados, incluindo a redacao, poderao ser alterados enquanto a janela de inscricao estiver aberta.</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#92400E" }}>Atenção — Leia antes de submeter</span>
+          <span style={{ fontSize: 12, color: "#92400E" }}>Você poderá cancelar a inscrição para edição até o prazo final do edital. Todos os dados, incluindo a redação, poderão ser alterados enquanto a janela de inscrição estiver aberta.</span>
         </div>
       </div>
 
@@ -1895,9 +1895,9 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 
-        {/* Section 2: Dados Academicos */}
+        {/* Section 2: Dados Acadêmicos */}
         <div className="wiz-review-section-hdr">
-          {svgGradCap} <span className="wiz-review-section-title">Dados Academicos</span>
+          {svgGradCap} <span className="wiz-review-section-title">Dados Acadêmicos</span>
           <button type="button" className="wiz-review-edit-btn" onClick={() => goToStep(1)}>{svgPencilSm} Editar</button>
         </div>
         <div className="wiz-review-grid">
@@ -1906,15 +1906,15 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 
-        {/* Section 3: Redacao */}
+        {/* Section 3: Redação */}
         <div className="wiz-review-section-hdr">
-          {svgFilePen} <span className="wiz-review-section-title">Redacao — Proposta de Pesquisa</span>
+          {svgFilePen} <span className="wiz-review-section-title">Redação — Proposta de Pesquisa</span>
           <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 600, color: "#065F46", background: "#F0FDF4", borderRadius: 99, padding: "4px 10px" }}>
             {formState.redacaoTexto.length} caracteres
           </span>
         </div>
         <div style={{ padding: "16px 24px", fontSize: 12, color: "#475569", lineHeight: 1.6 }}>
-          {formState.redacaoTexto ? `"${formState.redacaoTexto.slice(0, 300)}${formState.redacaoTexto.length > 300 ? "..." : ""}"` : "Nenhuma redacao preenchida."}
+          {formState.redacaoTexto ? `"${formState.redacaoTexto.slice(0, 300)}${formState.redacaoTexto.length > 300 ? "..." : ""}"` : "Nenhuma redação preenchida."}
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 
@@ -1943,9 +1943,9 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
         <h3 className="wiz-confirm-title">Confirme antes de enviar</h3>
         {[
           `Li e compreendi todas as regras do Edital ${edital.numero}`,
-          "Declaro que as informacoes prestadas sao veridicas e os documentos sao autenticos",
+          "Declaro que as informações prestadas são verídicas e os documentos são autênticos",
           "Confirmo que baixei, assinei e reenviei o Anexo IV assinado em PDF",
-          "Estou ciente de que, apos a submissao, a edicao so sera possivel mediante cancelamento dentro do prazo do edital",
+          "Estou ciente de que, após a submissão, a edição só será possível mediante cancelamento dentro do prazo do edital",
         ].map((text, i) => (
           <div key={i} className="wiz-confirm-row">
             <button type="button" className={`wiz-confirm-check ${confirmChecks[i] ? "wiz-confirm-check--on" : "wiz-confirm-check--off"}`} onClick={() => toggleCheck(i)}>
@@ -1959,7 +1959,7 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
 
       {checklist.length > 0 ? (
         <div style={{ width: 760, maxWidth: "100%", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          <strong style={{ fontSize: 13, color: "#991B1B" }}>Checklist de pendencias retornado pelo backend:</strong>
+          <strong style={{ fontSize: 13, color: "#991B1B" }}>Checklist de pendências retornado pelo backend:</strong>
           <ul style={{ margin: 0, paddingLeft: 20 }}>
             {checklist.map((item) => (
               <li key={item.key} style={{ fontSize: 12, color: "#991B1B" }}>

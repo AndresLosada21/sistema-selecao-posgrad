@@ -170,7 +170,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
 
       {/* Fundamentacao readonly */}
       <div className="admin-form-card">
-        <h2 className="admin-form-card-title">Fundamentacao do candidato</h2>
+        <h2 className="admin-form-card-title">Fundamentação do candidato</h2>
         <div style={{ background: "#F8FAFC", borderRadius: 6, border: "1px solid #F1F5F9", padding: 16, fontSize: 13, color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
           {item.fundamentacao || "Sem fundamentacao registrada."}
         </div>
@@ -273,7 +273,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
                       <textarea aria-invalid={fieldErrorScope === "politicas" && !!fieldErrors.novosResultadosFinaisPoliticasAfirmativas} disabled={recursoJaDecidido || busy} className="text-area" onChange={(e) => { setNovosResultadosPoliticas((current) => ({ ...current, [etapa.tipo]: { ...(current[etapa.tipo] ?? { resultado: "", parecer: "" }), parecer: e.target.value } })); setFieldErrors((current) => ({ ...current, novosResultadosFinaisPoliticasAfirmativas: null })); setFieldErrorScope("politicas"); }} style={{ minHeight: 60 }} value={novosResultadosPoliticas[etapa.tipo]?.parecer ?? ""} />
                     </div>
                   </div>
-                )) : <PageFeedback type="warning" title="Etapas de politicas nao encontradas" description="O recurso esta vinculado a politicas afirmativas, mas nenhuma etapa ativa foi carregada para a inscricao." />}
+                )) : <PageFeedback type="warning" title="Etapas de políticas não encontradas" description="O recurso está vinculado a políticas afirmativas, mas nenhuma etapa ativa foi carregada para a inscrição." />}
                 {fieldErrorScope === "politicas" && fieldErrors.novosResultadosFinaisPoliticasAfirmativas ? <span className="field-error-text">{fieldErrors.novosResultadosFinaisPoliticasAfirmativas}</span> : null}
               </div>
             ) : null}
@@ -281,7 +281,7 @@ export default function AdminRecursoDetailPage({ params }: Props) {
         )}
 
         <button className="admin-page-cta" disabled={busy || recursoJaDecidido} style={{ width: 200 }} type="submit">
-          Registrar decisao
+          Registrar decisão
         </button>
       </form>
     </div>

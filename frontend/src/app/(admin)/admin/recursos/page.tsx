@@ -53,7 +53,7 @@ export default function AdminRecursosPage() {
   }, [editalFilter, faseFilter, page, signOut, statusFilter, token]);
 
   if (status === "loading") return <LoadingState title="Carregando recursos" description="Consultando a fila administrativa de recursos." />;
-  if (status === "error") return <ErrorState title="Nao foi possivel carregar a fila de recursos" description={message ?? undefined} />;
+  if (status === "error") return <ErrorState title="Não foi possível carregar a fila de recursos" description={message ?? undefined} />;
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 

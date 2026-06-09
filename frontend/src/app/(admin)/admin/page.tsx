@@ -28,18 +28,18 @@ const iconMegaphone = <svg width="20" height="20" viewBox="0 0 24 24" fill="none
 const launcherRows = [
   [
     { href: "/admin/editais", title: "Editais", description: "CRUD de editais, linhas e cronograma", icon: iconFileText, color: "var(--color-primary-50)", iconColor: "var(--color-primary-500)" },
-    { href: "/admin/usuarios", title: "Usuarios", description: "Gestao de contas, perfis e escopos", icon: iconUsers, color: "var(--color-info-bg)", iconColor: "var(--color-info)" },
-    { href: "/admin/isencao", title: "Isencao", description: "Pedidos de isencao de taxa", icon: iconShield, color: "var(--color-success-bg)", iconColor: "var(--color-success)" },
+    { href: "/admin/usuarios", title: "Usuários", description: "Gestão de contas, perfis e escopos", icon: iconUsers, color: "var(--color-info-bg)", iconColor: "var(--color-info)" },
+    { href: "/admin/isencao", title: "Isenção", description: "Pedidos de isenção de taxa", icon: iconShield, color: "var(--color-success-bg)", iconColor: "var(--color-success)" },
   ],
   [
-    { href: "/admin/homologacao", title: "Homologacao", description: "Fila de inscricoes para homologar", icon: iconClipboard, color: "var(--color-warning-bg)", iconColor: "var(--color-warning)" },
-    { href: "/admin/etapa-1", title: "Etapa 1 — Redacao", description: "Avaliacao de redacoes", icon: iconPenTool, color: "var(--color-error-bg)", iconColor: "var(--color-error)" },
-    { href: "/admin/etapa-2", title: "Etapa 2 — Titulos", description: "Analise curricular e pontuacao", icon: iconAward, color: "#EDE9FE", iconColor: "#7C3AED" },
+    { href: "/admin/homologacao", title: "Homologação", description: "Fila de inscrições para homologar", icon: iconClipboard, color: "var(--color-warning-bg)", iconColor: "var(--color-warning)" },
+    { href: "/admin/etapa-1", title: "Etapa 1 — Redação", description: "Avaliação de redações", icon: iconPenTool, color: "var(--color-error-bg)", iconColor: "var(--color-error)" },
+    { href: "/admin/etapa-2", title: "Etapa 2 — Títulos", description: "Análise curricular e pontuação", icon: iconAward, color: "#EDE9FE", iconColor: "#7C3AED" },
   ],
   [
-    { href: "/admin/classificacao", title: "Classificacao", description: "Ranking final por edital", icon: iconTrending, color: "var(--color-info-bg)", iconColor: "var(--color-info)" },
+    { href: "/admin/classificacao", title: "Classificação", description: "Ranking final por edital", icon: iconTrending, color: "var(--color-info-bg)", iconColor: "var(--color-info)" },
     { href: "/admin/recursos", title: "Recursos", description: "Fila de recursos interpostos", icon: iconMsg, color: "var(--color-neutral-100)", iconColor: "var(--color-neutral-600)" },
-    { href: "/admin/publicacoes", title: "Publicacoes", description: "Oficiais, retificacoes e PDFs", icon: iconMegaphone, color: "var(--color-primary-50)", iconColor: "var(--color-primary-500)" },
+    { href: "/admin/publicacoes", title: "Publicações", description: "Oficiais, retificações e PDFs", icon: iconMegaphone, color: "var(--color-primary-50)", iconColor: "var(--color-primary-500)" },
   ],
 ];
 
@@ -99,7 +99,7 @@ export default function AdminHomePage() {
         <article className="admin-stat-card">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className="admin-stat-icon" style={{ background: "#EFF6FF", color: "#2563EB" }}>{iconFileText}</span>
-            <span className="admin-stat-label">Total Inscricoes</span>
+            <span className="admin-stat-label">Total de Inscrições</span>
           </div>
           <strong className="admin-stat-value">{stats.totalInscricoes}</strong>
         </article>

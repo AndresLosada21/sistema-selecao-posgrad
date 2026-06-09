@@ -74,7 +74,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
     setData(r);
     setTemaPacotes(pacotes.items);
     setTemaPacoteSlug((current) => current || pacotes.items[0]?.slug || "");
-    setTemaPacotesError(pacoteLoadFailed ? "Nao foi possivel carregar os pacotes padrao agora. As edicoes manuais continuam disponiveis quando a estrutura do edital estiver liberada." : null);
+    setTemaPacotesError(pacoteLoadFailed ? "Não foi possível carregar os pacotes padrão agora. As edições manuais continuam disponíveis quando a estrutura do edital estiver liberada." : null);
     setEditalForm({
       numero: r.numero, titulo: r.titulo, descricao: r.descricao ?? "",
       ano: String(r.ano), semestre: String(r.semestre ?? 1),
@@ -211,7 +211,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   if (status === "loading") return <LoadingState title="Carregando edital" description="Consultando detalhe do edital." />;
   if (status === "error") return <ErrorState title="Falha ao carregar edital" description={feedback?.text} />;
-  if (!data) return <EmptyState title="Edital indisponivel" description="Edital nao encontrado." />;
+  if (!data) return <EmptyState title="Edital indisponível" description="Edital não encontrado." />;
   if (!editalId || !token) return <LoadingState title="Carregando sessao" description="Validando acesso administrativo." />;
 
   const cursoLabel = data.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
@@ -235,7 +235,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Edital atualizado" : feedback.type === "warning" ? "Atencao no edital" : "Nao foi possivel salvar o edital"} type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Edital atualizado" : feedback.type === "warning" ? "Atenção no edital" : "Não foi possível salvar o edital"} type={feedback.type} />}
 
       <AdminBreadcrumb items={[{ label: "Editais", href: "/admin/editais" }, { label: data.numero }]} />
 
@@ -309,7 +309,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
             </div>
             <div className="admin-form-row">
               <div className="admin-eval-field"><label>Ampla</label><input aria-invalid={!!fieldErrors.vagasAmplaConcorrencia} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasAmplaConcorrencia: e.target.value })); setFieldErrors((current) => ({ ...current, vagasAmplaConcorrencia: null })); }} required type="number" value={linhaForm.vagasAmplaConcorrencia} />{fieldErrors.vagasAmplaConcorrencia ? <span className="field-error-text">{fieldErrors.vagasAmplaConcorrencia}</span> : null}</div>
-              <div className="admin-eval-field"><label>Acoes afirmativas</label><input aria-invalid={!!fieldErrors.vagasAcoesAfirmativas} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasAcoesAfirmativas: e.target.value })); setFieldErrors((current) => ({ ...current, vagasAcoesAfirmativas: null })); }} required type="number" value={linhaForm.vagasAcoesAfirmativas} />{fieldErrors.vagasAcoesAfirmativas ? <span className="field-error-text">{fieldErrors.vagasAcoesAfirmativas}</span> : null}</div>
+              <div className="admin-eval-field"><label>Ações afirmativas</label><input aria-invalid={!!fieldErrors.vagasAcoesAfirmativas} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasAcoesAfirmativas: e.target.value })); setFieldErrors((current) => ({ ...current, vagasAcoesAfirmativas: null })); }} required type="number" value={linhaForm.vagasAcoesAfirmativas} />{fieldErrors.vagasAcoesAfirmativas ? <span className="field-error-text">{fieldErrors.vagasAcoesAfirmativas}</span> : null}</div>
               <div className="admin-eval-field"><label>PCD</label><input aria-invalid={!!fieldErrors.vagasPcd} min={0} onChange={(e) => { setLinhaForm((c) => ({ ...c, vagasPcd: e.target.value })); setFieldErrors((current) => ({ ...current, vagasPcd: null })); }} required type="number" value={linhaForm.vagasPcd} />{fieldErrors.vagasPcd ? <span className="field-error-text">{fieldErrors.vagasPcd}</span> : null}</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -403,7 +403,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
               </div>
               <span style={{ fontSize: 12, color: temaPacoteModo === "REPLACE_INACTIVE" ? "#B45309" : "#64748B" }}>
                 {temaPacoteModo === "REPLACE_INACTIVE"
-                  ? "Atencao: este modo inativa os temas ativos que nao pertencem ao pacote selecionado."
+                  ? "Atenção: este modo inativa os temas ativos que não pertencem ao pacote selecionado."
                   : "Modo mesclar: mantem temas extras ativos e adiciona ou reativa apenas os temas do pacote."}
               </span>
             </div>
@@ -439,7 +439,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
             <div className="admin-form-row">
               <div className="admin-eval-field"><label>Titulo</label><input aria-invalid={!!fieldErrors.titulo} onChange={(e) => { setTemaForm((c) => ({ ...c, titulo: e.target.value })); setFieldErrors((current) => ({ ...current, titulo: null })); }} required value={temaForm.titulo} />{fieldErrors.titulo ? <span className="field-error-text">{fieldErrors.titulo}</span> : null}</div>
               <div className="admin-eval-field"><label>Ordem</label><input aria-invalid={!!fieldErrors.ordem} min={0} onChange={(e) => { setTemaForm((c) => ({ ...c, ordem: e.target.value })); setFieldErrors((current) => ({ ...current, ordem: null })); }} type="number" value={temaForm.ordem} />{fieldErrors.ordem ? <span className="field-error-text">{fieldErrors.ordem}</span> : null}</div>
-              <div className="admin-eval-field"><label>Ativo</label><select aria-invalid={!!fieldErrors.ativo} className="select-field" onChange={(e) => { setTemaForm((c) => ({ ...c, ativo: e.target.value === "true" })); setFieldErrors((current) => ({ ...current, ativo: null })); }} value={String(temaForm.ativo)}><option value="true">Sim</option><option value="false">Nao</option></select>{fieldErrors.ativo ? <span className="field-error-text">{fieldErrors.ativo}</span> : null}</div>
+              <div className="admin-eval-field"><label>Ativo</label><select aria-invalid={!!fieldErrors.ativo} className="select-field" onChange={(e) => { setTemaForm((c) => ({ ...c, ativo: e.target.value === "true" })); setFieldErrors((current) => ({ ...current, ativo: null })); }} value={String(temaForm.ativo)}><option value="true">Sim</option><option value="false">Não</option></select>{fieldErrors.ativo ? <span className="field-error-text">{fieldErrors.ativo}</span> : null}</div>
             </div>
             <div className="admin-eval-field"><label>Descricao</label><textarea aria-invalid={!!fieldErrors.descricao} className="text-area" onChange={(e) => { setTemaForm((c) => ({ ...c, descricao: e.target.value })); setFieldErrors((current) => ({ ...current, descricao: null })); }} style={{ minHeight: 60 }} value={temaForm.descricao} />{fieldErrors.descricao ? <span className="field-error-text">{fieldErrors.descricao}</span> : null}</div>
             <div style={{ display: "flex", gap: 8 }}>

@@ -72,7 +72,7 @@ export default function CandidateParticipacoesPage() {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <EmptyState title="Voce ainda nao entrou em nenhum edital" description="Abra um edital publicado e clique em 'Entrar neste edital'. Depois disso, voce podera acompanhar sua participacao aqui." />
+        <EmptyState title="Você ainda não entrou em nenhum edital" description="Abra um edital publicado e clique em 'Entrar neste edital'. Depois disso, você poderá acompanhar sua participação aqui." />
         {contaAdministrativaSemPerfilCandidato ? <span style={{ fontSize: 13, color: "#1E40AF" }}>Sua conta tambem possui perfil administrativo. Mesmo assim, a entrada no edital continua sendo feita pela area publica.</span> : null}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <Link href="/editais" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Ver editais</Link>
@@ -87,17 +87,17 @@ export default function CandidateParticipacoesPage() {
 
       {/* Page header */}
       <div className="part-header">
-        <h1>Minhas participacoes</h1>
-        <p>Editais em que voce ja entrou para acompanhar o processo.</p>
+        <h1>Minhas participações</h1>
+        <p>Editais em que você já entrou para acompanhar o processo.</p>
       </div>
 
       {/* Cards */}
       {data.items.map((p, i) => {
-        const editalLabel = `${p.edital.numero} — ${p.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado"} em Engenharia Eletrica`;
+        const editalLabel = `${p.edital.numero} — ${p.edital.cursoNivel === "MESTRADO" ? "Mestrado" : "Doutorado"} em Engenharia Elétrica`;
         const badgeVariant = getStatusVariant(p.edital.status);
         const badgeLabel = getStatusLabel(p.edital.status);
-        const inscLabel = `Inscricao: ${getStatusLabel(p.inscricao?.status ?? "SEM_INSCRICAO")}`;
-        const isenLabel = `Isencao: ${getStatusLabel(p.pedidoIsencao?.status ?? "NAO_SOLICITADA")}`;
+        const inscLabel = `Inscrição: ${getStatusLabel(p.inscricao?.status ?? "SEM_INSCRICAO")}`;
+        const isenLabel = `Isenção: ${getStatusLabel(p.pedidoIsencao?.status ?? "NAO_SOLICITADA")}`;
         const hasShadow = i === 0;
 
         return (

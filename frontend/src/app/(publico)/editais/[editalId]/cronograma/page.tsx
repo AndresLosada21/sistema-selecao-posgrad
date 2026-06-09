@@ -42,7 +42,7 @@ export default async function CronogramaPage({ params }: CronogramaPageProps) {
     const edital = await getEditalById(editalId);
 
     if (!edital.cronogramas.length) {
-      return <EmptyState title="Cronograma indisponivel" description="Este edital nao possui fases publicas cadastradas." />;
+      return <EmptyState title="Cronograma indisponível" description="Este edital não possui fases públicas cadastradas." />;
     }
 
     return (

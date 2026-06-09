@@ -25,11 +25,11 @@ function getReservasConcorrenciaLabel(input: { acoesAfirmativas?: boolean; pcd?:
   }
 
   if (input.acoesAfirmativas && input.pcd) {
-    return "Acoes afirmativas + PCD";
+    return "Ações afirmativas + PCD";
   }
 
   if (input.acoesAfirmativas) {
-    return "Acoes afirmativas";
+    return "Ações afirmativas";
   }
 
   if (input.pcd) {
@@ -173,7 +173,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Classificacao atualizada" : feedback.type === "warning" ? "Atencao na classificacao" : "Nao foi possivel atualizar a classificacao"} type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Classificação atualizada" : feedback.type === "warning" ? "Atenção na classificação" : "Não foi possível atualizar a classificação"} type={feedback.type} />}
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -195,7 +195,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
         <PageFeedback
           type="info"
           title="Publicacao vigente de classificacao"
-          description={`Tipo: ${getStatusLabel(publicacaoVigente.tipo)} · Versao ${publicacaoVigente.versao}${publicacaoVigente.republicacaoDaVersao ? ` · republica v${publicacaoVigente.republicacaoDaVersao}` : ""}${publicacaoVigente.publicadoEm ? ` · publicada em ${publicacaoVigente.publicadoEm}` : ""}`}
+          description={`Tipo: ${getStatusLabel(publicacaoVigente.tipo)} · Versão ${publicacaoVigente.versao}${publicacaoVigente.republicacaoDaVersao ? ` · republicação da v${publicacaoVigente.republicacaoDaVersao}` : ""}${publicacaoVigente.publicadoEm ? ` · publicada em ${publicacaoVigente.publicadoEm}` : ""}`}
         />
       ) : null}
 

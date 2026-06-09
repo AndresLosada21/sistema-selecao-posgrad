@@ -130,7 +130,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
       setPacote(pacoteAtual);
       await downloadAuthenticatedFile(pacoteAtual.urlArquivo, session.token, pacoteAtual.nomeArquivo ?? "pacote-documental.pdf");
     }
-    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Pacote indisponivel", description: getErrorMessage(error) }); }
+    catch (error) { if (handleUnauth(error)) return; setMessage({ type: "error", title: "Pacote indisponível", description: getErrorMessage(error) }); }
     finally { setDownloadingPacote(false); }
   }
 
@@ -145,7 +145,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     } catch (error) {
       if (handleUnauth(error)) return;
       setFieldErrors(pickLabeledFieldErrors(error, { statusPagamento: "o status de pagamento" }));
-      setMessage({ type: "error", title: "Nao foi possivel atualizar o pagamento", description: getFirstFormError(error) ?? getErrorMessage(error) });
+      setMessage({ type: "error", title: "Não foi possível atualizar o pagamento", description: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally {
       setBusyPagamento(false);
     }
@@ -162,9 +162,9 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     e.preventDefault();
     if (!session.token || !item) return;
     setBusy(true); setMessage(null); setFieldErrors({}); setFieldErrorScope("prelim");
-    if (!prelimResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao preliminar." }); setBusy(false); return; }
+    if (!prelimResultado) { setMessage({ type: "warning", title: "Resultado obrigatório", description: "Selecione homologada ou indeferida antes de salvar a homologação preliminar." }); setBusy(false); return; }
     try { await registrarHomologacaoPreliminar(item.id, { homologada: prelimResultado === "HOMOLOGADA", parecer: prelimParecer, motivos: motivosPrelim }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Resultado preliminar salvo." }); }
-    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickLabeledFieldErrors(error, { homologada: "o resultado preliminar", parecer: "o parecer preliminar", motivos: "ao menos um fundamento do edital" })); setMessage({ type: "error", title: "Nao foi possivel salvar o resultado preliminar", description: getActionableErrorMessage(error) }); }
+    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickLabeledFieldErrors(error, { homologada: "o resultado preliminar", parecer: "o parecer preliminar", motivos: "ao menos um fundamento do edital" })); setMessage({ type: "error", title: "Não foi possível salvar o resultado preliminar", description: getActionableErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -172,9 +172,9 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     e.preventDefault();
     if (!session.token || !item) return;
     setBusy(true); setMessage(null); setFieldErrors({}); setFieldErrorScope("final");
-    if (!finalResultado) { setMessage({ type: "warning", title: "Resultado obrigatorio", description: "Selecione homologada ou indeferida antes de salvar a homologacao final." }); setBusy(false); return; }
+    if (!finalResultado) { setMessage({ type: "warning", title: "Resultado obrigatório", description: "Selecione homologada ou indeferida antes de salvar a homologação final." }); setBusy(false); return; }
     try { await registrarHomologacaoFinal(item.id, { homologada: finalResultado === "HOMOLOGADA", parecer: finalParecer, motivos: motivosFinal }, session.token); await loadItem(); setMessage({ type: "success", title: "Decisao registrada", description: "Resultado final salvo." }); }
-    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickLabeledFieldErrors(error, { homologada: "o resultado final", parecer: "o parecer final", motivos: "ao menos um fundamento do edital" })); setMessage({ type: "error", title: "Nao foi possivel salvar o resultado final", description: getActionableErrorMessage(error) }); }
+    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickLabeledFieldErrors(error, { homologada: "o resultado final", parecer: "o parecer final", motivos: "ao menos um fundamento do edital" })); setMessage({ type: "error", title: "Não foi possível salvar o resultado final", description: getActionableErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
@@ -182,14 +182,14 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     e.preventDefault();
     if (!session.token || !item) return;
     setBusy(true); setMessage(null); setFieldErrors({}); setFieldErrorScope("confirmacao");
-    try { await atualizarConfirmacaoReserva(item.id, { confirmacaoAcoesAfirmativas: confirmAA, confirmacaoPcd: confirmPCD }, session.token); await loadItem(); setMessage({ type: "success", title: "Confirmacao atualizada", description: "Reservas atualizadas." }); }
-    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickLabeledFieldErrors(error, { confirmacaoAcoesAfirmativas: "a confirmacao de acoes afirmativas", confirmacaoPcd: "a confirmacao PCD" })); setMessage({ type: "error", title: "Nao foi possivel atualizar as reservas", description: getActionableErrorMessage(error) }); }
+    try { await atualizarConfirmacaoReserva(item.id, { confirmacaoAcoesAfirmativas: confirmAA, confirmacaoPcd: confirmPCD }, session.token); await loadItem(); setMessage({ type: "success", title: "Confirmação atualizada", description: "Reservas atualizadas." }); }
+    catch (error) { if (handleUnauth(error)) return; setFieldErrors(pickLabeledFieldErrors(error, { confirmacaoAcoesAfirmativas: "a confirmação de ações afirmativas", confirmacaoPcd: "a confirmação PCD" })); setMessage({ type: "error", title: "Não foi possível atualizar as reservas", description: getActionableErrorMessage(error) }); }
     finally { setBusy(false); }
   }
 
-  if (status === "loading") return <LoadingState title="Carregando homologacao" description="Consultando inscricao e documentos." />;
+  if (status === "loading") return <LoadingState title="Carregando homologação" description="Consultando inscrição e documentos." />;
   if (status === "error") return <ErrorState title="Falha ao carregar" description={message?.description} />;
-  if (!item) return <EmptyState title="Inscricao nao encontrada" />;
+  if (!item) return <EmptyState title="Inscrição não encontrada" />;
 
   const homolog = item.homologacao;
   const hasPrelim = !!homolog?.statusPreliminar;
@@ -214,13 +214,13 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {message ? <PageFeedback type={message.type} title={message.title} description={message.description} /> : null}
 
-      <AdminBreadcrumb items={[{ label: "Homologacao", href: "/admin/homologacao" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
+      <AdminBreadcrumb items={[{ label: "Homologação", href: "/admin/homologacao" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
       {/* Header */}
       <div className="admin-page-header">
         <div className="admin-page-header-left">
-          <h1>Homologacao — {item.candidato.nomeCompleto}</h1>
-          <p>Edital {item.edital.numero} · {getStatusLabel(item.edital.cursoNivel)} · Linha: {item.linhaPesquisa?.nome ?? "nao definida"}</p>
+          <h1>Homologação — {item.candidato.nomeCompleto}</h1>
+          <p>Edital {item.edital.numero} · {getStatusLabel(item.edital.cursoNivel)} · Linha: {item.linhaPesquisa?.nome ?? "não definida"}</p>
         </div>
         <StatusBadge variant={getStatusVariant(item.status)}>{getStatusLabel(item.status)}</StatusBadge>
       </div>
@@ -235,9 +235,9 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
           <span className="admin-stat-label">Reservas declaradas</span>
           <strong style={{ fontSize: 13, color: "#1E293B" }}>
             {reservaAcoesAtiva && reservaPcdAtiva
-              ? "Acoes afirmativas + PCD"
+              ? "Ações afirmativas + PCD"
               : reservaAcoesAtiva
-                ? "Acoes afirmativas"
+                ? "Ações afirmativas"
                 : reservaPcdAtiva
                   ? "PCD"
                   : "Ampla concorrencia"}
@@ -255,7 +255,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
 
       {/* Anexo IV + Pacote */}
       <div className="admin-form-card">
-        <h3 className="admin-form-card-title">Artefatos da inscricao</h3>
+        <h3 className="admin-form-card-title">Artefatos da inscrição</h3>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <button type="button" disabled={busy} onClick={() => handleDownloadAnexo("formulario")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "#fff", border: "1px solid #CBD5E1", borderRadius: 6, cursor: "pointer", fontSize: 13, color: "#1E293B" }}>
             {iconDownload} Anexo IV (formulario)
@@ -276,7 +276,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
 
       {/* Documentos */}
       <div className="admin-form-card">
-        <h3 className="admin-form-card-title">Documentos da inscricao</h3>
+        <h3 className="admin-form-card-title">Documentos da inscrição</h3>
         <div style={{ display: "flex", flexDirection: "column" }}>
           {item.documentos.map((doc) => (
             <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #F1F5F9" }}>
@@ -318,21 +318,21 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
         </div>
         <div style={{ fontSize: 12, color: "#64748B" }}>
           {item.statusPagamento === "DISPENSADO"
-            ? "Pagamento dispensado automaticamente por isencao final deferida."
-            : comprovantePagamento
-              ? "A conferencia do comprovante e manual e acontece nesta tela de homologacao."
-              : "Sem comprovante de pagamento enviado; a validacao manual so pode ocorrer quando o arquivo estiver disponivel."}
+            ? "Pagamento dispensado automaticamente por isenção final deferida."
+              : comprovantePagamento
+                ? "A conferência do comprovante é manual e acontece nesta tela de homologação."
+                : "Sem comprovante de pagamento enviado; a validação manual só pode ocorrer quando o arquivo estiver disponível."}
         </div>
       </div>
 
-      {/* Decisao preliminar */}
+      {/* Decisão preliminar */}
       <div className="admin-form-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h3 className="admin-form-card-title">Resultado preliminar da homologacao</h3>
+          <h3 className="admin-form-card-title">Resultado preliminar da homologação</h3>
           {hasPrelim ? <StatusBadge variant={getStatusVariant(homolog?.statusPreliminar ?? "")}>{getStatusLabel(homolog?.statusPreliminar ?? "")}</StatusBadge> : null}
         </div>
         {!item.edicaoHomologacao.podeEditarPreliminar && item.edicaoHomologacao.bloqueioPreliminar ? (
-          <PageFeedback type="warning" title="Edicao preliminar bloqueada" description={item.edicaoHomologacao.bloqueioPreliminar} />
+          <PageFeedback type="warning" title="Edição preliminar bloqueada" description={item.edicaoHomologacao.bloqueioPreliminar} />
         ) : null}
         <form onSubmit={handlePrelim} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="admin-form-row">
@@ -347,7 +347,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field" style={{ flex: 2 }}>
               <label className="wiz-field-label">Parecer</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer preliminar" disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimParecer} onChange={(e) => { setPrelimParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisao preliminar." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer preliminar" disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} value={prelimParecer} onChange={(e) => { setPrelimParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisão preliminar." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrorScope === "prelim" && fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>
@@ -374,19 +374,19 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             <button type="button" disabled={!item.edicaoHomologacao.podeEditarPreliminar || busy} onClick={() => addMotivo("prelim")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
           </div>
           <button type="submit" disabled={busy || !item.edicaoHomologacao.podeEditarPreliminar} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 220 }}>
-            {busy ? "Registrando..." : "Registrar homologacao"}
+            {busy ? "Registrando..." : "Registrar homologação"}
           </button>
         </form>
       </div>
 
-      {/* Decisao final */}
+      {/* Decisão final */}
       <div className="admin-form-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h3 className="admin-form-card-title">Resultado final da homologacao</h3>
+          <h3 className="admin-form-card-title">Resultado final da homologação</h3>
           {hasFinal ? <StatusBadge variant={getStatusVariant(homolog?.statusFinal ?? "")}>{getStatusLabel(homolog?.statusFinal ?? "")}</StatusBadge> : null}
         </div>
         {!item.edicaoHomologacao.podeEditarFinal && item.edicaoHomologacao.bloqueioFinal ? (
-          <PageFeedback type="warning" title="Edicao final bloqueada" description={item.edicaoHomologacao.bloqueioFinal} />
+          <PageFeedback type="warning" title="Edição final bloqueada" description={item.edicaoHomologacao.bloqueioFinal} />
         ) : null}
         <form onSubmit={handleFinal} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="admin-form-row">
@@ -401,7 +401,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             </div>
             <div className="wiz-field" style={{ flex: 2 }}>
               <label className="wiz-field-label">Parecer</label>
-              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer final" disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalParecer} onChange={(e) => { setFinalParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisao final." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
+              <textarea aria-invalid={!!fieldErrors.parecer} aria-label="Parecer final" disabled={!item.edicaoHomologacao.podeEditarFinal || busy} value={finalParecer} onChange={(e) => { setFinalParecer(e.target.value); setFieldErrors((current) => ({ ...current, parecer: null })); }} placeholder="Explique de forma objetiva a decisão final." style={{ height: 72, borderRadius: 6, border: "1px solid #CBD5E1", padding: "10px 14px", fontSize: 14, resize: "vertical" }} />
               {fieldErrorScope === "final" && fieldErrors.parecer ? <span className="field-error-text">{fieldErrors.parecer}</span> : null}
             </div>
           </div>
@@ -427,7 +427,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
             <button type="button" disabled={!item.edicaoHomologacao.podeEditarFinal || busy} onClick={() => addMotivo("final")} style={{ height: 36, padding: "0 12px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", color: "#334155" }}>+ Adicionar</button>
           </div>
           <button type="submit" disabled={busy || !item.edicaoHomologacao.podeEditarFinal} className="admin-page-cta" style={{ alignSelf: "flex-start", width: 240 }}>
-            {busy ? "Registrando..." : "Registrar homologacao final"}
+            {busy ? "Registrando..." : "Registrar homologação final"}
           </button>
         </form>
       </div>
@@ -435,11 +435,11 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
       {/* Confirmacao de reserva */}
       {(reservaAcoesAtiva || reservaPcdAtiva) ? (
         <div className="admin-form-card">
-          <h3 className="admin-form-card-title">Confirmacao operacional de reserva</h3>
+          <h3 className="admin-form-card-title">Confirmação operacional de reserva</h3>
           <form onSubmit={handleConfirmacao} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="admin-form-row">
               <div className="wiz-field">
-                <label className="wiz-field-label">Acoes afirmativas</label>
+                <label className="wiz-field-label">Ações afirmativas</label>
                   <select aria-invalid={!!fieldErrors.confirmacaoAcoesAfirmativas} disabled={!reservaAcoesAtiva} value={confirmAA} onChange={(e) => { setConfirmAA(e.target.value as StatusConfirmacaoReserva); setFieldErrors((current) => ({ ...current, confirmacaoAcoesAfirmativas: null })); }} style={{ height: 42, borderRadius: 6, border: "1px solid #CBD5E1", padding: "0 14px", fontSize: 14 }}>
                   {confirmacaoAcoesOptions.map((v) => <option key={v} value={v}>{getStatusLabel(v)}</option>)}
                   </select>
@@ -454,7 +454,7 @@ export default function AdminHomologacaoDetailPage({ params }: Props) {
                 </div>
             </div>
             <button type="submit" disabled={busy} style={{ alignSelf: "flex-start", padding: "10px 20px", background: "#F1F5F9", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: "pointer", color: "#334155" }}>
-              {busy ? "Atualizando..." : "Atualizar confirmacao"}
+              {busy ? "Atualizando..." : "Atualizar confirmação"}
             </button>
           </form>
         </div>

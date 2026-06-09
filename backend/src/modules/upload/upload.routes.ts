@@ -25,7 +25,7 @@ const uploadMiddleware = multer({ storage: multer.memoryStorage(), limits: { fil
 
 uploadRouter.post("/v1/uploads", requireAuth, uploadMiddleware.single("file"), async (request, response) => {
   if (!request.auth) {
-    return response.status(401).json(validationError("Autenticacao obrigatoria.", { formErrors: ["Autenticacao obrigatoria."], fieldErrors: {} }));
+    return response.status(401).json(validationError("Autenticação obrigatória.", { formErrors: ["Autenticação obrigatória."], fieldErrors: {} }));
   }
 
   try {
@@ -49,7 +49,7 @@ uploadRouter.post("/v1/uploads", requireAuth, uploadMiddleware.single("file"), a
     if (error && typeof error === "object") {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "EACCES" || code === "EPERM" || code === "EROFS") {
-        return response.status(500).json(internalError("Storage de upload indisponivel no servidor.", "UPLOAD_STORAGE_UNAVAILABLE"));
+        return response.status(500).json(internalError("Storage de upload indisponível no servidor.", "UPLOAD_STORAGE_UNAVAILABLE"));
       }
     }
 
@@ -59,7 +59,7 @@ uploadRouter.post("/v1/uploads", requireAuth, uploadMiddleware.single("file"), a
 
 uploadRouter.get("/v1/uploads/private/:ownerId/:filename", requireAuth, async (request, response) => {
   if (!request.auth) {
-    return response.status(401).json(validationError("Autenticacao obrigatoria.", { formErrors: ["Autenticacao obrigatoria."], fieldErrors: {} }));
+    return response.status(401).json(validationError("Autenticação obrigatória.", { formErrors: ["Autenticação obrigatória."], fieldErrors: {} }));
   }
 
   const ownerId = Array.isArray(request.params.ownerId) ? request.params.ownerId[0] : request.params.ownerId;
@@ -68,12 +68,12 @@ uploadRouter.get("/v1/uploads/private/:ownerId/:filename", requireAuth, async (r
   try {
     assertSafePrivateUploadParams(ownerId, filename);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Parametros de arquivo invalidos.";
+    const message = error instanceof Error ? error.message : "Parâmetros de arquivo inválidos.";
     return response.status(400).json(validationError(message, { formErrors: [message], fieldErrors: {} }));
   }
 
   if (!canReadPrivateUpload(request.auth.userId, ownerId, request.auth.perfis)) {
-    return response.status(403).json(forbidden("Perfil sem permissao para acessar este arquivo."));
+    return response.status(403).json(forbidden("Perfil sem permissão para acessar este arquivo."));
   }
 
   try {
@@ -88,6 +88,6 @@ uploadRouter.get("/v1/uploads/private/:ownerId/:filename", requireAuth, async (r
 
     return createPrivateUploadReadStream(ownerId, filename).pipe(response);
   } catch {
-    return response.status(404).json(notFound("Arquivo nao encontrado."));
+    return response.status(404).json(notFound("Arquivo não encontrado."));
   }
 });

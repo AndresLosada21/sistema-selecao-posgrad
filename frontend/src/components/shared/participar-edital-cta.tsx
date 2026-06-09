@@ -45,7 +45,7 @@ export function ParticiparEditalCta({ editalId }: ParticiparEditalCtaProps) {
       <ActionButton disabled={busy} loading={busy} onClick={handleClick} type="button">
         Entrar neste edital
       </ActionButton>
-      {!error ? <small>Entre neste edital para ver os proximos passos disponiveis.</small> : null}
+      {!error ? <small>Entre neste edital para ver os próximos passos disponíveis.</small> : null}
       {error ? <small>{error}</small> : null}
     </div>
   );

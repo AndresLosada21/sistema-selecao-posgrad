@@ -18,11 +18,11 @@ import type { Etapa1AdminItem, Etapa1Espelho } from "@/modules/admin-etapas/type
 type Props = { params: Promise<{ inscricaoId: string }> };
 
 const CRITERIOS = [
-  { key: "adequacaoDominioTema", label: "Adequacao e dominio do tema", peso: 50 },
+  { key: "adequacaoDominioTema", label: "Adequação e domínio do tema", peso: 50 },
   { key: "estrutura", label: "Estrutura", peso: 10 },
-  { key: "organizacaoCoerencia", label: "Organizacao textual e coerencia", peso: 15 },
-  { key: "objetividadeSintese", label: "Objetividade e capacidade de sintese", peso: 15 },
-  { key: "grafiaGramatica", label: "Grafia, acentuacao e gramatica", peso: 10 },
+  { key: "organizacaoCoerencia", label: "Organização textual e coerência", peso: 15 },
+  { key: "objetividadeSintese", label: "Objetividade e capacidade de síntese", peso: 15 },
+  { key: "grafiaGramatica", label: "Grafia, acentuação e gramática", peso: 10 },
 ] as const;
 
 type CriterioKey = (typeof CRITERIOS)[number]["key"];
@@ -201,7 +201,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
   return (
     <div className="admin-main-inner" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 1 atualizada" : feedback.type === "warning" ? "Atencao na etapa 1" : "Nao foi possivel salvar a etapa 1"} type={feedback.type} />}
+      {feedback && <PageFeedback description={feedback.text} title={feedback.type === "success" ? "Etapa 1 atualizada" : feedback.type === "warning" ? "Atenção na etapa 1" : "Não foi possível salvar a etapa 1"} type={feedback.type} />}
 
       <AdminBreadcrumb items={[{ label: "Etapa 1", href: "/admin/etapa-1" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
@@ -226,7 +226,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         </div>
         <div className="admin-summary-card">
           <span className="admin-summary-card-label">Espelho</span>
-          <span style={{ fontSize: 13, color: "#475569" }}>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "Nao liberado"}</span>
+          <span style={{ fontSize: 13, color: "#475569" }}>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "Não liberado"}</span>
         </div>
       </div>
 
@@ -272,7 +272,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
               onChange={(e) => setUsoIaComprovado(e.target.value === "sim")}
               value={usoIaComprovado ? "sim" : "nao"}
             >
-              <option value="nao">Nao</option>
+              <option value="nao">Não</option>
               <option value="sim">Sim</option>
             </select>
           </div>
@@ -280,7 +280,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             <label>Espelho</label>
             <div className="admin-espelho-info">
               <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
-                {espelhoLiberado ? "Liberado" : "Nao liberado"}
+                {espelhoLiberado ? "Liberado" : "Não liberado"}
               </StatusBadge>
             </div>
           </div>
@@ -330,19 +330,19 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         ))}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Observacao geral</label>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Observação geral</label>
           <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setObservacoes((prev) => ({ ...prev, geral: e.target.value }))} value={observacoes.geral} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correcao</label>
-          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} aria-label="Espelho de correcao" disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correção</label>
+          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} aria-label="Espelho de correção" disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
           {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
         </div>
 
         <div className="admin-form-row">
           <div className="admin-eval-field">
-            <label>Publicacao</label>
+            <label>Publicação</label>
             <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={!podeAlternarPublicacao || busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
               <option value="PRELIMINAR">Preliminar</option>
               <option value="FINAL">Final</option>
@@ -350,23 +350,23 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
           </div>
           <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
-            <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a acao confirmada de liberacao abaixo."}</span>
+            <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a ação confirmada de liberação abaixo."}</span>
           </div>
         </div>
 
         <button className="admin-page-cta" disabled={busy || !podeSalvarResultado} style={{ width: 200 }} type="submit">
-          Salvar avaliacao
+          Salvar avaliação
         </button>
       </form>
       </div>
 
       {/* Criterios da rubrica (readonly preview table) */}
       <div className="admin-form-card">
-        <h2 className="admin-form-card-title">Criterios da rubrica</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Distribuicao de notas por criterio de avaliacao.</p>
+        <h2 className="admin-form-card-title">Critérios da rubrica</h2>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Distribuição de notas por critério de avaliação.</p>
 
         <table className="admin-rubrica-table">
-          <caption className="sr-only">Rubrica de correcao da etapa 1</caption>
+          <caption className="sr-only">Rubrica de correção da etapa 1</caption>
           <thead>
             <tr>
               <th scope="col">Criterio</th>
@@ -410,7 +410,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             <label>Status do espelho</label>
             <div className="admin-espelho-info">
               <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
-                {espelhoLiberado ? "Liberado" : "Nao liberado"}
+                {espelhoLiberado ? "Liberado" : "Não liberado"}
               </StatusBadge>
               <span>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "O candidato ainda nao pode visualizar o espelho."}</span>
             </div>
@@ -430,7 +430,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         {espelho && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16, background: "#F8FAFC", borderRadius: 6 }}>
             <small><strong>Tema:</strong> {espelho.tema ?? "—"}</small>
-            <small><strong>Espelho de correcao:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
+              <small><strong>Espelho de correção:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
             <small><strong>Solicitado em:</strong> {formatIsoDate(espelho.espelhoSolicitadoEm)}</small>
             <small><strong>Liberado em:</strong> {formatIsoDate(espelho.espelhoLiberadoEm)}</small>
             <small><strong>Resultado preliminar em:</strong> {formatIsoDate(espelho.resultadoPreliminarEm)}</small>
