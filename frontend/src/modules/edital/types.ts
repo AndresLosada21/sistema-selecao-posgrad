@@ -37,6 +37,22 @@ export type EditalTemaRedacao = {
   ativo: boolean;
 };
 
+export type EditalCriterioTitulacao = {
+  id: string;
+  chaveInterna: string;
+  numeroNormativo: string;
+  descricao: string;
+  fator: number | null;
+  teto: number | null;
+  unidade: string;
+  regraEspecial: string | null;
+  metadados: Record<string, unknown> | null;
+  ordem: number;
+  ativo: boolean;
+  pacoteOrigemSlug: string | null;
+  pacoteOrigemVersao: string | null;
+};
+
 export type EditalDetalhe = EditalListItem & {
   cronogramas: Array<{
     id: string;
@@ -51,4 +67,6 @@ export type EditalDetalhe = EditalListItem & {
   }>;
   temasRedacao: EditalTemaRedacao[];
   temasRedacaoConfigurados: boolean;
+  criteriosTitulacao: EditalCriterioTitulacao[];
+  criteriosTitulacaoConfigurados: boolean;
 };

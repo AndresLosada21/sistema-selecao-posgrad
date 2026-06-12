@@ -24,8 +24,8 @@ import {
   regimeTrabalhoOptions,
   ufOptions,
 } from "../constants";
-import { addDocumento, cancelInscricao, downloadAnexoIv, saveInscricaoDraft, submitInscricao } from "../api";
-import type { FichaInscricaoPayload } from "../types";
+import { addDocumento, addTituloInscricao, cancelInscricao, deleteTituloInscricao, downloadAnexoIv, saveInscricaoDraft, submitInscricao } from "../api";
+import type { FichaInscricaoPayload, TituloInscricao } from "../types";
 
 /* ================================================================
    Types & helpers
@@ -38,6 +38,7 @@ type InscricaoEditorProps = {
 
 type DashboardInscricao = NonNullable<NonNullable<InscricaoEditorProps["dashboardItem"]>["inscricao"]>;
 type InscricaoDocumentoView = DashboardInscricao["documentos"][number];
+type TituloInscricaoView = TituloInscricao;
 
 type FormMessage = { title: string; description: string; type?: "success" | "error" | "warning" | "info" };
 
@@ -68,7 +69,7 @@ type InscricaoEditorState = {
 
 const documentoTipoOptionsSemAnexoIv = documentoTipoOptions.filter((t) => t !== "ANEXO_IV");
 
-const STEP_LABELS = ["Dados Pessoais", "Dados Acadêmicos", "Redação", "Documentos", "Revisão"];
+const STEP_LABELS = ["Dados Pessoais", "Dados Acadêmicos", "Redação", "Documentos", "Títulos", "Revisão"];
 
 function mergeDocumentosPreservandoAtuais(current: InscricaoDocumentoView[], incoming: InscricaoDocumentoView[]) {
   const byTipo = new Map<string, InscricaoDocumentoView>();
@@ -230,6 +231,11 @@ function splitNaturalidade(value: string) {
 }
 
 const municipioCache = new Map<string, string[]>();
+const MUNICIPIOS_FETCH_TIMEOUT_MS = 5_000;
+const municipiosFallbackByUf: Record<string, string[]> = {
+  AM: ["Manaus"],
+  RR: ["Boa Vista"],
+};
 
 function getNacionalidadeValue(input: InscricaoEditorState["fichaInscricao"] | string | undefined) {
   if (typeof input === "string") {
@@ -260,14 +266,28 @@ async function fetchMunicipiosByUf(uf: string) {
   if (municipioCache.has(normalized)) {
     return municipioCache.get(normalized)!;
   }
-  const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${normalized}/municipios`);
-  if (!response.ok) {
-    throw new Error("IBGE_UNAVAILABLE");
+  const fallback = municipiosFallbackByUf[normalized] ?? [];
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MUNICIPIOS_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${normalized}/municipios`, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error("IBGE_UNAVAILABLE");
+    }
+    const payload = await response.json() as Array<{ nome: string }>;
+    const municipios = payload.map((item) => item.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    municipioCache.set(normalized, municipios);
+    return municipios;
+  } catch (error) {
+    if (fallback.length > 0) {
+      municipioCache.set(normalized, fallback);
+      return fallback;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  const payload = await response.json() as Array<{ nome: string }>;
-  const municipios = payload.map((item) => item.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  municipioCache.set(normalized, municipios);
-  return municipios;
 }
 
 function isEstrangeiro(ficha: InscricaoEditorState["fichaInscricao"]) {
@@ -278,14 +298,17 @@ function isEstrangeiro(ficha: InscricaoEditorState["fichaInscricao"]) {
 function getRequiredDocumentRules(input: {
   ficha: InscricaoEditorState["fichaInscricao"];
   pagamentoDispensado: boolean;
+  anexoVAutomaticoDisponivel?: boolean;
 }) {
   const required: RequiredDocumentRuleView[] = [
-    { tipo: "ANEXO_IV", label: "Anexo IV assinado" },
-    { tipo: "ANEXO_V", label: "Declaracao de titulos" },
     { tipo: "DIPLOMA", label: "Diploma ou declaracao de conclusao/finalista" },
     { tipo: "HISTORICO", label: "Histórico escolar de graduação" },
     { tipo: "CURRICULO", label: "Curriculo Lattes com documentacao comprobatoria" },
   ];
+
+  if (!input.anexoVAutomaticoDisponivel) {
+    required.splice(1, 0, { tipo: "ANEXO_V", label: "Declaracao de titulos" });
+  }
 
   if (isEstrangeiro(input.ficha) || hasText(input.ficha.passaporte)) {
     required.push({ tipo: "RNE_PASSAPORTE", label: "RNE ou passaporte" });
@@ -309,7 +332,21 @@ function getRequiredDocumentRules(input: {
     required.push({ tipo: "COMPROVANTE_ETNICO", label: "Comprovante etnico ou comunitario" });
   }
 
+  required.push({ tipo: "ANEXO_IV", label: "Anexo IV assinado" });
+
   return required;
+}
+
+function getDocumentoDefaultName(tipo: string, requiredDocumentRules: RequiredDocumentRuleView[]) {
+  return requiredDocumentRules.find((rule) => rule.tipo === tipo)?.label ?? getStatusLabel(tipo);
+}
+
+function sortDocumentosComAnexoIvPorUltimo<T extends { tipo: string }>(documentos: T[]) {
+  return [...documentos].sort((left, right) => {
+    if (left.tipo === "ANEXO_IV" && right.tipo !== "ANEXO_IV") return 1;
+    if (left.tipo !== "ANEXO_IV" && right.tipo === "ANEXO_IV") return -1;
+    return 0;
+  });
 }
 
 function getStepFieldErrors(input: {
@@ -317,6 +354,7 @@ function getStepFieldErrors(input: {
   state: InscricaoEditorState;
   documentos: Array<{ tipo: string; nomeArquivo?: string }>;
   pagamentoDispensado: boolean;
+  anexoVAutomaticoDisponivel?: boolean;
   editalTemasRedacao: EditalDetalhe["temasRedacao"];
   temasRedacaoConfigurados: boolean;
 }) {
@@ -467,6 +505,7 @@ function getStepFieldErrors(input: {
     const requiredRules = getRequiredDocumentRules({
       ficha,
       pagamentoDispensado: input.pagamentoDispensado,
+      anexoVAutomaticoDisponivel: input.anexoVAutomaticoDisponivel,
     });
     const docsByType = new Set(input.documentos.map((doc) => doc.tipo));
 
@@ -484,17 +523,19 @@ function getMaxReachedStep(input: {
   state: InscricaoEditorState;
   documentos: Array<{ tipo: string; nomeArquivo?: string }>;
   pagamentoDispensado: boolean;
+  anexoVAutomaticoDisponivel?: boolean;
   editalTemasRedacao: EditalDetalhe["temasRedacao"];
   temasRedacaoConfigurados: boolean;
 }) {
   let maxReached = 0;
 
-  for (let step = 0; step < 4; step += 1) {
+  for (let step = 0; step < 5; step += 1) {
     const errors = getStepFieldErrors({
       step,
       state: input.state,
       documentos: input.documentos,
       pagamentoDispensado: input.pagamentoDispensado,
+      anexoVAutomaticoDisponivel: input.anexoVAutomaticoDisponivel,
       editalTemasRedacao: input.editalTemasRedacao,
       temasRedacaoConfigurados: input.temasRedacaoConfigurados,
     });
@@ -506,7 +547,7 @@ function getMaxReachedStep(input: {
     maxReached = step + 1;
   }
 
-  return Math.min(maxReached, 4);
+  return Math.min(maxReached, 5);
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -644,10 +685,12 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [downloading, setDownloading] = useState(false);
   const [uploadingDocumento, setUploadingDocumento] = useState(false);
   const [uploadingAnexoIv, setUploadingAnexoIv] = useState(false);
+  const [uploadingTitulo, setUploadingTitulo] = useState(false);
   const [message, setMessage] = useState<FormMessage | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [checklist, setChecklist] = useState<SubmissionChecklistViewItem[]>([]);
   const [documentos, setDocumentos] = useState(dashboardItem?.inscricao?.documentos ?? []);
+  const [titulos, setTitulos] = useState<TituloInscricaoView[]>(dashboardItem?.inscricao?.titulos ?? []);
   const [inscricaoId, setInscricaoId] = useState(dashboardItem?.inscricao?.id ?? null);
   const [inscricaoStatus, setInscricaoStatus] = useState(dashboardItem?.inscricao?.status ?? "SEM_INSCRICAO");
   const [confirmChecks, setConfirmChecks] = useState([false, false, false, false]);
@@ -656,17 +699,23 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   const [docFormUrl, setDocFormUrl] = useState("");
   const [docFormFilename, setDocFormFilename] = useState("");
   const [docFormMime, setDocFormMime] = useState("application/pdf");
+  const [tituloFormCriterioId, setTituloFormCriterioId] = useState(edital.criteriosTitulacao?.[0]?.id ?? "");
+  const [tituloFormDescricao, setTituloFormDescricao] = useState("");
+  const [tituloFormUrl, setTituloFormUrl] = useState("");
+  const [tituloFormFilename, setTituloFormFilename] = useState("");
+  const [tituloFormMime, setTituloFormMime] = useState("application/pdf");
+  const [tituloFormSize, setTituloFormSize] = useState<number | undefined>(undefined);
   const fileRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const lastSavedDraftRef = useRef<string | null>(null);
   const hasMountedAutosaveRef = useRef(false);
 
   const anexoIvDocumento = useMemo(() => documentos.find((d) => d.tipo === "ANEXO_IV") ?? null, [documentos]);
-  const requiredDocumentRules = useMemo(() => getRequiredDocumentRules({ ficha: formState.fichaInscricao, pagamentoDispensado }), [formState.fichaInscricao, pagamentoDispensado]);
-  const pendingRequiredDocumentTypes = useMemo(() => requiredDocumentRules.filter((rule) => rule.tipo !== "ANEXO_IV" && !documentos.some((documento) => documento.tipo === rule.tipo)).map((rule) => rule.tipo), [documentos, requiredDocumentRules]);
+  const anexoVAutomaticoDisponivel = (edital.criteriosTitulacao ?? []).some((criterio) => criterio.ativo);
+  const requiredDocumentRules = useMemo(() => getRequiredDocumentRules({ ficha: formState.fichaInscricao, pagamentoDispensado, anexoVAutomaticoDisponivel }), [anexoVAutomaticoDisponivel, formState.fichaInscricao, pagamentoDispensado]);
   const redacaoLength = formState.redacaoTexto.length;
   const cursoLabel = edital.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
-  const maxReachedStep = useMemo(() => getMaxReachedStep({ state: formState, documentos, pagamentoDispensado, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados }), [documentos, edital.temasRedacao, edital.temasRedacaoConfigurados, formState, pagamentoDispensado]);
+  const maxReachedStep = useMemo(() => getMaxReachedStep({ state: formState, documentos, pagamentoDispensado, anexoVAutomaticoDisponivel, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados }), [anexoVAutomaticoDisponivel, documentos, edital.temasRedacao, edital.temasRedacaoConfigurados, formState, pagamentoDispensado]);
   const inscricaoEmRascunho = inscricaoStatus === "RASCUNHO";
   const inscricaoEditavel = inscricaoStatus === "SEM_INSCRICAO" || inscricaoEmRascunho;
   const podeCancelarParaEditar = inscricaoStatus === "SUBMETIDA";
@@ -735,21 +784,16 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   useEffect(() => {
     if (podeCancelarParaEditar) {
-      setStep(4);
+      setStep(5);
     }
   }, [podeCancelarParaEditar]);
 
   useEffect(() => {
-    if (docFormNome.trim()) {
-      return;
-    }
-
-    const label = requiredDocumentRules.find((rule) => rule.tipo === docFormTipo)?.label ?? getStatusLabel(docFormTipo);
-    setDocFormNome(label);
-  }, [docFormNome, docFormTipo, requiredDocumentRules]);
+    setDocFormNome(getDocumentoDefaultName(docFormTipo, requiredDocumentRules));
+  }, [docFormTipo, requiredDocumentRules]);
 
   async function validateAndGoNext() {
-    const errors = getStepFieldErrors({ step, state: formState, documentos, pagamentoDispensado, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados });
+    const errors = getStepFieldErrors({ step, state: formState, documentos, pagamentoDispensado, anexoVAutomaticoDisponivel, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados });
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -762,7 +806,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       return;
     }
 
-    setStep((current) => Math.min(current + 1, 4));
+    setStep((current) => Math.min(current + 1, 5));
   }
 
   /* ---- API handlers (preserved from original) ---- */
@@ -796,6 +840,9 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
       setInscricaoStatus(typeof saved.status === "string" ? saved.status : inscricaoStatus);
       if (Array.isArray(saved.documentos)) {
         setDocumentos((current) => mergeDocumentosPreservandoAtuais(current, saved.documentos as InscricaoDocumentoView[]));
+      }
+      if (Array.isArray(saved.titulos)) {
+        setTitulos(saved.titulos as TituloInscricaoView[]);
       }
       lastSavedDraftRef.current = JSON.stringify(currentDraftPayload);
       setAutosaveState("saved");
@@ -861,11 +908,73 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
     try {
       const documento = await addDocumento(inscricaoId, { tipo: docFormTipo as TipoDocumentoInscricao, nome: docFormNome, urlArquivo: docFormUrl, nomeArquivo: docFormFilename, mimeType: docFormMime || undefined }, session.token);
       setDocumentos((c) => [...c.filter((d) => d.tipo !== documento.tipo), documento]);
-      setDocFormTipo(documentoTipoOptionsSemAnexoIv[0]); setDocFormNome(""); setDocFormUrl(""); setDocFormFilename("");
+      const nextTipo = documentoTipoOptionsSemAnexoIv[0];
+      setDocFormTipo(nextTipo); setDocFormNome(getDocumentoDefaultName(nextTipo, requiredDocumentRules)); setDocFormUrl(""); setDocFormFilename("");
       setMessage({ title: "Documento enviado", description: `${getStatusLabel(documento.tipo)} registrado com sucesso.` });
     } catch (error) {
       if (handleUnauthorized(error)) return;
       setMessage({ title: "Falha ao registrar documento", description: getErrorMessage(error), type: "error" });
+    }
+  }
+
+  async function handleTituloFileSelect(file: File) {
+    if (!session.token) return;
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edição bloqueada", description: "Cancele a submissão para alterar os títulos declarados.", type: "warning" }); return; }
+    setUploadingTitulo(true); resetMessage();
+    try {
+      const uploaded = await uploadPrivateFile(file, session.token);
+      setTituloFormUrl(uploaded.urlArquivo);
+      setTituloFormFilename(uploaded.nomeArquivo);
+      setTituloFormMime(uploaded.mimeType);
+      setTituloFormSize(uploaded.tamanhoBytes);
+    } catch (error) {
+      if (handleUnauthorized(error)) return;
+      setMessage({ title: "Falha no upload do título", description: getErrorMessage(error), type: "error" });
+    } finally { setUploadingTitulo(false); }
+  }
+
+  async function handleAddTitulo(event: FormEvent) {
+    event.preventDefault();
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edição bloqueada", description: "Cancele a submissão para registrar novos títulos.", type: "warning" }); return; }
+    if (!session.token || !inscricaoId) { setMessage({ title: "Salve o rascunho primeiro", description: "O rascunho precisa existir para registrar títulos.", type: "warning" }); return; }
+    if (!tituloFormCriterioId) { setMessage({ title: "Critério obrigatório", description: "Selecione o critério do Anexo II relacionado ao título.", type: "warning" }); return; }
+    if (!tituloFormDescricao.trim()) { setMessage({ title: "Descrição obrigatória", description: "Informe a descrição do título conforme o Anexo II.", type: "warning" }); return; }
+    if (!tituloFormUrl) { setMessage({ title: "Arquivo obrigatório", description: "Envie o PDF comprobatório do título antes de registrar.", type: "warning" }); return; }
+    resetMessage();
+    try {
+      const titulo = await addTituloInscricao(inscricaoId, {
+        criterioTitulacaoEditalId: tituloFormCriterioId,
+        descricaoTitulo: tituloFormDescricao,
+        urlArquivo: tituloFormUrl,
+        nomeArquivo: tituloFormFilename,
+        mimeType: tituloFormMime || undefined,
+        tamanhoBytes: tituloFormSize,
+        ordem: titulos.length,
+      }, session.token);
+      setTitulos((current) => [...current, titulo]);
+      setTituloFormDescricao("");
+      setTituloFormUrl("");
+      setTituloFormFilename("");
+      setTituloFormMime("application/pdf");
+      setTituloFormSize(undefined);
+      setMessage({ title: "Título registrado", description: "O título foi vinculado ao critério do Anexo II." });
+    } catch (error) {
+      if (handleUnauthorized(error)) return;
+      setMessage({ title: "Falha ao registrar título", description: getErrorMessage(error), type: "error" });
+    }
+  }
+
+  async function handleDeleteTitulo(tituloId: string) {
+    if (!session.token || !inscricaoId) return;
+    if (!inscricaoEmRascunho) { setMessage({ title: "Edição bloqueada", description: "Cancele a submissão para remover títulos declarados.", type: "warning" }); return; }
+    resetMessage();
+    try {
+      await deleteTituloInscricao(inscricaoId, tituloId, session.token);
+      setTitulos((current) => current.filter((titulo) => titulo.id !== tituloId));
+      setMessage({ title: "Título removido", description: "O título declarado foi removido da inscrição." });
+    } catch (error) {
+      if (handleUnauthorized(error)) return;
+      setMessage({ title: "Falha ao remover título", description: getErrorMessage(error), type: "error" });
     }
   }
 
@@ -977,8 +1086,25 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
           />
         )}
         {step === 4 && (
-          <Step5Revisao
-            formState={formState} edital={edital} cursoLabel={cursoLabel} documentos={documentos}
+          <Step5Titulos
+            criteriosTitulacao={edital.criteriosTitulacao ?? []}
+            anexoVAutomaticoDisponivel={anexoVAutomaticoDisponivel}
+            titulos={titulos}
+            uploadingTitulo={uploadingTitulo}
+            tituloFormCriterioId={tituloFormCriterioId}
+            setTituloFormCriterioId={setTituloFormCriterioId}
+            tituloFormDescricao={tituloFormDescricao}
+            setTituloFormDescricao={setTituloFormDescricao}
+            tituloFormFilename={tituloFormFilename}
+            onTituloFileSelect={handleTituloFileSelect}
+            onAddTitulo={handleAddTitulo}
+            onDeleteTitulo={handleDeleteTitulo}
+            allowEdits={inscricaoEmRascunho}
+          />
+        )}
+        {step === 5 && (
+          <Step6Revisao
+            formState={formState} edital={edital} cursoLabel={cursoLabel} documentos={documentos} titulos={titulos}
             confirmChecks={confirmChecks} setConfirmChecks={setConfirmChecks}
             checklist={checklist} inscricaoStatus={inscricaoStatus}
             goToStep={setStep}
@@ -994,7 +1120,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
         </button>
         <span className="wiz-footer-spacer" />
         <span className="wiz-auto-save">{svgCloud} {autosaveState === "saving" ? "Salvando automaticamente..." : autosaveState === "saved" ? `Salvo automaticamente${autosaveAt ? ` as ${new Date(autosaveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : autosaveState === "error" ? "Falha no salvamento automático" : "Salvamento automático ativo"}</span>
-        {step < 4 ? (
+        {step < 5 ? (
           <button type="button" className="wiz-btn-next" disabled={savingDraft || !inscricaoEditavel} onClick={goNext}>
             Próximo: {STEP_LABELS[step + 1]} {svgArrowRight}
           </button>
@@ -1717,36 +1843,6 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 
-        {/* Anexo IV section */}
-        <div className="wiz-annex">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {svgFileBadge}
-            <span className="wiz-annex-title">Anexo IV — Ficha Cadastral</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", background: "#1B3A6B", borderRadius: 99, padding: "3px 10px" }}>Obrigatório</span>
-          </div>
-          <span className="wiz-annex-desc">Baixe o Anexo IV preenchido com os dados do formulário, assine o PDF fora da plataforma e reenvie o arquivo assinado.</span>
-          <div className="wiz-annex-steps">
-            <span className="wiz-annex-step-num">1</span><span className="wiz-annex-step-label">Baixar PDF</span>
-            <span className="wiz-annex-connector" />
-            <span className="wiz-annex-step-num">2</span><span className="wiz-annex-step-label">Assinar fora</span>
-            <span className="wiz-annex-connector" />
-            <span className="wiz-annex-step-num">3</span><span className="wiz-annex-step-label">Reenviar assinado</span>
-          </div>
-          <div className="wiz-annex-actions">
-            <button type="button" className="wiz-annex-dl-btn" disabled={downloading || !inscricaoId} onClick={onDownloadAnexoIv}>
-              {svgDownload("#2563EB")} {downloading ? "Baixando..." : "Baixar Anexo IV preenchido"}
-            </button>
-            <span style={{ flex: 1 }} />
-            <FileField
-              disabled={!allowEdits || uploadingAnexoIv || !inscricaoId}
-              hint={anexoIvDocumento ? `Reenviado: ${anexoIvDocumento.nomeArquivo ?? "Anexo IV assinado"}` : ""}
-              label="Enviar Anexo IV assinado (PDF)"
-              onFileSelect={onUploadAnexoIv}
-            />
-          </div>
-          <span className="wiz-annex-hint">O PDF já contém seus dados preenchidos nas etapas anteriores</span>
-        </div>
-
         <div style={{ borderTop: "1px solid #F1F5F9", padding: "20px 28px", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <div>
@@ -1796,7 +1892,7 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
             <div className="wiz-field-row">
               <div className="wiz-field">
                 <label className="wiz-field-label">Tipo</label>
-                <select disabled={!allowEdits} value={docFormTipo} onChange={(e) => setDocFormTipo(e.target.value)}>
+                <select disabled={!allowEdits} value={docFormTipo} onChange={(e) => { setDocFormTipo(e.target.value); setDocFormNome(getDocumentoDefaultName(e.target.value, requiredDocumentRules)); }}>
                   {requiredRulesWithoutAnexoIv.length ? (
                     <optgroup label="Obrigatórios para esta inscrição">
                       {requiredRulesWithoutAnexoIv.map((rule) => <option key={rule.tipo} value={rule.tipo}>{rule.label}</option>)}
@@ -1817,6 +1913,35 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
               Registrar documento
             </button>
           </form>
+        </div>
+
+        <div className="wiz-annex" style={{ borderTop: "1px solid #F1F5F9" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {svgFileBadge}
+            <span className="wiz-annex-title">Anexo IV — Ficha Cadastral</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", background: "#1B3A6B", borderRadius: 99, padding: "3px 10px" }}>Obrigatório</span>
+          </div>
+          <span className="wiz-annex-desc">Depois de anexar os demais documentos, baixe o Anexo IV preenchido com os dados do formulário, assine o PDF fora da plataforma e reenvie o arquivo assinado.</span>
+          <div className="wiz-annex-steps">
+            <span className="wiz-annex-step-num">1</span><span className="wiz-annex-step-label">Baixar PDF</span>
+            <span className="wiz-annex-connector" />
+            <span className="wiz-annex-step-num">2</span><span className="wiz-annex-step-label">Assinar fora</span>
+            <span className="wiz-annex-connector" />
+            <span className="wiz-annex-step-num">3</span><span className="wiz-annex-step-label">Reenviar assinado</span>
+          </div>
+          <div className="wiz-annex-actions">
+            <button type="button" className="wiz-annex-dl-btn" disabled={downloading || !inscricaoId} onClick={onDownloadAnexoIv}>
+              {svgDownload("#2563EB")} {downloading ? "Baixando..." : "Baixar Anexo IV preenchido"}
+            </button>
+            <span style={{ flex: 1 }} />
+            <FileField
+              disabled={!allowEdits || uploadingAnexoIv || !inscricaoId}
+              hint={anexoIvDocumento ? `Reenviado: ${anexoIvDocumento.nomeArquivo ?? "Anexo IV assinado"}` : ""}
+              label="Enviar Anexo IV assinado (PDF)"
+              onFileSelect={onUploadAnexoIv}
+            />
+          </div>
+          <span className="wiz-annex-hint">O Anexo IV é a última peça documental da inscrição e já contém seus dados preenchidos nas etapas anteriores.</span>
         </div>
       </div>
 
@@ -1842,12 +1967,102 @@ function Step4Documentos({ inscricaoId, documentos, anexoIvDocumento, requiredDo
 }
 
 /* ================================================================
-   Step 5 — Revisao e Submissao
+   Step 5 — Titulos / Anexo II
    ================================================================ */
 
-function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks, setConfirmChecks, checklist, inscricaoStatus, goToStep }: {
+function Step5Titulos({ criteriosTitulacao, anexoVAutomaticoDisponivel, titulos, uploadingTitulo, tituloFormCriterioId, setTituloFormCriterioId, tituloFormDescricao, setTituloFormDescricao, tituloFormFilename, onTituloFileSelect, onAddTitulo, onDeleteTitulo, allowEdits }: {
+  criteriosTitulacao: EditalDetalhe["criteriosTitulacao"];
+  anexoVAutomaticoDisponivel: boolean;
+  titulos: TituloInscricaoView[];
+  uploadingTitulo: boolean;
+  tituloFormCriterioId: string;
+  setTituloFormCriterioId: (v: string) => void;
+  tituloFormDescricao: string;
+  setTituloFormDescricao: (v: string) => void;
+  tituloFormFilename: string;
+  onTituloFileSelect: (f: File) => void;
+  onAddTitulo: (e: FormEvent) => void;
+  onDeleteTitulo: (tituloId: string) => void;
+  allowEdits: boolean;
+}) {
+  return (
+    <div style={{ width: 760, maxWidth: "100%", background: "#fff", borderRadius: 12, border: "1px solid #E2E8F0", overflow: "hidden" }}>
+      <div style={{ padding: "28px 28px 20px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <h2 className="wiz-card-title">Títulos / Anexo II</h2>
+        <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>Declare os títulos e vincule cada comprovante ao critério correspondente da análise curricular.</p>
+      </div>
+      <div style={{ height: 1, background: "#F1F5F9" }} />
+      <div style={{ padding: "20px 28px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {criteriosTitulacao.length === 0 ? (
+          <div className="wiz-info-box" style={{ margin: 0 }}>
+            {svgInfo}
+            <span>Este edital ainda não possui critérios de titulação configurados.</span>
+          </div>
+        ) : (
+          <>
+            {anexoVAutomaticoDisponivel ? (
+              <div className="wiz-info-box" style={{ margin: 0 }}>
+                {svgInfo}
+                <span>O Anexo V será gerado automaticamente a partir desta declaração estruturada. Não é necessário enviar um PDF manual de Anexo V.</span>
+              </div>
+            ) : null}
+            <form onSubmit={onAddTitulo} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="wiz-field">
+                <label className="wiz-field-label">Critério do Anexo II</label>
+                <select disabled={!allowEdits} value={tituloFormCriterioId} onChange={(event) => setTituloFormCriterioId(event.target.value)}>
+                  {criteriosTitulacao.map((criterio) => (
+                    <option key={criterio.id} value={criterio.id}>
+                      {criterio.numeroNormativo}. {criterio.descricao}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="wiz-field">
+                <label className="wiz-field-label">Descrição dos Títulos</label>
+                <textarea
+                  disabled={!allowEdits}
+                  value={tituloFormDescricao}
+                  onChange={(event) => setTituloFormDescricao(event.target.value)}
+                  placeholder="Ex.: Artigo completo publicado em periódico com JCR, certificado de especialização, participação em projeto..."
+                  rows={4}
+                />
+              </div>
+              <FileField disabled={!allowEdits || uploadingTitulo} hint={tituloFormFilename ? `Arquivo: ${tituloFormFilename}` : "Envie o PDF comprobatório do título"} label="Comprovante do título (PDF)" onFileSelect={onTituloFileSelect} />
+              <button type="submit" className="wiz-btn-next" disabled={!allowEdits || uploadingTitulo || !tituloFormFilename || !tituloFormDescricao.trim() || !tituloFormCriterioId} style={{ alignSelf: "flex-start" }}>
+                Registrar título
+              </button>
+            </form>
+          </>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {titulos.length > 0 ? titulos.map((titulo) => (
+            <div key={titulo.id} style={{ border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start", background: "#F8FAFC" }}>
+              <div className="wiz-doc-icon wiz-doc-icon--green">{svgCircleCheck("#22C55E")}</div>
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                <strong style={{ fontSize: 13, color: "#1E293B" }}>{titulo.criterio ? `${titulo.criterio.numeroNormativo}. ${titulo.criterio.descricao}` : "Critério informado"}</strong>
+                <span style={{ fontSize: 12, color: "#475569" }}>{titulo.descricaoTitulo}</span>
+                <span style={{ fontSize: 11, color: "#64748B" }}>{titulo.nomeArquivo}</span>
+              </div>
+              <button type="button" className="wiz-review-edit-btn" disabled={!allowEdits} onClick={() => onDeleteTitulo(titulo.id)}>Remover</button>
+            </div>
+          )) : (
+            <span style={{ color: "#94A3B8", fontSize: 12 }}>Nenhum título declarado ainda.</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================
+   Step 6 — Revisao e Submissao
+   ================================================================ */
+
+function Step6Revisao({ formState, edital, cursoLabel, documentos, titulos, confirmChecks, setConfirmChecks, checklist, inscricaoStatus, goToStep }: {
   formState: InscricaoEditorState; edital: EditalDetalhe; cursoLabel: string;
   documentos: Array<{ id: string; tipo: string; nome: string; nomeArquivo?: string }>;
+  titulos: TituloInscricaoView[];
   confirmChecks: boolean[]; setConfirmChecks: React.Dispatch<React.SetStateAction<boolean[]>>;
   checklist: SubmissionChecklistViewItem[]; inscricaoStatus: string; goToStep: (s: number) => void;
 }) {
@@ -1926,7 +2141,7 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
           </span>
         </div>
         <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 8 }}>
-          {documentos.map((doc) => (
+          {sortDocumentosComAnexoIvPorUltimo(documentos).map((doc) => (
             <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
               {svgCircleCheck("#22C55E")}
               <span style={{ color: doc.tipo === "ANEXO_IV" ? "#1E293B" : "#334155", fontWeight: doc.tipo === "ANEXO_IV" ? 600 : 400 }}>{getStatusLabel(doc.tipo)}</span>
@@ -1935,6 +2150,27 @@ function Step5Revisao({ formState, edital, cursoLabel, documentos, confirmChecks
             </div>
           ))}
           {documentos.length === 0 ? <span style={{ color: "#94A3B8", fontSize: 12 }}>Nenhum documento registrado.</span> : null}
+        </div>
+
+        <div style={{ height: 1, background: "#F1F5F9" }} />
+        <div className="wiz-review-section-hdr">
+          {svgGradCap} <span className="wiz-review-section-title">Títulos / Anexo II</span>
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: "#065F46", background: "#F0FDF4", borderRadius: 99, padding: "4px 10px" }}>
+            {titulos.length} declarado(s)
+          </span>
+        </div>
+        <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {titulos.map((titulo) => (
+            <div key={titulo.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12 }}>
+              {svgCircleCheck("#22C55E")}
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={{ color: "#334155", fontWeight: 600 }}>{titulo.criterio ? `${titulo.criterio.numeroNormativo}. ${titulo.criterio.descricao}` : "Critério informado"}</span>
+                <span style={{ color: "#475569" }}>{titulo.descricaoTitulo}</span>
+                <span style={{ color: "#94A3B8", fontSize: 11 }}>{titulo.nomeArquivo}</span>
+              </div>
+            </div>
+          ))}
+          {titulos.length === 0 ? <span style={{ color: "#94A3B8", fontSize: 12 }}>Nenhum título declarado.</span> : null}
         </div>
       </div>
 

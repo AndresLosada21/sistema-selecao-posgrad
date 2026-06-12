@@ -83,6 +83,7 @@ type SubmissionValidationInput = {
   redacaoTexto?: string | null;
   documentos: DocumentoResumo[];
   pagamentoDispensado: boolean;
+  anexoVAutomaticoDisponivel?: boolean;
 };
 
 function normalizeString(value: string | null | undefined) {
@@ -337,8 +338,9 @@ export function validateInscricaoForSubmission(input: SubmissionValidationInput)
 
   const checklist = requiredDocumentRules.map((rule) => {
     const documento = input.documentos.find((current) => current.tipo === rule.tipo);
-    const pdfValido = isPdfDocument(documento);
-    const presente = Boolean(documento);
+    const anexoVAutomatico = rule.tipo === TipoDocumentoInscricao.ANEXO_V && input.anexoVAutomaticoDisponivel === true;
+    const pdfValido = anexoVAutomatico || isPdfDocument(documento);
+    const presente = anexoVAutomatico || Boolean(documento);
 
     let pendencia: string | null = null;
 
@@ -364,6 +366,12 @@ export function validateInscricaoForSubmission(input: SubmissionValidationInput)
             urlArquivo: documento.urlArquivo,
             statusValidacao: documento.statusValidacao,
           }
+        : anexoVAutomatico
+          ? {
+              nomeArquivo: "anexo-v-gerado-pelo-sistema.pdf",
+              urlArquivo: "AUTO:ANEXO_V",
+              statusValidacao: "GERADO_PELO_SISTEMA",
+            }
         : null,
     } satisfies SubmissionChecklistItem;
   });
@@ -386,6 +394,7 @@ export function buildInscricaoSubmissionSnapshot(input: {
   redacaoTexto: string;
   checklist: SubmissionChecklistItem[];
   documentos: DocumentoResumo[];
+  titulos?: Array<Record<string, unknown>>;
   pagamentoDispensado: boolean;
   versaoSubmissao: number;
 }) {
@@ -437,5 +446,6 @@ export function buildInscricaoSubmissionSnapshot(input: {
       statusValidacao: documento.statusValidacao,
       pdfValido: isPdfDocument(documento),
     })),
+    titulos: input.titulos ?? [],
   };
 }

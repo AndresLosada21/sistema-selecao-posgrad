@@ -5,7 +5,13 @@ import { resolveReservasConcorrencia } from "../inscricao/inscricao.rules.js";
 import { syncEtapaPoliticasAfirmativasForInscricao } from "../politicas-afirmativas/politicas-afirmativas.service.js";
 import { buildInscricaoWhereForAvaliador } from "../avaliacao/avaliador-scope.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
-import { buildEspelhoEtapa2, buildMemoriaCalculoEtapa2, calcularNotaNormalizadaEtapa2, type GlosaEtapa2 } from "./etapa2.rules.js";
+import {
+  buildEspelhoEtapa2,
+  buildMemoriaCalculoEtapa2,
+  calcularNotaNormalizadaEtapa2,
+  calcularPontuacaoTitulacaoEstruturada,
+  type GlosaEtapa2,
+} from "./etapa2.rules.js";
 
 async function hasRecursosPendentesEtapa2(inscricaoId: string) {
   return (await prisma.recurso.count({
@@ -87,6 +93,49 @@ async function buildEtapa2EditState(inscricao: Prisma.InscricaoGetPayload<{
   };
 }
 
+async function buildSugestaoPontuacaoTitulacao(inscricaoId: string, editalId: string) {
+  const [criterios, titulos] = await prisma.$transaction([
+    prisma.criterioTitulacaoEdital.findMany({
+      where: { editalId, ativo: true },
+      orderBy: [{ ordem: "asc" }, { numeroNormativo: "asc" }],
+    }),
+    prisma.tituloInscricao.findMany({
+      where: {
+        inscricaoId,
+        criterioTitulacaoEdital: {
+          editalId,
+          ativo: true,
+        },
+      },
+      orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+    }),
+  ]);
+
+  if (criterios.length === 0) {
+    return null;
+  }
+
+  return calcularPontuacaoTitulacaoEstruturada({
+    criterios: criterios.map((criterio) => ({
+      id: criterio.id,
+      chaveInterna: criterio.chaveInterna,
+      numeroNormativo: criterio.numeroNormativo,
+      descricao: criterio.descricao,
+      fator: criterio.fator?.toNumber() ?? null,
+      teto: criterio.teto?.toNumber() ?? null,
+      unidade: criterio.unidade,
+      regraEspecial: criterio.regraEspecial,
+    })),
+    titulos: titulos.map((titulo) => ({
+      id: titulo.id,
+      criterioTitulacaoEditalId: titulo.criterioTitulacaoEditalId,
+      descricaoTitulo: titulo.descricaoTitulo,
+      nomeArquivo: titulo.nomeArquivo,
+      urlArquivo: titulo.urlArquivo,
+    })),
+  });
+}
+
 export async function recalcularNotasEtapa2PorEdital(editalId: string, status?: StatusAvaliacaoEtapa) {
   const avaliacoes = await prisma.avaliacaoEtapa2.findMany({
     where: {
@@ -146,7 +195,7 @@ function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
   bloqueioSalvarFinal: string | null;
   podeLiberarEspelho: boolean;
   bloqueioLiberarEspelho: string | null;
-}) {
+}, sugestaoPontuacao?: Awaited<ReturnType<typeof buildSugestaoPontuacaoTitulacao>>) {
   const avaliacao = inscricao.avaliacaoEtapa2;
 
   return {
@@ -161,6 +210,7 @@ function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
       id: inscricao.participacaoEdital.edital.id,
       numero: inscricao.participacaoEdital.edital.numero,
       titulo: inscricao.participacaoEdital.edital.titulo,
+      cursoNivel: inscricao.participacaoEdital.edital.cursoNivel,
     },
     linhaPesquisa: inscricao.linhaPesquisa
       ? {
@@ -181,6 +231,7 @@ function mapEtapa2Inscricao(inscricao: Prisma.InscricaoGetPayload<{
           status: avaliacao.status,
         }
       : null,
+    sugestaoPontuacaoTitulacao: sugestaoPontuacao ?? null,
     edicao: edicao ?? null,
   };
 }
@@ -249,7 +300,8 @@ export async function getInscricaoEtapa2ById(inscricaoId: string) {
 
   if (!inscricao) return null;
   const edicao = await buildEtapa2EditState(inscricao);
-  return mapEtapa2Inscricao(inscricao, edicao);
+  const sugestaoPontuacao = await buildSugestaoPontuacaoTitulacao(inscricao.id, inscricao.participacaoEdital.editalId);
+  return mapEtapa2Inscricao(inscricao, edicao, sugestaoPontuacao);
 }
 
 export async function registrarResultadoEtapa2(

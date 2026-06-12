@@ -12,6 +12,7 @@ export type Etapa1AdminItem = {
     id: string;
     numero: string;
     titulo: string;
+    cursoNivel: string;
   };
   linhaPesquisa: {
     id: string;
@@ -93,6 +94,7 @@ export type Etapa2AdminItem = {
     id: string;
     numero: string;
     titulo: string;
+    cursoNivel: string;
   };
   linhaPesquisa: {
     id: string;
@@ -109,6 +111,7 @@ export type Etapa2AdminItem = {
     espelhoLiberadoEm: string | null;
     status: string;
   } | null;
+  sugestaoPontuacaoTitulacao: Etapa2SugestaoPontuacaoTitulacao | null;
   edicao?: {
     podeSalvarPreliminar: boolean;
     bloqueioSalvarPreliminar: string | null;
@@ -117,6 +120,44 @@ export type Etapa2AdminItem = {
     podeLiberarEspelho: boolean;
     bloqueioLiberarEspelho: string | null;
   } | null;
+};
+
+export type Etapa2SugestaoPontuacaoTitulacao = {
+  origem: "TITULOS_DECLARADOS_ESTRUTURADOS";
+  pontuacaoItens: Record<string, number>;
+  pontuacaoBruta: number;
+  totalTitulosDeclarados: number;
+  totalTitulosCalculados: number;
+  pendencias: Array<{
+    criterioId: string;
+    chaveInterna: string;
+    numeroNormativo: string;
+    descricao: string;
+    quantidadeDeclarada: number;
+    motivo: string | null;
+  }>;
+  detalhes: Array<{
+    criterio: {
+      id: string;
+      chaveInterna: string;
+      numeroNormativo: string;
+      descricao: string;
+      fator: number | null;
+      teto: number | null;
+      unidade: string;
+      regraEspecial: string | null;
+    };
+    quantidadeDeclarada: number;
+    pontuacaoSemTeto: number;
+    pontuacaoCalculada: number;
+    pendencia: string | null;
+    titulos: Array<{
+      id: string;
+      descricaoTitulo: string;
+      nomeArquivo: string;
+      urlArquivo: string;
+    }>;
+  }>;
 };
 
 export type Etapa2ListResponse = {

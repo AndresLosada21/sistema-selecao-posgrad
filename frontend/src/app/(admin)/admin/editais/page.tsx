@@ -26,6 +26,8 @@ export default function AdminEditaisPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ numero: "", titulo: "", descricao: "", ano: String(new Date().getFullYear()), semestre: "1", cursoNivel: "MESTRADO" as CursoNivel, status: "RASCUNHO" as StatusEdital });
   const [temaForm, setTemaForm] = useState({ titulo: "", descricao: "" });
@@ -39,7 +41,7 @@ export default function AdminEditaisPage() {
     if (!session.token) return;
     let pacoteLoadFailed = false;
     const [response, pacotes] = await Promise.all([
-      listAdminEditais(session.token, { page, pageSize: 20 }),
+      listAdminEditais(session.token, { page, pageSize: 20, q: search || undefined }),
       listTemaRedacaoPacotesAdmin(session.token).catch(() => {
         pacoteLoadFailed = true;
         return { items: [], total: 0 };
@@ -49,7 +51,7 @@ export default function AdminEditaisPage() {
     setTemaPacotes(pacotes.items);
     setTemaPacoteSlug((current) => current || pacotes.items[0]?.slug || "");
     setTemaPacotesError(pacoteLoadFailed ? "Não foi possível carregar os pacotes padrão de temas agora. Você ainda pode criar o edital e cadastrar temas manualmente." : null);
-  }, [page, session.token]);
+  }, [page, search, session.token]);
 
   useAbortableEffect(async (signal) => {
     if (!session.token) return;
@@ -95,6 +97,18 @@ export default function AdminEditaisPage() {
       setFieldErrors(pickFirstFieldErrors(error, ["numero", "titulo", "descricao", "ano", "semestre", "cursoNivel", "status", "temasRedacao", "tituloTema", "descricaoTema"] as const));
       setMessage({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
+  }
+
+  function handleSearchSubmit(e: FormEvent) {
+    e.preventDefault();
+    setPage(1);
+    setSearch(searchDraft.trim());
+  }
+
+  function clearSearch() {
+    setSearchDraft("");
+    setSearch("");
+    setPage(1);
   }
 
   if (status === "loading") return <LoadingState title="Carregando editais" description="Consultando editais administrativos." />;
@@ -217,12 +231,18 @@ export default function AdminEditaisPage() {
       ) : null}
 
       {/* Search bar */}
-      <div className="admin-search-bar">
+      <form className="admin-search-bar" onSubmit={handleSearchSubmit}>
         <div className="admin-search-input">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
-          <input placeholder="Buscar por numero, titulo ou curso..." />
+          <input
+            placeholder="Buscar por numero, titulo ou curso..."
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+          />
         </div>
-      </div>
+        <button type="submit" className="admin-pagination-btn" style={{ width: "auto", padding: "0 16px" }}>Buscar</button>
+        {search ? <button type="button" className="admin-pagination-btn" style={{ width: "auto", padding: "0 16px" }} onClick={clearSearch}>Limpar</button> : null}
+      </form>
 
       {/* Table */}
       {data?.items.length ? (
@@ -267,7 +287,7 @@ export default function AdminEditaisPage() {
             </div>
           </div>
         </div>
-      ) : <EmptyState title="Sem editais" description="Nenhum edital cadastrado ainda." />}
+      ) : <EmptyState title={search ? "Nenhum edital encontrado" : "Sem editais"} description={search ? "Ajuste o termo da busca ou limpe o filtro para ver todos os editais." : "Nenhum edital cadastrado ainda."} />}
     </div>
   );
 }

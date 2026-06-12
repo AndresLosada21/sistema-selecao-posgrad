@@ -124,6 +124,24 @@ test("aceita inscricao completa com pagamento dispensado", () => {
   );
 });
 
+test("aceita Anexo V automatico quando titulacao estruturada esta disponivel", () => {
+  const result = validateInscricaoForSubmission({
+    modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+    fichaInscricao: fichaBase,
+    temaRedacao: "Controle preditivo",
+    redacaoTexto: "A".repeat(REDACAO_LIMITS.min),
+    documentos: documentosBase.filter((documento) => documento.tipo !== TipoDocumentoInscricao.ANEXO_V),
+    pagamentoDispensado: true,
+    anexoVAutomaticoDisponivel: true,
+  });
+
+  const anexoVChecklist = result.checklist.find((item) => item.tipo === TipoDocumentoInscricao.ANEXO_V);
+
+  assert.equal(result.ok, true);
+  assert.equal(anexoVChecklist?.presente, true);
+  assert.equal(anexoVChecklist?.documento?.urlArquivo, "AUTO:ANEXO_V");
+});
+
 test("exige comprovante de pagamento, laudo PCD e comprovante etnico quando aplicavel", () => {
   const result = validateInscricaoForSubmission({
     modalidadeConcorrencia: ModalidadeConcorrencia.PCD,

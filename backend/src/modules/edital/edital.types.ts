@@ -1,4 +1,5 @@
 import type {
+  CriterioTitulacaoEdital,
   CursoNivel,
   LinhaPesquisa,
   Prisma,
@@ -71,6 +72,40 @@ export type TemaRedacaoPacoteListResult = {
   total: number;
 };
 
+export type CriterioTitulacaoResumo = Pick<
+  CriterioTitulacaoEdital,
+  | "id"
+  | "chaveInterna"
+  | "numeroNormativo"
+  | "descricao"
+  | "unidade"
+  | "regraEspecial"
+  | "metadados"
+  | "ordem"
+  | "ativo"
+  | "pacoteOrigemSlug"
+  | "pacoteOrigemVersao"
+> & {
+  fator: number | null;
+  teto: number | null;
+};
+
+export type CriterioTitulacaoPacoteModo = "MERGE" | "REPLACE_INACTIVE";
+
+export type CriterioTitulacaoPacoteResumo = {
+  slug: string;
+  nome: string;
+  versao: string;
+  descricao?: string;
+  totalCriterios: number;
+  criteriosPreview: string[];
+};
+
+export type CriterioTitulacaoPacoteListResult = {
+  items: CriterioTitulacaoPacoteResumo[];
+  total: number;
+};
+
 export type ApplyTemaRedacaoPacoteInput = {
   slug: string;
   modo?: TemaRedacaoPacoteModo;
@@ -80,6 +115,23 @@ export type ApplyTemaRedacaoPacoteResult = {
   editalId: string;
   pacote: TemaRedacaoPacoteResumo;
   modo: TemaRedacaoPacoteModo;
+  criados: string[];
+  reativados: string[];
+  atualizados: string[];
+  inativados: string[];
+  jaExistentes: string[];
+  totalAtivosDepois: number;
+};
+
+export type ApplyCriterioTitulacaoPacoteInput = {
+  slug: string;
+  modo?: CriterioTitulacaoPacoteModo;
+};
+
+export type ApplyCriterioTitulacaoPacoteResult = {
+  editalId: string;
+  pacote: CriterioTitulacaoPacoteResumo;
+  modo: CriterioTitulacaoPacoteModo;
   criados: string[];
   reativados: string[];
   atualizados: string[];
@@ -108,6 +160,8 @@ export type EditalDetalhe = EditalResumo & {
   cronogramas: EditalFaseResumo[];
   temasRedacao: TemaRedacaoResumo[];
   temasRedacaoConfigurados: boolean;
+  criteriosTitulacao: CriterioTitulacaoResumo[];
+  criteriosTitulacaoConfigurados: boolean;
 };
 
 export type AdminEditalDetalhe = EditalDetalhe & {

@@ -1,4 +1,4 @@
-import { apiDownload, apiGet, apiPost, apiPut } from "@/lib/http/client";
+import { apiDelete, apiDownload, apiGet, apiPost, apiPut } from "@/lib/http/client";
 
 import type {
   CandidateInscricoesResponse,
@@ -6,6 +6,9 @@ import type {
   DocumentoInscricao,
   DocumentoInscricaoPayload,
   SaveInscricaoDraftPayload,
+  TituloInscricao,
+  TituloInscricaoPayload,
+  TitulosInscricaoResponse,
 } from "./types";
 
 export function saveInscricaoDraft(editalId: string, payload: SaveInscricaoDraftPayload, token: string) {
@@ -14,6 +17,18 @@ export function saveInscricaoDraft(editalId: string, payload: SaveInscricaoDraft
 
 export function addDocumento(inscricaoId: string, payload: DocumentoInscricaoPayload, token: string) {
   return apiPost<DocumentoInscricao>(`/v1/inscricoes/${inscricaoId}/documentos`, payload, token);
+}
+
+export function listTitulosInscricao(inscricaoId: string, token: string) {
+  return apiGet<TitulosInscricaoResponse>(`/v1/inscricoes/${inscricaoId}/titulos`, token);
+}
+
+export function addTituloInscricao(inscricaoId: string, payload: TituloInscricaoPayload, token: string) {
+  return apiPost<TituloInscricao>(`/v1/inscricoes/${inscricaoId}/titulos`, payload, token);
+}
+
+export function deleteTituloInscricao(inscricaoId: string, tituloId: string, token: string) {
+  return apiDelete<void>(`/v1/inscricoes/${inscricaoId}/titulos/${tituloId}`, token);
 }
 
 export function submitInscricao(inscricaoId: string, token: string) {

@@ -72,6 +72,47 @@ export type DocumentoInscricao = {
   observacaoValidacao?: string | null;
 };
 
+export type TituloInscricaoPayload = {
+  criterioTitulacaoEditalId: string;
+  descricaoTitulo: string;
+  urlArquivo: string;
+  nomeArquivo: string;
+  mimeType?: string;
+  tamanhoBytes?: number;
+  ordem?: number;
+};
+
+export type TituloInscricao = {
+  id: string;
+  inscricaoId?: string;
+  criterioTitulacaoEditalId: string;
+  descricaoTitulo: string;
+  urlArquivo: string;
+  nomeArquivo: string;
+  mimeType: string | null;
+  tamanhoBytes: number | null;
+  ordem: number;
+  criadoEm: string;
+  atualizadoEm: string;
+  criterio: {
+    id: string;
+    chaveInterna: string;
+    numeroNormativo: string;
+    descricao: string;
+    fator: number | null;
+    teto: number | null;
+    unidade: string;
+    regraEspecial: string | null;
+    ordem: number;
+    ativo: boolean;
+  } | null;
+};
+
+export type TitulosInscricaoResponse = {
+  items: TituloInscricao[];
+  total: number;
+};
+
 export type PacoteDocumentalResumo = {
   urlArquivo: string;
   nomeArquivo: string | null;
@@ -100,6 +141,8 @@ export type CandidateInscricaoResumo = {
   fichaInscricao: FichaInscricaoPayload | null;
   pacoteDocumental: PacoteDocumentalResumo | null;
   documentosTotal: number;
+  titulosTotal?: number;
+  titulos?: TituloInscricao[];
   submetidaEm: string | null;
 };
 

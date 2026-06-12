@@ -4,6 +4,9 @@ import { z } from "zod";
 
 import {
   AddDocumentoRequestSchema,
+  AddTituloInscricaoRequestSchema,
+  AplicarCriterioTitulacaoPacoteRequestSchema,
+  AplicarCriterioTitulacaoPacoteResponseSchema,
   AplicarTemaRedacaoPacoteRequestSchema,
   AplicarTemaRedacaoPacoteResponseSchema,
   AuthResponseSchema,
@@ -21,6 +24,8 @@ import {
   CreateClassificacaoPublicacaoRequestSchema,
   CreateClassificacaoPublicacaoResponseSchema,
   ConflictErrorResponseSchema,
+  CriterioTitulacaoListResponseSchema,
+  CriterioTitulacaoPacoteListResponseSchema,
   CreateIsencaoRequestSchema,
   CreateHomologacaoPublicacaoRequestSchema,
   CreateHomologacaoPublicacaoResponseSchema,
@@ -45,6 +50,8 @@ import {
   InscricaoModelSchema,
   PacoteDocumentalDetalheResponseSchema,
   PacoteDocumentalResumoSchema,
+  TituloInscricaoListResponseSchema,
+  TituloInscricaoModelSchema,
   PoliticasAfirmativasAdminListResponseSchema,
   PoliticasAfirmativasResumoSchema,
   PoliticasAfirmativasPublicacaoPreviewSchema,
@@ -79,6 +86,7 @@ import {
   TemaRedacaoPacoteListResponseSchema,
   TemaRedacaoIdParamSchema,
   TemaRedacaoResumoSchema,
+  TituloInscricaoIdParamSchema,
   TooManyRequestsResponseSchema,
   UnauthorizedResponseSchema,
   UpsertTemaRedacaoRequestSchema,
@@ -288,6 +296,22 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/v1/admin/criterios-titulacao/pacotes",
+  tags: ["Editais"],
+  operationId: "listCriterioTitulacaoPacotes",
+  summary: "Lista pacotes padrao de criterios de titulacao",
+  description: withAuthDescription("Lista os pacotes fixos de criterios do Anexo II disponiveis para aplicacao por edital."),
+  security: bearerAuth,
+  request: withAuthHeaders(),
+  responses: {
+    200: { description: "Pacotes retornados com sucesso.", content: jsonContent(CriterioTitulacaoPacoteListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
   method: "post",
   path: "/v1/admin/editais/{editalId}/temas-redacao",
   tags: ["Editais"],
@@ -323,6 +347,46 @@ registry.registerPath({
   }),
   responses: {
     200: { description: "Pacote aplicado com sucesso.", content: jsonContent(AplicarTemaRedacaoPacoteResponseSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital ou pacote nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Conflito ao aplicar pacote.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/criterios-titulacao",
+  tags: ["Editais"],
+  operationId: "listCriteriosTitulacaoByEdital",
+  summary: "Lista criterios de titulacao do edital",
+  description: withAuthDescription("Retorna os criterios de analise curricular configurados para o edital, preservando numero normativo, chave interna, fator, teto, unidade e regras especiais."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: EditalIdParamSchema }),
+  responses: {
+    200: { description: "Criterios retornados com sucesso.", content: jsonContent(CriterioTitulacaoListResponseSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/criterios-titulacao/pacote",
+  tags: ["Editais"],
+  operationId: "applyCriterioTitulacaoPacote",
+  summary: "Aplica pacote padrao de criterios de titulacao em um edital",
+  description: withAuthDescription("Aplica um pacote fixo de criterios do Anexo II no edital, sem alterar ainda o calculo automatizado da etapa 2."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(AplicarCriterioTitulacaoPacoteRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Pacote aplicado com sucesso.", content: jsonContent(AplicarCriterioTitulacaoPacoteResponseSchema) },
     400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
@@ -446,6 +510,62 @@ registry.registerPath({
     401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
     404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
     409: { description: "Documento fora do padrao ou inscricao nao editavel.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/inscricoes/{inscricaoId}/titulos",
+  tags: ["Inscricao"],
+  operationId: "listTitulosInscricao",
+  summary: "Lista titulos declarados na inscricao",
+  description: withAuthDescription("Lista os titulos declarados pelo candidato, agrupaveis pelo criterio de titulacao do Anexo II do edital."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: InscricaoIdParamSchema }),
+  responses: {
+    200: { description: "Titulos retornados com sucesso.", content: jsonContent(TituloInscricaoListResponseSchema) },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/inscricoes/{inscricaoId}/titulos",
+  tags: ["Inscricao"],
+  operationId: "addTituloToInscricao",
+  summary: "Declara titulo da inscricao",
+  description: withAuthDescription("Registra um titulo declarado com descricao e PDF privado vinculado ao criterio de titulacao do edital."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: InscricaoIdParamSchema,
+    body: { required: true, content: jsonContent(AddTituloInscricaoRequestSchema) },
+  }),
+  responses: {
+    201: { description: "Titulo declarado registrado.", content: jsonContent(TituloInscricaoModelSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ParamsBodyValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao nao encontrada.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Titulo fora do padrao, criterio invalido, janela fechada ou inscricao nao editavel.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/v1/inscricoes/{inscricaoId}/titulos/{tituloId}",
+  tags: ["Inscricao"],
+  operationId: "deleteTituloInscricao",
+  summary: "Remove titulo declarado da inscricao",
+  description: withAuthDescription("Remove um titulo declarado enquanto a inscricao ainda estiver em rascunho e dentro da janela de inscricao."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: TituloInscricaoIdParamSchema }),
+  responses: {
+    204: { description: "Titulo removido." },
+    400: { description: "Parametro invalido.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    404: { description: "Inscricao ou titulo nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Inscricao nao editavel ou fora da janela.", content: jsonContent(MessageResponseSchema) },
   },
 });
 

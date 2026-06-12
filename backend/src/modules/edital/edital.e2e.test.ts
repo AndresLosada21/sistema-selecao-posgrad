@@ -13,6 +13,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET ?? "change-me-in-real-environmen
 
 const { prisma } = await import("../../lib/prisma.js");
 const { app } = await import("../../app.js");
+const { getCriterioTitulacaoPacoteBySlug } = await import("./criterios-titulacao-padroes.js");
 const { getTemaRedacaoPacoteBySlug } = await import("./temas-redacao-padroes.js");
 
 function createToken(userId: string, email: string) {
@@ -248,7 +249,7 @@ test("admin recebe codigo e mensagem especificos ao editar cronograma de edital 
 
     assert.equal(response.status, 409);
     assert.equal(response.body.code, "EDITAL_ESTRUTURA_BLOQUEADA");
-    assert.equal(response.body.message, "Nao e permitido alterar estrutura de linhas, cronogramas ou temas em edital ja operacionalizado. Use retificacao/publicacao apropriada.");
+    assert.equal(response.body.message, "Nao e permitido alterar estrutura de linhas, cronogramas, temas ou criterios em edital ja operacionalizado. Use retificacao/publicacao apropriada.");
   } finally {
     await prisma.participacaoEdital.deleteMany({ where: { id: participacao.id } });
     await prisma.cronogramaEdital.deleteMany({ where: { id: cronograma.id } });
@@ -345,7 +346,113 @@ test("admin lista e aplica pacote padrao de temas de redacao com merge e replace
   }
 });
 
-test("backend bloqueia mutacao de temas em edital operacionalizado", async () => {
+test("admin lista e aplica criterios reais do Anexo II por edital", async () => {
+  const suffix = `edital-criterios-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+  const pacote = getCriterioTitulacaoPacoteBySlug("ppgee-092-2025-anexo-ii");
+
+  assert.ok(pacote);
+
+  let editalId = "";
+
+  try {
+    const created = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `TIT-${suffix}`,
+        titulo: `Edital criterios ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.RASCUNHO,
+      });
+
+    assert.equal(created.status, 201);
+    editalId = created.body.id;
+
+    const pacotesResponse = await request(app)
+      .get("/v1/admin/criterios-titulacao/pacotes")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    assert.equal(pacotesResponse.status, 200);
+    assert.equal(pacotesResponse.body.items.some((item: { slug: string; totalCriterios: number }) => item.slug === "ppgee-092-2025-anexo-ii" && item.totalCriterios === pacote.criterios.length), true);
+
+    const firstApply = await request(app)
+      .post(`/v1/admin/editais/${editalId}/criterios-titulacao/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-092-2025-anexo-ii", modo: "MERGE" });
+
+    assert.equal(firstApply.status, 200);
+    assert.equal(firstApply.body.criados.length, pacote.criterios.length);
+    assert.equal(firstApply.body.totalAtivosDepois, pacote.criterios.length);
+
+    const criteriosResponse = await request(app)
+      .get(`/v1/admin/editais/${editalId}/criterios-titulacao`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    assert.equal(criteriosResponse.status, 200);
+    assert.equal(criteriosResponse.body.total, pacote.criterios.length);
+
+    const criterios = criteriosResponse.body.items as Array<{
+      id: string;
+      chaveInterna: string;
+      numeroNormativo: string;
+      fator: number | null;
+      teto: number | null;
+      regraEspecial: string | null;
+    }>;
+    const criterio16 = criterios.find((criterio) => criterio.numeroNormativo === "16");
+    const criterio17 = criterios.find((criterio) => criterio.numeroNormativo === "17");
+    assert.equal(criterio16?.chaveInterna, "empresa_junior");
+    assert.equal(criterio17?.chaveInterna, "pet");
+
+    const criterioJcr = criterios.find((criterio) => criterio.chaveInterna === "artigo_periodico_jcr");
+    assert.ok(criterioJcr);
+    assert.equal(criterioJcr.fator, null);
+    assert.equal(criterioJcr.regraEspecial, "PONTUACAO_JCR");
+
+    const criterioExtensao = criterios.find((criterio) => criterio.chaveInterna === "projeto_extensao_graduacao");
+    assert.ok(criterioExtensao);
+    assert.equal(criterioExtensao.fator, 0.2);
+    assert.equal(criterioExtensao.teto, 1);
+
+    const primeiroCriterio = await prisma.criterioTitulacaoEdital.findFirstOrThrow({ where: { editalId }, orderBy: { ordem: "asc" } });
+    const segundoCriterio = await prisma.criterioTitulacaoEdital.findFirstOrThrow({ where: { editalId, id: { not: primeiroCriterio.id } }, orderBy: { ordem: "asc" } });
+    await prisma.criterioTitulacaoEdital.update({ where: { id: primeiroCriterio.id }, data: { ativo: false } });
+    await prisma.criterioTitulacaoEdital.update({ where: { id: segundoCriterio.id }, data: { descricao: "Descricao stale", ordem: 999 } });
+    const extra = await prisma.criterioTitulacaoEdital.create({
+      data: {
+        editalId,
+        chaveInterna: `extra_${suffix}`,
+        numeroNormativo: "99",
+        descricao: "Criterio extra fora do pacote.",
+        fator: 0.1,
+        unidade: "item",
+        ordem: 999,
+      },
+    });
+
+    const replaceApply = await request(app)
+      .post(`/v1/admin/editais/${editalId}/criterios-titulacao/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-092-2025-anexo-ii", modo: "REPLACE_INACTIVE" });
+
+    assert.equal(replaceApply.status, 200);
+    assert.equal(replaceApply.body.reativados.includes(primeiroCriterio.chaveInterna), true);
+    assert.equal(replaceApply.body.atualizados.includes(segundoCriterio.chaveInterna), true);
+    assert.equal(replaceApply.body.inativados.includes(extra.chaveInterna), true);
+    assert.equal(replaceApply.body.totalAtivosDepois, pacote.criterios.length);
+  } finally {
+    if (editalId) await prisma.criterioTitulacaoEdital.deleteMany({ where: { editalId } });
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: admin.id } });
+  }
+});
+
+test("backend bloqueia mutacao estrutural de temas e criterios em edital operacionalizado", async () => {
   const suffix = `edital-tema-guard-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const admin = await createAdmin(suffix);
   const candidato = await createCandidate(suffix);
@@ -382,6 +489,14 @@ test("backend bloqueia mutacao de temas em edital operacionalizado", async () =>
 
     assert.equal(applyPacote.status, 409);
     assert.equal(applyPacote.body.code, "EDITAL_ESTRUTURA_BLOQUEADA");
+
+    const applyCriterios = await request(app)
+      .post(`/v1/admin/editais/${edital.id}/criterios-titulacao/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-092-2025-anexo-ii", modo: "MERGE" });
+
+    assert.equal(applyCriterios.status, 409);
+    assert.equal(applyCriterios.body.code, "EDITAL_ESTRUTURA_BLOQUEADA");
   } finally {
     await prisma.participacaoEdital.deleteMany({ where: { id: participacao.id } });
     await prisma.temaRedacaoEdital.deleteMany({ where: { editalId: edital.id } });

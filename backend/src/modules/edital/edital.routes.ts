@@ -5,6 +5,7 @@ import { conflict, forbidden, notFound, validationError } from "../../lib/http-e
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { requireRole } from "../../middleware/role.middleware.js";
 import {
+  applyCriterioTitulacaoPacote,
   applyTemaRedacaoPacote,
   createCronograma,
   createEdital,
@@ -16,6 +17,8 @@ import {
   deleteTemaRedacao,
   getAdminEditalById,
   getEditalById,
+  listCriterioTitulacaoPacotes,
+  listCriteriosTitulacaoByEdital,
   listAdminEditais,
   listEditais,
   listTemaRedacaoPacotes,
@@ -25,6 +28,7 @@ import {
   updateTemaRedacao,
 } from "./edital.service.js";
 import {
+  applyCriterioTitulacaoPacoteSchema,
   applyTemaRedacaoPacoteSchema,
   editalCronogramaParamsSchema,
   editalLinhaPesquisaParamsSchema,
@@ -118,6 +122,11 @@ editalRouter.get("/v1/editais/:editalId", async (request, response) => {
 
 editalRouter.get("/v1/admin/temas-redacao/pacotes", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
   const pacotes = await listTemaRedacaoPacotes();
+  return response.status(200).json(pacotes);
+});
+
+editalRouter.get("/v1/admin/criterios-titulacao/pacotes", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
+  const pacotes = await listCriterioTitulacaoPacotes();
   return response.status(200).json(pacotes);
 });
 
@@ -355,6 +364,43 @@ editalRouter.post("/v1/admin/editais/:editalId/temas-redacao/pacote", requireAut
     return response.status(200).json(result);
   } catch (error) {
     const result = buildAdminEditalError(error, "Nao foi possivel aplicar o pacote de temas de redacao.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.get("/v1/admin/editais/:editalId/criterios-titulacao", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  try {
+    const items = await listCriteriosTitulacaoByEdital(parsedParams.data.editalId);
+    return response.status(200).json({ items, total: items.length });
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel listar os criterios de titulacao.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.post("/v1/admin/editais/:editalId/criterios-titulacao/pacote", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+  const parsedBody = applyCriterioTitulacaoPacoteSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para aplicar pacote de criterios de titulacao.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const result = await applyCriterioTitulacaoPacote(parsedParams.data.editalId, parsedBody.data);
+    return response.status(200).json(result);
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel aplicar o pacote de criterios de titulacao.");
     return response.status(result.status).json(result.body);
   }
 });
