@@ -110,4 +110,9 @@ test("perfil de doutorado declara pre-projeto, banca e pesos iniciais", () => {
   assert.equal(doutorado.desempate, DesempateClassificacao.ETAPA1_IDADE);
   assert.equal(doutorado.exigeHistoricoGraduacao, false);
   assert.equal(doutorado.permiteCancelarSubmissao, false);
+  assert.equal(doutorado.exigeGrupoPesquisa, false);
+  assert.deepEqual(
+    doutorado.criterios.map((criterio) => criterio.notaMaxima),
+    [2, 2, 2, 3, 1],
+  );
 });

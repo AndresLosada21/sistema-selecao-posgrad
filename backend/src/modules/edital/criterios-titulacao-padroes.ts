@@ -179,6 +179,83 @@ const PPGEE_092_2025_CRITERIOS: CriterioTitulacaoPacoteCriterio[] = [
   },
 ];
 
+const PPGEE_073_2026_DOUTORADO_CRITERIOS: CriterioTitulacaoPacoteCriterio[] = [
+  {
+    chaveInterna: "artigo_congresso_nacional",
+    numeroNormativo: "1",
+    descricao: "Artigo completo publicado em congresso nacional de sociedade cientifica brasileira com DOI e comite tecnico e/ou cientifico.",
+    fator: 0.5,
+    teto: null,
+    unidade: "artigo",
+    ordem: 0,
+  },
+  {
+    chaveInterna: "artigo_congresso_internacional",
+    numeroNormativo: "2",
+    descricao: "Artigo completo publicado em congresso internacional com comite tecnico e/ou cientifico e DOI.",
+    fator: 0.5,
+    teto: null,
+    unidade: "artigo",
+    ordem: 1,
+  },
+  {
+    chaveInterna: "artigo_periodico_jcr",
+    numeroNormativo: "3",
+    descricao: "Artigo completo publicado em periodico com DOI.",
+    fator: null,
+    teto: null,
+    unidade: "jcr",
+    regraEspecial: "PONTUACAO_JCR",
+    metadados: { regra: "Pontuacao corresponde ao Journal Citation Report." },
+    ordem: 2,
+  },
+  {
+    chaveInterna: "artigo_periodico_sociedade_brasileira_sem_jcr",
+    numeroNormativo: "4",
+    descricao: "Artigo completo publicado em periodico de sociedade brasileira sem JCR com DOI.",
+    fator: 0.3,
+    teto: null,
+    unidade: "artigo",
+    ordem: 3,
+  },
+  {
+    chaveInterna: "mestrado_engenharia_eletrica",
+    numeroNormativo: "5",
+    descricao: "Curso de Mestrado Stricto Sensu em Engenharia Eletrica.",
+    fator: 1,
+    teto: null,
+    unidade: "titulo",
+    ordem: 4,
+  },
+  {
+    chaveInterna: "mestrado_area_afim",
+    numeroNormativo: "6",
+    descricao: "Curso de Mestrado Stricto Sensu em area afim.",
+    fator: 0.5,
+    teto: null,
+    unidade: "titulo",
+    ordem: 5,
+  },
+  {
+    chaveInterna: "patente_engenharia_eletrica",
+    numeroNormativo: "7",
+    descricao: "Patente concedida na area de Engenharia Eletrica.",
+    fator: 1,
+    teto: 5,
+    unidade: "patente",
+    ordem: 6,
+  },
+  {
+    chaveInterna: "livro_engenharia_eletrica",
+    numeroNormativo: "8",
+    descricao: "Livro na area de Engenharia Eletrica.",
+    fator: 0.5,
+    teto: null,
+    unidade: "livro",
+    ordem: 7,
+  },
+];
+
 export const CRITERIO_TITULACAO_PACOTES = [
   {
     slug: "ppgee-092-2025-anexo-ii",
@@ -186,6 +263,13 @@ export const CRITERIO_TITULACAO_PACOTES = [
     versao: "2025.092",
     descricao: "Criterios oficiais de analise curricular do Anexo II do Edital 092/2025-PROPESP/UFAM-PPGEE-M-2026/1.",
     criterios: PPGEE_092_2025_CRITERIOS,
+  },
+  {
+    slug: "ppgee-073-2026-anexo-ii-doutorado",
+    nome: "Anexo II - Edital PPGEE 073/2026 (doutorado)",
+    versao: "2026.073",
+    descricao: "Criterios oficiais de analise curricular do Anexo II do Edital 073/2026-PROPESP/UFAM-PPGEE-D-2027/1.",
+    criterios: PPGEE_073_2026_DOUTORADO_CRITERIOS,
   },
 ] as const satisfies readonly CriterioTitulacaoPacoteDefinicao[];
 
