@@ -574,3 +574,102 @@ test("criacao de edital com pacote inicial e temas extras e transacional", async
     await prisma.usuario.deleteMany({ where: { id: admin.id } });
   }
 });
+
+test("backend exige configuracao de processo completa antes de publicar edital", async () => {
+  const suffix = `edital-config-guard-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  let editalId = "";
+
+  try {
+    const created = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `CFG-${suffix}`,
+        titulo: `Edital configuracao ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.RASCUNHO,
+      });
+
+    assert.equal(created.status, 201);
+    editalId = created.body.id;
+
+    const detailBeforeConfig = await request(app)
+      .get(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    assert.equal(detailBeforeConfig.status, 200);
+    assert.equal(detailBeforeConfig.body.configuracaoProcesso.configurada, false);
+    assert.equal(detailBeforeConfig.body.configuracaoProcesso.modalidadeEtapa1, "REDACAO");
+    assert.equal(detailBeforeConfig.body.configuracaoProcesso.pesoEtapa2, 2);
+    assert.equal(detailBeforeConfig.body.criteriosEtapa1.length, 0);
+
+    await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 1,
+        vagasAcoesAfirmativas: 0,
+        vagasPcd: 0,
+      },
+    });
+
+    const cronograma = await request(app)
+      .post(`/v1/admin/editais/${editalId}/cronogramas`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: TipoCronogramaEdital.INSCRICAO,
+        titulo: "Inscricao",
+        inicioEm: new Date(Date.now() + 60_000).toISOString(),
+        fimEm: new Date(Date.now() + 120_000).toISOString(),
+      });
+    assert.equal(cronograma.status, 201);
+
+    const publishWithoutConfig = await request(app)
+      .put(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `CFG-${suffix}`,
+        titulo: `Edital configuracao ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.PUBLICADO,
+      });
+
+    assert.equal(publishWithoutConfig.status, 409);
+    assert.equal(publishWithoutConfig.body.code, "EDITAL_SEM_CONFIGURACAO_PROCESSO");
+
+    const applyPerfil = await request(app)
+      .post(`/v1/admin/editais/${editalId}/perfil-processo/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-092-2025-mestrado" });
+
+    assert.equal(applyPerfil.status, 200);
+    assert.equal(applyPerfil.body.modalidadeEtapa1, "REDACAO");
+    assert.equal(applyPerfil.body.criterios.length, 5);
+
+    const publishWithConfig = await request(app)
+      .put(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `CFG-${suffix}`,
+        titulo: `Edital configuracao ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.PUBLICADO,
+      });
+
+    assert.equal(publishWithConfig.status, 200);
+    assert.equal(publishWithConfig.body.status, StatusEdital.PUBLICADO);
+  } finally {
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: admin.id } });
+  }
+});

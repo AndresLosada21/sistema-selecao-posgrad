@@ -1,12 +1,68 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ModalidadeConcorrencia, StatusClassificacaoFinal, StatusConfirmacaoReserva } from "@prisma/client";
+import { DesempateClassificacao, ModalidadeConcorrencia, StatusClassificacaoFinal, StatusConfirmacaoReserva } from "@prisma/client";
 
 import { calculateNotaFinal, rankClassificacao } from "./classificacao.rules.js";
 
 test("calcula nota final com peso duplo da etapa 2", () => {
-  assert.equal(calculateNotaFinal(8, 9.5), 9);
+  assert.equal(
+    calculateNotaFinal({ notaEtapa1: 8, notaEtapa2: 9.5, pesoEtapa1: 1, pesoEtapa2: 2 }),
+    9,
+  );
+});
+
+test("calcula nota final com peso duplo da etapa 1 no doutorado", () => {
+  assert.equal(
+    calculateNotaFinal({ notaEtapa1: 8, notaEtapa2: 9, pesoEtapa1: 2, pesoEtapa2: 1 }),
+    8.33,
+  );
+});
+
+test("desempate do doutorado ignora a nota da etapa 2", () => {
+  const construirCandidates = () => ([
+    {
+      inscricaoId: "i1",
+      participacaoEditalId: "p1",
+      linhaPesquisaId: "linha-1",
+      modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+      confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      confirmacaoPcd: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      notaEtapa1: 8,
+      notaEtapa2: 9.004,
+      dataNascimento: new Date("1990-01-01"),
+    },
+    {
+      inscricaoId: "i2",
+      participacaoEditalId: "p2",
+      linhaPesquisaId: "linha-1",
+      modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+      confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      confirmacaoPcd: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      notaEtapa1: 8,
+      notaEtapa2: 9.001,
+      dataNascimento: new Date("1985-01-01"),
+    },
+  ]);
+
+  const linhas = [{ id: "linha-1", vagasAmplaConcorrencia: 2, vagasAcoesAfirmativas: 0, vagasPcd: 0 }];
+
+  const porIdade = rankClassificacao({
+    publicacao: "FINAL",
+    linhas,
+    candidates: construirCandidates(),
+    configuracao: { pesoEtapa1: 2, pesoEtapa2: 1, desempate: DesempateClassificacao.ETAPA1_IDADE },
+  });
+
+  const porEtapa2 = rankClassificacao({
+    publicacao: "FINAL",
+    linhas,
+    candidates: construirCandidates(),
+    configuracao: { pesoEtapa1: 2, pesoEtapa2: 1, desempate: DesempateClassificacao.ETAPA1_ETAPA2_IDADE },
+  });
+
+  assert.equal(porIdade[0].participacaoEditalId, "p2");
+  assert.equal(porEtapa2[0].participacaoEditalId, "p1");
 });
 
 test("aplica desempate por etapa 1, etapa 2 e idade", () => {

@@ -26,6 +26,17 @@ import {
   ConflictErrorResponseSchema,
   CriterioTitulacaoListResponseSchema,
   CriterioTitulacaoPacoteListResponseSchema,
+  ConfiguracaoProcessoRequestSchema,
+  ConfiguracaoProcessoResumoSchema,
+  CriterioEtapa1RequestSchema,
+  CriterioEtapa1ResumoSchema,
+  CriterioEtapa1ListResponseSchema,
+  GrupoPesquisaRequestSchema,
+  GrupoPesquisaListResponseSchema,
+  GrupoPesquisaResumoSchema,
+  PerfilProcessoPacoteRequestSchema,
+  PerfilProcessoPacoteListResponseSchema,
+  ConfiguracaoProcessoComCriteriosSchema,
   CreateIsencaoRequestSchema,
   CreateHomologacaoPublicacaoRequestSchema,
   CreateHomologacaoPublicacaoResponseSchema,
@@ -1446,6 +1457,203 @@ registry.registerPath({
     403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
     404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
     409: { description: "Homologacao incompleta ou sem dados suficientes para a fase informada.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+
+// ─── Perfil de processo por edital ─────────────────────────────
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/perfis-processo/pacotes",
+  tags: ["Editais"],
+  operationId: "listPerfisProcessoPacotes",
+  summary: "Lista pacotes padrao de perfil de processo",
+  description: withAuthDescription("Retorna os pacotes de configuracao de processo disponiveis para mestrado e doutorado."),
+  security: bearerAuth,
+  request: withAuthHeaders({}),
+  responses: {
+    200: { description: "Pacotes retornados com sucesso.", content: jsonContent(PerfilProcessoPacoteListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/editais/{editalId}/configuracao-processo",
+  tags: ["Editais"],
+  operationId: "upsertConfiguracaoProcesso",
+  summary: "Configura o processo seletivo do edital",
+  description: withAuthDescription("Define modalidade da etapa 1, pesos, nota minima, desempate, quantidade de avaliadores, exigencias documentais e permissao de cancelamento da submissao."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(ConfiguracaoProcessoRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Configuracao salva.", content: jsonContent(ConfiguracaoProcessoResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Configuracao invalida.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/perfil-processo/pacote",
+  tags: ["Editais"],
+  operationId: "applyPerfilProcessoPacote",
+  summary: "Aplica pacote padrao de perfil de processo",
+  description: withAuthDescription("Aplica um pacote de configuracao (mestrado ou doutorado) e substitui os criterios ativos da etapa 1 pelos criterios do pacote."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(PerfilProcessoPacoteRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Perfil aplicado.", content: jsonContent(ConfiguracaoProcessoComCriteriosSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital ou pacote nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Rubrica invalida.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/criterios-etapa-1",
+  tags: ["Editais"],
+  operationId: "listCriteriosEtapa1",
+  summary: "Lista criterios da etapa 1 do edital",
+  description: withAuthDescription("Retorna a rubrica da etapa 1 configurada para o edital."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: EditalIdParamSchema }),
+  responses: {
+    200: { description: "Criterios retornados.", content: jsonContent(CriterioEtapa1ListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/criterios-etapa-1",
+  tags: ["Editais"],
+  operationId: "upsertCriterioEtapa1",
+  summary: "Cria ou atualiza criterio da etapa 1",
+  description: withAuthDescription("Salva um criterio da rubrica da etapa 1. A soma dos pesos ativos precisa permanecer em 100%."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(CriterioEtapa1RequestSchema) },
+  }),
+  responses: {
+    200: { description: "Criterio salvo.", content: jsonContent(CriterioEtapa1ResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Rubrica invalida.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/admin/editais/{editalId}/grupos-pesquisa",
+  tags: ["Editais"],
+  operationId: "listGruposPesquisa",
+  summary: "Lista grupos de pesquisa do edital",
+  description: withAuthDescription("Retorna os grupos de pesquisa cadastrados para o edital."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: EditalIdParamSchema }),
+  responses: {
+    200: { description: "Grupos retornados.", content: jsonContent(GrupoPesquisaListResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/admin/editais/{editalId}/grupos-pesquisa",
+  tags: ["Editais"],
+  operationId: "createGrupoPesquisa",
+  summary: "Cria grupo de pesquisa no edital",
+  description: withAuthDescription("Cadastra um grupo de pesquisa que podera ser escolhido pelo candidato na inscricao."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: EditalIdParamSchema,
+    body: { required: true, content: jsonContent(GrupoPesquisaRequestSchema) },
+  }),
+  responses: {
+    201: { description: "Grupo criado.", content: jsonContent(GrupoPesquisaResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Edital nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Grupo duplicado.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/v1/admin/editais/{editalId}/criterios-etapa-1/{criterioId}",
+  tags: ["Editais"],
+  operationId: "deleteCriterioEtapa1",
+  summary: "Remove criterio da etapa 1",
+  description: withAuthDescription("Remove um criterio da rubrica da etapa 1 do edital."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: z.object({ editalId: z.string(), criterioId: z.string() }) }),
+  responses: {
+    204: { description: "Criterio removido." },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Criterio nao encontrado.", content: jsonContent(MessageResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/admin/editais/{editalId}/grupos-pesquisa/{grupoId}",
+  tags: ["Editais"],
+  operationId: "updateGrupoPesquisa",
+  summary: "Atualiza grupo de pesquisa",
+  description: withAuthDescription("Atualiza nome, descricao ou situacao de um grupo de pesquisa do edital."),
+  security: bearerAuth,
+  request: withAuthHeaders({
+    params: z.object({ editalId: z.string(), grupoId: z.string() }),
+    body: { required: true, content: jsonContent(GrupoPesquisaRequestSchema) },
+  }),
+  responses: {
+    200: { description: "Grupo atualizado.", content: jsonContent(GrupoPesquisaResumoSchema) },
+    400: { description: "Dados invalidos.", content: jsonContent(ValidationErrorResponseSchema) },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Grupo nao encontrado.", content: jsonContent(MessageResponseSchema) },
+    409: { description: "Grupo duplicado.", content: jsonContent(ConflictErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/v1/admin/editais/{editalId}/grupos-pesquisa/{grupoId}",
+  tags: ["Editais"],
+  operationId: "deleteGrupoPesquisa",
+  summary: "Remove grupo de pesquisa",
+  description: withAuthDescription("Remove o grupo de pesquisa do edital. Grupos com inscricoes vinculadas sao inativados."),
+  security: bearerAuth,
+  request: withAuthHeaders({ params: z.object({ editalId: z.string(), grupoId: z.string() }) }),
+  responses: {
+    204: { description: "Grupo removido ou inativado." },
+    401: { description: "Token ausente ou invalido.", content: jsonContent(UnauthorizedResponseSchema) },
+    403: { description: "Acesso restrito ao papel admin.", content: jsonContent(MessageResponseSchema) },
+    404: { description: "Grupo nao encontrado.", content: jsonContent(MessageResponseSchema) },
   },
 });
 

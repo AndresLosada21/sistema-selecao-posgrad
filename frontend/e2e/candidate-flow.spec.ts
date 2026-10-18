@@ -85,6 +85,13 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
 
   expect(criteriosResponse.ok()).toBeTruthy();
 
+  const perfilResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/perfil-processo/pacote`, {
+    headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
+    data: { slug: "ppgee-092-2025-mestrado" },
+  });
+
+  expect(perfilResponse.ok()).toBeTruthy();
+
   for (const cronograma of [
     { tipo: "PEDIDO_ISENCAO", titulo: "Solicitacao de isencao E2E" },
     { tipo: "INSCRICAO", titulo: "Inscricao E2E" },

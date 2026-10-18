@@ -220,14 +220,13 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
       .put(`/v1/admin/etapa-1/inscricoes/${inscricaoId}/resultado`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
-        tema: "Tema da etapa 1",
-        rubrica: {
-          adequacaoDominioTema: 8,
-          estrutura: 8,
-          organizacaoCoerencia: 8,
-          objetividadeSintese: 8,
-          grafiaGramatica: 8,
-        },
+        criterios: [
+          { chave: "adequacaoDominioTema", nota: 8 },
+          { chave: "estrutura", nota: 8 },
+          { chave: "organizacaoCoerencia", nota: 8 },
+          { chave: "objetividadeSintese", nota: 8 },
+          { chave: "grafiaGramatica", nota: 8 },
+        ],
         usoIaComprovado: false,
         espelhoCorrecao: "Espelho preliminar da etapa 1.",
         liberarEspelho: false,
@@ -239,14 +238,13 @@ test("admin percorre contratos HTTP de homologacao, recurso, etapas e classifica
       .put(`/v1/admin/etapa-1/inscricoes/${inscricaoId}/resultado`)
       .set("Authorization", `Bearer ${adminToken}`)
       .send({
-        tema: "Tema da etapa 1",
-        rubrica: {
-          adequacaoDominioTema: 8,
-          estrutura: 8,
-          organizacaoCoerencia: 8,
-          objetividadeSintese: 8,
-          grafiaGramatica: 8,
-        },
+        criterios: [
+          { chave: "adequacaoDominioTema", nota: 8 },
+          { chave: "estrutura", nota: 8 },
+          { chave: "organizacaoCoerencia", nota: 8 },
+          { chave: "objetividadeSintese", nota: 8 },
+          { chave: "grafiaGramatica", nota: 8 },
+        ],
         usoIaComprovado: false,
         espelhoCorrecao: "Espelho final da etapa 1.",
         liberarEspelho: true,

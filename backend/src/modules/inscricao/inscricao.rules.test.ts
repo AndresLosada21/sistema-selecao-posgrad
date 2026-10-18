@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ModalidadeConcorrencia, StatusDocumentoInscricao, TipoDocumentoInscricao } from "@prisma/client";
+import { ModalidadeConcorrencia, ModalidadeEtapa1, StatusDocumentoInscricao, TipoDocumentoInscricao } from "@prisma/client";
 
 import { REDACAO_LIMITS, validateInscricaoForSubmission } from "./inscricao.rules.js";
 
@@ -223,4 +223,88 @@ test("aceita simultaneamente documentos de acoes afirmativas e PCD quando ambos 
   assert.equal(result.errors.length, 0);
   assert.equal(result.checklist.some((item) => item.tipo === TipoDocumentoInscricao.ANEXO_VIII_AUTODECLARACAO), true);
   assert.equal(result.checklist.some((item) => item.tipo === TipoDocumentoInscricao.LAUDO_PCD), true);
+});
+
+test("aceita submissao de doutorado com pre-projeto e sem redacao", () => {
+  const result = validateInscricaoForSubmission({
+    modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+    modalidadeEtapa1: ModalidadeEtapa1.PRE_PROJETO,
+    fichaInscricao: fichaBase,
+    temaRedacao: null,
+    redacaoTexto: null,
+    documentos: [
+      ...documentosBase,
+      {
+        tipo: TipoDocumentoInscricao.PRE_PROJETO,
+        nome: "Pre-projeto",
+        nomeArquivo: "pre-projeto.pdf",
+        urlArquivo: "https://arquivos.test/pre-projeto.pdf",
+        mimeType: "application/pdf",
+        tamanhoBytes: 100,
+        statusValidacao: StatusDocumentoInscricao.ENVIADO,
+      },
+    ],
+    pagamentoDispensado: true,
+    exigeDiplomaGraduacao: false,
+    exigeHistoricoGraduacao: false,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.redacaoCaracteres, 0);
+  assert.equal(result.checklist.some((item) => item.tipo === TipoDocumentoInscricao.DIPLOMA), false);
+  assert.equal(result.checklist.some((item) => item.tipo === TipoDocumentoInscricao.HISTORICO), false);
+  assert.equal(result.checklist.some((item) => item.tipo === TipoDocumentoInscricao.PRE_PROJETO), true);
+});
+
+test("rejeita submissao de doutorado sem pre-projeto", () => {
+  const result = validateInscricaoForSubmission({
+    modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+    modalidadeEtapa1: ModalidadeEtapa1.PRE_PROJETO,
+    fichaInscricao: fichaBase,
+    temaRedacao: null,
+    redacaoTexto: null,
+    documentos: documentosBase,
+    pagamentoDispensado: true,
+    exigeDiplomaGraduacao: false,
+    exigeHistoricoGraduacao: false,
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" | "), /Pre-projeto em PDF ausente/);
+  assert.doesNotMatch(result.errors.join(" | "), /redacao com tamanho entre/);
+  assert.doesNotMatch(result.errors.join(" | "), /tema da redacao/);
+});
+
+test("exige diploma e historico apenas quando o edital determina", () => {
+  const documentosSemDiploma = documentosBase.filter(
+    (documento) => documento.tipo !== TipoDocumentoInscricao.DIPLOMA && documento.tipo !== TipoDocumentoInscricao.HISTORICO,
+  );
+
+  const mestrado = validateInscricaoForSubmission({
+    modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+    modalidadeEtapa1: ModalidadeEtapa1.REDACAO,
+    fichaInscricao: fichaBase,
+    temaRedacao: "Controle preditivo",
+    redacaoTexto: "A".repeat(REDACAO_LIMITS.min),
+    documentos: documentosSemDiploma,
+    pagamentoDispensado: true,
+  });
+
+  const doutorado = validateInscricaoForSubmission({
+    modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+    modalidadeEtapa1: ModalidadeEtapa1.REDACAO,
+    fichaInscricao: fichaBase,
+    temaRedacao: "Controle preditivo",
+    redacaoTexto: "A".repeat(REDACAO_LIMITS.min),
+    documentos: documentosSemDiploma,
+    pagamentoDispensado: true,
+    exigeDiplomaGraduacao: false,
+    exigeHistoricoGraduacao: false,
+  });
+
+  assert.equal(mestrado.ok, false);
+  assert.match(mestrado.errors.join(" | "), /Diploma de graduacao/);
+  assert.match(mestrado.errors.join(" | "), /Historico escolar/);
+  assert.equal(doutorado.ok, true);
 });

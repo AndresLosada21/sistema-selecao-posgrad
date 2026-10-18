@@ -38,6 +38,14 @@ function getEtapa1Message(errorCode: string) {
       return "A solicitacao ou liberacao do espelho da etapa 1 so fica disponivel durante a janela recursal da fase.";
     case "ESPELHO_ETAPA_1_INDISPONIVEL":
       return "O espelho da etapa 1 ainda nao esta disponivel para esta inscricao.";
+    case "CRITERIO_ETAPA_1_DESCONHECIDO":
+      return "O payload contem criterio que nao pertence a rubrica deste edital.";
+    case "CRITERIO_ETAPA_1_AUSENTE":
+      return "A avaliacao precisa informar nota para todos os criterios ativos do edital.";
+    case "CRITERIO_ETAPA_1_NOTA_INVALIDA":
+      return "A nota de um criterio esta fora da faixa permitida pelo edital.";
+    case "AVALIADOR_JA_AVALIOU":
+      return "Este avaliador ja registrou nota para o candidato. Ajustes posteriores exigem fluxo de recurso.";
     default:
       return errorCode;
   }
@@ -103,13 +111,14 @@ etapa1Router.put("/v1/admin/etapa-1/inscricoes/:inscricaoId/resultado", requireA
   }
 
   const result = await registrarResultadoEtapa1(parsedParams.data.inscricaoId, {
-    tema: parsedBody.data.tema as string | undefined,
-    rubrica: parsedBody.data.rubrica,
+    criterios: parsedBody.data.criterios.map((criterio) => ({ chaveInterna: criterio.chave, nota: criterio.nota })),
     usoIaComprovado: parsedBody.data.usoIaComprovado,
     fundamentoUsoIa: parsedBody.data.fundamentoUsoIa as string | undefined,
     espelhoCorrecao: parsedBody.data.espelhoCorrecao as string,
     liberarEspelho: parsedBody.data.liberarEspelho,
     publicacao: parsedBody.data.publicacao,
+    avaliadorUsuarioId: request.auth!.perfis.includes(Role.ADMIN) ? parsedBody.data.avaliadorUsuarioId : undefined,
+    solicitanteUserId: request.auth!.userId,
   });
 
   if ("error" in result) {
@@ -119,7 +128,7 @@ etapa1Router.put("/v1/admin/etapa-1/inscricoes/:inscricaoId/resultado", requireA
     return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
   }
 
-  return response.status(200).json(result.avaliacao);
+  return response.status(200).json(result);
 });
 
 etapa1Router.post("/v1/inscricoes/:inscricaoId/etapa-1/espelho/solicitar", requireAuth, async (request, response) => {

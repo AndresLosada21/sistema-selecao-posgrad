@@ -1,6 +1,7 @@
 import { Prisma, StatusClassificacaoFinal, StatusConfirmacaoReserva, StatusInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { getConfiguracaoProcesso } from "../edital/configuracao-processo.service.js";
 import { resolveReservasConcorrencia } from "../inscricao/inscricao.rules.js";
 import { rankClassificacao } from "./classificacao.rules.js";
 
@@ -126,6 +127,8 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
     return validacao;
   }
 
+  const configuracaoProcesso = await getConfiguracaoProcesso(editalId);
+
   const inscricoesElegiveis = await prisma.inscricao.findMany({
     where: {
       participacaoEdital: {
@@ -181,6 +184,11 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
       vagasPcd: linha.vagasPcd,
     })),
     publicacao,
+    configuracao: {
+      pesoEtapa1: configuracaoProcesso.pesoEtapa1,
+      pesoEtapa2: configuracaoProcesso.pesoEtapa2,
+      desempate: configuracaoProcesso.desempate,
+    },
   });
 
   const participacoesClassificadasIds = classificacoes.map((item) => item.participacaoEditalId);

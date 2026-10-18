@@ -24,6 +24,12 @@ import {
 import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 
+import {
+  applyPerfilProcessoPacoteSchema,
+  upsertConfiguracaoProcessoSchema,
+  upsertCriterioEtapa1Schema,
+  upsertGrupoPesquisaSchema,
+} from "../../modules/edital/edital.schemas.js";
 import { loginSchema, registerSchema } from "../../modules/auth/auth.schemas.js";
 import { recalcularClassificacaoSchema } from "../../modules/classificacao/classificacao.schemas.js";
 import { resultadoEtapa1Schema } from "../../modules/etapa1/etapa1.schemas.js";
@@ -1426,17 +1432,13 @@ export const CreatePoliticasAfirmativasPublicacaoRequestSchema = createPoliticas
   });
 export const ResultadoEtapa1RequestSchema = resultadoEtapa1Schema.openapi("ResultadoEtapa1Request", {
   example: {
-    tema: "Controle e automacao aplicada a sistemas energeticos",
-    rubrica: {
-      adequacaoDominioTema: 8.5,
-      estrutura: 8,
-      organizacaoCoerencia: 8,
-      objetividadeSintese: 9,
-      grafiaGramatica: 8,
-      observacoes: {
-        geral: "Boa consistencia argumentativa com pequenas falhas gramaticais.",
-      },
-    },
+    criterios: [
+      { chave: "clareza", nota: 9 },
+      { chave: "objetividade", nota: 8 },
+      { chave: "coerencia", nota: 9 },
+      { chave: "relevancia", nota: 8.5 },
+      { chave: "referencias", nota: 8 },
+    ],
     usoIaComprovado: false,
     espelhoCorrecao: "Espelho com rubrica por criterio e justificativa da nota.",
     liberarEspelho: false,
@@ -1584,3 +1586,105 @@ export const ClassificacaoListResponseSchema = buildListResponseSchema("Classifi
 export const PoliticasAfirmativasAdminListResponseSchema = buildListResponseSchema("PoliticasAfirmativasAdminListResponse", PoliticasAfirmativasAdminItemSchema);
 export const Etapa1ListResponseSchema = buildListResponseSchema("Etapa1ListResponse", Etapa1AdminItemSchema);
 export const Etapa2ListResponseSchema = buildListResponseSchema("Etapa2ListResponse", Etapa2AdminItemSchema);
+
+// ─── Perfil de processo por edital ─────────────────────────────
+
+export const ConfiguracaoProcessoRequestSchema = upsertConfiguracaoProcessoSchema.openapi("ConfiguracaoProcessoRequest", {
+  example: {
+    modalidadeEtapa1: "PRE_PROJETO",
+    pesoEtapa1: 2,
+    pesoEtapa2: 1,
+    notaMinimaEtapa1: 7,
+    desempate: "ETAPA1_IDADE",
+    avaliadoresEtapa1: 2,
+    exigeDiplomaGraduacao: false,
+    exigeHistoricoGraduacao: false,
+    exigeGrupoPesquisa: true,
+    permiteCancelarSubmissao: false,
+  },
+});
+
+export const ConfiguracaoProcessoResumoSchema = z.object({
+  editalId: z.string(),
+  modalidadeEtapa1: z.string(),
+  pesoEtapa1: z.number(),
+  pesoEtapa2: z.number(),
+  notaMinimaEtapa1: z.number(),
+  desempate: z.string(),
+  avaliadoresEtapa1: z.number(),
+  exigeDiplomaGraduacao: z.boolean(),
+  exigeHistoricoGraduacao: z.boolean(),
+  exigeGrupoPesquisa: z.boolean(),
+  permiteCancelarSubmissao: z.boolean(),
+  configurada: z.boolean(),
+}).openapi("ConfiguracaoProcessoResumo");
+
+export const CriterioEtapa1RequestSchema = upsertCriterioEtapa1Schema.openapi("CriterioEtapa1Request", {
+  example: {
+    chaveInterna: "clareza",
+    label: "Clareza",
+    peso: 20,
+    notaMaxima: 10,
+    ordem: 0,
+    ativo: true,
+  },
+});
+
+export const CriterioEtapa1ResumoSchema = z.object({
+  id: z.string().nullable(),
+  chaveInterna: z.string(),
+  label: z.string(),
+  peso: z.number(),
+  notaMaxima: z.number(),
+  ordem: z.number(),
+  ativo: z.boolean(),
+}).openapi("CriterioEtapa1Resumo");
+
+export const CriterioEtapa1ListResponseSchema = buildListResponseSchema("CriterioEtapa1ListResponse", CriterioEtapa1ResumoSchema);
+
+export const ConfiguracaoProcessoComCriteriosSchema = ConfiguracaoProcessoResumoSchema.extend({
+  criterios: z.array(CriterioEtapa1ResumoSchema),
+}).openapi("ConfiguracaoProcessoComCriterios");
+
+export const GrupoPesquisaRequestSchema = upsertGrupoPesquisaSchema.openapi("GrupoPesquisaRequest", {
+  example: {
+    nome: "Grupo de Automacao",
+    descricao: "Grupo de pesquisa do edital.",
+    ativo: true,
+  },
+});
+
+export const GrupoPesquisaResumoSchema = z.object({
+  id: z.string(),
+  nome: z.string(),
+  descricao: z.string().nullable(),
+  ativo: z.boolean(),
+}).openapi("GrupoPesquisaResumo");
+
+export const GrupoPesquisaListResponseSchema = buildListResponseSchema("GrupoPesquisaListResponse", GrupoPesquisaResumoSchema);
+
+export const PerfilProcessoPacoteRequestSchema = applyPerfilProcessoPacoteSchema.openapi("PerfilProcessoPacoteRequest", {
+  example: { slug: "ppgee-073-2026-doutorado" },
+});
+
+export const PerfilProcessoPacoteResumoSchema = z.object({
+  slug: z.string(),
+  nome: z.string(),
+  versao: z.string(),
+  cursoNivel: z.string(),
+  descricao: z.string(),
+  modalidadeEtapa1: z.string(),
+  avaliadoresEtapa1: z.number(),
+  pesoEtapa1: z.number(),
+  pesoEtapa2: z.number(),
+  notaMinimaEtapa1: z.number(),
+  desempate: z.string(),
+  exigeDiplomaGraduacao: z.boolean(),
+  exigeHistoricoGraduacao: z.boolean(),
+  exigeGrupoPesquisa: z.boolean(),
+  permiteCancelarSubmissao: z.boolean(),
+  totalCriterios: z.number(),
+  criteriosPreview: z.array(z.string()),
+}).openapi("PerfilProcessoPacoteResumo");
+
+export const PerfilProcessoPacoteListResponseSchema = buildListResponseSchema("PerfilProcessoPacoteListResponse", PerfilProcessoPacoteResumoSchema);

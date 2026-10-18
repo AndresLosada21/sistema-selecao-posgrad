@@ -9,6 +9,7 @@ import {
 import path from "node:path";
 
 import { prisma } from "../../lib/prisma.js";
+import { getConfiguracaoProcesso } from "../edital/configuracao-processo.service.js";
 import { parseHomologacaoMotivos } from "../homologacao/homologacao.rules.js";
 import {
   buildClassificacaoPublicacaoTitulo,
@@ -567,6 +568,7 @@ export async function buildClassificacaoPublicacaoPreview(editalId: string, fase
 
   const tipoPublicacao = resolveClassificacaoTipoPublicacao(fase);
   const versionamento = await getPublicacaoVersionamento(editalId, tipoPublicacao);
+  const configuracaoProcesso = await getConfiguracaoProcesso(editalId);
 
   const itens = classificacoes.map((classificacao) => ({
     classificacaoId: classificacao.id,
@@ -611,6 +613,14 @@ export async function buildClassificacaoPublicacaoPreview(editalId: string, fase
       tituloSugerido: buildClassificacaoPublicacaoTitulo(fase),
       geradoEm: new Date().toISOString(),
       versionamento,
+      configuracaoProcesso: {
+        modalidadeEtapa1: configuracaoProcesso.modalidadeEtapa1,
+        pesoEtapa1: configuracaoProcesso.pesoEtapa1,
+        pesoEtapa2: configuracaoProcesso.pesoEtapa2,
+        notaMinimaEtapa1: configuracaoProcesso.notaMinimaEtapa1,
+        desempate: configuracaoProcesso.desempate,
+        avaliadoresEtapa1: configuracaoProcesso.avaliadoresEtapa1,
+      },
       resumo,
       itens,
     },
@@ -1102,6 +1112,15 @@ export async function buildEtapa1PublicacaoPreview(editalId: string) {
     return { error: "EDITAL_NAO_ENCONTRADO" as const };
   }
 
+  const [configuracaoProcesso, criteriosEtapa1] = await Promise.all([
+    getConfiguracaoProcesso(editalId),
+    prisma.criterioAvaliacaoEtapa1Edital.findMany({
+      where: { editalId, ativo: true },
+      orderBy: [{ ordem: "asc" }, { chaveInterna: "asc" }],
+      select: { chaveInterna: true, label: true, peso: true, notaMaxima: true },
+    }),
+  ]);
+
   const avaliacoes = await prisma.avaliacaoEtapa1.findMany({
     where: { editalId, status: { in: ["PRELIMINAR_PUBLICADA", "FINAL_PUBLICADA"] } },
     include: {
@@ -1131,7 +1150,9 @@ export async function buildEtapa1PublicacaoPreview(editalId: string) {
       ? { nome: avaliacao.inscricao.linhaPesquisa.nome }
       : null,
     nota: avaliacao.nota?.toNumber() ?? null,
-    situacaoPublica: avaliacao.nota && avaliacao.nota.toNumber() >= 7 ? "APTA_ETAPA_2" : "ELIMINADA_ETAPA_1",
+    situacaoPublica: avaliacao.nota && avaliacao.nota.toNumber() >= configuracaoProcesso.notaMinimaEtapa1
+      ? "APTA_ETAPA_2"
+      : "ELIMINADA_ETAPA_1",
     status: avaliacao.status,
   }));
 
@@ -1148,6 +1169,15 @@ export async function buildEtapa1PublicacaoPreview(editalId: string) {
       tituloSugerido: buildEtapa1PublicacaoTitulo(),
       geradoEm: new Date().toISOString(),
       versionamento,
+      configuracaoProcesso: {
+        modalidadeEtapa1: configuracaoProcesso.modalidadeEtapa1,
+        pesoEtapa1: configuracaoProcesso.pesoEtapa1,
+        pesoEtapa2: configuracaoProcesso.pesoEtapa2,
+        notaMinimaEtapa1: configuracaoProcesso.notaMinimaEtapa1,
+        desempate: configuracaoProcesso.desempate,
+        avaliadoresEtapa1: configuracaoProcesso.avaliadoresEtapa1,
+      },
+      criteriosEtapa1,
       resumo,
       itens,
     },

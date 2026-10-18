@@ -223,8 +223,13 @@ test("registro concorrente da etapa 1 preserva um unico resultado preliminar", a
     },
   });
   const payload = {
-    tema: "Tema da etapa 1",
-    rubrica: { adequacaoDominioTema: 8, estrutura: 8, organizacaoCoerencia: 8, objetividadeSintese: 8, grafiaGramatica: 8 },
+    criterios: [
+      { chave: "adequacaoDominioTema", nota: 8 },
+      { chave: "estrutura", nota: 8 },
+      { chave: "organizacaoCoerencia", nota: 8 },
+      { chave: "objetividadeSintese", nota: 8 },
+      { chave: "grafiaGramatica", nota: 8 },
+    ],
     usoIaComprovado: false,
     espelhoCorrecao: "Espelho preliminar concorrente.",
     liberarEspelho: false,

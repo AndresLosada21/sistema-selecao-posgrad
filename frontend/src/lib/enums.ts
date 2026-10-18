@@ -37,6 +37,7 @@ export const tipoDocumentoInscricaoOptions = [
   "DIPLOMA",
   "HISTORICO",
   "CURRICULO",
+  "PRE_PROJETO",
   "COMPROVANTE_PAGAMENTO",
   "ANEXO_IV",
   "ANEXO_V",

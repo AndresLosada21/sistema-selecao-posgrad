@@ -69,6 +69,7 @@ export type CandidateDashboardResponse = {
       };
       temaRedacaoEditalId?: string | null;
       linhaPesquisa: { id: string; nome: string } | null;
+      grupoPesquisa: { id: string; nome: string } | null;
       temaRedacao: string | null;
       resumoCurriculo: string | null;
         redacaoTexto: string | null;

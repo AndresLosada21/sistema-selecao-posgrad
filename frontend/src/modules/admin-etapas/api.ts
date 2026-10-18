@@ -5,6 +5,7 @@ import type {
   Etapa1Espelho,
   Etapa1ListResponse,
   Etapa1ResultadoPayload,
+  Etapa1ResultadoResponse,
   Etapa2AdminItem,
   AnexoIiItemsResponse,
   Etapa2Espelho,
@@ -27,7 +28,7 @@ export function getEtapa1Item(inscricaoId: string, token: string) {
 }
 
 export function registrarEtapa1(inscricaoId: string, payload: Etapa1ResultadoPayload, token: string) {
-  return apiPut<Record<string, unknown>>(`/v1/admin/etapa-1/inscricoes/${inscricaoId}/resultado`, payload, token);
+  return apiPut<Etapa1ResultadoResponse>(`/v1/admin/etapa-1/inscricoes/${inscricaoId}/resultado`, payload, token);
 }
 
 export function liberarEspelhoEtapa1(inscricaoId: string, token: string) {
