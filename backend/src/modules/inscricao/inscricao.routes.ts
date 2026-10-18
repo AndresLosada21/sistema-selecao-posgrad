@@ -45,6 +45,10 @@ function getInscricaoMessage(errorCode: string) {
       return "A inscricao ainda nao foi submetida para esta operacao.";
     case "INSCRICAO_NAO_CANCELAVEL":
       return "A inscricao atual nao pode ser cancelada para edicao neste estado.";
+    case "CANCELAMENTO_SUBMISSAO_NAO_PERMITIDO":
+      return "O edital nao permite cancelar a submissao para alterar a inscricao.";
+    case "GRUPO_PESQUISA_INVALIDO":
+      return "O grupo de pesquisa informado nao pertence ao edital ou esta inativo.";
     case "INSCRICAO_COM_PROCESSAMENTO_POSTERIOR":
       return "A inscricao nao pode mais voltar ao rascunho porque ja possui processamento administrativo posterior.";
     case "ANEXO_IV_INDISPONIVEL":
@@ -94,6 +98,7 @@ inscricaoRouter.put("/v1/editais/:editalId/inscricao/rascunho", requireAuth, asy
     editalId: parsedParams.data.editalId,
     usuarioId: request.auth!.userId,
     linhaPesquisaId: parsedBody.data.linhaPesquisaId as string,
+    grupoPesquisaId: parsedBody.data.grupoPesquisaId ?? undefined,
     modalidadeConcorrencia: parsedBody.data.modalidadeConcorrencia,
     temaRedacaoEditalId: parsedBody.data.temaRedacaoEditalId as string | undefined,
     temaRedacao: parsedBody.data.temaRedacao as string | undefined,

@@ -13,6 +13,7 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
+import { getConfiguracaoProcesso } from "../edital/configuracao-processo.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
 import { buildHomologacaoResumoVigente, getFinalHomologacaoStatus, getInscricaoStatusAfterFinalHomologacao, getPreliminaryHomologacaoStatus } from "../homologacao/homologacao.rules.js";
 import { recalcularNotasEtapa2PorEdital } from "../etapa2/etapa2.service.js";
@@ -619,11 +620,17 @@ export async function decidirRecurso(
         case FaseRecurso.ETAPA_1:
           if (recurso.participacaoEdital.inscricao?.avaliacaoEtapa1 && input.novaNotaEtapa1 !== undefined) {
             const avaliacaoAtual = recurso.participacaoEdital.inscricao.avaliacaoEtapa1;
+            const configuracaoProcesso = await getConfiguracaoProcesso(recurso.editalId);
+            const notaAnterior = avaliacaoAtual.nota?.toNumber() ?? null;
             const rubricaDetalhada = rebuildEtapa1AuditSnapshotAfterRecurso({
               existingSnapshot: avaliacaoAtual.rubricaDetalhada,
               notaFinal: input.novaNotaEtapa1,
               usoIaComprovado: avaliacaoAtual.usoIaComprovado,
               fundamentoUsoIa: avaliacaoAtual.fundamentoUsoIa,
+              notaMinima: configuracaoProcesso.notaMinimaEtapa1,
+              notaAnterior,
+              justificativa: input.decisao,
+              recursoId: recurso.id,
             });
 
             await tx.avaliacaoEtapa1.update({
@@ -639,7 +646,9 @@ export async function decidirRecurso(
             await tx.inscricao.update({
               where: { id: recurso.participacaoEdital.inscricao.id },
               data: {
-                status: input.novaNotaEtapa1 >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1,
+                status: input.novaNotaEtapa1 >= configuracaoProcesso.notaMinimaEtapa1
+                  ? StatusInscricao.APTA_ETAPA_2
+                  : StatusInscricao.ELIMINADA_ETAPA_1,
               },
             });
             reprocessarClassificacaoDerivada = true;

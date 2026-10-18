@@ -29,17 +29,35 @@ import {
 } from "./edital.service.js";
 import {
   applyCriterioTitulacaoPacoteSchema,
+  applyPerfilProcessoPacoteSchema,
   applyTemaRedacaoPacoteSchema,
+  criterioEtapa1ParamsSchema,
   editalCronogramaParamsSchema,
   editalLinhaPesquisaParamsSchema,
   editalParamsSchema,
+  grupoPesquisaParamsSchema,
   listEditaisQuerySchema,
   temaRedacaoParamsSchema,
+  upsertConfiguracaoProcessoSchema,
+  upsertCriterioEtapa1Schema,
   upsertCronogramaSchema,
   upsertEditalSchema,
+  upsertGrupoPesquisaSchema,
   upsertLinhaPesquisaSchema,
   upsertTemaRedacaoSchema,
 } from "./edital.schemas.js";
+import {
+  applyPerfilProcessoPacote,
+  createGrupoPesquisa,
+  deleteCriterioEtapa1,
+  deleteGrupoPesquisa,
+  listCriteriosEtapa1,
+  listGruposPesquisa,
+  listPerfilProcessoPacotes,
+  updateGrupoPesquisa,
+  upsertConfiguracaoProcesso,
+  upsertCriterioEtapa1,
+} from "./configuracao-processo.service.js";
 
 export const editalRouter = Router();
 
@@ -438,6 +456,180 @@ editalRouter.delete("/v1/admin/temas-redacao/:temaId", requireAuth, requireRole(
     return response.status(204).send();
   } catch (error) {
     const result = buildAdminEditalError(error, "Nao foi possivel excluir o tema de redacao.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.get("/v1/admin/perfis-processo/pacotes", requireAuth, requireRole(Role.ADMIN), async (_request, response) => {
+  const pacotes = await listPerfilProcessoPacotes();
+  return response.status(200).json(pacotes);
+});
+
+editalRouter.put("/v1/admin/editais/:editalId/configuracao-processo", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+  const parsedBody = upsertConfiguracaoProcessoSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para configurar o processo do edital.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const configuracao = await upsertConfiguracaoProcesso(parsedParams.data.editalId, parsedBody.data);
+    return response.status(200).json(configuracao);
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel configurar o processo do edital.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.post("/v1/admin/editais/:editalId/perfil-processo/pacote", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+  const parsedBody = applyPerfilProcessoPacoteSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para aplicar o perfil de processo.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const configuracao = await applyPerfilProcessoPacote(parsedParams.data.editalId, parsedBody.data.slug);
+    return response.status(200).json(configuracao);
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel aplicar o perfil de processo.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.get("/v1/admin/editais/:editalId/criterios-etapa-1", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  try {
+    const items = await listCriteriosEtapa1(parsedParams.data.editalId);
+    return response.status(200).json({ items, total: items.length });
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel listar os criterios da etapa 1.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.post("/v1/admin/editais/:editalId/criterios-etapa-1", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+  const parsedBody = upsertCriterioEtapa1Schema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para salvar o criterio da etapa 1.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const criterio = await upsertCriterioEtapa1(parsedParams.data.editalId, parsedBody.data);
+    return response.status(200).json(criterio);
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel salvar o criterio da etapa 1.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.delete("/v1/admin/editais/:editalId/criterios-etapa-1/:criterioId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = criterioEtapa1ParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do criterio da etapa 1 invalido.", parsedParams.error.flatten()));
+  }
+
+  try {
+    await deleteCriterioEtapa1(parsedParams.data.editalId, parsedParams.data.criterioId);
+    return response.status(204).send();
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel excluir o criterio da etapa 1.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.get("/v1/admin/editais/:editalId/grupos-pesquisa", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  try {
+    const items = await listGruposPesquisa(parsedParams.data.editalId);
+    return response.status(200).json({ items, total: items.length });
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel listar os grupos de pesquisa.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.post("/v1/admin/editais/:editalId/grupos-pesquisa", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = editalParamsSchema.safeParse(request.params);
+  const parsedBody = upsertGrupoPesquisaSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do edital invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para criar grupo de pesquisa.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const grupo = await createGrupoPesquisa(parsedParams.data.editalId, parsedBody.data);
+    return response.status(201).json(grupo);
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel criar o grupo de pesquisa.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.put("/v1/admin/editais/:editalId/grupos-pesquisa/:grupoId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = grupoPesquisaParamsSchema.safeParse(request.params);
+  const parsedBody = upsertGrupoPesquisaSchema.safeParse(request.body);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do grupo de pesquisa invalido.", parsedParams.error.flatten()));
+  }
+
+  if (!parsedBody.success) {
+    return response.status(400).json(validationError("Dados invalidos para atualizar grupo de pesquisa.", parsedBody.error.flatten()));
+  }
+
+  try {
+    const grupo = await updateGrupoPesquisa(parsedParams.data.editalId, parsedParams.data.grupoId, parsedBody.data);
+    return response.status(200).json(grupo);
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel atualizar o grupo de pesquisa.");
+    return response.status(result.status).json(result.body);
+  }
+});
+
+editalRouter.delete("/v1/admin/editais/:editalId/grupos-pesquisa/:grupoId", requireAuth, requireRole(Role.ADMIN), async (request, response) => {
+  const parsedParams = grupoPesquisaParamsSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Identificador do grupo de pesquisa invalido.", parsedParams.error.flatten()));
+  }
+
+  try {
+    await deleteGrupoPesquisa(parsedParams.data.editalId, parsedParams.data.grupoId);
+    return response.status(204).send();
+  } catch (error) {
+    const result = buildAdminEditalError(error, "Nao foi possivel excluir o grupo de pesquisa.");
     return response.status(result.status).json(result.body);
   }
 });

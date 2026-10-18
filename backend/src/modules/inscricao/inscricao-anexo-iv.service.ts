@@ -123,6 +123,27 @@ function drawLinhaPesquisaFallback(pdfDoc: PDFDocument, linhaNome: string, selec
   });
 }
 
+function drawGrupoPesquisaFallback(pdfDoc: PDFDocument, grupoNome: string) {
+  if (!grupoNome) {
+    return;
+  }
+
+  const page = pdfDoc.getPages()[1];
+
+  if (!page) {
+    return;
+  }
+
+  page.drawText(`Grupo de pesquisa selecionado no sistema: ${grupoNome.slice(0, 80)}`, {
+    x: 44,
+    y: 236,
+    size: 7.2,
+    font: pdfDoc.embedStandardFont(StandardFonts.Helvetica),
+    color: rgb(31 / 255, 41 / 255, 55 / 255),
+    maxWidth: 505,
+  });
+}
+
 function drawTrabalhoRegimeFallback(pdfDoc: PDFDocument, shouldDraw: boolean) {
   if (!shouldDraw) {
     return;
@@ -151,6 +172,7 @@ export async function buildAnexoIvTemplatePdfBytes(input: {
   documentos: Array<{ tipo: TipoDocumentoInscricao; nomeArquivo: string }>;
   pagamentoDispensado: boolean;
   linhaNome: string;
+  grupoNome?: string;
   flatten: boolean;
 }) {
   const template = await readFile(ANEXO_IV_TEMPLATE_PATH);
@@ -222,6 +244,7 @@ export async function buildAnexoIvTemplatePdfBytes(input: {
   const linhaOption = resolveLinhaPesquisaTemplateOption(input.linhaNome);
   selectRadioField(form, "linha_pesquisa", linhaOption);
   drawLinhaPesquisaFallback(pdfDoc, input.linhaNome, linhaOption);
+  drawGrupoPesquisaFallback(pdfDoc, input.grupoNome ?? "");
   drawTrabalhoRegimeFallback(pdfDoc, trabalhoNaoAplicavel);
   form.updateFieldAppearances(textFont);
 
@@ -237,6 +260,7 @@ async function getInscricaoForDocument(inscricaoId: string) {
     where: { id: inscricaoId },
     include: {
       linhaPesquisa: true,
+      grupoPesquisa: true,
       documentos: true,
       participacaoEdital: {
         include: {
@@ -270,6 +294,7 @@ async function buildInscricaoAnexoIvResponse(inscricao: InscricaoForDocument, fl
     documentos: inscricao.documentos.map((documento) => ({ tipo: documento.tipo, nomeArquivo: documento.nomeArquivo })),
     pagamentoDispensado,
     linhaNome: inscricao.linhaPesquisa?.nome ?? "",
+    grupoNome: inscricao.grupoPesquisa?.nome ?? "",
     flatten,
   });
 

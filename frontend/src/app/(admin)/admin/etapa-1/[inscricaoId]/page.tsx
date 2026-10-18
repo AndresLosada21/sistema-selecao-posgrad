@@ -17,27 +17,37 @@ import type { Etapa1AdminItem, Etapa1Espelho } from "@/modules/admin-etapas/type
 
 type Props = { params: Promise<{ inscricaoId: string }> };
 
-const CRITERIOS = [
-  { key: "adequacaoDominioTema", label: "Adequação e domínio do tema", peso: 50 },
-  { key: "estrutura", label: "Estrutura", peso: 10 },
-  { key: "organizacaoCoerencia", label: "Organização textual e coerência", peso: 15 },
-  { key: "objetividadeSintese", label: "Objetividade e capacidade de síntese", peso: 15 },
-  { key: "grafiaGramatica", label: "Grafia, acentuação e gramática", peso: 10 },
-] as const;
-
-type CriterioKey = (typeof CRITERIOS)[number]["key"];
-
 type RubricaSnapshot = {
-  criterios?: Partial<Record<CriterioKey, { notaAtribuida?: number; contribuicao?: number; observacao?: string | null }>>;
-  observacoes?: Partial<Record<CriterioKey | "geral", string | null>> | null;
-  notaFinal?: number;
-  notaCalculadaSemPenalidadeIa?: number;
+  versao?: number;
+  criterios?: Array<{ chaveInterna?: string; nota?: number; notaAtribuida?: number }>;
   usoIaComprovado?: boolean;
   fundamentoUsoIa?: string | null;
+  notaFinal?: number;
 };
 
-function normalizeObs(obs: Record<CriterioKey | "geral", string>) {
-  return Object.fromEntries(Object.entries(obs).filter(([, v]) => v.trim().length >= 3));
+function readNotasDoSnapshot(snapshot: RubricaSnapshot | null) {
+  const notas: Record<string, number> = {};
+
+  if (!snapshot?.criterios) {
+    return notas;
+  }
+
+  if (Array.isArray(snapshot.criterios)) {
+    for (const criterio of snapshot.criterios) {
+      if (criterio.chaveInterna) {
+        notas[criterio.chaveInterna] = criterio.nota ?? 0;
+      }
+    }
+    return notas;
+  }
+
+  for (const [chave, valor] of Object.entries(snapshot.criterios)) {
+    if (valor && typeof valor === "object" && "notaAtribuida" in valor) {
+      notas[chave] = Number((valor as { notaAtribuida?: number }).notaAtribuida ?? 0);
+    }
+  }
+
+  return notas;
 }
 
 export default function AdminEtapa1DetailPage({ params }: Props) {
@@ -48,13 +58,8 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
   const [item, setItem] = useState<Etapa1AdminItem | null>(null);
   const [espelho, setEspelho] = useState<Etapa1Espelho | null>(null);
 
-  const [rubrica, setRubrica] = useState<Record<CriterioKey, number>>({
-    adequacaoDominioTema: 0, estrutura: 0, organizacaoCoerencia: 0, objetividadeSintese: 0, grafiaGramatica: 0,
-  });
-  const [observacoes, setObservacoes] = useState<Record<CriterioKey | "geral", string>>({
-    adequacaoDominioTema: "", estrutura: "", organizacaoCoerencia: "", objetividadeSintese: "", grafiaGramatica: "", geral: "",
-  });
-  const [tema, setTema] = useState("");
+  const [notas, setNotas] = useState<Record<string, number>>({});
+  const [avaliadorUsuarioId, setAvaliadorUsuarioId] = useState("");
   const [espelhoCorrecao, setEspelhoCorrecao] = useState("");
   const [fundamentoUsoIa, setFundamentoUsoIa] = useState("");
   const [publicacao, setPublicacao] = useState<"PRELIMINAR" | "FINAL">("PRELIMINAR");
@@ -77,25 +82,8 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     const found = await getEtapa1Item(inscricaoId, token);
     setItem(found);
     const rubricaSalva = (found?.avaliacao?.rubricaDetalhada as RubricaSnapshot | null) ?? null;
-    const criterios = rubricaSalva?.criterios;
-    const observacoesSalvas = rubricaSalva?.observacoes;
 
-    setRubrica({
-      adequacaoDominioTema: criterios?.adequacaoDominioTema?.notaAtribuida ?? 0,
-      estrutura: criterios?.estrutura?.notaAtribuida ?? 0,
-      organizacaoCoerencia: criterios?.organizacaoCoerencia?.notaAtribuida ?? 0,
-      objetividadeSintese: criterios?.objetividadeSintese?.notaAtribuida ?? 0,
-      grafiaGramatica: criterios?.grafiaGramatica?.notaAtribuida ?? 0,
-    });
-    setObservacoes({
-      adequacaoDominioTema: observacoesSalvas?.adequacaoDominioTema ?? criterios?.adequacaoDominioTema?.observacao ?? "",
-      estrutura: observacoesSalvas?.estrutura ?? criterios?.estrutura?.observacao ?? "",
-      organizacaoCoerencia: observacoesSalvas?.organizacaoCoerencia ?? criterios?.organizacaoCoerencia?.observacao ?? "",
-      objetividadeSintese: observacoesSalvas?.objetividadeSintese ?? criterios?.objetividadeSintese?.observacao ?? "",
-      grafiaGramatica: observacoesSalvas?.grafiaGramatica ?? criterios?.grafiaGramatica?.observacao ?? "",
-      geral: observacoesSalvas?.geral ?? "",
-    });
-    setTema(found?.avaliacao?.tema ?? found?.temaRedacao ?? "");
+    setNotas(readNotasDoSnapshot(rubricaSalva));
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
     setUsoIaComprovado(rubricaSalva?.usoIaComprovado ?? found?.avaliacao?.usoIaComprovado ?? false);
     setFundamentoUsoIa(rubricaSalva?.fundamentoUsoIa ?? found?.avaliacao?.fundamentoUsoIa ?? "");
@@ -116,17 +104,28 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     }
   }, [inscricaoId, loadItem, signOut, token]);
 
+  const criterios = item?.criteriosAvaliacao ?? [];
+  const modalidade = item?.edicao?.modalidadeEtapa1 ?? "REDACAO";
+  const banca = item?.edicao?.banca;
+  const avaliadoresRegistrados = item?.avaliadores ?? [];
+
   const notaPreview = useMemo(() => {
-    let total = 0;
-    for (const c of CRITERIOS) total += rubrica[c.key] * (c.peso / 100);
-    return total;
-  }, [rubrica]);
+    const somaPesos = criterios.reduce((total, criterio) => total + criterio.peso, 0);
 
-  const redacaoText = useMemo(() => {
-    return item?.avaliacao?.textoSubmetido ?? item?.redacaoTexto ?? null;
-  }, [item]);
+    if (somaPesos <= 0) {
+      return 0;
+    }
 
-  const charCount = redacaoText?.length ?? 0;
+    const somaPonderada = criterios.reduce(
+      (total, criterio) => total + (notas[criterio.chaveInterna] ?? 0) * criterio.peso,
+      0,
+    );
+
+    return Math.round((somaPonderada / somaPesos) * 1000) / 1000;
+  }, [criterios, notas]);
+
+  const textoSubmetido = item?.avaliacao?.textoSubmetido ?? item?.redacaoTexto ?? null;
+  const preProjeto = espelho?.preProjeto ?? null;
 
   async function loadEspelho() {
     if (!token || !inscricaoId) return;
@@ -145,27 +144,31 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
     setBusy(true);
     setFeedback(null); setFieldErrors({});
     try {
-      if (notaPreview < 0 || notaPreview > 10) {
-        setFeedback({ type: "warning", text: "A nota calculada da rubrica deve ficar entre 0 e 10." });
-        return;
-      }
-      await registrarEtapa1(inscricaoId, {
-        tema: tema || item?.temaRedacao || undefined,
-        rubrica: { ...rubrica, observacoes: normalizeObs(observacoes) },
+      const response = await registrarEtapa1(inscricaoId, {
+        criterios: criterios.map((criterio) => ({
+          chave: criterio.chaveInterna,
+          nota: notas[criterio.chaveInterna] ?? 0,
+        })),
         usoIaComprovado,
         fundamentoUsoIa: usoIaComprovado ? fundamentoUsoIa : undefined,
         espelhoCorrecao,
         liberarEspelho: publicacao === "FINAL",
         publicacao,
+        avaliadorUsuarioId: avaliadorUsuarioId.trim() || undefined,
       }, token);
       await loadItem();
       if (espelho) {
         await loadEspelho();
       }
-      setFeedback({ type: "success", text: "Resultado da etapa 1 salvo." });
+      setFeedback({
+        type: "success",
+        text: response.bancaPendente
+          ? `Nota registrada. Banca com ${response.avaliadoresRegistrados ?? 0} de ${response.avaliadoresNecessarios ?? 0} avaliadores.`
+          : "Resultado da etapa 1 salvo.",
+      });
     } catch (error) {
       if (isUnauthorizedError(error)) { signOut(); return; }
-      setFieldErrors(pickFirstFieldErrors(error, ["tema", "rubrica", "fundamentoUsoIa", "espelhoCorrecao", "publicacao"] as const));
+      setFieldErrors(pickFirstFieldErrors(error, ["criterios", "fundamentoUsoIa", "espelhoCorrecao", "publicacao"] as const));
       setFeedback({ type: "error", text: getFirstFormError(error) ?? getErrorMessage(error) });
     } finally { setBusy(false); }
   }
@@ -192,8 +195,7 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
   const espelhoLiberado = !!item.avaliacao?.espelhoLiberadoEm;
   const avaliacaoStatus = item.avaliacao?.status ?? "SEM_AVALIACAO";
-  const rubricaSnapshot = (item.avaliacao?.rubricaDetalhada as RubricaSnapshot | null) ?? null;
-  const notaPersistida = item.avaliacao?.nota ?? rubricaSnapshot?.notaFinal ?? null;
+  const notaPersistida = item.avaliacao?.nota ?? null;
   const editState = item.edicao;
   const podeSalvarResultado = publicacao === "FINAL" ? (editState?.podeSalvarFinal ?? true) : (editState?.podeSalvarPreliminar ?? true);
   const bloqueioResultado = publicacao === "FINAL" ? editState?.bloqueioSalvarFinal : editState?.bloqueioSalvarPreliminar;
@@ -205,10 +207,9 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
       <AdminBreadcrumb items={[{ label: "Etapa 1", href: "/admin/etapa-1" }, { label: item.edital.numero }, { label: item.candidato.nomeCompleto }]} />
 
-      {/* Header */}
       <div className="admin-detail-header">
         <h1>Etapa 1 — {item.candidato.nomeCompleto}</h1>
-        <p>Edital {item.edital.numero} &middot; Avaliacao da redacao</p>
+        <p>Edital {item.edital.numero} &middot; {modalidade === "PRE_PROJETO" ? "Avaliação do pré-projeto" : "Avaliação da redação"}</p>
       </div>
 
       <div className="admin-summary-cards">
@@ -221,20 +222,30 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
           <StatusBadge variant={getStatusVariant(avaliacaoStatus)}>{getStatusLabel(avaliacaoStatus)}</StatusBadge>
         </div>
         <div className="admin-summary-card">
-          <span className="admin-summary-card-label">Nota registrada</span>
+          <span className="admin-summary-card-label">Nota consolidada</span>
           <span className="admin-summary-card-value admin-summary-card-value--primary">{notaPersistida?.toFixed?.(2) ?? "—"}</span>
         </div>
         <div className="admin-summary-card">
-          <span className="admin-summary-card-label">Espelho</span>
-          <span style={{ fontSize: 13, color: "#475569" }}>{espelhoLiberado ? `Liberado em ${formatIsoDate(item.avaliacao?.espelhoLiberadoEm ?? null)}` : "Não liberado"}</span>
+          <span className="admin-summary-card-label">Banca</span>
+          <span style={{ fontSize: 13, color: "#475569" }}>
+            {banca ? `${banca.avaliadoresRegistrados}/${banca.avaliadoresNecessarios} avaliadores` : "—"}
+          </span>
         </div>
       </div>
+
+      {banca && !banca.completa ? (
+        <PageFeedback
+          type="warning"
+          title="Banca incompleta"
+          description={`Faltam ${banca.avaliadoresNecessarios - banca.avaliadoresRegistrados} avaliador(es) para consolidar o resultado desta etapa.`}
+        />
+      ) : null}
 
       {usoIaComprovado ? (
         <PageFeedback
           type="warning"
           title="Uso de IA marcado como comprovado"
-          description="Conforme a regra da etapa 1, a nota final sera zerada enquanto esse marcador estiver ativo. Informe o fundamento no campo proprio antes de salvar."
+          description="Conforme a regra do edital, a nota final sera zerada enquanto esse marcador estiver ativo. Informe o fundamento no campo proprio antes de salvar."
         />
       ) : null}
 
@@ -244,126 +255,119 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
 
       <div className="admin-etapa1-workbench">
         <div className="admin-form-card admin-etapa1-redacao-card">
-          <h2 className="admin-form-card-title">Redacao do candidato</h2>
+          <h2 className="admin-form-card-title">{modalidade === "PRE_PROJETO" ? "Pre-projeto do candidato" : "Redacao do candidato"}</h2>
           <div className="admin-redacao-meta">
-            <span>Tema: {tema || item.avaliacao?.tema || item.temaRedacao || "nao informado"}</span>
-            <span className="admin-char-badge">{charCount} caracteres</span>
+            <span>Tema: {item.avaliacao?.tema ?? item.temaRedacao ?? "nao informado"}</span>
+            <span className="admin-char-badge">{textoSubmetido?.length ?? 0} caracteres</span>
           </div>
           <div className="admin-redacao-box">
-            {redacaoText ?? "Redacao nao disponivel."}
+            {modalidade === "PRE_PROJETO"
+              ? preProjeto
+                ? `Arquivo: ${preProjeto.nomeArquivo}`
+                : "Pre-projeto disponivel na lista de documentos da inscricao."
+              : textoSubmetido ?? "Redacao nao disponivel."}
           </div>
         </div>
 
-      {/* Rubrica e nota */}
-      <form className="admin-form-card admin-etapa1-form-card" onSubmit={onSubmit}>
+        <form className="admin-form-card admin-etapa1-form-card" onSubmit={onSubmit}>
           <h2 className="admin-form-card-title">Rubrica e nota</h2>
-          {fieldErrors.rubrica ? <PageFeedback type="error" title="Rubrica incompleta" description={fieldErrors.rubrica} /> : null}
+          {fieldErrors.criterios ? <PageFeedback type="error" title="Rubrica incompleta" description={fieldErrors.criterios} /> : null}
 
-        <div className="admin-eval-row">
-          <div className="admin-eval-field">
-            <label>Nota final *</label>
-            <div className="eval-display">{notaPreview.toFixed(2)}</div>
+          <div className="admin-eval-row">
+            <div className="admin-eval-field">
+              <label>Nota do avaliador *</label>
+              <div className="eval-display">{notaPreview.toFixed(2)}</div>
+            </div>
+            <div className="admin-eval-field">
+              <label>Uso de IA comprovado?</label>
+              <select
+                disabled={!podeSalvarResultado || busy}
+                className="select-field"
+                onChange={(e) => setUsoIaComprovado(e.target.value === "sim")}
+                value={usoIaComprovado ? "sim" : "nao"}
+              >
+                <option value="nao">Não</option>
+                <option value="sim">Sim</option>
+              </select>
+            </div>
+            <div className="admin-eval-field">
+              <label>Espelho</label>
+              <div className="admin-espelho-info">
+                <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
+                  {espelhoLiberado ? "Liberado" : "Não liberado"}
+                </StatusBadge>
+              </div>
+            </div>
           </div>
+
           <div className="admin-eval-field">
-            <label>Uso de IA comprovado?</label>
-            <select
+            <label>ID do avaliador (opcional)</label>
+            <input
               disabled={!podeSalvarResultado || busy}
-              className="select-field"
-              onChange={(e) => setUsoIaComprovado(e.target.value === "sim")}
-              value={usoIaComprovado ? "sim" : "nao"}
-            >
-              <option value="nao">Não</option>
-              <option value="sim">Sim</option>
-            </select>
+              onChange={(e) => setAvaliadorUsuarioId(e.target.value)}
+              placeholder="Preencha para registrar em nome de um avaliador da banca"
+              value={avaliadorUsuarioId}
+            />
           </div>
-          <div className="admin-eval-field">
-            <label>Espelho</label>
-            <div className="admin-espelho-info">
-              <StatusBadge variant={espelhoLiberado ? "success" : "warning"}>
-                {espelhoLiberado ? "Liberado" : "Não liberado"}
-              </StatusBadge>
-            </div>
-          </div>
-        </div>
 
-        {usoIaComprovado && (
+          {usoIaComprovado && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Fundamento do uso de IA</label>
+              <textarea aria-invalid={!!fieldErrors.fundamentoUsoIa} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setFundamentoUsoIa(e.target.value); setFieldErrors((current) => ({ ...current, fundamentoUsoIa: null })); }} value={fundamentoUsoIa} />
+              {fieldErrors.fundamentoUsoIa ? <span className="field-error-text">{fieldErrors.fundamentoUsoIa}</span> : null}
+            </div>
+          )}
+
+          {criterios.length === 0 ? (
+            <PageFeedback type="warning" title="Rubrica nao configurada" description="Configure os criterios da etapa 1 no cadastro do edital antes de avaliar." />
+          ) : (
+            criterios.map((criterio) => (
+              <div className="admin-form-row" key={criterio.chaveInterna}>
+                <div className="admin-eval-field" style={{ flex: 2 }}>
+                  <label>{criterio.label} ({criterio.peso}%)</label>
+                  <input
+                    disabled={!podeSalvarResultado || busy}
+                    max={criterio.notaMaxima}
+                    min={0}
+                    onChange={(e) => setNotas((prev) => ({ ...prev, [criterio.chaveInterna]: Number(e.target.value) || 0 }))}
+                    step={0.1}
+                    type="number"
+                    value={notas[criterio.chaveInterna] ?? 0}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Fundamento do uso de IA</label>
-            <textarea aria-invalid={!!fieldErrors.fundamentoUsoIa} disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setFundamentoUsoIa(e.target.value); setFieldErrors((current) => ({ ...current, fundamentoUsoIa: null })); }} value={fundamentoUsoIa} />
-            {fieldErrors.fundamentoUsoIa ? <span className="field-error-text">{fieldErrors.fundamentoUsoIa}</span> : null}
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correção</label>
+            <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} aria-label="Espelho de correção" disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
+            {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
           </div>
-        )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Tema base da avaliacao</label>
-          <div style={{ minHeight: 44, borderRadius: 8, border: "1px solid #C7D2FE", background: "#EEF2FF", padding: "11px 14px", fontSize: 14, fontWeight: 600, color: "#312E81" }}>
-            {tema || item.temaRedacao || "Tema nao informado na inscricao."}
-          </div>
-          <span style={{ fontSize: 12, color: "#64748B" }}>Tema escolhido na inscricao e usado como referencia principal da correcao.</span>
-        </div>
-
-        {/* Rubrica inputs per criterio */}
-        {CRITERIOS.map((c) => (
-          <div className="admin-form-row" key={c.key}>
-            <div className="admin-eval-field" style={{ flex: 2 }}>
-              <label>{c.label} ({c.peso}%)</label>
-              <input
-                disabled={!podeSalvarResultado || busy}
-                max={10}
-                min={0}
-                onChange={(e) => setRubrica((prev) => ({ ...prev, [c.key]: Number(e.target.value) || 0 }))}
-                step={0.1}
-                type="number"
-                value={rubrica[c.key]}
-              />
+          <div className="admin-form-row">
+            <div className="admin-eval-field">
+              <label>Publicação</label>
+              <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={!podeAlternarPublicacao || busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
+                <option value="PRELIMINAR">Preliminar</option>
+                <option value="FINAL">Final</option>
+              </select>
+              {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
             </div>
-            <div className="admin-eval-field" style={{ flex: 3 }}>
-              <label>Observacao</label>
-              <input
-                disabled={!podeSalvarResultado || busy}
-                onChange={(e) => setObservacoes((prev) => ({ ...prev, [c.key]: e.target.value }))}
-                placeholder="Opcional"
-                value={observacoes[c.key]}
-              />
+            <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
+              <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a ação confirmada de liberação abaixo."}</span>
             </div>
           </div>
-        ))}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Observação geral</label>
-          <textarea disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => setObservacoes((prev) => ({ ...prev, geral: e.target.value }))} value={observacoes.geral} />
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Espelho de correção</label>
-          <textarea aria-invalid={!!fieldErrors.espelhoCorrecao} aria-label="Espelho de correção" disabled={!podeSalvarResultado || busy} className="text-area" onChange={(e) => { setEspelhoCorrecao(e.target.value); setFieldErrors((current) => ({ ...current, espelhoCorrecao: null })); }} value={espelhoCorrecao} />
-          {fieldErrors.espelhoCorrecao ? <span className="field-error-text">{fieldErrors.espelhoCorrecao}</span> : null}
-        </div>
-
-        <div className="admin-form-row">
-          <div className="admin-eval-field">
-            <label>Publicação</label>
-            <select aria-invalid={!!fieldErrors.publicacao} className="select-field" disabled={!podeAlternarPublicacao || busy} onChange={(e) => { setPublicacao(e.target.value as "PRELIMINAR" | "FINAL"); setFieldErrors((current) => ({ ...current, publicacao: null })); }} value={publicacao}>
-              <option value="PRELIMINAR">Preliminar</option>
-              <option value="FINAL">Final</option>
-            </select>
-            {fieldErrors.publicacao ? <span className="field-error-text">{fieldErrors.publicacao}</span> : null}
-          </div>
-          <div className="admin-eval-field" style={{ justifyContent: "flex-end" }}>
-            <span style={{ fontSize: 12, color: "#64748B" }}>{publicacao === "FINAL" ? "Resultado final libera o espelho automaticamente." : "Para resultado preliminar, use a ação confirmada de liberação abaixo."}</span>
-          </div>
-        </div>
-
-        <button className="admin-page-cta" disabled={busy || !podeSalvarResultado} style={{ width: 200 }} type="submit">
-          Salvar avaliação
-        </button>
-      </form>
+          <button className="admin-page-cta" disabled={busy || !podeSalvarResultado || criterios.length === 0} style={{ width: 200 }} type="submit">
+            Salvar avaliação
+          </button>
+        </form>
       </div>
 
-      {/* Criterios da rubrica (readonly preview table) */}
       <div className="admin-form-card">
         <h2 className="admin-form-card-title">Critérios da rubrica</h2>
-        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Distribuição de notas por critério de avaliação.</p>
+        <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Distribuição de notas por critério de avaliação definida no edital.</p>
 
         <table className="admin-rubrica-table">
           <caption className="sr-only">Rubrica de correção da etapa 1</caption>
@@ -376,13 +380,14 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
             </tr>
           </thead>
           <tbody>
-            {CRITERIOS.map((c) => {
-              const nota = rubrica[c.key];
-              const contrib = nota * (c.peso / 100);
+            {criterios.map((criterio) => {
+              const nota = notas[criterio.chaveInterna] ?? 0;
+              const somaPesos = criterios.reduce((total, item) => total + item.peso, 0) || 1;
+              const contrib = (nota * criterio.peso) / somaPesos;
               return (
-                <tr key={c.key}>
-                  <td style={{ fontWeight: 500, color: "#1E293B" }}>{c.label}</td>
-                  <td className="rubrica-peso">{c.peso}%</td>
+                <tr key={criterio.chaveInterna}>
+                  <td style={{ fontWeight: 500, color: "#1E293B" }}>{criterio.label}</td>
+                  <td className="rubrica-peso">{criterio.peso}%</td>
                   <td className="rubrica-nota">{nota.toFixed(1)}</td>
                   <td className="rubrica-contribuicao">{contrib.toFixed(2)}</td>
                 </tr>
@@ -400,7 +405,19 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         </table>
       </div>
 
-      {/* Espelho section */}
+      {avaliadoresRegistrados.length > 0 ? (
+        <div className="admin-form-card">
+          <h2 className="admin-form-card-title">Avaliações da banca</h2>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "#475569" }}>
+            {avaliadoresRegistrados.map((avaliador) => (
+              <li key={avaliador.avaliadorUsuarioId}>
+                {avaliador.nomeCompleto ?? avaliador.avaliadorUsuarioId} — nota {avaliador.nota.toFixed(2)} ({formatIsoDate(avaliador.criadoEm)})
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="admin-form-card">
         <h2 className="admin-form-card-title">Espelho da avaliacao</h2>
         <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Gerencie a liberacao do espelho de avaliacao para o candidato.</p>
@@ -430,7 +447,9 @@ export default function AdminEtapa1DetailPage({ params }: Props) {
         {espelho && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 16, background: "#F8FAFC", borderRadius: 6 }}>
             <small><strong>Tema:</strong> {espelho.tema ?? "—"}</small>
-              <small><strong>Espelho de correção:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
+            <small><strong>Nota consolidada:</strong> {espelho.notaConsolidada ?? "—"}</small>
+            <small><strong>Avaliadores:</strong> {espelho.avaliadores?.length ?? 0}</small>
+            <small><strong>Espelho de correção:</strong> {espelho.espelhoCorrecao ?? "—"}</small>
             <small><strong>Solicitado em:</strong> {formatIsoDate(espelho.espelhoSolicitadoEm)}</small>
             <small><strong>Liberado em:</strong> {formatIsoDate(espelho.espelhoLiberadoEm)}</small>
             <small><strong>Resultado preliminar em:</strong> {formatIsoDate(espelho.resultadoPreliminarEm)}</small>

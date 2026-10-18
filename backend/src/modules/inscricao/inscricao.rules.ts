@@ -1,5 +1,6 @@
 import {
   ModalidadeConcorrencia,
+  ModalidadeEtapa1,
   TipoDocumentoInscricao,
   type DocumentoInscricao,
   type Edital,
@@ -78,12 +79,15 @@ export type SubmissionValidationResult = {
 
 type SubmissionValidationInput = {
   modalidadeConcorrencia?: ModalidadeConcorrencia | null;
+  modalidadeEtapa1?: ModalidadeEtapa1 | null;
   fichaInscricao: FichaInscricao | null;
   temaRedacao?: string | null;
   redacaoTexto?: string | null;
   documentos: DocumentoResumo[];
   pagamentoDispensado: boolean;
   anexoVAutomaticoDisponivel?: boolean;
+  exigeDiplomaGraduacao?: boolean;
+  exigeHistoricoGraduacao?: boolean;
 };
 
 function normalizeString(value: string | null | undefined) {
@@ -163,16 +167,31 @@ function isPdfDocument(documento: DocumentoResumo | undefined) {
 function getRequiredDocumentRules(input: {
   fichaInscricao: FichaInscricao;
   modalidadeConcorrencia?: ModalidadeConcorrencia | null;
+  modalidadeEtapa1?: ModalidadeEtapa1 | null;
   pagamentoDispensado: boolean;
+  exigeDiplomaGraduacao?: boolean;
+  exigeHistoricoGraduacao?: boolean;
 }) {
   const reservas = resolveReservasConcorrencia(input);
+  const modalidadeEtapa1 = input.modalidadeEtapa1 ?? ModalidadeEtapa1.REDACAO;
   const rules: RequiredDocumentRule[] = [
     { tipo: TipoDocumentoInscricao.ANEXO_IV, label: "Anexo IV assinado" },
     { tipo: TipoDocumentoInscricao.ANEXO_V, label: "Declaracao de titulos" },
-    { tipo: TipoDocumentoInscricao.DIPLOMA, label: "Diploma de graduacao ou declaracao de conclusao/finalista" },
-    { tipo: TipoDocumentoInscricao.HISTORICO, label: "Historico escolar de graduacao" },
-    { tipo: TipoDocumentoInscricao.CURRICULO, label: "Curriculo Lattes com documentacao comprobatoria" },
   ];
+
+  if (modalidadeEtapa1 === ModalidadeEtapa1.PRE_PROJETO) {
+    rules.push({ tipo: TipoDocumentoInscricao.PRE_PROJETO, label: "Pre-projeto em PDF" });
+  }
+
+  if (input.exigeDiplomaGraduacao ?? true) {
+    rules.push({ tipo: TipoDocumentoInscricao.DIPLOMA, label: "Diploma de graduacao ou declaracao de conclusao/finalista" });
+  }
+
+  if (input.exigeHistoricoGraduacao ?? true) {
+    rules.push({ tipo: TipoDocumentoInscricao.HISTORICO, label: "Historico escolar de graduacao" });
+  }
+
+  rules.push({ tipo: TipoDocumentoInscricao.CURRICULO, label: "Curriculo Lattes com documentacao comprobatoria" });
 
   if (isEstrangeiro(input.fichaInscricao.nacionalidade) || hasValue(input.fichaInscricao.passaporte)) {
     rules.push({ tipo: TipoDocumentoInscricao.RNE_PASSAPORTE, label: "RNE ou passaporte" });
@@ -315,15 +334,18 @@ export function getFichaInscricaoSubmissionErrors(fichaInscricao: FichaInscricao
 
 export function validateInscricaoForSubmission(input: SubmissionValidationInput): SubmissionValidationResult {
   const errors: string[] = [];
+  const modalidadeEtapa1 = input.modalidadeEtapa1 ?? ModalidadeEtapa1.REDACAO;
   const fichaErrors = getFichaInscricaoSubmissionErrors(input.fichaInscricao);
   const redacaoCaracteres = countRedacaoCharacters(input.redacaoTexto);
 
-  if (!hasValue(input.temaRedacao)) {
-    errors.push("tema da redacao");
-  }
+  if (modalidadeEtapa1 === ModalidadeEtapa1.REDACAO) {
+    if (!hasValue(input.temaRedacao)) {
+      errors.push("tema da redacao");
+    }
 
-  if (redacaoCaracteres < REDACAO_LIMITS.min || redacaoCaracteres > REDACAO_LIMITS.max) {
-    errors.push(`redacao com tamanho entre ${REDACAO_LIMITS.min} e ${REDACAO_LIMITS.max} caracteres`);
+    if (redacaoCaracteres < REDACAO_LIMITS.min || redacaoCaracteres > REDACAO_LIMITS.max) {
+      errors.push(`redacao com tamanho entre ${REDACAO_LIMITS.min} e ${REDACAO_LIMITS.max} caracteres`);
+    }
   }
 
   errors.push(...fichaErrors);
@@ -332,7 +354,10 @@ export function validateInscricaoForSubmission(input: SubmissionValidationInput)
     ? getRequiredDocumentRules({
         fichaInscricao: input.fichaInscricao,
         modalidadeConcorrencia: input.modalidadeConcorrencia,
+        modalidadeEtapa1,
         pagamentoDispensado: input.pagamentoDispensado,
+        exigeDiplomaGraduacao: input.exigeDiplomaGraduacao,
+        exigeHistoricoGraduacao: input.exigeHistoricoGraduacao,
       })
     : [];
 
@@ -388,15 +413,18 @@ export function buildInscricaoSubmissionSnapshot(input: {
   edital: Pick<Edital, "id" | "numero" | "titulo" | "cursoNivel">;
   inscricao: Pick<Inscricao, "id" | "modalidadeConcorrencia" | "linhaPesquisaId"> & {
     linhaPesquisaNome?: string | null;
+    grupoPesquisaId?: string | null;
+    grupoPesquisaNome?: string | null;
   };
   fichaInscricao: FichaInscricao;
-  temaRedacao: string;
-  redacaoTexto: string;
+  temaRedacao: string | null;
+  redacaoTexto: string | null;
   checklist: SubmissionChecklistItem[];
   documentos: DocumentoResumo[];
   titulos?: Array<Record<string, unknown>>;
   pagamentoDispensado: boolean;
   versaoSubmissao: number;
+  modalidadeEtapa1?: ModalidadeEtapa1 | null;
 }) {
   const orderedDocumentTypes = input.checklist.map((item) => item.tipo);
   const documentosOrdenados = [...input.documentos].sort((left, right) => {
@@ -425,6 +453,9 @@ export function buildInscricaoSubmissionSnapshot(input: {
       }),
       linhaPesquisaId: input.inscricao.linhaPesquisaId,
       linhaPesquisaNome: input.inscricao.linhaPesquisaNome ?? null,
+      grupoPesquisaId: input.inscricao.grupoPesquisaId ?? null,
+      grupoPesquisaNome: input.inscricao.grupoPesquisaNome ?? null,
+      modalidadeEtapa1: input.modalidadeEtapa1 ?? ModalidadeEtapa1.REDACAO,
       pagamentoDispensado: input.pagamentoDispensado,
       pacoteDocumentalNomeArquivo: `inscricao-${input.inscricao.id}-v${input.versaoSubmissao}.pdf`,
     },

@@ -15,12 +15,21 @@ import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { formatIsoDate } from "@/modules/edital/formatters";
 import { cursoNivelOptions, statusEditalOptions, tipoCronogramaEditalOptions, type CursoNivel, type StatusEdital, type TipoCronogramaEdital } from "@/lib/enums";
 import {
+  applyPerfilProcessoPacoteAdmin,
   applyTemaRedacaoPacoteAdmin,
-  createCronogramaAdmin, createLinhaPesquisaAdmin, createTemaRedacaoAdmin,
-  deleteCronogramaAdmin, deleteLinhaPesquisaAdmin, deleteAdminEdital, deleteTemaRedacaoAdmin,
-  getAdminEditalById, listTemaRedacaoPacotesAdmin, updateCronogramaAdmin, updateAdminEdital, updateLinhaPesquisaAdmin, updateTemaRedacaoAdmin,
+  createCronogramaAdmin, createGrupoPesquisaAdmin, createLinhaPesquisaAdmin, createTemaRedacaoAdmin,
+  deleteCronogramaAdmin, deleteGrupoPesquisaAdmin, deleteLinhaPesquisaAdmin, deleteAdminEdital, deleteTemaRedacaoAdmin,
+  getAdminEditalById, listPerfisProcessoPacotesAdmin, listTemaRedacaoPacotesAdmin, updateConfiguracaoProcessoAdmin, updateCronogramaAdmin, updateAdminEdital, updateLinhaPesquisaAdmin, updateTemaRedacaoAdmin,
 } from "@/modules/admin-edital/api";
-import type { AdminEditalDetalhe, AdminTemaRedacaoPacoteModo, AdminTemaRedacaoPacoteResumo } from "@/modules/admin-edital/types";
+import type {
+  AdminConfiguracaoProcessoPayload,
+  AdminEditalDetalhe,
+  AdminPerfilProcessoPacoteResumo,
+  AdminTemaRedacaoPacoteModo,
+  AdminTemaRedacaoPacoteResumo,
+  DesempateClassificacao,
+  ModalidadeEtapa1,
+} from "@/modules/admin-edital/types";
 
 type Props = { params: Promise<{ editalId: string }> };
 
@@ -59,22 +68,53 @@ export default function AdminEditalDetailPage({ params }: Props) {
   const [temaPacoteModo, setTemaPacoteModo] = useState<AdminTemaRedacaoPacoteModo>("MERGE");
   const [temaPacotesError, setTemaPacotesError] = useState<string | null>(null);
 
+  const [processoForm, setProcessoForm] = useState<AdminConfiguracaoProcessoPayload>({
+    modalidadeEtapa1: "REDACAO",
+    pesoEtapa1: 1,
+    pesoEtapa2: 2,
+    notaMinimaEtapa1: 7,
+    desempate: "ETAPA1_ETAPA2_IDADE",
+    avaliadoresEtapa1: 1,
+    exigeDiplomaGraduacao: true,
+    exigeHistoricoGraduacao: true,
+    exigeGrupoPesquisa: false,
+    permiteCancelarSubmissao: true,
+  });
+  const [processoPacotes, setProcessoPacotes] = useState<AdminPerfilProcessoPacoteResumo[]>([]);
+  const [processoPacoteSlug, setProcessoPacoteSlug] = useState("");
+  const [grupoForm, setGrupoForm] = useState({ nome: "", descricao: "" });
+
   useEffect(() => { let c = false; params.then((r) => { if (!c) setEditalId(r.editalId); }); return () => { c = true; }; }, [params]);
 
   const load = useCallback(async () => {
     if (!editalId || !token) return;
     let pacoteLoadFailed = false;
-    const [r, pacotes] = await Promise.all([
+    const [r, pacotes, perfis] = await Promise.all([
       getAdminEditalById(editalId, token),
       listTemaRedacaoPacotesAdmin(token).catch(() => {
         pacoteLoadFailed = true;
         return { items: [], total: 0 };
       }),
+      listPerfisProcessoPacotesAdmin(token).catch(() => ({ items: [], total: 0 })),
     ]);
     setData(r);
     setTemaPacotes(pacotes.items);
     setTemaPacoteSlug((current) => current || pacotes.items[0]?.slug || "");
     setTemaPacotesError(pacoteLoadFailed ? "Não foi possível carregar os pacotes padrão agora. As edições manuais continuam disponíveis quando a estrutura do edital estiver liberada." : null);
+    setProcessoPacotes(perfis.items);
+    setProcessoPacoteSlug((current) => current || perfis.items[0]?.slug || "");
+    setProcessoForm({
+      modalidadeEtapa1: r.configuracaoProcesso.modalidadeEtapa1 as ModalidadeEtapa1,
+      pesoEtapa1: r.configuracaoProcesso.pesoEtapa1,
+      pesoEtapa2: r.configuracaoProcesso.pesoEtapa2,
+      notaMinimaEtapa1: r.configuracaoProcesso.notaMinimaEtapa1,
+      desempate: r.configuracaoProcesso.desempate as DesempateClassificacao,
+      avaliadoresEtapa1: r.configuracaoProcesso.avaliadoresEtapa1,
+      exigeDiplomaGraduacao: r.configuracaoProcesso.exigeDiplomaGraduacao ?? true,
+      exigeHistoricoGraduacao: r.configuracaoProcesso.exigeHistoricoGraduacao ?? true,
+      exigeGrupoPesquisa: r.configuracaoProcesso.exigeGrupoPesquisa,
+      permiteCancelarSubmissao: r.configuracaoProcesso.permiteCancelarSubmissao,
+    });
     setEditalForm({
       numero: r.numero, titulo: r.titulo, descricao: r.descricao ?? "",
       ano: String(r.ano), semestre: String(r.semestre ?? 1),
@@ -114,6 +154,33 @@ export default function AdminEditalDetailPage({ params }: Props) {
       ordem: "a ordem do tema",
       ativo: "o status do tema",
     }));
+  }
+
+  async function submitProcesso(e: FormEvent) {
+    e.preventDefault();
+    if (!token || !editalId) return;
+    await wrap(async () => {
+      await updateConfiguracaoProcessoAdmin(editalId, processoForm, token);
+      setFeedback({ type: "success", text: "Configuração do processo salva." });
+    });
+  }
+
+  async function applyPerfilProcesso() {
+    if (!token || !editalId || !processoPacoteSlug) return;
+    await wrap(async () => {
+      await applyPerfilProcessoPacoteAdmin(editalId, processoPacoteSlug, token);
+      setFeedback({ type: "success", text: "Perfil de processo aplicado ao edital." });
+    });
+  }
+
+  async function submitGrupo(e: FormEvent) {
+    e.preventDefault();
+    if (!token || !editalId) return;
+    await wrap(async () => {
+      await createGrupoPesquisaAdmin(editalId, { nome: grupoForm.nome, descricao: grupoForm.descricao || undefined }, token);
+      setGrupoForm({ nome: "", descricao: "" });
+      setFeedback({ type: "success", text: "Grupo de pesquisa criado." });
+    });
   }
 
   async function submitEdital(e: FormEvent) {
@@ -277,6 +344,99 @@ export default function AdminEditalDetailPage({ params }: Props) {
             </div>
           </div>
         </form>
+      </div>
+
+      {/* Configuracao do processo */}
+      <div className="admin-form-card">
+        <h2 className="admin-form-card-title">Configuração do processo</h2>
+        <p style={{ fontSize: 13, color: "#64748B", margin: "4px 0 16px" }}>
+          Define como a etapa 1 é avaliada, os pesos da nota final, o desempate e as exigências de submissão deste edital.
+        </p>
+
+        {processoPacotes.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end", marginBottom: 16 }}>
+            <div className="admin-eval-field" style={{ flex: 1, minWidth: 240 }}>
+              <label>Perfil padrão</label>
+              <select className="select-field" onChange={(e) => setProcessoPacoteSlug(e.target.value)} value={processoPacoteSlug}>
+                {processoPacotes.map((pacote) => (
+                  <option key={pacote.slug} value={pacote.slug}>{pacote.nome}</option>
+                ))}
+              </select>
+            </div>
+            <button className="admin-page-cta" disabled={busy || !processoPacoteSlug} onClick={applyPerfilProcesso} type="button" style={{ fontSize: 13, padding: "8px 16px" }}>
+              Aplicar perfil
+            </button>
+          </div>
+        ) : null}
+
+        <form onSubmit={submitProcesso} style={{ display: "contents" }}>
+          <div className="admin-form-row">
+            <div className="admin-eval-field">
+              <label>Instrumento da etapa 1</label>
+              <select className="select-field" onChange={(e) => setProcessoForm((c) => ({ ...c, modalidadeEtapa1: e.target.value as ModalidadeEtapa1 }))} value={processoForm.modalidadeEtapa1}>
+                <option value="REDACAO">Redação</option>
+                <option value="PRE_PROJETO">Pré-projeto</option>
+              </select>
+            </div>
+            <div className="admin-eval-field">
+              <label>Desempate</label>
+              <select className="select-field" onChange={(e) => setProcessoForm((c) => ({ ...c, desempate: e.target.value as DesempateClassificacao }))} value={processoForm.desempate}>
+                <option value="ETAPA1_ETAPA2_IDADE">Etapa 1, etapa 2 e idade</option>
+                <option value="ETAPA1_IDADE">Etapa 1 e idade</option>
+              </select>
+            </div>
+          </div>
+          <div className="admin-form-row">
+            <div className="admin-eval-field"><label>Peso da etapa 1</label><input min={1} onChange={(e) => setProcessoForm((c) => ({ ...c, pesoEtapa1: Number(e.target.value) }))} required type="number" value={processoForm.pesoEtapa1} /></div>
+            <div className="admin-eval-field"><label>Peso da etapa 2</label><input min={1} onChange={(e) => setProcessoForm((c) => ({ ...c, pesoEtapa2: Number(e.target.value) }))} required type="number" value={processoForm.pesoEtapa2} /></div>
+            <div className="admin-eval-field"><label>Nota mínima da etapa 1</label><input max={10} min={0} onChange={(e) => setProcessoForm((c) => ({ ...c, notaMinimaEtapa1: Number(e.target.value) }))} required step="0.1" type="number" value={processoForm.notaMinimaEtapa1} /></div>
+            <div className="admin-eval-field"><label>Avaliadores da etapa 1</label><input max={10} min={1} onChange={(e) => setProcessoForm((c) => ({ ...c, avaliadoresEtapa1: Number(e.target.value) }))} required type="number" value={processoForm.avaliadoresEtapa1} /></div>
+          </div>
+          <div className="admin-form-row">
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.exigeDiplomaGraduacao} onChange={(e) => setProcessoForm((c) => ({ ...c, exigeDiplomaGraduacao: e.target.checked }))} type="checkbox" />Exige diploma de graduação</label>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.exigeHistoricoGraduacao} onChange={(e) => setProcessoForm((c) => ({ ...c, exigeHistoricoGraduacao: e.target.checked }))} type="checkbox" />Exige histórico escolar</label>
+          </div>
+          <div className="admin-form-row">
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.exigeGrupoPesquisa} onChange={(e) => setProcessoForm((c) => ({ ...c, exigeGrupoPesquisa: e.target.checked }))} type="checkbox" />Exige grupo de pesquisa</label>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.permiteCancelarSubmissao} onChange={(e) => setProcessoForm((c) => ({ ...c, permiteCancelarSubmissao: e.target.checked }))} type="checkbox" />Permite cancelar submissão</label>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>Salvar configuração</button>
+          </div>
+        </form>
+
+        <div style={{ marginTop: 20 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Critérios da etapa 1</span>
+          {data.criteriosEtapa1.length === 0 ? (
+            <p style={{ fontSize: 13, color: "#64748B", margin: "8px 0 0" }}>Nenhum critério configurado. Aplique um perfil padrão para carregar a rubrica do edital.</p>
+          ) : (
+            <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13, color: "#475569" }}>
+              {data.criteriosEtapa1.map((criterio) => (
+                <li key={criterio.chaveInterna}>{criterio.label} — peso {criterio.peso}% (nota máxima {criterio.notaMaxima})</li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>Grupos de pesquisa</span>
+          {data.gruposPesquisa.length === 0 ? (
+            <p style={{ fontSize: 13, color: "#64748B", margin: "8px 0 0" }}>Nenhum grupo cadastrado.</p>
+          ) : (
+            <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13, color: "#475569" }}>
+              {data.gruposPesquisa.map((grupo) => (
+                <li key={grupo.id} style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <span style={{ flex: 1 }}>{grupo.nome}{grupo.ativo ? "" : " (inativo)"}</span>
+                  <button className="admin-line-edit" onClick={() => wrap(async () => { await deleteGrupoPesquisaAdmin(editalId!, grupo.id, token!); setFeedback({ type: "success", text: "Grupo removido." }); })} title="Remover" type="button" style={{ color: "#EF4444" }}>×</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form onSubmit={submitGrupo} style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <input aria-label="Nome do grupo" onChange={(e) => setGrupoForm((c) => ({ ...c, nome: e.target.value }))} placeholder="Nome do grupo de pesquisa" required style={{ flex: 1, minWidth: 220 }} value={grupoForm.nome} />
+            <button className="admin-pub-btn-preview" disabled={busy} type="submit">Adicionar grupo</button>
+          </form>
+        </div>
       </div>
 
       {/* Linhas de pesquisa */}

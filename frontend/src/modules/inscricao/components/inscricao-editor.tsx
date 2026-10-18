@@ -59,6 +59,7 @@ type FieldErrors = Record<string, string>;
 
 type InscricaoEditorState = {
   linhaPesquisaId: string;
+  grupoPesquisaId: string;
   modalidadeConcorrencia: string;
   temaRedacaoEditalId: string;
   temaRedacao: string;
@@ -299,12 +300,25 @@ function getRequiredDocumentRules(input: {
   ficha: InscricaoEditorState["fichaInscricao"];
   pagamentoDispensado: boolean;
   anexoVAutomaticoDisponivel?: boolean;
+  modalidadeEtapa1?: string;
+  exigeDiplomaGraduacao?: boolean;
+  exigeHistoricoGraduacao?: boolean;
 }) {
-  const required: RequiredDocumentRuleView[] = [
-    { tipo: "DIPLOMA", label: "Diploma ou declaracao de conclusao/finalista" },
-    { tipo: "HISTORICO", label: "Histórico escolar de graduação" },
-    { tipo: "CURRICULO", label: "Curriculo Lattes com documentacao comprobatoria" },
-  ];
+  const required: RequiredDocumentRuleView[] = [];
+
+  if (input.modalidadeEtapa1 === "PRE_PROJETO") {
+    required.push({ tipo: "PRE_PROJETO", label: "Pre-projeto em PDF" });
+  }
+
+  if (input.exigeDiplomaGraduacao ?? true) {
+    required.push({ tipo: "DIPLOMA", label: "Diploma ou declaracao de conclusao/finalista" });
+  }
+
+  if (input.exigeHistoricoGraduacao ?? true) {
+    required.push({ tipo: "HISTORICO", label: "Histórico escolar de graduação" });
+  }
+
+  required.push({ tipo: "CURRICULO", label: "Curriculo Lattes com documentacao comprobatoria" });
 
   if (!input.anexoVAutomaticoDisponivel) {
     required.splice(1, 0, { tipo: "ANEXO_V", label: "Declaracao de titulos" });
@@ -357,6 +371,10 @@ function getStepFieldErrors(input: {
   anexoVAutomaticoDisponivel?: boolean;
   editalTemasRedacao: EditalDetalhe["temasRedacao"];
   temasRedacaoConfigurados: boolean;
+  modalidadeEtapa1?: string;
+  exigeGrupoPesquisa?: boolean;
+  exigeDiplomaGraduacao?: boolean;
+  exigeHistoricoGraduacao?: boolean;
 }) {
   const errors: FieldErrors = {};
   const ficha = input.state.fichaInscricao;
@@ -480,12 +498,15 @@ function getStepFieldErrors(input: {
     if (!hasText(input.state.linhaPesquisaId)) {
       errors.linhaPesquisaId = "Selecione a linha de pesquisa.";
     }
+    if (input.exigeGrupoPesquisa && !hasText(input.state.grupoPesquisaId)) {
+      errors.grupoPesquisaId = "Selecione o grupo de pesquisa.";
+    }
     if (!hasText(input.state.resumoCurriculo) || input.state.resumoCurriculo.trim().length < 10) {
       errors.resumoCurriculo = "Informe um resumo do curriculo com pelo menos 10 caracteres.";
     }
   }
 
-  if (input.step === 2) {
+  if (input.step === 2 && input.modalidadeEtapa1 !== "PRE_PROJETO") {
     if (!input.temasRedacaoConfigurados && !hasText(input.state.temaRedacao)) {
       errors.temaRedacao = "Informe o tema da redação.";
     } else if (input.temasRedacaoConfigurados && input.editalTemasRedacao.length === 0 && !hasText(input.state.temaRedacaoEditalId)) {
@@ -506,6 +527,9 @@ function getStepFieldErrors(input: {
       ficha,
       pagamentoDispensado: input.pagamentoDispensado,
       anexoVAutomaticoDisponivel: input.anexoVAutomaticoDisponivel,
+      modalidadeEtapa1: input.modalidadeEtapa1,
+      exigeDiplomaGraduacao: input.exigeDiplomaGraduacao,
+      exigeHistoricoGraduacao: input.exigeHistoricoGraduacao,
     });
     const docsByType = new Set(input.documentos.map((doc) => doc.tipo));
 
@@ -526,6 +550,10 @@ function getMaxReachedStep(input: {
   anexoVAutomaticoDisponivel?: boolean;
   editalTemasRedacao: EditalDetalhe["temasRedacao"];
   temasRedacaoConfigurados: boolean;
+  modalidadeEtapa1?: string;
+  exigeGrupoPesquisa?: boolean;
+  exigeDiplomaGraduacao?: boolean;
+  exigeHistoricoGraduacao?: boolean;
 }) {
   let maxReached = 0;
 
@@ -538,6 +566,10 @@ function getMaxReachedStep(input: {
       anexoVAutomaticoDisponivel: input.anexoVAutomaticoDisponivel,
       editalTemasRedacao: input.editalTemasRedacao,
       temasRedacaoConfigurados: input.temasRedacaoConfigurados,
+      modalidadeEtapa1: input.modalidadeEtapa1,
+      exigeGrupoPesquisa: input.exigeGrupoPesquisa,
+      exigeDiplomaGraduacao: input.exigeDiplomaGraduacao,
+      exigeHistoricoGraduacao: input.exigeHistoricoGraduacao,
     });
 
     if (Object.keys(errors).length > 0) {
@@ -574,6 +606,7 @@ function buildInitialState(
 
   return {
     linhaPesquisaId: inscricao?.linhaPesquisa?.id ?? edital.linhasPesquisa[0]?.id ?? "",
+    grupoPesquisaId: inscricao?.grupoPesquisa?.id ?? "",
     modalidadeConcorrencia: inscricao?.modalidadeConcorrencia ?? "AMPLA_CONCORRENCIA",
     temaRedacaoEditalId: inscricao?.temaRedacaoEditalId ?? (temasComTituloCorrespondente.length === 1 ? temasComTituloCorrespondente[0].id : ""),
     temaRedacao: inscricao?.temaRedacao ?? "",
@@ -712,10 +745,38 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   const anexoIvDocumento = useMemo(() => documentos.find((d) => d.tipo === "ANEXO_IV") ?? null, [documentos]);
   const anexoVAutomaticoDisponivel = (edital.criteriosTitulacao ?? []).some((criterio) => criterio.ativo);
-  const requiredDocumentRules = useMemo(() => getRequiredDocumentRules({ ficha: formState.fichaInscricao, pagamentoDispensado, anexoVAutomaticoDisponivel }), [anexoVAutomaticoDisponivel, formState.fichaInscricao, pagamentoDispensado]);
+  const modalidadeEtapa1 = edital.configuracaoProcesso?.modalidadeEtapa1 ?? "REDACAO";
+  const exigeGrupoPesquisa = edital.configuracaoProcesso?.exigeGrupoPesquisa ?? false;
+  const exigeDiplomaGraduacao = edital.configuracaoProcesso?.exigeDiplomaGraduacao ?? true;
+  const exigeHistoricoGraduacao = edital.configuracaoProcesso?.exigeHistoricoGraduacao ?? true;
+  const requiredDocumentRules = useMemo(
+    () => getRequiredDocumentRules({
+      ficha: formState.fichaInscricao,
+      pagamentoDispensado,
+      anexoVAutomaticoDisponivel,
+      modalidadeEtapa1,
+      exigeDiplomaGraduacao,
+      exigeHistoricoGraduacao,
+    }),
+    [anexoVAutomaticoDisponivel, exigeDiplomaGraduacao, exigeHistoricoGraduacao, formState.fichaInscricao, modalidadeEtapa1, pagamentoDispensado],
+  );
   const redacaoLength = formState.redacaoTexto.length;
   const cursoLabel = edital.cursoNivel === "MESTRADO" ? "Mestrado em Engenharia Eletrica" : "Doutorado em Engenharia Eletrica";
-  const maxReachedStep = useMemo(() => getMaxReachedStep({ state: formState, documentos, pagamentoDispensado, anexoVAutomaticoDisponivel, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados }), [anexoVAutomaticoDisponivel, documentos, edital.temasRedacao, edital.temasRedacaoConfigurados, formState, pagamentoDispensado]);
+  const maxReachedStep = useMemo(
+    () => getMaxReachedStep({
+      state: formState,
+      documentos,
+      pagamentoDispensado,
+      anexoVAutomaticoDisponivel,
+      editalTemasRedacao: edital.temasRedacao,
+      temasRedacaoConfigurados: edital.temasRedacaoConfigurados,
+      modalidadeEtapa1,
+      exigeGrupoPesquisa,
+      exigeDiplomaGraduacao,
+      exigeHistoricoGraduacao,
+    }),
+    [anexoVAutomaticoDisponivel, documentos, edital.temasRedacao, edital.temasRedacaoConfigurados, exigeDiplomaGraduacao, exigeGrupoPesquisa, exigeHistoricoGraduacao, formState, modalidadeEtapa1, pagamentoDispensado],
+  );
   const inscricaoEmRascunho = inscricaoStatus === "RASCUNHO";
   const inscricaoEditavel = inscricaoStatus === "SEM_INSCRICAO" || inscricaoEmRascunho;
   const podeCancelarParaEditar = inscricaoStatus === "SUBMETIDA";
@@ -793,7 +854,7 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
   }, [docFormTipo, requiredDocumentRules]);
 
   async function validateAndGoNext() {
-    const errors = getStepFieldErrors({ step, state: formState, documentos, pagamentoDispensado, anexoVAutomaticoDisponivel, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados });
+    const errors = getStepFieldErrors({ step, state: formState, documentos, pagamentoDispensado, anexoVAutomaticoDisponivel, editalTemasRedacao: edital.temasRedacao, temasRedacaoConfigurados: edital.temasRedacaoConfigurados, modalidadeEtapa1, exigeGrupoPesquisa, exigeDiplomaGraduacao, exigeHistoricoGraduacao });
     setFieldErrors(errors);
 
     if (Object.keys(errors).length > 0) {
@@ -813,12 +874,13 @@ export function InscricaoEditor({ edital, dashboardItem }: InscricaoEditorProps)
 
   const currentDraftPayload = useMemo(() => sanitizePayload({
     linhaPesquisaId: formState.linhaPesquisaId,
+    grupoPesquisaId: formState.grupoPesquisaId || undefined,
     temaRedacaoEditalId: formState.temaRedacaoEditalId || undefined,
     temaRedacao: formState.temaRedacao || undefined,
     resumoCurriculo: formState.resumoCurriculo || undefined,
-    redacaoTexto: formState.redacaoTexto || undefined,
+    redacaoTexto: modalidadeEtapa1 === "PRE_PROJETO" ? undefined : formState.redacaoTexto || undefined,
     fichaInscricao: formState.fichaInscricao as FichaInscricaoPayload,
-  }), [formState]);
+  }), [formState, modalidadeEtapa1]);
 
   async function handleSaveDraft(options?: { silent?: boolean }) {
     if (!session.token) return false;
@@ -1525,6 +1587,26 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
             <span>A linha de pesquisa escolhida é definitiva após a submissão. Escolha com atenção conforme o edital vigente.</span>
           </div>
         </div>
+
+        {edital.configuracaoProcesso?.exigeGrupoPesquisa ? (
+          <div className="wiz-field">
+            <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>Grupo de Pesquisa</label>
+            <span className="wiz-field-hint">Este edital exige a escolha de um grupo de pesquisa.</span>
+            <select
+              value={formState.grupoPesquisaId}
+              onChange={(e) => {
+                setFormState((s) => ({ ...s, grupoPesquisaId: e.target.value }));
+                setFieldErrors((current) => ({ ...current, grupoPesquisaId: "" }));
+              }}
+            >
+              <option value="">Selecione o grupo</option>
+              {(edital.gruposPesquisa ?? []).filter((grupo) => grupo.ativo).map((grupo) => (
+                <option key={grupo.id} value={grupo.id}>{grupo.nome}</option>
+              ))}
+            </select>
+            <FieldError message={fieldErrors.grupoPesquisaId} />
+          </div>
+        ) : null}
       </div>
 
       <div className="wiz-card" style={{ gap: 24 }}>
@@ -1604,6 +1686,7 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
 }) {
   const pct = Math.min((redacaoLength / 1500) * 100, 100);
   const withinRange = redacaoLength === 0 || (redacaoLength >= 500 && redacaoLength <= 1500);
+  const preProjeto = edital.configuracaoProcesso?.modalidadeEtapa1 === "PRE_PROJETO";
   const legacyTemaSelecionado = Boolean(formState.temaRedacao && !formState.temaRedacaoEditalId);
   const [temaSearch, setTemaSearch] = useState("");
   const deferredTemaSearch = useDeferredValue(temaSearch);
@@ -1662,6 +1745,23 @@ function Step3Redacao({ edital, formState, setFormState, redacaoLength, fieldErr
 
     return [selectedOption, ...filtered];
   }, [deferredTemaSearch, temaOptions, temaSelectValue]);
+
+  if (preProjeto) {
+    return (
+      <div className="wiz-card" style={{ gap: 20, width: 760, maxWidth: "100%" }}>
+        <h2 className="wiz-card-title" style={{ fontSize: 24 }}>Pré-projeto</h2>
+        <div className="wiz-card-divider" />
+        <div className="wiz-warn-box" style={{ borderRadius: 8 }}>
+          {svgTriangleAlert("#F59E0B")}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span className="wiz-warn-box-title">Este edital avalia pré-projeto, não redação</span>
+            <span className="wiz-warn-box-text">Envie o pré-projeto em PDF na etapa de Documentos, no campo “Pre-projeto em PDF”. A banca avalia o arquivo enviado.</span>
+          </div>
+        </div>
+        <div className="wiz-info-box">{svgInfo}<span>Não é necessário escrever redação neste edital. Você pode avançar para a etapa de documentos.</span></div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -2068,6 +2168,7 @@ function Step6Revisao({ formState, edital, cursoLabel, documentos, titulos, conf
 }) {
   const f = formState.fichaInscricao;
   const linhaLabel = edital.linhasPesquisa.find((l) => l.id === formState.linhaPesquisaId)?.nome ?? "Não definida";
+  const grupoLabel = (edital.gruposPesquisa ?? []).find((g) => g.id === formState.grupoPesquisaId)?.nome ?? "Não definido";
 
   function toggleCheck(i: number) {
     setConfirmChecks((c) => c.map((v, j) => j === i ? !v : v));
@@ -2118,6 +2219,9 @@ function Step6Revisao({ formState, edital, cursoLabel, documentos, titulos, conf
         <div className="wiz-review-grid">
           <div className="wiz-review-field"><span className="wiz-review-field-label">Curso Pretendido</span><span className="wiz-review-field-value">{cursoLabel}</span></div>
           <div className="wiz-review-field"><span className="wiz-review-field-label">Linha de Pesquisa</span><span className="wiz-review-field-value">{linhaLabel}</span></div>
+          {edital.configuracaoProcesso?.exigeGrupoPesquisa ? (
+            <div className="wiz-review-field"><span className="wiz-review-field-label">Grupo de Pesquisa</span><span className="wiz-review-field-value">{grupoLabel}</span></div>
+          ) : null}
         </div>
         <div style={{ height: 1, background: "#F1F5F9" }} />
 

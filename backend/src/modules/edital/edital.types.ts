@@ -8,6 +8,12 @@ import type {
   TipoCronogramaEdital,
 } from "@prisma/client";
 
+import type {
+  ConfiguracaoProcessoResumo,
+  CriterioEtapa1Resumo,
+  GrupoPesquisaResumo,
+} from "./configuracao-processo.service.js";
+
 export type EditalListFilters = {
   cursoNivel?: CursoNivel;
   status?: StatusEdital[];
@@ -162,11 +168,14 @@ export type EditalDetalhe = EditalResumo & {
   temasRedacaoConfigurados: boolean;
   criteriosTitulacao: CriterioTitulacaoResumo[];
   criteriosTitulacaoConfigurados: boolean;
+  configuracaoProcesso: ConfiguracaoProcessoResumo;
+  gruposPesquisa: GrupoPesquisaResumo[];
 };
 
 export type AdminEditalDetalhe = EditalDetalhe & {
   permiteMutacaoEstrutural: boolean;
   motivoBloqueioEstrutural: string | null;
+  criteriosEtapa1: CriterioEtapa1Resumo[];
 };
 
 export type UpsertEditalInput = {

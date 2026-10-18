@@ -65,6 +65,16 @@ enum StatusConfirmacaoReserva {
   AUSENTE
 }
 
+enum ModalidadeEtapa1 {
+  REDACAO
+  PRE_PROJETO
+}
+
+enum DesempateClassificacao {
+  ETAPA1_ETAPA2_IDADE
+  ETAPA1_IDADE
+}
+
 enum StatusParticipacaoEdital {
   ATIVA
   ENCERRADA
@@ -107,6 +117,7 @@ enum TipoDocumentoInscricao {
   DIPLOMA
   HISTORICO
   CURRICULO
+  PRE_PROJETO
   COMPROVANTE_PAGAMENTO
   ANEXO_IV
   ANEXO_V
@@ -227,6 +238,7 @@ model Usuario {
   escoposAvaliacao   AvaliadorEscopo[]
   auditoriasCriadas  AuditoriaEvento[]    @relation("AuditoriaCriadaPor")
   sessoesRefresh      SessaoRefresh[]
+  avaliacoesEtapa1Banca AvaliacaoEtapa1Avaliador[] @relation("AvaliacaoEtapa1AvaliadorUsuario")
 }
 
 model SessaoRefresh {
@@ -309,8 +321,62 @@ model Edital {
   avaliacoesEtapa2      AvaliacaoEtapa2[]
   recursos              Recurso[]
   classificacoesFinais  ClassificacaoFinal[]
+  configuracaoProcesso  ConfiguracaoProcessoEdital?
+  criteriosEtapa1       CriterioAvaliacaoEtapa1Edital[]
+  gruposPesquisa        GrupoPesquisa[]
+  avaliacoesEtapa1Banca AvaliacaoEtapa1Avaliador[]
 
   @@unique([numero, ano, cursoNivel])
+}
+
+model ConfiguracaoProcessoEdital {
+  id                       String                 @id @default(cuid())
+  editalId                 String                 @unique
+  modalidadeEtapa1         ModalidadeEtapa1       @default(REDACAO)
+  pesoEtapa1               Int                    @default(1)
+  pesoEtapa2               Int                    @default(2)
+  notaMinimaEtapa1         Decimal                @default(7) @db.Decimal(5, 2)
+  desempate                DesempateClassificacao @default(ETAPA1_ETAPA2_IDADE)
+  avaliadoresEtapa1        Int                    @default(1)
+  exigeDiplomaGraduacao    Boolean                @default(true)
+  exigeHistoricoGraduacao  Boolean                @default(true)
+  exigeGrupoPesquisa       Boolean                @default(false)
+  permiteCancelarSubmissao Boolean                @default(true)
+  criadoEm                 DateTime               @default(now())
+  atualizadoEm             DateTime               @updatedAt
+  edital                   Edital                 @relation(fields: [editalId], references: [id], onDelete: Cascade)
+}
+
+model CriterioAvaliacaoEtapa1Edital {
+  id           String   @id @default(cuid())
+  editalId     String
+  chaveInterna String
+  label        String
+  peso         Int
+  notaMaxima   Decimal  @default(10) @db.Decimal(5, 2)
+  ordem        Int      @default(0)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  edital       Edital   @relation(fields: [editalId], references: [id], onDelete: Cascade)
+
+  @@unique([editalId, chaveInterna])
+  @@index([editalId, ativo, ordem])
+}
+
+model GrupoPesquisa {
+  id           String      @id @default(cuid())
+  editalId     String
+  nome         String
+  descricao    String?
+  ativo        Boolean     @default(true)
+  criadoEm     DateTime    @default(now())
+  atualizadoEm DateTime    @updatedAt
+  edital       Edital      @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  inscricoes   Inscricao[]
+
+  @@unique([editalId, nome])
+  @@index([editalId, ativo])
 }
 
 model CronogramaEdital {
@@ -428,6 +494,7 @@ model Inscricao {
   id                          String                   @id @default(cuid())
   participacaoEditalId        String                   @unique
   linhaPesquisaId             String?
+  grupoPesquisaId             String?
   temaRedacaoEditalId         String?
   modalidadeConcorrencia      ModalidadeConcorrencia   @default(AMPLA_CONCORRENCIA)
   confirmacaoAcoesAfirmativas StatusConfirmacaoReserva @default(NAO_SE_APLICA)
@@ -456,12 +523,14 @@ model Inscricao {
   atualizadoEm                DateTime                 @updatedAt
   participacaoEdital          ParticipacaoEdital       @relation(fields: [participacaoEditalId], references: [id], onDelete: Cascade)
   linhaPesquisa               LinhaPesquisa?           @relation(fields: [linhaPesquisaId], references: [id], onDelete: SetNull)
+  grupoPesquisa               GrupoPesquisa?           @relation(fields: [grupoPesquisaId], references: [id], onDelete: SetNull)
   temaRedacaoEdital           TemaRedacaoEdital?       @relation(fields: [temaRedacaoEditalId], references: [id], onDelete: SetNull)
   documentos                  DocumentoInscricao[]
   titulos                     TituloInscricao[]
   homologacao                 HomologacaoInscricao?
   avaliacaoEtapa1             AvaliacaoEtapa1?
   avaliacaoEtapa2             AvaliacaoEtapa2?
+  avaliadoresEtapa1           AvaliacaoEtapa1Avaliador[]
   etapasPoliticasAfirmativas  EtapaPoliticasAfirmativas[]
 }
 
@@ -545,6 +614,25 @@ model AvaliacaoEtapa1 {
   inscricao             Inscricao            @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
 
   @@index([editalId, status])
+}
+
+model AvaliacaoEtapa1Avaliador {
+  id                 String   @id @default(cuid())
+  editalId           String
+  inscricaoId        String
+  avaliadorUsuarioId String
+  nota               Decimal  @db.Decimal(6, 3)
+  rubricaDetalhada   Json?
+  espelhoCorrecao    String?
+  observacoes        String?
+  criadoEm           DateTime @default(now())
+  atualizadoEm       DateTime @updatedAt
+  edital             Edital   @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  inscricao          Inscricao @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+  avaliador          Usuario  @relation("AvaliacaoEtapa1AvaliadorUsuario", fields: [avaliadorUsuarioId], references: [id], onDelete: Restrict)
+
+  @@unique([inscricaoId, avaliadorUsuarioId])
+  @@index([editalId, avaliadorUsuarioId])
 }
 
 model AvaliacaoEtapa2 {

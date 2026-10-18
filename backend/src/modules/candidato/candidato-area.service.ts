@@ -38,12 +38,15 @@ type CandidateParticipacao = Prisma.ParticipacaoEditalGetPayload<{
       include: {
         cronogramas: true;
         publicacoesOficiais: true;
+        configuracaoProcesso: true;
+        gruposPesquisa: true;
       };
     };
     pedidoIsencao: true;
     inscricao: {
       include: {
         linhaPesquisa: true;
+        grupoPesquisa: true;
         documentos: true;
         titulos: {
           include: {
@@ -331,12 +334,15 @@ export async function getCandidateDashboard(usuarioId: string) {
           publicacoesOficiais: {
             orderBy: [{ publicadoEm: "desc" }, { criadoEm: "desc" }],
           },
+          configuracaoProcesso: true,
+          gruposPesquisa: true,
         },
       },
       pedidoIsencao: true,
       inscricao: {
         include: {
           linhaPesquisa: true,
+          grupoPesquisa: true,
           documentos: true,
           titulos: {
             include: {
@@ -389,6 +395,11 @@ export async function getCandidateDashboard(usuarioId: string) {
       cursoNivel: participacao.edital.cursoNivel,
       status: participacao.edital.status,
       publicadoEm: toIsoOrNull(participacao.edital.publicadoEm),
+      modalidadeEtapa1: participacao.edital.configuracaoProcesso?.modalidadeEtapa1 ?? "REDACAO",
+      exigeGrupoPesquisa: participacao.edital.configuracaoProcesso?.exigeGrupoPesquisa ?? false,
+      gruposPesquisa: participacao.edital.gruposPesquisa
+        .filter((grupo) => grupo.ativo)
+        .map((grupo) => ({ id: grupo.id, nome: grupo.nome, descricao: grupo.descricao })),
       cronogramas: participacao.edital.cronogramas
         .sort((a, b) => a.inicioEm.getTime() - b.inicioEm.getTime())
         .map((cronograma) => ({
@@ -440,6 +451,12 @@ export async function getCandidateDashboard(usuarioId: string) {
             ? {
                 id: participacao.inscricao.linhaPesquisa.id,
                 nome: participacao.inscricao.linhaPesquisa.nome,
+              }
+            : null,
+          grupoPesquisa: participacao.inscricao.grupoPesquisa
+            ? {
+                id: participacao.inscricao.grupoPesquisa.id,
+                nome: participacao.inscricao.grupoPesquisa.nome,
               }
             : null,
           temaRedacao: participacao.inscricao.temaRedacao,

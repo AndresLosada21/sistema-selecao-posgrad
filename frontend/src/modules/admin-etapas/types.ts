@@ -1,3 +1,18 @@
+export type Etapa1CriterioAvaliacao = {
+  chaveInterna: string;
+  label: string;
+  peso: number;
+  notaMaxima: number;
+};
+
+export type Etapa1AvaliadorRegistro = {
+  avaliadorUsuarioId: string;
+  nomeCompleto: string | null;
+  nota: number;
+  espelhoCorrecao: string | null;
+  criadoEm: string;
+};
+
 export type Etapa1AdminItem = {
   id: string;
   status: string;
@@ -30,6 +45,8 @@ export type Etapa1AdminItem = {
     espelhoLiberadoEm: string | null;
     status: string;
   } | null;
+  criteriosAvaliacao?: Etapa1CriterioAvaliacao[];
+  avaliadores?: Etapa1AvaliadorRegistro[];
   edicao?: {
     podeSalvarPreliminar: boolean;
     bloqueioSalvarPreliminar: string | null;
@@ -37,6 +54,12 @@ export type Etapa1AdminItem = {
     bloqueioSalvarFinal: string | null;
     podeLiberarEspelho: boolean;
     bloqueioLiberarEspelho: string | null;
+    banca?: {
+      avaliadoresNecessarios: number;
+      avaliadoresRegistrados: number;
+      completa: boolean;
+    };
+    modalidadeEtapa1?: string;
   } | null;
 };
 
@@ -48,34 +71,31 @@ export type Etapa1ListResponse = {
 };
 
 export type Etapa1ResultadoPayload = {
-  tema?: string;
-  rubrica: {
-    adequacaoDominioTema: number;
-    estrutura: number;
-    organizacaoCoerencia: number;
-    objetividadeSintese: number;
-    grafiaGramatica: number;
-    observacoes?: {
-      adequacaoDominioTema?: string;
-      estrutura?: string;
-      organizacaoCoerencia?: string;
-      objetividadeSintese?: string;
-      grafiaGramatica?: string;
-      geral?: string;
-    };
-  };
+  criterios: Array<{ chave: string; nota: number }>;
   usoIaComprovado: boolean;
   fundamentoUsoIa?: string;
   espelhoCorrecao: string;
   liberarEspelho: boolean;
   publicacao: "PRELIMINAR" | "FINAL";
+  avaliadorUsuarioId?: string;
+};
+
+export type Etapa1ResultadoResponse = {
+  avaliacao?: unknown;
+  bancaPendente?: boolean;
+  avaliadoresRegistrados?: number;
+  avaliadoresNecessarios?: number;
 };
 
 export type Etapa1Espelho = {
+  modalidadeEtapa1?: string;
   tema: string | null;
   textoSubmetido: string | null;
+  preProjeto?: { nomeArquivo: string; urlArquivo: string } | null;
   espelhoCorrecao: string | null;
   rubricaDetalhada: Record<string, unknown> | null;
+  avaliadores?: Etapa1AvaliadorRegistro[];
+  notaConsolidada?: number | null;
   espelhoSolicitadoEm: string | null;
   espelhoLiberadoEm: string | null;
   resultadoPreliminarEm: string | null;

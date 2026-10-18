@@ -11,6 +11,8 @@ import { useSession } from "@/lib/auth/session-provider";
 import { getErrorMessage, getFirstFormError, isUnauthorizedError } from "@/lib/http/api-error";
 import { useAbortableEffect } from "@/lib/react/use-abortable-effect";
 import { listAdminPublicacoesByEdital } from "@/modules/admin-publicacao/api";
+import { getAdminEditalById } from "@/modules/admin-edital/api";
+import type { AdminEditalDetalhe } from "@/modules/admin-edital/types";
 import { listClassificacaoAdmin, recalcularClassificacaoAdmin } from "@/modules/admin-classificacao/api";
 import type { ClassificacaoAdminResponse, ClassificacaoAdminItem } from "@/modules/admin-classificacao/types";
 import type { PublicacaoResumo } from "@/modules/publicacao/types";
@@ -78,6 +80,7 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
   const [confirmRecalc, setConfirmRecalc] = useState<"PRELIMINAR" | "FINAL" | null>(null);
   const [publicacaoPreliminarVigente, setPublicacaoPreliminarVigente] = useState<PublicacaoResumo | null>(null);
   const [publicacaoFinalVigente, setPublicacaoFinalVigente] = useState<PublicacaoResumo | null>(null);
+  const [editalDetalhe, setEditalDetalhe] = useState<AdminEditalDetalhe | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,9 +104,11 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
     try {
       const response = await loadData();
       const publicacoes = await listAdminPublicacoesByEdital(editalId, token, { page: 1, pageSize: 100 });
+      const detalhe = await getAdminEditalById(editalId, token).catch(() => null);
       if (signal.aborted) return;
       if (!response) return;
       setData(response);
+      setEditalDetalhe(detalhe);
       setPublicacaoFinalVigente(publicacoes.items.find((item) => item.tipo === "CLASSIFICACAO_FINAL" && item.isVersaoAtualDoTipo) ?? null);
       setPublicacaoPreliminarVigente(publicacoes.items.find((item) => item.tipo === "CLASSIFICACAO_PRELIMINAR" && item.isVersaoAtualDoTipo) ?? null);
       setPageStatus("ready");
@@ -190,6 +195,14 @@ export default function AdminClassificacaoDetailPage({ params }: Props) {
           Recalcular final
         </button>
       </div>
+
+      {editalDetalhe ? (
+        <PageFeedback
+          type="info"
+          title="Regra de classificação do edital"
+          description={`NF = (NPP × ${editalDetalhe.configuracaoProcesso.pesoEtapa1} + NPT × ${editalDetalhe.configuracaoProcesso.pesoEtapa2}) ÷ ${editalDetalhe.configuracaoProcesso.pesoEtapa1 + editalDetalhe.configuracaoProcesso.pesoEtapa2} · desempate: ${editalDetalhe.configuracaoProcesso.desempate === "ETAPA1_IDADE" ? "etapa 1 e idade" : "etapa 1, etapa 2 e idade"} · etapa 1: ${editalDetalhe.configuracaoProcesso.modalidadeEtapa1 === "PRE_PROJETO" ? "pré-projeto" : "redação"}`}
+        />
+      ) : null}
 
       {publicacaoVigente ? (
         <PageFeedback

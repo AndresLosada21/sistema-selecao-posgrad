@@ -41,6 +41,69 @@ type RubricaDetalhada = {
   regraEliminacao?: { notaMinima?: number; eliminadaPorNota?: boolean; eliminadaPorUsoIa?: boolean };
 };
 
+type RubricaV2Criterio = {
+  chaveInterna: string;
+  label: string;
+  peso: number;
+  nota: number;
+  contribuicao: number;
+};
+
+function RubricaV2Table({ criterios }: { criterios: RubricaV2Criterio[] }) {
+  if (criterios.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
+      <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
+        <span style={{ flex: 1 }}>Critério</span>
+        <span style={{ width: 60, textAlign: "center" }}>Peso</span>
+        <span style={{ width: 60, textAlign: "center" }}>Nota</span>
+        <span style={{ width: 80, textAlign: "center" }}>Contrib.</span>
+      </div>
+      {criterios.map((criterio, i) => (
+        <div key={criterio.chaveInterna} style={{ display: "flex", padding: "10px 16px", fontSize: 13, background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9" }}>
+          <span style={{ flex: 1, color: "#334155" }}>{criterio.label}</span>
+          <span style={{ width: 60, textAlign: "center", color: "#64748B" }}>{criterio.peso}%</span>
+          <span style={{ width: 60, textAlign: "center", fontWeight: 600, color: "#1E293B" }}>{criterio.nota}</span>
+          <span style={{ width: 80, textAlign: "center", color: "#64748B" }}>{criterio.contribuicao}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LegacyRubricaTable({ criterios }: { criterios: Record<string, RubricaCriterio> }) {
+  const entries = Object.entries(criterios);
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
+      <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
+        <span style={{ flex: 1 }}>Critério</span>
+        <span style={{ width: 60, textAlign: "center" }}>Peso</span>
+        <span style={{ width: 60, textAlign: "center" }}>Nota</span>
+        <span style={{ width: 80, textAlign: "center" }}>Contrib.</span>
+      </div>
+      {entries.map(([key, val], i) => (
+        <div key={key} style={{ display: "flex", flexDirection: "column", background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9" }}>
+          <div style={{ display: "flex", padding: "10px 16px", fontSize: 13 }}>
+            <span style={{ flex: 1, color: "#334155" }}>{CRITERIA_LABELS[key] ?? key}</span>
+            <span style={{ width: 60, textAlign: "center", color: "#64748B" }}>{val.pesoPercentual}%</span>
+            <span style={{ width: 60, textAlign: "center", fontWeight: 600, color: "#1E293B" }}>{val.notaAtribuida}</span>
+            <span style={{ width: 80, textAlign: "center", color: "#64748B" }}>{val.contribuicao}</span>
+          </div>
+          {val.observacao ? <div style={{ padding: "0 16px 8px", fontSize: 12, color: "#94A3B8" }}>Obs: {val.observacao}</div> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CandidateEspelhosPage({ params }: Props) {
   const session = useSession();
   const [editalId, setEditalId] = useState<string | null>(null);
@@ -128,11 +191,16 @@ export default function CandidateEspelhosPage({ params }: Props) {
         <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
           {e1Released && espelho1 ? (
             (() => {
-              const rubrica = espelho1.rubricaDetalhada as RubricaDetalhada | null;
-              const criterios = rubrica?.criterios ?? {};
-              const notaFinal = rubrica?.notaFinal ?? etapa1?.nota ?? null;
-              const situacao = rubrica?.situacaoFinal ?? null;
-              const entries = Object.entries(criterios);
+              const rubrica = espelho1.rubricaDetalhada as (RubricaDetalhada & { criterios?: unknown }) | null;
+              const legacyCriterios = rubrica && !Array.isArray(rubrica.criterios)
+                ? ((rubrica.criterios as Record<string, RubricaCriterio> | undefined) ?? {})
+                : {};
+              const v2Criterios = rubrica && Array.isArray(rubrica.criterios)
+                ? (rubrica.criterios as RubricaV2Criterio[])
+                : [];
+              const notaFinal = espelho1.notaConsolidada ?? (typeof rubrica?.notaFinal === "number" ? rubrica.notaFinal : null) ?? etapa1?.nota ?? null;
+              const situacao = typeof rubrica?.situacaoFinal === "string" ? rubrica.situacaoFinal : null;
+              const avaliadores = espelho1.avaliadores ?? [];
               return (
                 <>
                   {/* Situacao + nota */}
@@ -148,28 +216,35 @@ export default function CandidateEspelhosPage({ params }: Props) {
                     </div>
                   ) : null}
 
-                  {/* Rubric table */}
-                  {entries.length > 0 ? (
-                    <div style={{ border: "1px solid #E2E8F0", borderRadius: 6, overflow: "hidden" }}>
-                      <div style={{ display: "flex", padding: "10px 16px", background: "#F8FAFC", fontSize: 12, fontWeight: 600, color: "#64748B" }}>
-                        <span style={{ flex: 1 }}>Critério</span>
-                        <span style={{ width: 60, textAlign: "center" }}>Peso</span>
-                        <span style={{ width: 60, textAlign: "center" }}>Nota</span>
-                        <span style={{ width: 80, textAlign: "center" }}>Contrib.</span>
-                      </div>
-                      {entries.map(([key, val], i) => (
-                        <div key={key} style={{ display: "flex", flexDirection: "column", background: i % 2 === 0 ? "transparent" : "#F8FAFC", borderTop: "1px solid #F1F5F9" }}>
-                          <div style={{ display: "flex", padding: "10px 16px", fontSize: 13 }}>
-                            <span style={{ flex: 1, color: "#334155" }}>{CRITERIA_LABELS[key] ?? key}</span>
-                            <span style={{ width: 60, textAlign: "center", color: "#64748B" }}>{val.pesoPercentual}%</span>
-                            <span style={{ width: 60, textAlign: "center", fontWeight: 600, color: "#1E293B" }}>{val.notaAtribuida}</span>
-                            <span style={{ width: 80, textAlign: "center", color: "#64748B" }}>{val.contribuicao}</span>
-                          </div>
-                          {val.observacao ? <div style={{ padding: "0 16px 8px", fontSize: 12, color: "#94A3B8" }}>Obs: {val.observacao}</div> : null}
-                        </div>
-                      ))}
+                  {/* Pre-projeto */}
+                  {espelho1.preProjeto ? (
+                    <div style={{ fontSize: 13, color: "#64748B" }}>
+                      <strong style={{ color: "#334155" }}>Pré-projeto:</strong> {espelho1.preProjeto.nomeArquivo}
                     </div>
                   ) : null}
+
+                  {/* Rubric tables */}
+                  {avaliadores.length > 0 ? (
+                    avaliadores.map((avaliador) => {
+                      const rubricaAvaliador = avaliador.rubricaDetalhada as { criterios?: RubricaV2Criterio[] } | null;
+                      const criteriosAvaliador = Array.isArray(rubricaAvaliador?.criterios) ? rubricaAvaliador!.criterios! : [];
+                      return (
+                        <div key={avaliador.avaliadorUsuarioId} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
+                            {avaliador.nomeCompleto ?? avaliador.avaliadorUsuarioId} — nota {avaliador.nota}
+                          </span>
+                          <RubricaV2Table criterios={criteriosAvaliador} />
+                          {avaliadores.length > 1 && avaliador.espelhoCorrecao ? (
+                            <span style={{ fontSize: 12, color: "#64748B" }}>Parecer: {avaliador.espelhoCorrecao}</span>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  ) : v2Criterios.length > 0 ? (
+                    <RubricaV2Table criterios={v2Criterios} />
+                  ) : (
+                    <LegacyRubricaTable criterios={legacyCriterios} />
+                  )}
 
                   {/* Espelho de correcao */}
                   {espelho1.espelhoCorrecao ? (

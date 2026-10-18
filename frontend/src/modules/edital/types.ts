@@ -53,6 +53,27 @@ export type EditalCriterioTitulacao = {
   pacoteOrigemVersao: string | null;
 };
 
+export type EditalGrupoPesquisa = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+};
+
+export type EditalConfiguracaoProcesso = {
+  modalidadeEtapa1: string;
+  pesoEtapa1: number;
+  pesoEtapa2: number;
+  notaMinimaEtapa1: number;
+  desempate: string;
+  avaliadoresEtapa1: number;
+  exigeDiplomaGraduacao: boolean;
+  exigeHistoricoGraduacao: boolean;
+  exigeGrupoPesquisa: boolean;
+  permiteCancelarSubmissao: boolean;
+  configurada: boolean;
+};
+
 export type EditalDetalhe = EditalListItem & {
   cronogramas: Array<{
     id: string;
@@ -69,4 +90,6 @@ export type EditalDetalhe = EditalListItem & {
   temasRedacaoConfigurados: boolean;
   criteriosTitulacao: EditalCriterioTitulacao[];
   criteriosTitulacaoConfigurados: boolean;
+  configuracaoProcesso: EditalConfiguracaoProcesso;
+  gruposPesquisa: EditalGrupoPesquisa[];
 };

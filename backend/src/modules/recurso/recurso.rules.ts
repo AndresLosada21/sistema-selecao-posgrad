@@ -65,8 +65,13 @@ export function rebuildEtapa1AuditSnapshotAfterRecurso(input: {
   notaFinal: number;
   usoIaComprovado: boolean;
   fundamentoUsoIa?: string | null;
+  notaMinima?: number;
+  notaAnterior?: number | null;
+  justificativa?: string;
+  recursoId?: string;
 }): Record<string, unknown> {
-  const eliminated = input.notaFinal < 7;
+  const notaMinima = input.notaMinima ?? 7;
+  const eliminated = input.notaFinal < notaMinima;
   const snapshot = isObjectRecord(input.existingSnapshot) ? input.existingSnapshot : {};
 
   return {
@@ -75,12 +80,23 @@ export function rebuildEtapa1AuditSnapshotAfterRecurso(input: {
     notaFinal: input.notaFinal,
     situacaoFinal: eliminated ? "ELIMINADA" : "APROVADA",
     regraEliminacao: {
-      notaMinima: 7,
+      notaMinima,
       eliminadaPorNota: eliminated && !input.usoIaComprovado,
       eliminadaPorUsoIa: input.usoIaComprovado,
     },
     usoIaComprovado: input.usoIaComprovado,
     fundamentoUsoIa: input.fundamentoUsoIa ?? null,
+    ...(input.recursoId
+      ? {
+          ajustePorRecurso: {
+            notaAnterior: input.notaAnterior ?? null,
+            notaNova: input.notaFinal,
+            justificativa: input.justificativa ?? null,
+            recursoId: input.recursoId,
+            ajustadoEm: new Date().toISOString(),
+          },
+        }
+      : {}),
   };
 }
 

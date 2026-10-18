@@ -1,5 +1,6 @@
 import {
   ModalidadeConcorrencia,
+  ModalidadeEtapa1,
   Prisma,
   StatusInscricao,
   StatusPagamentoInscricao,
@@ -24,6 +25,7 @@ import {
   resolvePrivateUploadPath,
 } from "../upload/upload.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
+import { getConfiguracaoProcesso } from "../edital/configuracao-processo.service.js";
 import { buildAnexoIvTemplatePdfBytes, buildCandidateAnexoIvUrl } from "./inscricao-anexo-iv.service.js";
 import {
   buildInscricaoSubmissionSnapshot,
@@ -38,6 +40,7 @@ type SaveDraftInput = {
   editalId: string;
   usuarioId: string;
   linhaPesquisaId: string;
+  grupoPesquisaId?: string;
   modalidadeConcorrencia?: ModalidadeConcorrencia;
   temaRedacaoEditalId?: string;
   temaRedacao?: string;
@@ -201,6 +204,7 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
         orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
       },
       linhaPesquisa: true,
+      grupoPesquisa: true,
       homologacao: true,
       avaliacaoEtapa1: true,
       avaliacaoEtapa2: true,
@@ -235,6 +239,7 @@ async function getInscricaoById(inscricaoId: string) {
         orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
       },
       linhaPesquisa: true,
+      grupoPesquisa: true,
     },
   });
 }
@@ -535,6 +540,7 @@ async function buildAnexoIvGeradoParaPacote(inscricao: InscricaoWithRelations, p
     documentos: inscricao.documentos.map((documento) => ({ tipo: documento.tipo, nomeArquivo: documento.nomeArquivo })),
     pagamentoDispensado,
     linhaNome: inscricao.linhaPesquisa?.nome ?? "",
+    grupoNome: inscricao.grupoPesquisa?.nome ?? "",
     flatten: true,
   });
 
@@ -722,7 +728,7 @@ function sanitizePdfTextForWinAnsi(value: string, font: PDFFont) {
 async function buildAutomaticPacoteDocumentalPdf(input: {
   edital: { numero: string; titulo: string; cursoNivel: string };
   candidato: { nomeCompleto: string; email: string };
-  inscricao: { id: string; modalidadeConcorrencia: string; linhaPesquisaNome: string | null; versaoSubmissao: number; pagamentoDispensado: boolean };
+  inscricao: { id: string; modalidadeConcorrencia: string; linhaPesquisaNome: string | null; grupoPesquisaNome?: string | null; versaoSubmissao: number; pagamentoDispensado: boolean };
   checklist: Array<{ tipo: string; label: string; presente: boolean; pendencia: string | null }>;
   documentos: PacoteDocumentoFonte[];
   redacao: { tema: string; caracteres: number };
@@ -831,6 +837,7 @@ async function buildAutomaticPacoteDocumentalPdf(input: {
     `Inscricao: ${input.inscricao.id}`,
     `Versao da submissao: ${input.inscricao.versaoSubmissao}`,
     `Linha de pesquisa: ${input.inscricao.linhaPesquisaNome ?? "-"}`,
+    `Grupo de pesquisa: ${input.inscricao.grupoPesquisaNome ?? "-"}`,
     `Modalidade: ${input.inscricao.modalidadeConcorrencia}`,
     `Pagamento dispensado: ${input.inscricao.pagamentoDispensado ? "sim" : "nao"}`,
     `Tema da redacao: ${input.redacao.tema}`,
@@ -884,6 +891,7 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
       id: inscricao.id,
       modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
       linhaPesquisaNome: inscricao.linhaPesquisa?.nome ?? null,
+      grupoPesquisaNome: inscricao.grupoPesquisa?.nome ?? null,
       versaoSubmissao: input.versaoSubmissao,
       pagamentoDispensado: input.pagamentoDispensado,
     },
@@ -909,6 +917,12 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
         ? {
             id: inscricao.linhaPesquisa.id,
             nome: inscricao.linhaPesquisa.nome,
+          }
+        : null,
+      grupoPesquisa: inscricao.grupoPesquisa
+        ? {
+            id: inscricao.grupoPesquisa.id,
+            nome: inscricao.grupoPesquisa.nome,
           }
         : null,
     },
@@ -1014,6 +1028,7 @@ async function ensurePacoteDocumentalAtualizado(inscricao: InscricaoWithRelation
         orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
       },
       linhaPesquisa: true,
+      grupoPesquisa: true,
     },
   });
 }
@@ -1035,6 +1050,18 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
 
   if (!linhaPesquisa) {
     return { error: "LINHA_PESQUISA_INVALIDA" as const };
+  }
+
+  const grupoPesquisaId = normalizeOptionalString(input.grupoPesquisaId);
+
+  if (grupoPesquisaId) {
+    const grupoPesquisa = await prisma.grupoPesquisa.findFirst({
+      where: { id: grupoPesquisaId, editalId: edital.id, ativo: true },
+    });
+
+    if (!grupoPesquisa) {
+      return { error: "GRUPO_PESQUISA_INVALIDO" as const };
+    }
   }
 
   const windowStatus = await isCronogramaWindowOpen(input.editalId, TipoCronogramaEdital.INSCRICAO);
@@ -1097,6 +1124,7 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
     },
     update: {
       linhaPesquisaId: input.linhaPesquisaId,
+      grupoPesquisaId: grupoPesquisaId ?? null,
       temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
       modalidadeConcorrencia,
       temaRedacao: temaRedacaoSelection.temaRedacao,
@@ -1108,6 +1136,7 @@ export async function saveInscricaoDraft(input: SaveDraftInput) {
     create: {
       participacaoEditalId: participacao.id,
       linhaPesquisaId: input.linhaPesquisaId,
+      grupoPesquisaId: grupoPesquisaId ?? null,
       temaRedacaoEditalId: temaRedacaoSelection.temaRedacaoEditalId,
       modalidadeConcorrencia,
       temaRedacao: temaRedacaoSelection.temaRedacao,
@@ -1349,17 +1378,41 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
     };
   }
 
+  const configuracaoProcesso = await getConfiguracaoProcesso(inscricao.participacaoEdital.edital.id);
+
+  if (configuracaoProcesso.exigeGrupoPesquisa && !inscricao.grupoPesquisaId) {
+    return {
+      error: "INSCRICAO_INCOMPLETA" as const,
+      details: ["grupo de pesquisa"],
+      checklist: [],
+    };
+  }
+
+  if (
+    inscricao.grupoPesquisaId
+    && (!inscricao.grupoPesquisa || !inscricao.grupoPesquisa.ativo || inscricao.grupoPesquisa.editalId !== inscricao.participacaoEdital.edital.id)
+  ) {
+    return {
+      error: "INSCRICAO_INCOMPLETA" as const,
+      details: ["grupo de pesquisa invalido"],
+      checklist: [],
+    };
+  }
+
   const pagamentoDispensado = inscricao.participacaoEdital.pedidoIsencao?.status === "DEFERIDA_FINAL";
   const fichaInscricao = parseFichaInscricao(inscricao.dadosFormulario);
-  const temaRedacaoSelection = resolveTemaRedacaoSelection({
-    temasEdital: inscricao.participacaoEdital.edital.temasRedacao.map((tema) => ({ id: tema.id, titulo: tema.titulo, ativo: tema.ativo })),
-    temaRedacaoEditalId: inscricao.temaRedacaoEditalId ?? undefined,
-    temaRedacao: inscricao.temaRedacao ?? undefined,
-    temaRedacaoAtualId: inscricao.temaRedacaoEditalId,
-    temaRedacaoAtual: inscricao.temaRedacao,
-    required: true,
-    allowLegacySelection: false,
-  });
+  const exigeRedacao = configuracaoProcesso.modalidadeEtapa1 === ModalidadeEtapa1.REDACAO;
+  const temaRedacaoSelection = exigeRedacao
+    ? resolveTemaRedacaoSelection({
+        temasEdital: inscricao.participacaoEdital.edital.temasRedacao.map((tema) => ({ id: tema.id, titulo: tema.titulo, ativo: tema.ativo })),
+        temaRedacaoEditalId: inscricao.temaRedacaoEditalId ?? undefined,
+        temaRedacao: inscricao.temaRedacao ?? undefined,
+        temaRedacaoAtualId: inscricao.temaRedacaoEditalId,
+        temaRedacaoAtual: inscricao.temaRedacao,
+        required: true,
+        allowLegacySelection: false,
+      })
+    : { temaRedacaoEditalId: null, temaRedacao: null };
 
   if ("error" in temaRedacaoSelection) {
     return {
@@ -1371,15 +1424,23 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
 
   const validation = validateInscricaoForSubmission({
     modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
+    modalidadeEtapa1: configuracaoProcesso.modalidadeEtapa1,
     fichaInscricao,
     temaRedacao: temaRedacaoSelection.temaRedacao,
     redacaoTexto: inscricao.redacaoTexto,
     documentos: inscricao.documentos,
     pagamentoDispensado,
     anexoVAutomaticoDisponivel: inscricao.participacaoEdital.edital.criteriosTitulacao.some((criterio) => criterio.ativo),
+    exigeDiplomaGraduacao: configuracaoProcesso.exigeDiplomaGraduacao,
+    exigeHistoricoGraduacao: configuracaoProcesso.exigeHistoricoGraduacao,
   });
 
-  if (!validation.ok || !fichaInscricao || !temaRedacaoSelection.temaRedacao || !inscricao.redacaoTexto) {
+  if (
+    !validation.ok
+    || !fichaInscricao
+    || !temaRedacaoSelection.temaRedacao && exigeRedacao
+    || !inscricao.redacaoTexto && exigeRedacao
+  ) {
     return {
       error: "INSCRICAO_INCOMPLETA" as const,
       details: validation.errors,
@@ -1404,6 +1465,8 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
       modalidadeConcorrencia: inscricao.modalidadeConcorrencia,
       linhaPesquisaId: inscricao.linhaPesquisaId,
       linhaPesquisaNome: inscricao.linhaPesquisa?.nome ?? null,
+      grupoPesquisaId: inscricao.grupoPesquisaId,
+      grupoPesquisaNome: inscricao.grupoPesquisa?.nome ?? null,
     },
     fichaInscricao,
     temaRedacao: temaRedacaoSelection.temaRedacao,
@@ -1413,6 +1476,7 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
     titulos: inscricao.titulos.map((titulo) => mapTituloInscricao(titulo)),
     pagamentoDispensado,
     versaoSubmissao,
+    modalidadeEtapa1: configuracaoProcesso.modalidadeEtapa1,
   });
 
   const submittedAt = new Date();
@@ -1431,7 +1495,7 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
       urlArquivo: documento.urlArquivo,
     })),
     redacao: {
-      tema: temaRedacaoSelection.temaRedacao,
+      tema: temaRedacaoSelection.temaRedacao ?? "Pre-projeto (sem redacao)",
       caracteres: submissaoSnapshot.redacao.caracteres,
     },
     submissaoSnapshot: submissaoSnapshot as Prisma.JsonValue,
@@ -1479,6 +1543,12 @@ export async function cancelInscricaoSubmission(inscricaoId: string, usuarioId: 
 
   if (inscricao.status !== StatusInscricao.SUBMETIDA) {
     return { error: "INSCRICAO_NAO_CANCELAVEL" as const };
+  }
+
+  const configuracaoProcesso = await getConfiguracaoProcesso(inscricao.participacaoEdital.edital.id);
+
+  if (!configuracaoProcesso.permiteCancelarSubmissao) {
+    return { error: "CANCELAMENTO_SUBMISSAO_NAO_PERMITIDO" as const };
   }
 
   if (inscricao.homologacao || inscricao.avaliacaoEtapa1 || inscricao.avaliacaoEtapa2 || hasPoliticasProcessamentoPosterior(inscricao.etapasPoliticasAfirmativas) || inscricao.participacaoEdital.classificacaoFinal) {
@@ -1553,6 +1623,12 @@ export async function registrarPacoteDocumentalConsolidado(input: RegistrarPacot
         ? {
             id: inscricao.linhaPesquisa.id,
             nome: inscricao.linhaPesquisa.nome,
+          }
+        : null,
+      grupoPesquisa: inscricao.grupoPesquisa
+        ? {
+            id: inscricao.grupoPesquisa.id,
+            nome: inscricao.grupoPesquisa.nome,
           }
         : null,
     },
@@ -1704,6 +1780,7 @@ export async function listInscricoesDoUsuario(usuarioId: string) {
         },
       },
       linhaPesquisa: true,
+      grupoPesquisa: true,
       documentos: true,
       titulos: {
         include: {
@@ -1729,6 +1806,12 @@ export async function listInscricoesDoUsuario(usuarioId: string) {
       ? {
           id: inscricao.linhaPesquisa.id,
           nome: inscricao.linhaPesquisa.nome,
+        }
+      : null,
+    grupoPesquisa: inscricao.grupoPesquisa
+      ? {
+          id: inscricao.grupoPesquisa.id,
+          nome: inscricao.grupoPesquisa.nome,
         }
       : null,
     edital: {

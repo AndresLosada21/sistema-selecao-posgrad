@@ -1,15 +1,62 @@
-import { Prisma, StatusAvaliacaoEtapa, StatusInscricao, StatusRecurso, TipoCronogramaEdital } from "@prisma/client";
+import { Prisma, StatusAvaliacaoEtapa, StatusInscricao, StatusRecurso, TipoCronogramaEdital, TipoDocumentoInscricao } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
 import { buildInscricaoWhereForAvaliador } from "../avaliacao/avaliador-scope.service.js";
 import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
+import { getConfiguracaoProcesso } from "../edital/configuracao-processo.service.js";
 import {
+  CRITERIOS_ETAPA1_LEGADO,
   buildEspelhoEtapa1,
   buildRubricaEtapa1Snapshot,
-  calcularNotaEtapa1PorRubrica,
-  resolveNotaEtapa1Final,
-  type RubricaEtapa1,
+  calcularMediaAvaliadores,
+  calcularNotaAvaliadorEtapa1,
+  type AvaliadorEtapa1Resumo,
+  type CriterioEtapa1Definicao,
+  type NotaCriterioEtapa1,
 } from "./etapa1.rules.js";
+
+async function getCriteriosAvaliacao(editalId: string): Promise<CriterioEtapa1Definicao[]> {
+  const criterios = await prisma.criterioAvaliacaoEtapa1Edital.findMany({
+    where: { editalId, ativo: true },
+    orderBy: [{ ordem: "asc" }, { chaveInterna: "asc" }],
+  });
+
+  if (criterios.length === 0) {
+    return CRITERIOS_ETAPA1_LEGADO;
+  }
+
+  return criterios.map((criterio) => ({
+    chaveInterna: criterio.chaveInterna,
+    label: criterio.label,
+    peso: criterio.peso,
+    notaMaxima: criterio.notaMaxima.toNumber(),
+  }));
+}
+
+function validarNotasDosCriterios(criterios: CriterioEtapa1Definicao[], notas: NotaCriterioEtapa1[]) {
+  const criteriosPorChave = new Map(criterios.map((criterio) => [criterio.chaveInterna, criterio]));
+
+  for (const nota of notas) {
+    const criterio = criteriosPorChave.get(nota.chaveInterna);
+
+    if (!criterio) {
+      return { error: "CRITERIO_ETAPA_1_DESCONHECIDO" as const };
+    }
+
+    if (nota.nota < 0 || nota.nota > criterio.notaMaxima) {
+      return { error: "CRITERIO_ETAPA_1_NOTA_INVALIDA" as const };
+    }
+  }
+
+  const chavesInformadas = new Set(notas.map((nota) => nota.chaveInterna));
+  const faltantes = criterios.filter((criterio) => !chavesInformadas.has(criterio.chaveInterna));
+
+  if (faltantes.length > 0) {
+    return { error: "CRITERIO_ETAPA_1_AUSENTE" as const };
+  }
+
+  return null;
+}
 
 async function hasRecursosPendentesEtapa1(inscricaoId: string) {
   return (await prisma.recurso.count({
@@ -50,6 +97,8 @@ async function buildEtapa1EditState(inscricao: Prisma.InscricaoGetPayload<{
   const hasRecursosPendentes = await hasRecursosPendentesEtapa1(inscricao.id);
   const hasRecursosRegistrados = await hasRecursosRegistradosEtapa1(inscricao.id);
   const avaliacao = inscricao.avaliacaoEtapa1;
+  const configuracaoProcesso = await getConfiguracaoProcesso(inscricao.participacaoEdital.editalId);
+  const avaliadoresRegistrados = await prisma.avaliacaoEtapa1Avaliador.count({ where: { inscricaoId: inscricao.id } });
 
   let bloqueioSalvarPreliminar: string | null = null;
   if (avaliacao?.status === StatusAvaliacaoEtapa.FINAL_PUBLICADA) {
@@ -87,6 +136,12 @@ async function buildEtapa1EditState(inscricao: Prisma.InscricaoGetPayload<{
     bloqueioSalvarFinal,
     podeLiberarEspelho: bloqueioLiberarEspelho === null,
     bloqueioLiberarEspelho,
+    banca: {
+      avaliadoresNecessarios: configuracaoProcesso.avaliadoresEtapa1,
+      avaliadoresRegistrados,
+      completa: avaliadoresRegistrados >= configuracaoProcesso.avaliadoresEtapa1,
+    },
+    modalidadeEtapa1: configuracaoProcesso.modalidadeEtapa1,
   };
 }
 
@@ -103,6 +158,8 @@ function mapEtapa1Inscricao(inscricao: Prisma.InscricaoGetPayload<{
   bloqueioSalvarFinal: string | null;
   podeLiberarEspelho: boolean;
   bloqueioLiberarEspelho: string | null;
+  banca: { avaliadoresNecessarios: number; avaliadoresRegistrados: number; completa: boolean };
+  modalidadeEtapa1: string;
 }) {
   const avaliacao = inscricao.avaliacaoEtapa1;
 
@@ -210,19 +267,37 @@ export async function getInscricaoEtapa1ById(inscricaoId: string) {
 
   if (!inscricao) return null;
   const edicao = await buildEtapa1EditState(inscricao);
-  return mapEtapa1Inscricao(inscricao, edicao);
+  const criteriosAvaliacao = await getCriteriosAvaliacao(inscricao.participacaoEdital.editalId);
+  const avaliadores = await prisma.avaliacaoEtapa1Avaliador.findMany({
+    where: { inscricaoId },
+    include: { avaliador: { select: { nomeCompleto: true } } },
+    orderBy: { criadoEm: "asc" },
+  });
+
+  return {
+    ...mapEtapa1Inscricao(inscricao, edicao),
+    criteriosAvaliacao,
+    avaliadores: avaliadores.map((avaliador) => ({
+      avaliadorUsuarioId: avaliador.avaliadorUsuarioId,
+      nomeCompleto: avaliador.avaliador.nomeCompleto,
+      nota: avaliador.nota.toNumber(),
+      espelhoCorrecao: avaliador.espelhoCorrecao,
+      criadoEm: avaliador.criadoEm.toISOString(),
+    })),
+  };
 }
 
 export async function registrarResultadoEtapa1(
   inscricaoId: string,
   input: {
-    tema?: string;
-    rubrica: RubricaEtapa1;
+    criterios: NotaCriterioEtapa1[];
     usoIaComprovado: boolean;
     fundamentoUsoIa?: string;
     espelhoCorrecao: string;
     liberarEspelho: boolean;
     publicacao: "PRELIMINAR" | "FINAL";
+    avaliadorUsuarioId?: string;
+    solicitanteUserId: string;
   },
 ) {
   const allowedStatuses = new Set<StatusInscricao>([
@@ -294,58 +369,138 @@ export async function registrarResultadoEtapa1(
     }
   }
 
-  const notaCalculadaSemPenalidadeIa = calcularNotaEtapa1PorRubrica(input.rubrica);
+  const configuracaoProcesso = await getConfiguracaoProcesso(inscricao.participacaoEdital.editalId);
+  const criterios = await getCriteriosAvaliacao(inscricao.participacaoEdital.editalId);
+  const notaInvalida = validarNotasDosCriterios(criterios, input.criterios);
 
-  const notaFinal = resolveNotaEtapa1Final({
-    rubrica: input.rubrica,
-    usoIaComprovado: input.usoIaComprovado,
-  });
+  if (notaInvalida) {
+    return notaInvalida;
+  }
 
-  const rubricaDetalhada = buildRubricaEtapa1Snapshot({
-    rubrica: input.rubrica,
-    notaCalculada: notaCalculadaSemPenalidadeIa,
+  if (input.publicacao === "FINAL") {
+    const avaliacaoAtual = inscricao.avaliacaoEtapa1;
+
+    if (!avaliacaoAtual) {
+      return { error: "ETAPA_1_PRELIMINAR_OBRIGATORIA" as const };
+    }
+
+    const notaConsolidada = avaliacaoAtual.nota?.toNumber() ?? 0;
+    const atualizada = await prisma.avaliacaoEtapa1.update({
+      where: { inscricaoId },
+      data: {
+        espelhoCorrecao: input.espelhoCorrecao,
+        espelhoLiberadoEm: new Date(),
+        status: StatusAvaliacaoEtapa.FINAL_PUBLICADA,
+        resultadoFinalEm: new Date(),
+      },
+    });
+
+    await prisma.inscricao.update({
+      where: { id: inscricaoId },
+      data: {
+        status: notaConsolidada >= configuracaoProcesso.notaMinimaEtapa1
+          ? StatusInscricao.APTA_ETAPA_2
+          : StatusInscricao.ELIMINADA_ETAPA_1,
+      },
+    });
+
+    return { avaliacao: atualizada, bancaPendente: false as const };
+  }
+
+  const avaliadorUsuarioId = input.avaliadorUsuarioId ?? input.solicitanteUserId;
+  const notaAvaliador = calcularNotaAvaliadorEtapa1({ criterios, notas: input.criterios });
+  const rubricaAvaliador = buildRubricaEtapa1Snapshot({
+    criterios,
+    notas: input.criterios,
+    notaAvaliador,
+    notaMinima: configuracaoProcesso.notaMinimaEtapa1,
     usoIaComprovado: input.usoIaComprovado,
     fundamentoUsoIa: input.fundamentoUsoIa,
   });
 
-  const statusAvaliacao =
-    input.publicacao === "PRELIMINAR"
-      ? StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA
-      : StatusAvaliacaoEtapa.FINAL_PUBLICADA;
-  const espelhoSolicitadoEm = input.publicacao === "PRELIMINAR" && input.liberarEspelho
-    ? (inscricao.avaliacaoEtapa1?.espelhoSolicitadoEm ?? new Date())
-    : undefined;
-  const espelhoLiberadoEm = input.publicacao === "FINAL"
-    ? new Date()
-    : input.liberarEspelho
-      ? new Date()
-      : null;
-
   try {
-    const avaliacao = await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
+      const avaliacaoExistente = await tx.avaliacaoEtapa1Avaliador.findUnique({
+        where: { inscricaoId_avaliadorUsuarioId: { inscricaoId, avaliadorUsuarioId } },
+      });
+
+      if (avaliacaoExistente) {
+        return { error: "AVALIADOR_JA_AVALIOU" as const };
+      }
+
+      await tx.avaliacaoEtapa1Avaliador.create({
+        data: {
+          editalId: inscricao.participacaoEdital.editalId,
+          inscricaoId,
+          avaliadorUsuarioId,
+          nota: notaAvaliador,
+          rubricaDetalhada: rubricaAvaliador as Prisma.InputJsonValue,
+          espelhoCorrecao: input.espelhoCorrecao,
+        },
+      });
+
+      const avaliacoes = await tx.avaliacaoEtapa1Avaliador.findMany({
+        where: { inscricaoId },
+        orderBy: { criadoEm: "asc" },
+      });
+
+      if (avaliacoes.length < configuracaoProcesso.avaliadoresEtapa1) {
+        return {
+          avaliacao: null,
+          bancaPendente: true as const,
+          avaliadoresRegistrados: avaliacoes.length,
+          avaliadoresNecessarios: configuracaoProcesso.avaliadoresEtapa1,
+        };
+      }
+
+      const usoIaConsolidado = avaliacoes.some((avaliacao) => {
+        const rubrica = avaliacao.rubricaDetalhada;
+        return Boolean(rubrica && typeof rubrica === "object" && !Array.isArray(rubrica) && (rubrica as { usoIaComprovado?: boolean }).usoIaComprovado);
+      });
+      const notaConsolidada = usoIaConsolidado
+        ? 0
+        : calcularMediaAvaliadores(avaliacoes.map((avaliacao) => avaliacao.nota.toNumber()));
+
+      const statusAvaliacao = StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA;
+      const espelhoSolicitadoEm = input.liberarEspelho
+        ? (inscricao.avaliacaoEtapa1?.espelhoSolicitadoEm ?? new Date())
+        : undefined;
+      const espelhoLiberadoEm = input.liberarEspelho ? new Date() : null;
+
+      const rubricaConsolidada = {
+        versao: 2,
+        consolidado: true,
+        notaMedia: notaConsolidada,
+        usoIaComprovado: usoIaConsolidado,
+        avaliadores: avaliacoes.map((avaliacao) => ({
+          avaliadorUsuarioId: avaliacao.avaliadorUsuarioId,
+          nota: avaliacao.nota.toNumber(),
+        })),
+      };
+
       const updateData = {
-        tema: input.tema,
-        textoSubmetido: inscricao.redacaoTexto,
-        nota: notaFinal,
-        rubricaDetalhada: rubricaDetalhada as Prisma.InputJsonValue,
-        usoIaComprovado: input.usoIaComprovado,
+        tema: inscricao.temaRedacao,
+        textoSubmetido: inscricao.temaRedacao ? inscricao.redacaoTexto : null,
+        nota: notaConsolidada,
+        rubricaDetalhada: rubricaConsolidada as Prisma.InputJsonValue,
+        usoIaComprovado: usoIaConsolidado,
         fundamentoUsoIa: input.fundamentoUsoIa,
         espelhoCorrecao: input.espelhoCorrecao,
         espelhoSolicitadoEm,
         espelhoLiberadoEm,
         status: statusAvaliacao,
-        resultadoPreliminarEm: input.publicacao === "PRELIMINAR" ? new Date() : undefined,
-        resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : null,
+        resultadoPreliminarEm: new Date(),
+        resultadoFinalEm: null,
       };
 
       const createData = {
         editalId: inscricao.participacaoEdital.editalId,
         inscricaoId,
         ...updateData,
-        resultadoFinalEm: input.publicacao === "FINAL" ? new Date() : undefined,
+        resultadoFinalEm: undefined,
       };
 
-      const result = input.publicacao === "PRELIMINAR" && !inscricao.avaliacaoEtapa1
+      const result = !inscricao.avaliacaoEtapa1
         ? await (async () => {
             const insert = await tx.avaliacaoEtapa1.createMany({
               data: createData,
@@ -365,26 +520,16 @@ export async function registrarResultadoEtapa1(
           });
 
       if (!result) {
-        return null;
+        return { error: "ETAPA_1_PRELIMINAR_BLOQUEADA" as const };
       }
 
       await tx.inscricao.update({
         where: { id: inscricaoId },
-        data: {
-          status: input.publicacao === "FINAL"
-            ? (notaFinal >= 7 ? StatusInscricao.APTA_ETAPA_2 : StatusInscricao.ELIMINADA_ETAPA_1)
-            : StatusInscricao.APTA_ETAPA_1,
-        },
+        data: { status: StatusInscricao.APTA_ETAPA_1 },
       });
 
-      return result;
+      return { avaliacao: result, bancaPendente: false as const };
     });
-
-    if (!avaliacao) {
-      return { error: "ETAPA_1_PRELIMINAR_BLOQUEADA" as const };
-    }
-
-    return { avaliacao };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { error: "ETAPA_1_PRELIMINAR_BLOQUEADA" as const };
@@ -392,6 +537,53 @@ export async function registrarResultadoEtapa1(
 
     throw error;
   }
+}
+
+type EspelhoInscricao = Prisma.InscricaoGetPayload<{
+  include: {
+    avaliacaoEtapa1: true;
+    documentos: true;
+    avaliadoresEtapa1: { include: { avaliador: true } };
+    participacaoEdital: { select: { editalId: true } };
+  };
+}>;
+
+async function buildEspelhoResponse(inscricao: EspelhoInscricao) {
+  const avaliacao = inscricao.avaliacaoEtapa1;
+
+  if (!avaliacao || !avaliacao.espelhoCorrecao) {
+    return { error: "ESPELHO_ETAPA_1_INDISPONIVEL" as const };
+  }
+
+  const configuracaoProcesso = await getConfiguracaoProcesso(inscricao.participacaoEdital.editalId);
+  const preProjeto = inscricao.documentos.find((documento) => documento.tipo === TipoDocumentoInscricao.PRE_PROJETO) ?? null;
+  const avaliadores: AvaliadorEtapa1Resumo[] = inscricao.avaliadoresEtapa1.map((avaliador) => ({
+    avaliadorUsuarioId: avaliador.avaliadorUsuarioId,
+    nomeCompleto: avaliador.avaliador.nomeCompleto,
+    nota: avaliador.nota.toNumber(),
+    espelhoCorrecao: avaliador.espelhoCorrecao,
+    rubricaDetalhada: avaliador.rubricaDetalhada,
+    criadoEm: avaliador.criadoEm.toISOString(),
+  }));
+
+  return {
+    espelho: buildEspelhoEtapa1({
+      modalidadeEtapa1: configuracaoProcesso.modalidadeEtapa1,
+      tema: avaliacao.tema,
+      textoSubmetido: avaliacao.textoSubmetido,
+      preProjeto: preProjeto
+        ? { nomeArquivo: preProjeto.nomeArquivo, urlArquivo: preProjeto.urlArquivo }
+        : null,
+      espelhoCorrecao: avaliacao.espelhoCorrecao,
+      rubricaDetalhada: avaliacao.rubricaDetalhada,
+      avaliadores,
+      notaConsolidada: avaliacao.nota?.toNumber() ?? null,
+      espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm,
+      espelhoLiberadoEm: avaliacao.espelhoLiberadoEm,
+      resultadoPreliminarEm: avaliacao.resultadoPreliminarEm,
+      resultadoFinalEm: avaliacao.resultadoFinalEm,
+    }),
+  };
 }
 
 export async function getEspelhoEtapa1ForCandidate(inscricaoId: string, usuarioId: string) {
@@ -404,6 +596,8 @@ export async function getEspelhoEtapa1ForCandidate(inscricaoId: string, usuarioI
     },
     include: {
       avaliacaoEtapa1: true,
+      documentos: true,
+      avaliadoresEtapa1: { include: { avaliador: true }, orderBy: { criadoEm: "asc" } },
       participacaoEdital: {
         select: { editalId: true },
       },
@@ -414,28 +608,11 @@ export async function getEspelhoEtapa1ForCandidate(inscricaoId: string, usuarioI
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  const avaliacao = inscricao.avaliacaoEtapa1;
-
-  if (!avaliacao || !avaliacao.espelhoCorrecao) {
-    return { error: "ESPELHO_ETAPA_1_INDISPONIVEL" as const };
-  }
-
-  if (!avaliacao.espelhoLiberadoEm) {
+  if (!inscricao.avaliacaoEtapa1?.espelhoLiberadoEm) {
     return { error: "ESPELHO_ETAPA_1_NAO_LIBERADO" as const };
   }
 
-  return {
-    espelho: buildEspelhoEtapa1({
-      tema: avaliacao.tema,
-      textoSubmetido: avaliacao.textoSubmetido,
-      espelhoCorrecao: avaliacao.espelhoCorrecao,
-      rubricaDetalhada: avaliacao.rubricaDetalhada,
-      espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm,
-      espelhoLiberadoEm: avaliacao.espelhoLiberadoEm,
-      resultadoPreliminarEm: avaliacao.resultadoPreliminarEm,
-      resultadoFinalEm: avaliacao.resultadoFinalEm,
-    }),
-  };
+  return await buildEspelhoResponse(inscricao);
 }
 
 export async function getEspelhoEtapa1ForAdmin(inscricaoId: string) {
@@ -445,6 +622,8 @@ export async function getEspelhoEtapa1ForAdmin(inscricaoId: string) {
     },
     include: {
       avaliacaoEtapa1: true,
+      documentos: true,
+      avaliadoresEtapa1: { include: { avaliador: true }, orderBy: { criadoEm: "asc" } },
       participacaoEdital: {
         select: { editalId: true },
       },
@@ -455,24 +634,7 @@ export async function getEspelhoEtapa1ForAdmin(inscricaoId: string) {
     return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
   }
 
-  const avaliacao = inscricao.avaliacaoEtapa1;
-
-  if (!avaliacao || !avaliacao.espelhoCorrecao) {
-    return { error: "ESPELHO_ETAPA_1_INDISPONIVEL" as const };
-  }
-
-  return {
-    espelho: buildEspelhoEtapa1({
-      tema: avaliacao.tema,
-      textoSubmetido: avaliacao.textoSubmetido,
-      espelhoCorrecao: avaliacao.espelhoCorrecao,
-      rubricaDetalhada: avaliacao.rubricaDetalhada,
-      espelhoSolicitadoEm: avaliacao.espelhoSolicitadoEm,
-      espelhoLiberadoEm: avaliacao.espelhoLiberadoEm,
-      resultadoPreliminarEm: avaliacao.resultadoPreliminarEm,
-      resultadoFinalEm: avaliacao.resultadoFinalEm,
-    }),
-  };
+  return await buildEspelhoResponse(inscricao);
 }
 
 export async function solicitarEspelhoEtapa1(inscricaoId: string, usuarioId: string) {

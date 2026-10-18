@@ -2,11 +2,17 @@ import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/http/client";
 
 import type {
   AdminTemaRedacaoPacotesResponse,
+  AdminConfiguracaoProcesso,
+  AdminConfiguracaoProcessoPayload,
+  AdminCriterioEtapa1,
   AdminCronogramaPayload,
   AdminEditalDetalhe,
   AdminEditalPayload,
   AdminEditaisResponse,
+  AdminGrupoPesquisa,
+  AdminGrupoPesquisaPayload,
   AdminLinhaPesquisaPayload,
+  AdminPerfilProcessoPacotesResponse,
   ApplyTemaRedacaoPacotePayload,
   ApplyTemaRedacaoPacoteResponse,
   AdminTemaRedacaoPayload,
@@ -101,4 +107,41 @@ export function updateTemaRedacaoAdmin(temaId: string, payload: AdminTemaRedacao
 
 export function deleteTemaRedacaoAdmin(temaId: string, token: string) {
   return apiDelete<void>(`/v1/admin/temas-redacao/${temaId}`, token);
+}
+
+export function listPerfisProcessoPacotesAdmin(token: string) {
+  return apiGet<AdminPerfilProcessoPacotesResponse>("/v1/admin/perfis-processo/pacotes", token);
+}
+
+export function applyPerfilProcessoPacoteAdmin(editalId: string, slug: string, token: string) {
+  return apiPost<AdminConfiguracaoProcesso & { criterios: AdminCriterioEtapa1[] }>(
+    `/v1/admin/editais/${editalId}/perfil-processo/pacote`,
+    { slug },
+    token,
+  );
+}
+
+export function updateConfiguracaoProcessoAdmin(
+  editalId: string,
+  payload: AdminConfiguracaoProcessoPayload,
+  token: string,
+) {
+  return apiPut<AdminConfiguracaoProcesso>(`/v1/admin/editais/${editalId}/configuracao-processo`, payload, token);
+}
+
+export function createGrupoPesquisaAdmin(editalId: string, payload: AdminGrupoPesquisaPayload, token: string) {
+  return apiPost<AdminGrupoPesquisa>(`/v1/admin/editais/${editalId}/grupos-pesquisa`, payload, token);
+}
+
+export function updateGrupoPesquisaAdmin(
+  editalId: string,
+  grupoId: string,
+  payload: AdminGrupoPesquisaPayload,
+  token: string,
+) {
+  return apiPut<AdminGrupoPesquisa>(`/v1/admin/editais/${editalId}/grupos-pesquisa/${grupoId}`, payload, token);
+}
+
+export function deleteGrupoPesquisaAdmin(editalId: string, grupoId: string, token: string) {
+  return apiDelete<void>(`/v1/admin/editais/${editalId}/grupos-pesquisa/${grupoId}`, token);
 }

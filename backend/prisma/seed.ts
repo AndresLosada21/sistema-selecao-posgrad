@@ -8,6 +8,7 @@ import {
 import bcrypt from "bcryptjs";
 
 import { prisma } from "../src/lib/prisma.js";
+import { applyPerfilProcessoPacote } from "../src/modules/edital/configuracao-processo.service.js";
 
 function addDays(baseDate: Date, days: number) {
   const nextDate = new Date(baseDate);
@@ -88,6 +89,21 @@ async function main() {
       criadoPorId: admin.id,
     },
   });
+
+  console.log("Aplicando perfis de processo padrao...");
+  await applyPerfilProcessoPacote(edital.id, "ppgee-092-2025-mestrado");
+  await applyPerfilProcessoPacote(editalDoutorado.id, "ppgee-073-2026-doutorado");
+
+  for (const grupo of [
+    { nome: "Sistemas Inteligentes e Microeletronica", descricao: "Grupo de pesquisa em sistemas inteligentes." },
+    { nome: "Sistemas de Controle e Automacao Modernos", descricao: "Grupo de pesquisa em controle e automacao." },
+  ]) {
+    await prisma.grupoPesquisa.upsert({
+      where: { editalId_nome: { editalId: editalDoutorado.id, nome: grupo.nome } },
+      update: { descricao: grupo.descricao, ativo: true },
+      create: { editalId: editalDoutorado.id, ...grupo },
+    });
+  }
 
   const cronogramas = [
     {

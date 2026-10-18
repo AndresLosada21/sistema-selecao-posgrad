@@ -62,6 +62,46 @@ test("recompoe snapshot auditavel da etapa 1 no deferimento de recurso", () => {
   });
 });
 
+test("recurso deferido registra ajuste auditavel sem apagar a rubrica original", () => {
+  const snapshot = rebuildEtapa1AuditSnapshotAfterRecurso({
+    existingSnapshot: {
+      versao: 2,
+      consolidado: true,
+      notaMedia: 8,
+      avaliadores: [{ avaliadorUsuarioId: "av-1", nota: 8 }],
+    },
+    notaFinal: 9,
+    notaMinima: 8,
+    notaAnterior: 8,
+    justificativa: "Banca revisora reconheceu criterio nao computado.",
+    recursoId: "recurso-1",
+    usoIaComprovado: false,
+  });
+
+  assert.deepEqual(snapshot.avaliadores, [{ avaliadorUsuarioId: "av-1", nota: 8 }]);
+  assert.equal(snapshot.notaFinal, 9);
+
+  const ajuste = snapshot.ajustePorRecurso as {
+    notaAnterior: number;
+    notaNova: number;
+    justificativa: string;
+    recursoId: string;
+    ajustadoEm: string;
+  };
+
+  assert.equal(ajuste.notaAnterior, 8);
+  assert.equal(ajuste.notaNova, 9);
+  assert.equal(ajuste.justificativa, "Banca revisora reconheceu criterio nao computado.");
+  assert.equal(ajuste.recursoId, "recurso-1");
+  assert.equal(typeof ajuste.ajustadoEm, "string");
+
+  assert.deepEqual(snapshot.regraEliminacao, {
+    notaMinima: 8,
+    eliminadaPorNota: false,
+    eliminadaPorUsoIa: false,
+  });
+});
+
 test("recalcula a memoria de calculo da etapa 2 com base na pontuacao bruta e maior pontuacao existente", () => {
   const result = rebuildEtapa2AuditTrailAfterRecurso({
     pontuacaoItensAtual: { titulo: 12, artigo: 8 },

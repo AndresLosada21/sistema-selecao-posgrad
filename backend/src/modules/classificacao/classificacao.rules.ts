@@ -1,4 +1,16 @@
-import { ModalidadeConcorrencia, StatusClassificacaoFinal, StatusConfirmacaoReserva } from "@prisma/client";
+import { DesempateClassificacao, ModalidadeConcorrencia, StatusClassificacaoFinal, StatusConfirmacaoReserva } from "@prisma/client";
+
+export type ClassificacaoConfiguracao = {
+  pesoEtapa1: number;
+  pesoEtapa2: number;
+  desempate: DesempateClassificacao;
+};
+
+export const CLASSIFICACAO_CONFIGURACAO_PADRAO: ClassificacaoConfiguracao = {
+  pesoEtapa1: 1,
+  pesoEtapa2: 2,
+  desempate: DesempateClassificacao.ETAPA1_ETAPA2_IDADE,
+};
 
 export type ClassificacaoLinhaConfig = {
   id: string;
@@ -42,13 +54,27 @@ function compareNullableDatesAsc(a: Date | null, b: Date | null) {
   return 0;
 }
 
-export function calculateNotaFinal(notaEtapa1: number, notaEtapa2: number) {
-  return Number(((notaEtapa1 + 2 * notaEtapa2) / 3).toFixed(2));
+export function calculateNotaFinal(input: {
+  notaEtapa1: number;
+  notaEtapa2: number;
+  pesoEtapa1?: number;
+  pesoEtapa2?: number;
+}) {
+  const pesoEtapa1 = input.pesoEtapa1 ?? CLASSIFICACAO_CONFIGURACAO_PADRAO.pesoEtapa1;
+  const pesoEtapa2 = input.pesoEtapa2 ?? CLASSIFICACAO_CONFIGURACAO_PADRAO.pesoEtapa2;
+  const somaPesos = pesoEtapa1 + pesoEtapa2;
+
+  if (somaPesos <= 0) {
+    return 0;
+  }
+
+  return Number((((input.notaEtapa1 * pesoEtapa1) + (input.notaEtapa2 * pesoEtapa2)) / somaPesos).toFixed(2));
 }
 
 export function compareClassificacaoCandidates(
   a: Pick<ClassificacaoCandidate, "notaEtapa1" | "notaEtapa2" | "dataNascimento"> & { notaFinal: number },
   b: Pick<ClassificacaoCandidate, "notaEtapa1" | "notaEtapa2" | "dataNascimento"> & { notaFinal: number },
+  desempate: DesempateClassificacao = CLASSIFICACAO_CONFIGURACAO_PADRAO.desempate,
 ) {
   if (b.notaFinal !== a.notaFinal) {
     return b.notaFinal - a.notaFinal;
@@ -58,7 +84,7 @@ export function compareClassificacaoCandidates(
     return b.notaEtapa1 - a.notaEtapa1;
   }
 
-  if (b.notaEtapa2 !== a.notaEtapa2) {
+  if (desempate === DesempateClassificacao.ETAPA1_ETAPA2_IDADE && b.notaEtapa2 !== a.notaEtapa2) {
     return b.notaEtapa2 - a.notaEtapa2;
   }
 
@@ -112,13 +138,20 @@ export function rankClassificacao(input: {
   candidates: ClassificacaoCandidate[];
   linhas: ClassificacaoLinhaConfig[];
   publicacao: "PRELIMINAR" | "FINAL";
+  configuracao?: ClassificacaoConfiguracao;
 }) {
+  const configuracao = input.configuracao ?? CLASSIFICACAO_CONFIGURACAO_PADRAO;
   const base = input.candidates
     .map((candidate) => ({
       ...candidate,
-      notaFinal: calculateNotaFinal(candidate.notaEtapa1, candidate.notaEtapa2),
+      notaFinal: calculateNotaFinal({
+        notaEtapa1: candidate.notaEtapa1,
+        notaEtapa2: candidate.notaEtapa2,
+        pesoEtapa1: configuracao.pesoEtapa1,
+        pesoEtapa2: configuracao.pesoEtapa2,
+      }),
     }))
-    .sort((a, b) => compareClassificacaoCandidates(a, b));
+    .sort((a, b) => compareClassificacaoCandidates(a, b, configuracao.desempate));
 
   const posicaoGeralMap = new Map<string, number>();
 

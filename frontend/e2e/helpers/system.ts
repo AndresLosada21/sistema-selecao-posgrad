@@ -177,6 +177,12 @@ export async function createOperationalEdital(request: APIRequestContext, option
     expect(cronogramaResponse.ok()).toBeTruthy();
   }
 
+  const perfilSlug = cursoNivel === "DOUTORADO" ? "ppgee-073-2026-doutorado" : "ppgee-092-2025-mestrado";
+  const perfilResponse = await postJson(request, `/v1/admin/editais/${edital.id}/perfil-processo/pacote`, {
+    slug: perfilSlug,
+  }, adminToken);
+  expect(perfilResponse.ok()).toBeTruthy();
+
   const publishResponse = await putJson(request, `/v1/admin/editais/${edital.id}`, {
     numero: edital.numero,
     titulo: edital.titulo,
@@ -351,17 +357,13 @@ export async function homologarFinalApi(request: APIRequestContext, adminToken: 
 
 export async function registrarEtapa1Api(request: APIRequestContext, adminToken: string, inscricaoId: string, input?: { publicacao?: "PRELIMINAR" | "FINAL"; liberarEspelho?: boolean }) {
   const response = await putJson(request, `/v1/admin/etapa-1/inscricoes/${inscricaoId}/resultado`, {
-    tema: "Controle e automacao aplicada a sistemas energeticos",
-    rubrica: {
-      adequacaoDominioTema: 8,
-      estrutura: 8,
-      organizacaoCoerencia: 8,
-      objetividadeSintese: 8,
-      grafiaGramatica: 8,
-      observacoes: {
-        geral: "Texto avaliado na etapa 1.",
-      },
-    },
+    criterios: [
+      { chave: "adequacaoDominioTema", nota: 8 },
+      { chave: "estrutura", nota: 8 },
+      { chave: "organizacaoCoerencia", nota: 8 },
+      { chave: "objetividadeSintese", nota: 8 },
+      { chave: "grafiaGramatica", nota: 8 },
+    ],
     usoIaComprovado: false,
     espelhoCorrecao: "Espelho estruturado da etapa 1.",
     liberarEspelho: input?.liberarEspelho ?? false,

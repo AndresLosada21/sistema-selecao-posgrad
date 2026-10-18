@@ -1,4 +1,4 @@
-import { CursoNivel, StatusEdital, TipoCronogramaEdital } from "@prisma/client";
+import { CursoNivel, DesempateClassificacao, ModalidadeEtapa1, StatusEdital, TipoCronogramaEdital } from "@prisma/client";
 import { z } from "zod";
 
 const statusEditalValues = Object.values(StatusEdital) as [StatusEdital, ...StatusEdital[]];
@@ -123,4 +123,44 @@ export const applyTemaRedacaoPacoteSchema = z.object({
 export const applyCriterioTitulacaoPacoteSchema = z.object({
   slug: z.string().trim().min(1),
   modo: criterioTitulacaoPacoteModoSchema.default("MERGE"),
+});
+
+export const upsertConfiguracaoProcessoSchema = z.object({
+  modalidadeEtapa1: z.nativeEnum(ModalidadeEtapa1),
+  pesoEtapa1: z.number().int().min(1).max(10),
+  pesoEtapa2: z.number().int().min(1).max(10),
+  notaMinimaEtapa1: z.number().min(0).max(10),
+  desempate: z.nativeEnum(DesempateClassificacao),
+  avaliadoresEtapa1: z.number().int().min(1).max(10),
+  exigeDiplomaGraduacao: z.boolean(),
+  exigeHistoricoGraduacao: z.boolean(),
+  exigeGrupoPesquisa: z.boolean(),
+  permiteCancelarSubmissao: z.boolean(),
+});
+
+export const upsertCriterioEtapa1Schema = z.object({
+  chaveInterna: z.string().trim().min(2).max(60),
+  label: z.string().trim().min(3).max(120),
+  peso: z.number().int().min(1).max(100),
+  notaMaxima: z.number().positive().max(10),
+  ordem: z.number().int().min(0).optional(),
+  ativo: z.boolean().optional(),
+});
+
+export const criterioEtapa1ParamsSchema = editalParamsSchema.extend({
+  criterioId: z.string().min(1),
+});
+
+export const upsertGrupoPesquisaSchema = z.object({
+  nome: z.string().trim().min(3).max(120),
+  descricao: z.string().trim().min(3).max(500).optional(),
+  ativo: z.boolean().optional(),
+});
+
+export const grupoPesquisaParamsSchema = editalParamsSchema.extend({
+  grupoId: z.string().min(1),
+});
+
+export const applyPerfilProcessoPacoteSchema = z.object({
+  slug: z.string().trim().min(1),
 });

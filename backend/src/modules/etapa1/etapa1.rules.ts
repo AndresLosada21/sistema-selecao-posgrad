@@ -1,94 +1,99 @@
-export type RubricaEtapa1 = {
-  adequacaoDominioTema: number;
-  estrutura: number;
-  organizacaoCoerencia: number;
-  objetividadeSintese: number;
-  grafiaGramatica: number;
-  observacoes?: {
-    adequacaoDominioTema?: string;
-    estrutura?: string;
-    organizacaoCoerencia?: string;
-    objetividadeSintese?: string;
-    grafiaGramatica?: string;
-    geral?: string;
-  };
+import { ModalidadeEtapa1 } from "@prisma/client";
+
+export type CriterioEtapa1Definicao = {
+  chaveInterna: string;
+  label: string;
+  peso: number;
+  notaMaxima: number;
 };
 
-export const PESOS_RUBRICA_ETAPA_1 = {
-  adequacaoDominioTema: 0.5,
-  estrutura: 0.1,
-  organizacaoCoerencia: 0.15,
-  objetividadeSintese: 0.15,
-  grafiaGramatica: 0.1,
-} as const;
+export type NotaCriterioEtapa1 = {
+  chaveInterna: string;
+  nota: number;
+};
 
-const PESOS_RUBRICA = {
-  ...PESOS_RUBRICA_ETAPA_1,
-} as const;
+export type AvaliadorEtapa1Resumo = {
+  avaliadorUsuarioId: string;
+  nomeCompleto: string | null;
+  nota: number;
+  espelhoCorrecao: string | null;
+  rubricaDetalhada: unknown;
+  criadoEm: string;
+};
+
+export const CRITERIOS_ETAPA1_LEGADO: CriterioEtapa1Definicao[] = [
+  { chaveInterna: "adequacaoDominioTema", label: "Adequação e domínio do tema", peso: 50, notaMaxima: 10 },
+  { chaveInterna: "estrutura", label: "Estrutura", peso: 10, notaMaxima: 10 },
+  { chaveInterna: "organizacaoCoerencia", label: "Organização textual e coerência", peso: 15, notaMaxima: 10 },
+  { chaveInterna: "objetividadeSintese", label: "Objetividade e capacidade de síntese", peso: 15, notaMaxima: 10 },
+  { chaveInterna: "grafiaGramatica", label: "Grafia, acentuação e gramática", peso: 10, notaMaxima: 10 },
+];
 
 function roundTo3(value: number) {
   return Math.round(value * 1000) / 1000;
 }
 
-export function calcularNotaEtapa1PorRubrica(rubrica: RubricaEtapa1) {
-  const nota =
-    rubrica.adequacaoDominioTema * PESOS_RUBRICA.adequacaoDominioTema +
-    rubrica.estrutura * PESOS_RUBRICA.estrutura +
-    rubrica.organizacaoCoerencia * PESOS_RUBRICA.organizacaoCoerencia +
-    rubrica.objetividadeSintese * PESOS_RUBRICA.objetividadeSintese +
-    rubrica.grafiaGramatica * PESOS_RUBRICA.grafiaGramatica;
+export function calcularNotaAvaliadorEtapa1(input: {
+  criterios: CriterioEtapa1Definicao[];
+  notas: NotaCriterioEtapa1[];
+}) {
+  const notasPorChave = new Map(input.notas.map((nota) => [nota.chaveInterna, nota.nota]));
+  const somaPesos = input.criterios.reduce((total, criterio) => total + criterio.peso, 0);
 
-  return roundTo3(nota);
+  if (somaPesos <= 0) {
+    return 0;
+  }
+
+  const somaPonderada = input.criterios.reduce((total, criterio) => {
+    const nota = notasPorChave.get(criterio.chaveInterna) ?? 0;
+    return total + nota * criterio.peso;
+  }, 0);
+
+  return Math.max(0, Math.min(10, roundTo3(somaPonderada / somaPesos)));
+}
+
+export function calcularMediaAvaliadores(notas: number[]) {
+  if (notas.length === 0) {
+    return 0;
+  }
+
+  return roundTo3(notas.reduce((total, nota) => total + nota, 0) / notas.length);
 }
 
 export function buildRubricaEtapa1Snapshot(input: {
-  rubrica: RubricaEtapa1;
-  notaCalculada: number;
+  criterios: CriterioEtapa1Definicao[];
+  notas: NotaCriterioEtapa1[];
+  notaAvaliador: number;
+  notaMinima: number;
   usoIaComprovado: boolean;
   fundamentoUsoIa?: string;
 }) {
-  const notaFinal = input.usoIaComprovado ? 0 : input.notaCalculada;
-  const eliminado = notaFinal < 7;
+  const notasPorChave = new Map(input.notas.map((nota) => [nota.chaveInterna, nota.nota]));
+  const somaPesos = input.criterios.reduce((total, criterio) => total + criterio.peso, 0) || 1;
+  const notaFinal = input.usoIaComprovado ? 0 : input.notaAvaliador;
+  const eliminado = notaFinal < input.notaMinima;
 
   return {
-    criterios: {
-      adequacaoDominioTema: {
-        pesoPercentual: 50,
-        notaAtribuida: input.rubrica.adequacaoDominioTema,
-        contribuicao: roundTo3(input.rubrica.adequacaoDominioTema * PESOS_RUBRICA.adequacaoDominioTema),
-        observacao: input.rubrica.observacoes?.adequacaoDominioTema ?? null,
-      },
-      estrutura: {
-        pesoPercentual: 10,
-        notaAtribuida: input.rubrica.estrutura,
-        contribuicao: roundTo3(input.rubrica.estrutura * PESOS_RUBRICA.estrutura),
-        observacao: input.rubrica.observacoes?.estrutura ?? null,
-      },
-      organizacaoCoerencia: {
-        pesoPercentual: 15,
-        notaAtribuida: input.rubrica.organizacaoCoerencia,
-        contribuicao: roundTo3(input.rubrica.organizacaoCoerencia * PESOS_RUBRICA.organizacaoCoerencia),
-        observacao: input.rubrica.observacoes?.organizacaoCoerencia ?? null,
-      },
-      objetividadeSintese: {
-        pesoPercentual: 15,
-        notaAtribuida: input.rubrica.objetividadeSintese,
-        contribuicao: roundTo3(input.rubrica.objetividadeSintese * PESOS_RUBRICA.objetividadeSintese),
-        observacao: input.rubrica.observacoes?.objetividadeSintese ?? null,
-      },
-      grafiaGramatica: {
-        pesoPercentual: 10,
-        notaAtribuida: input.rubrica.grafiaGramatica,
-        contribuicao: roundTo3(input.rubrica.grafiaGramatica * PESOS_RUBRICA.grafiaGramatica),
-        observacao: input.rubrica.observacoes?.grafiaGramatica ?? null,
-      },
-    },
-    observacoes: input.rubrica.observacoes ?? null,
-    notaCalculadaSemPenalidadeIa: input.notaCalculada,
+    versao: 2 as const,
+    criterios: input.criterios.map((criterio) => {
+      const nota = notasPorChave.get(criterio.chaveInterna) ?? 0;
+
+      return {
+        chaveInterna: criterio.chaveInterna,
+        label: criterio.label,
+        peso: criterio.peso,
+        pesoPercentual: roundTo3((criterio.peso / somaPesos) * 100),
+        notaMaxima: criterio.notaMaxima,
+        nota,
+        contribuicao: roundTo3((nota * criterio.peso) / somaPesos),
+      };
+    }),
+    notaAvaliador: input.notaAvaliador,
+    notaCalculadaSemPenalidadeIa: input.notaAvaliador,
     notaFinal,
-    situacaoFinal: eliminado ? "ELIMINADA" : "APROVADA",
+    situacaoAvaliador: eliminado ? "ELIMINADA" : "APROVADA",
     regraEliminacao: {
-      notaMinima: 7,
+      notaMinima: input.notaMinima,
       eliminadaPorNota: eliminado && !input.usoIaComprovado,
       eliminadaPorUsoIa: input.usoIaComprovado,
     },
@@ -98,20 +103,28 @@ export function buildRubricaEtapa1Snapshot(input: {
 }
 
 export function buildEspelhoEtapa1(input: {
+  modalidadeEtapa1?: ModalidadeEtapa1;
   tema: string | null;
   textoSubmetido: string | null;
+  preProjeto?: { nomeArquivo: string; urlArquivo: string } | null;
   espelhoCorrecao: string | null;
   rubricaDetalhada: unknown;
+  avaliadores?: AvaliadorEtapa1Resumo[];
+  notaConsolidada?: number | null;
   espelhoSolicitadoEm?: Date | null;
   espelhoLiberadoEm?: Date | null;
   resultadoPreliminarEm?: Date | null;
   resultadoFinalEm?: Date | null;
 }) {
   return {
+    modalidadeEtapa1: input.modalidadeEtapa1 ?? ModalidadeEtapa1.REDACAO,
     tema: input.tema,
     textoSubmetido: input.textoSubmetido,
+    preProjeto: input.preProjeto ?? null,
     espelhoCorrecao: input.espelhoCorrecao,
     rubricaDetalhada: input.rubricaDetalhada,
+    avaliadores: input.avaliadores ?? [],
+    notaConsolidada: input.notaConsolidada ?? null,
     espelhoSolicitadoEm: input.espelhoSolicitadoEm?.toISOString() ?? null,
     espelhoLiberadoEm: input.espelhoLiberadoEm?.toISOString() ?? null,
     resultadoPreliminarEm: input.resultadoPreliminarEm?.toISOString() ?? null,
@@ -119,13 +132,11 @@ export function buildEspelhoEtapa1(input: {
   };
 }
 
-export function resolveNotaEtapa1Final(input: {
-  rubrica: RubricaEtapa1;
-  usoIaComprovado: boolean;
-}) {
+export function resolveNotaEtapa1Final(input: { notaAvaliador: number; usoIaComprovado: boolean }) {
   if (input.usoIaComprovado) {
     return 0;
   }
 
-  return calcularNotaEtapa1PorRubrica(input.rubrica);
+  return input.notaAvaliador;
 }
+

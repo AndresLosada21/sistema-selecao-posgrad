@@ -35,6 +35,12 @@ import {
   listTemaRedacaoPacoteSummaries,
   normalizeTemaRedacaoKey,
 } from "./temas-redacao-padroes.js";
+import {
+  assertConfiguracaoCompletaParaPublicacao,
+  getConfiguracaoProcesso,
+  getConfiguracaoProcessoComCriterios,
+  listGruposPesquisa,
+} from "./configuracao-processo.service.js";
 
 function buildEditalWhere(filters: EditalListFilters): Prisma.EditalWhereInput {
   const where: Prisma.EditalWhereInput = {
@@ -214,6 +220,10 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
 
   const now = new Date();
   const resumo = mapEditalResumo(edital, now);
+  const [configuracaoProcesso, gruposPesquisa] = await Promise.all([
+    getConfiguracaoProcesso(editalId),
+    listGruposPesquisa(editalId),
+  ]);
 
   return {
     ...resumo,
@@ -222,6 +232,8 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
     temasRedacaoConfigurados: edital.temasRedacao.length > 0,
     criteriosTitulacao: edital.criteriosTitulacao.filter((item) => item.ativo).sort(sortCriteriosTitulacao).map(mapCriterioTitulacao),
     criteriosTitulacaoConfigurados: edital.criteriosTitulacao.length > 0,
+    configuracaoProcesso,
+    gruposPesquisa,
   };
 }
 
@@ -257,6 +269,10 @@ export async function getAdminEditalById(editalId: string): Promise<AdminEditalD
     hasParticipacoes: edital.participacoes.length > 0,
     hasPublicacoes: edital.publicacoesOficiais.length > 0,
   });
+  const [configuracaoProcesso, gruposPesquisa] = await Promise.all([
+    getConfiguracaoProcessoComCriterios(editalId),
+    listGruposPesquisa(editalId),
+  ]);
 
   return {
     ...resumo,
@@ -267,6 +283,22 @@ export async function getAdminEditalById(editalId: string): Promise<AdminEditalD
     criteriosTitulacaoConfigurados: edital.criteriosTitulacao.length > 0,
     permiteMutacaoEstrutural: !motivoBloqueioEstrutural,
     motivoBloqueioEstrutural,
+    configuracaoProcesso: {
+      editalId: configuracaoProcesso.editalId,
+      modalidadeEtapa1: configuracaoProcesso.modalidadeEtapa1,
+      pesoEtapa1: configuracaoProcesso.pesoEtapa1,
+      pesoEtapa2: configuracaoProcesso.pesoEtapa2,
+      notaMinimaEtapa1: configuracaoProcesso.notaMinimaEtapa1,
+      desempate: configuracaoProcesso.desempate,
+      avaliadoresEtapa1: configuracaoProcesso.avaliadoresEtapa1,
+      exigeDiplomaGraduacao: configuracaoProcesso.exigeDiplomaGraduacao,
+      exigeHistoricoGraduacao: configuracaoProcesso.exigeHistoricoGraduacao,
+      exigeGrupoPesquisa: configuracaoProcesso.exigeGrupoPesquisa,
+      permiteCancelarSubmissao: configuracaoProcesso.permiteCancelarSubmissao,
+      configurada: configuracaoProcesso.configurada,
+    },
+    criteriosEtapa1: configuracaoProcesso.criterios,
+    gruposPesquisa,
   };
 }
 
@@ -344,6 +376,8 @@ async function assertEditalEstruturaMinimaParaPublicacao(editalId: string) {
       throw conflict(`Nao e permitido abrir ${dependency.tipo} antes do encerramento de ${dependency.dependeDe}.`, "EDITAL_CRONOGRAMA_SEQUENCIA_INVALIDA");
     }
   }
+
+  await assertConfiguracaoCompletaParaPublicacao(editalId);
 }
 
 async function assertEditalPodeReceberMutacaoEstrutural(editalId: string) {
