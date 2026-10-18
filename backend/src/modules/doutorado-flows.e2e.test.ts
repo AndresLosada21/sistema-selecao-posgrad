@@ -146,6 +146,23 @@ test("doutorado exige pre-projeto e grupo de pesquisa e nao permite cancelar sub
     assert.equal(perfil.body.modalidadeEtapa1, "PRE_PROJETO");
     assert.equal(perfil.body.avaliadoresEtapa1, 2);
 
+    const configuracaoComGrupo = await request(app)
+      .put(`/v1/admin/editais/${editalId}/configuracao-processo`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        modalidadeEtapa1: "PRE_PROJETO",
+        pesoEtapa1: 2,
+        pesoEtapa2: 1,
+        notaMinimaEtapa1: 7,
+        desempate: "ETAPA1_IDADE",
+        avaliadoresEtapa1: 2,
+        exigeDiplomaGraduacao: false,
+        exigeHistoricoGraduacao: false,
+        exigeGrupoPesquisa: true,
+        permiteCancelarSubmissao: false,
+      });
+    assert.equal(configuracaoComGrupo.status, 200);
+
     const grupo = await request(app)
       .post(`/v1/admin/editais/${editalId}/grupos-pesquisa`)
       .set("Authorization", `Bearer ${adminToken}`)
@@ -313,13 +330,19 @@ test("banca do doutorado consolida pela media e bloqueia avaliacao duplicada", a
     });
 
     const notasOito = [
-      { chave: "clareza", nota: 8 },
-      { chave: "objetividade", nota: 8 },
-      { chave: "coerencia", nota: 8 },
-      { chave: "relevancia", nota: 8 },
-      { chave: "referencias", nota: 8 },
+      { chave: "clareza", nota: 1.6 },
+      { chave: "objetividade", nota: 1.6 },
+      { chave: "coerencia", nota: 1.6 },
+      { chave: "relevancia", nota: 2.4 },
+      { chave: "referencias", nota: 0.8 },
     ];
-    const notasNove = notasOito.map((nota) => ({ ...nota, nota: 9 }));
+    const notasNove = [
+      { chave: "clareza", nota: 1.8 },
+      { chave: "objetividade", nota: 1.8 },
+      { chave: "coerencia", nota: 1.8 },
+      { chave: "relevancia", nota: 2.7 },
+      { chave: "referencias", nota: 0.9 },
+    ];
 
     const primeiro = await request(app)
       .put(`/v1/admin/etapa-1/inscricoes/${inscricao.id}/resultado`)

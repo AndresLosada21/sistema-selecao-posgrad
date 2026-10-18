@@ -49,7 +49,18 @@ export function calcularNotaAvaliadorEtapa1(input: {
     return total + nota * criterio.peso;
   }, 0);
 
-  return Math.max(0, Math.min(10, roundTo3(somaPonderada / somaPesos)));
+  const escalaMaxima = input.criterios.reduce(
+    (total, criterio) => total + criterio.notaMaxima * criterio.peso,
+    0,
+  ) / somaPesos;
+
+  if (escalaMaxima <= 0) {
+    return 0;
+  }
+
+  const nota = (somaPonderada / somaPesos) / escalaMaxima * 10;
+
+  return Math.max(0, Math.min(10, roundTo3(nota)));
 }
 
 export function calcularMediaAvaliadores(notas: number[]) {
@@ -70,6 +81,10 @@ export function buildRubricaEtapa1Snapshot(input: {
 }) {
   const notasPorChave = new Map(input.notas.map((nota) => [nota.chaveInterna, nota.nota]));
   const somaPesos = input.criterios.reduce((total, criterio) => total + criterio.peso, 0) || 1;
+  const escalaMaxima = input.criterios.reduce(
+    (total, criterio) => total + criterio.notaMaxima * criterio.peso,
+    0,
+  ) / somaPesos || 1;
   const notaFinal = input.usoIaComprovado ? 0 : input.notaAvaliador;
   const eliminado = notaFinal < input.notaMinima;
 
@@ -85,7 +100,7 @@ export function buildRubricaEtapa1Snapshot(input: {
         pesoPercentual: roundTo3((criterio.peso / somaPesos) * 100),
         notaMaxima: criterio.notaMaxima,
         nota,
-        contribuicao: roundTo3((nota * criterio.peso) / somaPesos),
+        contribuicao: roundTo3((((nota * criterio.peso) / somaPesos) / escalaMaxima) * 10),
       };
     }),
     notaAvaliador: input.notaAvaliador,

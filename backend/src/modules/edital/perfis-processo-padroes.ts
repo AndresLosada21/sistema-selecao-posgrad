@@ -42,11 +42,11 @@ const CRITERIOS_REDACAO: CriterioEtapa1Pacote[] = [
 ];
 
 const CRITERIOS_PRE_PROJETO: CriterioEtapa1Pacote[] = [
-  { chaveInterna: "clareza", label: "Clareza", peso: 20, notaMaxima: 10, ordem: 0 },
-  { chaveInterna: "objetividade", label: "Objetividade", peso: 20, notaMaxima: 10, ordem: 1 },
-  { chaveInterna: "coerencia", label: "Coerência", peso: 20, notaMaxima: 10, ordem: 2 },
-  { chaveInterna: "relevancia", label: "Relevância", peso: 30, notaMaxima: 10, ordem: 3 },
-  { chaveInterna: "referencias", label: "Referências", peso: 10, notaMaxima: 10, ordem: 4 },
+  { chaveInterna: "clareza", label: "Clareza", peso: 20, notaMaxima: 2, ordem: 0 },
+  { chaveInterna: "objetividade", label: "Objetividade", peso: 20, notaMaxima: 2, ordem: 1 },
+  { chaveInterna: "coerencia", label: "Coerência", peso: 20, notaMaxima: 2, ordem: 2 },
+  { chaveInterna: "relevancia", label: "Relevância científica e/ou tecnológica", peso: 30, notaMaxima: 3, ordem: 3 },
+  { chaveInterna: "referencias", label: "Referências bibliográficas", peso: 10, notaMaxima: 1, ordem: 4 },
 ];
 
 export const PERFIL_PROCESSO_PACOTES = [
@@ -82,7 +82,7 @@ export const PERFIL_PROCESSO_PACOTES = [
     desempate: DesempateClassificacao.ETAPA1_IDADE,
     exigeDiplomaGraduacao: false,
     exigeHistoricoGraduacao: false,
-    exigeGrupoPesquisa: true,
+    exigeGrupoPesquisa: false,
     permiteCancelarSubmissao: false,
     criterios: CRITERIOS_PRE_PROJETO,
   },
@@ -117,4 +117,5 @@ export function getPerfilProcessoPacoteBySlug(slug: string): PerfilProcessoPacot
 export function somaPesosCriteriosAtivos(criterios: CriterioEtapa1Pacote[]) {
   return criterios.reduce((total, criterio) => total + criterio.peso, 0);
 }
+
 

@@ -22,6 +22,41 @@ const criteriosPreProjeto: CriterioEtapa1Definicao[] = [
   { chaveInterna: "referencias", label: "Referencias", peso: 10, notaMaxima: 10 },
 ];
 
+test("normaliza pela nota maxima real de cada criterio", () => {
+  const criteriosOficiais: CriterioEtapa1Definicao[] = [
+    { chaveInterna: "clareza", label: "Clareza", peso: 20, notaMaxima: 2 },
+    { chaveInterna: "objetividade", label: "Objetividade", peso: 20, notaMaxima: 2 },
+    { chaveInterna: "coerencia", label: "Coerência", peso: 20, notaMaxima: 2 },
+    { chaveInterna: "relevancia", label: "Relevância", peso: 30, notaMaxima: 3 },
+    { chaveInterna: "referencias", label: "Referências", peso: 10, notaMaxima: 1 },
+  ];
+
+  const notaCheia = calcularNotaAvaliadorEtapa1({
+    criterios: criteriosOficiais,
+    notas: [
+      { chaveInterna: "clareza", nota: 2 },
+      { chaveInterna: "objetividade", nota: 2 },
+      { chaveInterna: "coerencia", nota: 2 },
+      { chaveInterna: "relevancia", nota: 3 },
+      { chaveInterna: "referencias", nota: 1 },
+    ],
+  });
+
+  const notaMetade = calcularNotaAvaliadorEtapa1({
+    criterios: criteriosOficiais,
+    notas: [
+      { chaveInterna: "clareza", nota: 1 },
+      { chaveInterna: "objetividade", nota: 1 },
+      { chaveInterna: "coerencia", nota: 1 },
+      { chaveInterna: "relevancia", nota: 1.5 },
+      { chaveInterna: "referencias", nota: 0.5 },
+    ],
+  });
+
+  assert.equal(notaCheia, 10);
+  assert.equal(notaMetade, 5);
+});
+
 test("calcula nota da rubrica de redacao com pesos do edital", () => {
   const nota = calcularNotaAvaliadorEtapa1({
     criterios: criteriosRedacao,
