@@ -88,6 +88,30 @@ export type CandidateDashboardResponse = {
         statusValidacao?: string | null;
         observacaoValidacao?: string | null;
       }>;
+      titulos: Array<{
+        id: string;
+        criterioTitulacaoEditalId: string;
+        descricaoTitulo: string;
+        urlArquivo: string;
+        nomeArquivo: string;
+        mimeType: string | null;
+        tamanhoBytes: number | null;
+        ordem: number;
+        criadoEm: string;
+        atualizadoEm: string;
+        criterio: {
+          id: string;
+          chaveInterna: string;
+          numeroNormativo: string;
+          descricao: string;
+          fator: number | null;
+          teto: number | null;
+          unidade: string;
+          regraEspecial: string | null;
+          ordem: number;
+          ativo: boolean;
+        } | null;
+      }>;
       pacoteDocumental?: {
         urlArquivo: string;
         nomeArquivo: string | null;

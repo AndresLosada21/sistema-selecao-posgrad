@@ -29,7 +29,7 @@ import { recalcularClassificacaoSchema } from "../../modules/classificacao/class
 import { resultadoEtapa1Schema } from "../../modules/etapa1/etapa1.schemas.js";
 import { resultadoEtapa2Schema } from "../../modules/etapa2/etapa2.schemas.js";
 import { confirmacaoReservaSchema, homologacaoDecisionSchema, homologacaoMotivoSchema, pagamentoHomologacaoSchema } from "../../modules/homologacao/homologacao.schemas.js";
-import { addDocumentoSchema, fichaInscricaoSchema, saveDraftSchema } from "../../modules/inscricao/inscricao.schemas.js";
+import { addDocumentoSchema, addTituloInscricaoSchema, fichaInscricaoSchema, saveDraftSchema } from "../../modules/inscricao/inscricao.schemas.js";
 import { createIsencaoSchema } from "../../modules/isencao/isencao.schemas.js";
 import {
   createPoliticasAfirmativasPublicacaoSchema,
@@ -308,6 +308,63 @@ export const AplicarTemaRedacaoPacoteResponseSchema = z
   })
   .openapi("AplicarTemaRedacaoPacoteResponse");
 
+export const CriterioTitulacaoResumoSchema = z
+  .object({
+    id: z.string(),
+    chaveInterna: z.string(),
+    numeroNormativo: z.string(),
+    descricao: z.string(),
+    fator: z.number().nullable(),
+    teto: z.number().nullable(),
+    unidade: z.string(),
+    regraEspecial: z.string().nullable(),
+    metadados: JsonValueSchema.nullable(),
+    ordem: z.number().int(),
+    ativo: z.boolean(),
+    pacoteOrigemSlug: z.string().nullable(),
+    pacoteOrigemVersao: z.string().nullable(),
+  })
+  .openapi("CriterioTitulacaoResumo");
+
+export const CriterioTitulacaoPacoteResumoSchema = z
+  .object({
+    slug: z.string(),
+    nome: z.string(),
+    versao: z.string(),
+    descricao: z.string().optional(),
+    totalCriterios: z.number().int().min(0),
+    criteriosPreview: z.array(z.string()),
+  })
+  .openapi("CriterioTitulacaoPacoteResumo");
+
+export const CriterioTitulacaoPacoteListResponseSchema = z
+  .object({
+    items: z.array(CriterioTitulacaoPacoteResumoSchema),
+    total: z.number().int().min(0),
+  })
+  .openapi("CriterioTitulacaoPacoteListResponse");
+
+export const CriterioTitulacaoListResponseSchema = z
+  .object({
+    items: z.array(CriterioTitulacaoResumoSchema),
+    total: z.number().int().min(0),
+  })
+  .openapi("CriterioTitulacaoListResponse");
+
+export const AplicarCriterioTitulacaoPacoteResponseSchema = z
+  .object({
+    editalId: z.string(),
+    pacote: CriterioTitulacaoPacoteResumoSchema,
+    modo: z.enum(["MERGE", "REPLACE_INACTIVE"]),
+    criados: z.array(z.string()),
+    reativados: z.array(z.string()),
+    atualizados: z.array(z.string()),
+    inativados: z.array(z.string()),
+    jaExistentes: z.array(z.string()),
+    totalAtivosDepois: z.number().int().min(0),
+  })
+  .openapi("AplicarCriterioTitulacaoPacoteResponse");
+
 export const EditalResumoSchema = z
   .object({
     id: z.string(),
@@ -330,6 +387,8 @@ export const EditalDetalheSchema = EditalResumoSchema.extend({
   cronogramas: z.array(EditalFaseResumoSchema),
   temasRedacao: z.array(TemaRedacaoResumoSchema),
   temasRedacaoConfigurados: z.boolean(),
+  criteriosTitulacao: z.array(CriterioTitulacaoResumoSchema),
+  criteriosTitulacaoConfigurados: z.boolean(),
 }).openapi("EditalDetalhe");
 
 export const PedidoIsencaoCriadoSchema = z
@@ -376,6 +435,41 @@ export const DocumentoInscricaoModelSchema = z
     atualizadoEm: isoDate(),
   })
   .openapi("DocumentoInscricaoModel");
+
+export const TituloInscricaoModelSchema = z
+  .object({
+    id: z.string(),
+    inscricaoId: z.string(),
+    criterioTitulacaoEditalId: z.string(),
+    descricaoTitulo: z.string(),
+    urlArquivo: z.string(),
+    nomeArquivo: z.string(),
+    mimeType: z.string().nullable(),
+    tamanhoBytes: z.number().int().nullable(),
+    ordem: z.number().int(),
+    criadoEm: isoDate(),
+    atualizadoEm: isoDate(),
+    criterio: CriterioTitulacaoResumoSchema.pick({
+      id: true,
+      chaveInterna: true,
+      numeroNormativo: true,
+      descricao: true,
+      fator: true,
+      teto: true,
+      unidade: true,
+      regraEspecial: true,
+      ordem: true,
+      ativo: true,
+    }).nullable(),
+  })
+  .openapi("TituloInscricaoModel");
+
+export const TituloInscricaoListResponseSchema = z
+  .object({
+    items: z.array(TituloInscricaoModelSchema),
+    total: z.number().int().min(0),
+  })
+  .openapi("TituloInscricaoListResponse");
 
 export const FichaInscricaoSchema = fichaInscricaoSchema.openapi("FichaInscricao");
 
@@ -443,6 +537,8 @@ export const InscricaoResumoSchema = z
     fichaInscricao: FichaInscricaoSchema.nullable(),
     pacoteDocumental: PacoteDocumentalResumoSchema.nullable(),
     documentosTotal: z.number().int(),
+    titulosTotal: z.number().int(),
+    titulos: z.array(TituloInscricaoModelSchema),
     submetidaEm: isoDate().nullable(),
   })
   .openapi("InscricaoResumo");
@@ -597,7 +693,7 @@ export const Etapa1AdminItemSchema = z
     id: z.string(),
     status: z.nativeEnum(StatusInscricao),
     candidato: CandidatoResumoSchema,
-    edital: z.object({ id: z.string(), numero: z.string(), titulo: z.string() }),
+    edital: z.object({ id: z.string(), numero: z.string(), titulo: z.string(), cursoNivel: z.nativeEnum(CursoNivel) }),
     linhaPesquisa: LinhaPesquisaCurtaSchema,
     avaliacao: z
       .object({
@@ -615,6 +711,44 @@ export const Etapa1AdminItemSchema = z
       .nullable(),
   })
   .openapi("Etapa1AdminItem");
+
+const Etapa2SugestaoPontuacaoTitulacaoSchema = z.object({
+  origem: z.literal("TITULOS_DECLARADOS_ESTRUTURADOS"),
+  pontuacaoItens: z.record(z.number()),
+  pontuacaoBruta: z.number(),
+  totalTitulosDeclarados: z.number(),
+  totalTitulosCalculados: z.number(),
+  pendencias: z.array(z.object({
+    criterioId: z.string(),
+    chaveInterna: z.string(),
+    numeroNormativo: z.string(),
+    descricao: z.string(),
+    quantidadeDeclarada: z.number(),
+    motivo: z.string().nullable(),
+  })),
+  detalhes: z.array(z.object({
+    criterio: z.object({
+      id: z.string(),
+      chaveInterna: z.string(),
+      numeroNormativo: z.string(),
+      descricao: z.string(),
+      fator: z.number().nullable(),
+      teto: z.number().nullable(),
+      unidade: z.string(),
+      regraEspecial: z.string().nullable(),
+    }),
+    quantidadeDeclarada: z.number(),
+    pontuacaoSemTeto: z.number(),
+    pontuacaoCalculada: z.number(),
+    pendencia: z.string().nullable(),
+    titulos: z.array(z.object({
+      id: z.string(),
+      descricaoTitulo: z.string(),
+      nomeArquivo: z.string(),
+      urlArquivo: z.string(),
+    })),
+  })),
+}).openapi("Etapa2SugestaoPontuacaoTitulacao");
 
 export const Etapa2AdminItemSchema = z
   .object({
@@ -636,6 +770,7 @@ export const Etapa2AdminItemSchema = z
         status: z.nativeEnum(StatusAvaliacaoEtapa),
       })
       .nullable(),
+    sugestaoPontuacaoTitulacao: Etapa2SugestaoPontuacaoTitulacaoSchema.nullable(),
   })
   .openapi("Etapa2AdminItem");
 
@@ -1017,6 +1152,7 @@ export const CandidateDashboardItemSchema = z
             observacaoValidacao: z.string().nullable(),
           }),
         ),
+        titulos: z.array(TituloInscricaoModelSchema.omit({ inscricaoId: true })),
         homologacao: z
           .object({
             statusPreliminar: z.nativeEnum(StatusInscricao).nullable(),
@@ -1157,6 +1293,16 @@ export const AddDocumentoRequestSchema = addDocumentoSchema.openapi("AddDocument
     mimeType: "application/pdf",
     tamanhoBytes: 120000,
     obrigatorio: true,
+  },
+});
+export const AddTituloInscricaoRequestSchema = addTituloInscricaoSchema.openapi("AddTituloInscricaoRequest", {
+  example: {
+    criterioTitulacaoEditalId: "ccriterio123",
+    descricaoTitulo: "Artigo completo publicado em periodico com JCR.",
+    urlArquivo: "/v1/uploads/private/cusuario123/titulo-artigo.pdf",
+    nomeArquivo: "titulo-artigo.pdf",
+    mimeType: "application/pdf",
+    tamanhoBytes: 180000,
   },
 });
 export const RegistrarPacoteDocumentalRequestSchema = z
@@ -1352,6 +1498,18 @@ export const AplicarTemaRedacaoPacoteRequestSchema = z
     },
   });
 
+export const AplicarCriterioTitulacaoPacoteRequestSchema = z
+  .object({
+    slug: z.string().min(1),
+    modo: z.enum(["MERGE", "REPLACE_INACTIVE"]).optional(),
+  })
+  .openapi("AplicarCriterioTitulacaoPacoteRequest", {
+    example: {
+      slug: "ppgee-092-2025-anexo-ii",
+      modo: "MERGE",
+    },
+  });
+
 export const ListEditaisQuerySchema = z
   .object({
     cursoNivel: z.nativeEnum(CursoNivel).optional(),
@@ -1384,6 +1542,10 @@ export const InscricaoIdParamSchema = z
     inscricaoId: z.string().min(1),
   })
   .openapi("InscricaoIdParam");
+
+export const TituloInscricaoIdParamSchema = InscricaoIdParamSchema.extend({
+  tituloId: z.string().min(1),
+}).openapi("TituloInscricaoIdParam");
 
 export const TemaRedacaoIdParamSchema = z
   .object({

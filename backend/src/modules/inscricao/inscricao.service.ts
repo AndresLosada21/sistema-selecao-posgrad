@@ -58,6 +58,24 @@ type AddDocumentoInput = {
   obrigatorio?: boolean;
 };
 
+type AddTituloInscricaoInput = {
+  inscricaoId: string;
+  usuarioId: string;
+  criterioTitulacaoEditalId: string;
+  descricaoTitulo: string;
+  urlArquivo: string;
+  nomeArquivo: string;
+  mimeType?: string;
+  tamanhoBytes?: number;
+  ordem?: number;
+};
+
+type DeleteTituloInscricaoInput = {
+  inscricaoId: string;
+  tituloId: string;
+  usuarioId: string;
+};
+
 type RegistrarPacoteDocumentalInput = {
   inscricaoId: string;
   geradoPorId: string;
@@ -69,8 +87,9 @@ type RegistrarPacoteDocumentalInput = {
 
 type InscricaoWithRelations = NonNullable<Awaited<ReturnType<typeof getInscricaoById>>>;
 
-const PACOTE_DOCUMENTAL_SCHEMA_VERSION = 2;
+const PACOTE_DOCUMENTAL_SCHEMA_VERSION = 3;
 const PACOTE_DOCUMENTAL_ANEXO_IV_ORIGEM = "TEMPLATE_OFICIAL_FLATTEN";
+const PACOTE_DOCUMENTAL_ANEXO_V_ORIGEM = "TITULOS_DECLARADOS_ESTRUTURADOS";
 
 function isPdfFile(input: { mimeType?: string; nomeArquivo: string; urlArquivo: string }) {
   const mimeType = input.mimeType?.trim().toLowerCase() ?? "";
@@ -166,6 +185,7 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
           edital: {
             include: {
               temasRedacao: true,
+              criteriosTitulacao: true,
             },
           },
           classificacaoFinal: true,
@@ -174,6 +194,12 @@ async function getOwnedInscricao(inscricaoId: string, usuarioId: string) {
         },
       },
       documentos: true,
+      titulos: {
+        include: {
+          criterioTitulacaoEdital: true,
+        },
+        orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+      },
       linhaPesquisa: true,
       homologacao: true,
       avaliacaoEtapa1: true,
@@ -195,12 +221,19 @@ async function getInscricaoById(inscricaoId: string) {
           edital: {
             include: {
               temasRedacao: true,
+              criteriosTitulacao: true,
             },
           },
           pedidoIsencao: true,
         },
       },
       documentos: true,
+      titulos: {
+        include: {
+          criterioTitulacaoEdital: true,
+        },
+        orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+      },
       linhaPesquisa: true,
     },
   });
@@ -228,6 +261,60 @@ function buildPacoteDocumentalResumo(inscricao: {
     versaoSubmissao: inscricao.pacoteDocumentalVersaoSubmissao,
     geradoEm: inscricao.pacoteDocumentalGeradoEm?.toISOString() ?? null,
     geradoPorId: inscricao.pacoteDocumentalGeradoPorId,
+  };
+}
+
+function mapTituloInscricao(titulo: {
+  id: string;
+  inscricaoId: string;
+  criterioTitulacaoEditalId: string;
+  descricaoTitulo: string;
+  urlArquivo: string;
+  nomeArquivo: string;
+  mimeType?: string | null;
+  tamanhoBytes?: number | null;
+  ordem: number;
+  criadoEm: Date;
+  atualizadoEm: Date;
+  criterioTitulacaoEdital?: {
+    id: string;
+    chaveInterna: string;
+    numeroNormativo: string;
+    descricao: string;
+    fator: Prisma.Decimal | null;
+    teto: Prisma.Decimal | null;
+    unidade: string;
+    regraEspecial: string | null;
+    ordem: number;
+    ativo: boolean;
+  };
+}) {
+  return {
+    id: titulo.id,
+    inscricaoId: titulo.inscricaoId,
+    criterioTitulacaoEditalId: titulo.criterioTitulacaoEditalId,
+    descricaoTitulo: titulo.descricaoTitulo,
+    urlArquivo: titulo.urlArquivo,
+    nomeArquivo: titulo.nomeArquivo,
+    mimeType: titulo.mimeType ?? null,
+    tamanhoBytes: titulo.tamanhoBytes ?? null,
+    ordem: titulo.ordem,
+    criadoEm: titulo.criadoEm.toISOString(),
+    atualizadoEm: titulo.atualizadoEm.toISOString(),
+    criterio: titulo.criterioTitulacaoEdital
+      ? {
+          id: titulo.criterioTitulacaoEdital.id,
+          chaveInterna: titulo.criterioTitulacaoEdital.chaveInterna,
+          numeroNormativo: titulo.criterioTitulacaoEdital.numeroNormativo,
+          descricao: titulo.criterioTitulacaoEdital.descricao,
+          fator: titulo.criterioTitulacaoEdital.fator?.toNumber() ?? null,
+          teto: titulo.criterioTitulacaoEdital.teto?.toNumber() ?? null,
+          unidade: titulo.criterioTitulacaoEdital.unidade,
+          regraEspecial: titulo.criterioTitulacaoEdital.regraEspecial,
+          ordem: titulo.criterioTitulacaoEdital.ordem,
+          ativo: titulo.criterioTitulacaoEdital.ativo,
+        }
+      : null,
   };
 }
 
@@ -408,7 +495,8 @@ function isPacoteDocumentalAtual(inscricao: {
   }
 
   if (asNumber(pacote?.schemaVersao) === PACOTE_DOCUMENTAL_SCHEMA_VERSION
-    && asString(pacote?.anexoIvOrigem) === PACOTE_DOCUMENTAL_ANEXO_IV_ORIGEM) {
+    && asString(pacote?.anexoIvOrigem) === PACOTE_DOCUMENTAL_ANEXO_IV_ORIGEM
+    && asString(pacote?.anexoVOrigem) === PACOTE_DOCUMENTAL_ANEXO_V_ORIGEM) {
     return true;
   }
 
@@ -459,18 +547,117 @@ async function buildAnexoIvGeradoParaPacote(inscricao: InscricaoWithRelations, p
   };
 }
 
+async function buildAnexoVGeradoParaPacote(inscricao: InscricaoWithRelations): Promise<PacoteDocumentoFonte | null> {
+  if (inscricao.participacaoEdital.edital.criteriosTitulacao.length === 0) {
+    return null;
+  }
+
+  const pdfDoc = await PDFDocument.create();
+  const regular = await pdfDoc.embedFont(StandardFonts.Courier);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const titulosOrdenados = [...inscricao.titulos].sort((left, right) => {
+    const criterioDiff = left.criterioTitulacaoEdital.ordem - right.criterioTitulacaoEdital.ordem;
+    if (criterioDiff !== 0) return criterioDiff;
+    if (left.ordem !== right.ordem) return left.ordem - right.ordem;
+    return left.criadoEm.getTime() - right.criadoEm.getTime();
+  });
+  const lines = [
+    "DECLARACAO DE TITULOS - ANEXO V",
+    "",
+    `Edital: ${inscricao.participacaoEdital.edital.numero} - ${inscricao.participacaoEdital.edital.titulo}`,
+    `Candidato: ${inscricao.participacaoEdital.usuario.nomeCompleto}`,
+    `E-mail: ${inscricao.participacaoEdital.usuario.email}`,
+    `Inscricao: ${inscricao.id}`,
+    `Linha de pesquisa: ${inscricao.linhaPesquisa?.nome ?? "-"}`,
+    "",
+    "TITULOS DECLARADOS",
+    ...(titulosOrdenados.length > 0
+      ? titulosOrdenados.flatMap((titulo, index) => [
+          ...wrapPdfText(`${index + 1}. Criterio ${titulo.criterioTitulacaoEdital.numeroNormativo} - ${titulo.criterioTitulacaoEdital.descricao}`),
+          ...wrapPdfText(`Descricao dos Titulos: ${titulo.descricaoTitulo}`),
+          ...wrapPdfText(`Comprovante: ${titulo.nomeArquivo}`),
+          "",
+        ])
+      : ["Nenhum titulo declarado pelo candidato no formulario estruturado."]),
+    "",
+    "DECLARACAO",
+    "Declaro que as informacoes prestadas neste Anexo V sao verdadeiras e que os comprovantes anexados correspondem aos titulos declarados.",
+  ];
+
+  let index = 0;
+  while (index < lines.length) {
+    const page = pdfDoc.addPage([595.28, 841.89]);
+    let y = 800;
+    const isFirstPage = index === 0;
+
+    if (isFirstPage) {
+      page.drawText(sanitizePdfTextForWinAnsi(lines[index] ?? "ANEXO V", bold), {
+        x: 40,
+        y,
+        size: 14,
+        font: bold,
+        color: rgb(0, 0, 0),
+      });
+      index += 1;
+      y -= 28;
+    }
+
+    while (index < lines.length && y >= 45) {
+      page.drawText(sanitizePdfTextForWinAnsi(lines[index] ?? "", regular), {
+        x: 40,
+        y,
+        size: 9,
+        font: regular,
+        color: rgb(0, 0, 0),
+        maxWidth: 515,
+        lineHeight: 11,
+      });
+      y -= 12;
+      index += 1;
+    }
+  }
+
+  return {
+    tipo: TipoDocumentoInscricao.ANEXO_V,
+    nome: "Anexo V gerado pelo sistema",
+    nomeArquivo: `anexo-v-inscricao-${inscricao.id}.pdf`,
+    urlArquivo: "AUTO:ANEXO_V",
+    content: Buffer.from(await pdfDoc.save({ useObjectStreams: false })),
+  };
+}
+
+function buildTituloDocumentosFontes(inscricao: InscricaoWithRelations): PacoteDocumentoFonte[] {
+  return [...inscricao.titulos]
+    .sort((left, right) => {
+      const criterioDiff = left.criterioTitulacaoEdital.ordem - right.criterioTitulacaoEdital.ordem;
+      if (criterioDiff !== 0) return criterioDiff;
+      if (left.ordem !== right.ordem) return left.ordem - right.ordem;
+      return left.criadoEm.getTime() - right.criadoEm.getTime();
+    })
+    .map((titulo, index) => ({
+      tipo: `TITULO_ANEXO_II_${titulo.criterioTitulacaoEdital.numeroNormativo}`,
+      nome: `Comprovante de titulo ${index + 1}: ${titulo.descricaoTitulo}`,
+      nomeArquivo: titulo.nomeArquivo,
+      urlArquivo: titulo.urlArquivo,
+    }));
+}
+
 async function buildPacoteDocumentosFontes(inscricao: InscricaoWithRelations, input: {
   documentos: Array<{ tipo: string; nome: string; nomeArquivo: string; urlArquivo: string }>;
   pagamentoDispensado: boolean;
 }) {
   const anexoIvGerado = await buildAnexoIvGeradoParaPacote(inscricao, input.pagamentoDispensado);
-  const documentosSemAnexoIv = input.documentos.filter((documento) => documento.tipo !== TipoDocumentoInscricao.ANEXO_IV);
+  const anexoVGerado = await buildAnexoVGeradoParaPacote(inscricao);
+  const tituloDocumentos = buildTituloDocumentosFontes(inscricao);
+  const documentosSemAnexosGerados = input.documentos.filter((documento) => {
+    if (documento.tipo === TipoDocumentoInscricao.ANEXO_IV && anexoIvGerado) return false;
+    if (documento.tipo === TipoDocumentoInscricao.ANEXO_V && anexoVGerado) return false;
+    return true;
+  });
+  const documentosGeradosAntesDosComprovantes = [anexoVGerado].filter((documento): documento is PacoteDocumentoFonte => Boolean(documento));
+  const documentosGeradosFinais = [anexoIvGerado].filter((documento): documento is PacoteDocumentoFonte => Boolean(documento));
 
-  if (!anexoIvGerado) {
-    return input.documentos;
-  }
-
-  return [anexoIvGerado, ...documentosSemAnexoIv];
+  return [...documentosSemAnexosGerados, ...documentosGeradosAntesDosComprovantes, ...tituloDocumentos, ...documentosGeradosFinais];
 }
 
 function wrapPdfText(value: string, maxLength = 88) {
@@ -747,6 +934,7 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
       statusValidacao: documento.statusValidacao,
       observacaoValidacao: documento.observacaoValidacao,
     })),
+    titulos: inscricao.titulos.map((titulo) => mapTituloInscricao(titulo)),
     submissaoSnapshot: input.submissaoSnapshot,
     pacoteDocumental: {
       urlArquivo: pacoteDocumentalUrl,
@@ -758,6 +946,7 @@ async function persistAutomaticPacoteDocumental(inscricao: InscricaoWithRelation
       origem: "AUTOMATICO",
       schemaVersao: PACOTE_DOCUMENTAL_SCHEMA_VERSION,
       anexoIvOrigem: PACOTE_DOCUMENTAL_ANEXO_IV_ORIGEM,
+      anexoVOrigem: PACOTE_DOCUMENTAL_ANEXO_V_ORIGEM,
     },
   };
 
@@ -811,12 +1000,19 @@ async function ensurePacoteDocumentalAtualizado(inscricao: InscricaoWithRelation
           edital: {
             include: {
               temasRedacao: true,
+              criteriosTitulacao: true,
             },
           },
           pedidoIsencao: true,
         },
       },
       documentos: true,
+      titulos: {
+        include: {
+          criterioTitulacaoEdital: true,
+        },
+        orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+      },
       linhaPesquisa: true,
     },
   });
@@ -998,6 +1194,136 @@ export async function addDocumentoToInscricao(input: AddDocumentoInput) {
   return { documento };
 }
 
+export async function listTitulosInscricao(inscricaoId: string, usuarioId: string) {
+  const inscricao = await getOwnedInscricao(inscricaoId, usuarioId);
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  return {
+    items: inscricao.titulos.map(mapTituloInscricao),
+    total: inscricao.titulos.length,
+  };
+}
+
+export async function addTituloToInscricao(input: AddTituloInscricaoInput) {
+  if (!isPdfFile(input)) {
+    return { error: "TITULO_FORA_PADRAO" as const };
+  }
+
+  if (!isPrivateUploadOwnedByUser(input.urlArquivo, input.usuarioId)) {
+    return { error: "UPLOAD_SEM_PERMISSAO" as const };
+  }
+
+  const uploadedPrivateFile = parsePrivateUploadUrl(input.urlArquivo);
+  if (!uploadedPrivateFile) {
+    return { error: "UPLOAD_EXTERNO_NAO_PERMITIDO" as const };
+  }
+
+  if (!(await privateUploadExists(uploadedPrivateFile.ownerId, uploadedPrivateFile.filename))) {
+    return { error: "UPLOAD_NAO_ENCONTRADO" as const };
+  }
+
+  const cleanupUploadedFile = async () => {
+    if (uploadedPrivateFile.ownerId === input.usuarioId) {
+      await deletePrivateUpload(uploadedPrivateFile.ownerId, uploadedPrivateFile.filename);
+    }
+  };
+
+  const inscricao = await getOwnedInscricao(input.inscricaoId, input.usuarioId);
+
+  if (!inscricao) {
+    await cleanupUploadedFile();
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (inscricao.status !== StatusInscricao.RASCUNHO) {
+    await cleanupUploadedFile();
+    return { error: "INSCRICAO_NAO_EDITAVEL" as const };
+  }
+
+  const windowStatus = await isCronogramaWindowOpen(inscricao.participacaoEdital.edital.id, TipoCronogramaEdital.INSCRICAO);
+
+  if (!windowStatus.open) {
+    await cleanupUploadedFile();
+    return { error: "JANELA_INSCRICAO_FECHADA" as const };
+  }
+
+  const criterio = await prisma.criterioTitulacaoEdital.findFirst({
+    where: {
+      id: input.criterioTitulacaoEditalId,
+      editalId: inscricao.participacaoEdital.edital.id,
+      ativo: true,
+    },
+  });
+
+  if (!criterio) {
+    await cleanupUploadedFile();
+    return { error: "CRITERIO_TITULACAO_INVALIDO" as const };
+  }
+
+  const titulo = await prisma.tituloInscricao.create({
+    data: {
+      inscricaoId: inscricao.id,
+      criterioTitulacaoEditalId: criterio.id,
+      descricaoTitulo: input.descricaoTitulo,
+      urlArquivo: input.urlArquivo,
+      nomeArquivo: input.nomeArquivo,
+      mimeType: input.mimeType,
+      tamanhoBytes: input.tamanhoBytes,
+      ordem: input.ordem ?? inscricao.titulos.length,
+    },
+    include: {
+      criterioTitulacaoEdital: true,
+    },
+  });
+
+  return { titulo: mapTituloInscricao(titulo) };
+}
+
+export async function deleteTituloInscricao(input: DeleteTituloInscricaoInput) {
+  const inscricao = await getOwnedInscricao(input.inscricaoId, input.usuarioId);
+
+  if (!inscricao) {
+    return { error: "INSCRICAO_NAO_ENCONTRADA" as const };
+  }
+
+  if (inscricao.status !== StatusInscricao.RASCUNHO) {
+    return { error: "INSCRICAO_NAO_EDITAVEL" as const };
+  }
+
+  const windowStatus = await isCronogramaWindowOpen(inscricao.participacaoEdital.edital.id, TipoCronogramaEdital.INSCRICAO);
+
+  if (!windowStatus.open) {
+    return { error: "JANELA_INSCRICAO_FECHADA" as const };
+  }
+
+  const titulo = await prisma.tituloInscricao.findFirst({
+    where: {
+      id: input.tituloId,
+      inscricaoId: inscricao.id,
+    },
+  });
+
+  if (!titulo) {
+    return { error: "TITULO_NAO_ENCONTRADO" as const };
+  }
+
+  await prisma.tituloInscricao.delete({
+    where: {
+      id: titulo.id,
+    },
+  });
+
+  const uploadedPrivateFile = parsePrivateUploadUrl(titulo.urlArquivo);
+  if (uploadedPrivateFile && uploadedPrivateFile.ownerId === input.usuarioId) {
+    await deletePrivateUpload(uploadedPrivateFile.ownerId, uploadedPrivateFile.filename);
+  }
+
+  return { deleted: true };
+}
+
 export async function submitInscricao(inscricaoId: string, usuarioId: string) {
   const inscricao = await getOwnedInscricao(inscricaoId, usuarioId);
 
@@ -1050,6 +1376,7 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
     redacaoTexto: inscricao.redacaoTexto,
     documentos: inscricao.documentos,
     pagamentoDispensado,
+    anexoVAutomaticoDisponivel: inscricao.participacaoEdital.edital.criteriosTitulacao.some((criterio) => criterio.ativo),
   });
 
   if (!validation.ok || !fichaInscricao || !temaRedacaoSelection.temaRedacao || !inscricao.redacaoTexto) {
@@ -1083,6 +1410,7 @@ export async function submitInscricao(inscricaoId: string, usuarioId: string) {
     redacaoTexto: inscricao.redacaoTexto,
     checklist: validation.checklist,
     documentos: inscricao.documentos,
+    titulos: inscricao.titulos.map((titulo) => mapTituloInscricao(titulo)),
     pagamentoDispensado,
     versaoSubmissao,
   });
@@ -1250,6 +1578,7 @@ export async function registrarPacoteDocumentalConsolidado(input: RegistrarPacot
       statusValidacao: documento.statusValidacao,
       observacaoValidacao: documento.observacaoValidacao,
     })),
+    titulos: inscricao.titulos.map((titulo) => mapTituloInscricao(titulo)),
     submissaoSnapshot: inscricao.submissaoSnapshot,
     pacoteDocumental: {
       urlArquivo: input.urlArquivo,
@@ -1376,6 +1705,12 @@ export async function listInscricoesDoUsuario(usuarioId: string) {
       },
       linhaPesquisa: true,
       documentos: true,
+      titulos: {
+        include: {
+          criterioTitulacaoEdital: true,
+        },
+        orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+      },
     },
     orderBy: {
       criadoEm: "desc",
@@ -1405,6 +1740,8 @@ export async function listInscricoesDoUsuario(usuarioId: string) {
     fichaInscricao: parseFichaInscricao(inscricao.dadosFormulario),
     pacoteDocumental: buildPacoteDocumentalResumo(inscricao),
     documentosTotal: inscricao.documentos.length,
+    titulosTotal: inscricao.titulos.length,
+    titulos: inscricao.titulos.map(mapTituloInscricao),
     submetidaEm: inscricao.submetidaEm?.toISOString() ?? null,
   }));
 }

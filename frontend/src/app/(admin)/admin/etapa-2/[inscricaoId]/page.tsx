@@ -65,14 +65,25 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const loadItem = useCallback(async () => {
     if (!token || !inscricaoId) return;
     const [found, catalog] = await Promise.all([getEtapa2Item(inscricaoId, token), listEtapa2AnexoIiItems(token)]);
-    setAnexoIiItems(catalog.items);
-    const firstItemId = catalog.items[0]?.id ?? "titulo";
+    const catalogById = new Map(catalog.items.map((catalogItem) => [catalogItem.id, catalogItem]));
+    for (const detalhe of found.sugestaoPontuacaoTitulacao?.detalhes ?? []) {
+      catalogById.set(detalhe.criterio.chaveInterna, {
+        id: detalhe.criterio.chaveInterna,
+        label: `${detalhe.criterio.numeroNormativo} - ${detalhe.criterio.descricao}`,
+      });
+    }
+    const mergedCatalog = [...catalogById.values()];
+    setAnexoIiItems(mergedCatalog);
+    const firstItemId = mergedCatalog[0]?.id ?? "titulo";
+    const sugestaoItens = found.sugestaoPontuacaoTitulacao?.pontuacaoItens ?? null;
+    const initialPontuacaoItens = found?.avaliacao?.pontuacaoItens ?? (sugestaoItens && Object.keys(sugestaoItens).length > 0 ? sugestaoItens : { [firstItemId]: 0 });
     setItem(found);
     setItensDraft(
-      Object.entries(found?.avaliacao?.pontuacaoItens ?? { [firstItemId]: 0 }).map(([chave, valor]) => ({ id: uid(), chave, valor: String(valor) })),
+      Object.entries(initialPontuacaoItens).map(([chave, valor]) => ({ id: uid(), chave, valor: String(valor) })),
     );
-    setPontuacaoBruta(found?.avaliacao?.pontuacaoBruta ?? 0);
-    setMaiorPontuacaoBruta(Math.max(found?.avaliacao?.pontuacaoBruta ?? 10, 10));
+    const initialPontuacaoBruta = found?.avaliacao?.pontuacaoBruta ?? found.sugestaoPontuacaoTitulacao?.pontuacaoBruta ?? 0;
+    setPontuacaoBruta(initialPontuacaoBruta);
+    setMaiorPontuacaoBruta(Math.max(initialPontuacaoBruta, 10));
     setEspelhoCorrecao(found?.avaliacao?.espelhoCorrecao ?? "");
     setPublicacao(found?.avaliacao?.status === "FINAL_PUBLICADA" ? "FINAL" : "PRELIMINAR");
     setGlosasDraft(
@@ -107,6 +118,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const pontuacaoDivergente = Math.abs(pontuacaoBruta - totalLiquido) > 0.001;
   const referenciaMenorQueBruta = maiorPontuacaoBruta < pontuacaoBruta;
   const hasAvaliacao = Boolean(item?.avaliacao?.pontuacaoBruta != null);
+  const hasPontuacaoPreview = hasAvaliacao || pontuacaoBruta > 0 || totalBruto > 0;
 
   async function loadEspelho() {
     if (!token || !inscricaoId) return;
@@ -249,6 +261,19 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
     setGlosasDraft((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
   }
 
+  function aplicarSugestaoTitulacao() {
+    const sugestao = item?.sugestaoPontuacaoTitulacao;
+    if (!sugestao) return;
+
+    const entries = Object.entries(sugestao.pontuacaoItens);
+    setItensDraft(entries.length > 0
+      ? entries.map(([chave, valor]) => ({ id: uid(), chave, valor: String(valor) }))
+      : [{ id: uid(), chave: anexoIiItems[0]?.id ?? "", valor: "0" }]);
+    setPontuacaoBruta(sugestao.pontuacaoBruta);
+    setMaiorPontuacaoBruta((current) => Math.max(current, sugestao.pontuacaoBruta, 0.1));
+    setFeedback({ type: "success", text: "Sugestao dos titulos declarados aplicada. Revise glosas e espelho antes de publicar." });
+  }
+
   if (pageStatus === "loading") return <LoadingState title="Carregando detalhe" description="Consultando a inscricao da etapa 2." />;
   if (pageStatus === "error") return <ErrorState title="Falha ao carregar" description={feedback?.text} />;
   if (!item) return <EmptyState title="Inscricao nao encontrada" description="Inscricao nao localizada na fila da etapa 2." />;
@@ -259,9 +284,11 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
   const podeSalvarResultado = publicacao === "FINAL" ? (editState?.podeSalvarFinal ?? true) : (editState?.podeSalvarPreliminar ?? true);
   const bloqueioResultado = publicacao === "FINAL" ? editState?.bloqueioSalvarFinal : editState?.bloqueioSalvarPreliminar;
 
-  const displayBruta = hasAvaliacao ? `${item.avaliacao?.pontuacaoBruta ?? pontuacaoBruta} pts` : "--";
-  const displayRef = hasAvaliacao ? `${maiorPontuacaoBruta} pts` : "--";
-  const displayNota = hasAvaliacao ? `${(item.avaliacao?.notaNormalizada ?? notaCapped).toFixed(2)} / 10` : "--";
+  const displayPontuacaoBruta = item.avaliacao?.pontuacaoBruta ?? pontuacaoBruta;
+  const displayNotaNormalizada = item.avaliacao?.notaNormalizada ?? notaCapped;
+  const displayBruta = hasPontuacaoPreview ? `${displayPontuacaoBruta} pts` : "--";
+  const displayRef = hasPontuacaoPreview ? `${maiorPontuacaoBruta} pts` : "--";
+  const displayNota = hasPontuacaoPreview ? `${displayNotaNormalizada.toFixed(2)} / 10` : "--";
   const maiorRefSugerida = Math.max(pontuacaoBruta, Number(totalLiquido.toFixed(2)), 0.1);
 
   return (
@@ -278,7 +305,7 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
       <div className="admin-page-header" style={{ alignItems: "flex-start" }}>
         <div className="admin-page-header-left">
           <h1>Etapa 2 — {item.candidato.nomeCompleto}</h1>
-          <p>Edital {item.edital.numero} · {item.linhaPesquisa?.nome ?? "Linha nao definida"} · Pontuacao de titulos do Anexo II</p>
+          <p>Edital {item.edital.numero} · {getStatusLabel(item.edital.cursoNivel)} · Linha: {item.linhaPesquisa?.nome ?? "Linha nao definida"}</p>
         </div>
         <StatusBadge variant={getStatusVariant(item.avaliacao?.status ?? item.status)}>{getStatusLabel(item.avaliacao?.status ?? item.status)}</StatusBadge>
       </div>
@@ -299,9 +326,9 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
         </div>
         <div className="admin-kpi-card admin-kpi-card--plain">
           <span className="admin-kpi-label">Formula</span>
-          {hasAvaliacao ? (
+          {hasPontuacaoPreview ? (
             <span className="admin-kpi-value" style={{ fontFamily: "monospace", fontSize: 15 }}>
-              ({item.avaliacao?.pontuacaoBruta ?? pontuacaoBruta} / {maiorPontuacaoBruta}) &times; 10 = {(item.avaliacao?.notaNormalizada ?? notaCapped).toFixed(2)}
+              ({displayPontuacaoBruta} / {maiorPontuacaoBruta}) &times; 10 = {displayNotaNormalizada.toFixed(2)}
             </span>
           ) : (
             <span className="admin-kpi-value">--</span>
@@ -324,6 +351,50 @@ export default function AdminEtapa2DetailPage({ params }: Props) {
               </button>
             </div>
             {fieldErrors.pontuacaoItens ? <PageFeedback type="error" title="Itens de pontuacao invalidos" description={fieldErrors.pontuacaoItens} /> : null}
+
+            {item.sugestaoPontuacaoTitulacao ? (
+              <div className="admin-soft-note" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div>
+                    <strong>Sugestao a partir dos titulos declarados</strong>
+                    <p style={{ margin: "4px 0 0", fontSize: 12 }}>
+                      {item.sugestaoPontuacaoTitulacao.totalTitulosDeclarados} titulo(s) declarado(s), {item.sugestaoPontuacaoTitulacao.totalTitulosCalculados} computado(s) automaticamente. Pontuacao sugerida: {item.sugestaoPontuacaoTitulacao.pontuacaoBruta}.
+                    </p>
+                  </div>
+                  <button className="admin-shortcut-btn" disabled={!podeSalvarResultado || busy} onClick={aplicarSugestaoTitulacao} type="button">
+                    <ZapIcon /> Usar sugestao
+                  </button>
+                </div>
+                {item.sugestaoPontuacaoTitulacao.pendencias.length > 0 ? (
+                  <PageFeedback type="warning" title="Itens com revisao manual" description="Criterios com regra especial, como JCR, precisam de pontuacao manual pelo avaliador." />
+                ) : null}
+                <div style={{ overflowX: "auto" }}>
+                  <table className="admin-pont-table">
+                    <caption className="sr-only">Sugestao de pontuacao por titulos declarados</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Item</th>
+                        <th scope="col">Qtd.</th>
+                        <th scope="col">Fator</th>
+                        <th scope="col">Teto</th>
+                        <th scope="col">Sugestao</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {item.sugestaoPontuacaoTitulacao.detalhes.filter((detalhe) => detalhe.quantidadeDeclarada > 0).map((detalhe) => (
+                        <tr key={detalhe.criterio.id}>
+                          <td>{detalhe.criterio.numeroNormativo} - {detalhe.criterio.descricao}</td>
+                          <td className="pont-valor">{detalhe.quantidadeDeclarada}</td>
+                          <td className="pont-valor">{detalhe.criterio.fator ?? "manual"}</td>
+                          <td className="pont-valor">{detalhe.criterio.teto ?? "sem teto"}</td>
+                          <td className={detalhe.pendencia ? "pont-glosa" : "pont-valor"}>{detalhe.pendencia ? "revisar" : detalhe.pontuacaoCalculada}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
 
             <table className="admin-pont-table">
               <caption className="sr-only">Pontuacao por item do Anexo II</caption>

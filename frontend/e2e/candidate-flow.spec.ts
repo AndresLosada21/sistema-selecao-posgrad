@@ -6,7 +6,6 @@ const backendBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:4000"
 
 const documentoTiposObrigatorios = [
   "ANEXO_IV",
-  "ANEXO_V",
   "DOCUMENTO_IDENTIFICACAO",
   "DIPLOMA",
   "HISTORICO",
@@ -78,6 +77,13 @@ async function createCandidateFlowEdital(request: APIRequestContext) {
   });
 
   expect(linhaResponse.ok()).toBeTruthy();
+
+  const criteriosResponse = await request.post(`${backendBaseUrl}/v1/admin/editais/${edital.id}/criterios-titulacao/pacote`, {
+    headers: { Authorization: `Bearer ${adminToken}`, ...(await csrfHeader(request)) },
+    data: { slug: "ppgee-092-2025-anexo-ii", modo: "MERGE" },
+  });
+
+  expect(criteriosResponse.ok()).toBeTruthy();
 
   for (const cronograma of [
     { tipo: "PEDIDO_ISENCAO", titulo: "Solicitacao de isencao E2E" },
@@ -224,9 +230,10 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
   await page.getByRole("button", { name: "Próximo: Documentos" }).click();
   await expect(page.getByRole("heading", { name: "Documentos da Inscrição" })).toBeVisible({ timeout: 20_000 });
 
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Baixar Anexo IV preenchido" }).click();
-  await downloadPromise;
+  await Promise.all([
+    page.waitForEvent("download", { timeout: 20_000 }),
+    page.getByRole("button", { name: "Baixar Anexo IV preenchido" }).click(),
+  ]);
   await page.locator(".file-field", { hasText: "Enviar Anexo IV assinado (PDF)" }).locator('input[type="file"]').setInputFiles({
     name: "anexo-iv-assinado.pdf",
     mimeType: "application/pdf",
@@ -251,6 +258,18 @@ test("candidato percorre isencao, inscricao e submissao pela UI real", async ({ 
     await addDocumentForm.getByRole("button", { name: "Registrar documento" }).click();
     await expect(page.getByText("Documento enviado", { exact: true })).toBeVisible({ timeout: 20_000 });
   }
+
+  await page.getByRole("button", { name: "Próximo: Títulos" }).click();
+  await expect(page.getByRole("heading", { name: "Títulos / Anexo II" })).toBeVisible({ timeout: 20_000 });
+  await wizardField(page, "Descrição dos Títulos").locator("textarea").fill("Projeto de pesquisa aprovado institucionalmente e concluído durante a graduação.");
+  await page.locator(".file-field", { hasText: "Comprovante do título (PDF)" }).locator('input[type="file"]').setInputFiles({
+    name: "titulo-projeto-pesquisa.pdf",
+    mimeType: "application/pdf",
+    buffer: createPdfBuffer("Titulo de projeto de pesquisa"),
+  });
+  await expect(page.getByRole("button", { name: "Registrar título" })).toBeEnabled({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Registrar título" }).click();
+  await expect(page.getByText("Título registrado", { exact: true })).toBeVisible({ timeout: 20_000 });
 
   await page.getByRole("button", { name: "Próximo: Revisão" }).click();
   await expect(page.getByRole("heading", { name: "Revisão da Inscrição" })).toBeVisible({ timeout: 20_000 });

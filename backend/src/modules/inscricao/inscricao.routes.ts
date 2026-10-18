@@ -7,17 +7,22 @@ import { requireRole } from "../../middleware/role.middleware.js";
 
 import {
   addDocumentoSchema,
+  addTituloInscricaoSchema,
   editalIdParamSchema,
   inscricaoIdParamSchema,
   registrarPacoteDocumentalSchema,
   saveDraftSchema,
+  tituloInscricaoIdParamSchema,
 } from "./inscricao.schemas.js";
 import {
   addDocumentoToInscricao,
+  addTituloToInscricao,
   cancelInscricaoSubmission,
+  deleteTituloInscricao,
   getPacoteDocumentalDaInscricao,
   getPacoteDocumentalDaInscricaoAdmin,
   regenerarPacoteDocumentalConsolidado,
+  listTitulosInscricao,
   listInscricoesDoUsuario,
   registrarPacoteDocumentalConsolidado,
   saveInscricaoDraft,
@@ -46,8 +51,29 @@ function getInscricaoMessage(errorCode: string) {
       return "O Anexo IV ainda nao esta disponivel para esta inscricao.";
     case "PACOTE_DOCUMENTAL_NAO_GERADO":
       return "O pacote documental ainda nao foi gerado para esta inscricao.";
+    case "TITULO_NAO_ENCONTRADO":
+      return "Titulo declarado nao encontrado para esta inscricao.";
+    case "CRITERIO_TITULACAO_INVALIDO":
+      return "O criterio de titulacao informado nao pertence ao edital desta inscricao ou esta inativo.";
     default:
       return errorCode;
+  }
+}
+
+function getTituloInscricaoMessage(errorCode: string) {
+  switch (errorCode) {
+    case "TITULO_FORA_PADRAO":
+      return "Titulos declarados devem usar arquivo PDF com URL privada interna de upload, nome de arquivo .pdf e mimeType application/pdf quando informado.";
+    case "UPLOAD_SEM_PERMISSAO":
+      return "O arquivo informado nao pertence ao usuario autenticado.";
+    case "UPLOAD_EXTERNO_NAO_PERMITIDO":
+      return "Titulos declarados devem usar arquivo privado gerado pelo upload autenticado do sistema.";
+    case "UPLOAD_NAO_ENCONTRADO":
+      return "O arquivo privado informado nao foi encontrado no storage do usuario autenticado.";
+    case "JANELA_INSCRICAO_FECHADA":
+      return "A janela de inscricao do edital esta encerrada, entao os titulos declarados nao podem mais ser alterados.";
+    default:
+      return getInscricaoMessage(errorCode);
   }
 }
 
@@ -128,6 +154,79 @@ inscricaoRouter.post("/v1/inscricoes/:inscricaoId/documentos", requireAuth, asyn
   }
 
   return response.status(201).json(result.documento);
+});
+
+inscricaoRouter.get("/v1/inscricoes/:inscricaoId/titulos", requireAuth, async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Inscricao invalida.", parsedParams.error.flatten()));
+  }
+
+  const result = await listTitulosInscricao(parsedParams.data.inscricaoId, request.auth!.userId);
+
+  if ("error" in result) {
+    const errorCode = result.error as string;
+    return response.status(404).json(notFound(getInscricaoMessage(errorCode), errorCode));
+  }
+
+  return response.status(200).json(result);
+});
+
+inscricaoRouter.post("/v1/inscricoes/:inscricaoId/titulos", requireAuth, async (request, response) => {
+  const parsedParams = inscricaoIdParamSchema.safeParse(request.params);
+  const parsedBody = addTituloInscricaoSchema.safeParse(request.body);
+
+  if (!parsedParams.success || !parsedBody.success) {
+    return response.status(400).json(requestValidationError("Dados do titulo declarado invalidos.", {
+      paramsErrors: parsedParams.success ? null : parsedParams.error.flatten(),
+      bodyErrors: parsedBody.success ? null : parsedBody.error.flatten(),
+    }));
+  }
+
+  const result = await addTituloToInscricao({
+    inscricaoId: parsedParams.data.inscricaoId,
+    usuarioId: request.auth!.userId,
+    criterioTitulacaoEditalId: parsedBody.data.criterioTitulacaoEditalId,
+    descricaoTitulo: parsedBody.data.descricaoTitulo,
+    urlArquivo: parsedBody.data.urlArquivo,
+    nomeArquivo: parsedBody.data.nomeArquivo,
+    mimeType: parsedBody.data.mimeType as string | undefined,
+    tamanhoBytes: parsedBody.data.tamanhoBytes as number | undefined,
+    ordem: parsedBody.data.ordem as number | undefined,
+  });
+
+  if ("error" in result) {
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" ? 404 : 409;
+    const errorCode = result.error as string;
+    const message = getTituloInscricaoMessage(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
+  }
+
+  return response.status(201).json(result.titulo);
+});
+
+inscricaoRouter.delete("/v1/inscricoes/:inscricaoId/titulos/:tituloId", requireAuth, async (request, response) => {
+  const parsedParams = tituloInscricaoIdParamSchema.safeParse(request.params);
+
+  if (!parsedParams.success) {
+    return response.status(400).json(validationError("Titulo declarado invalido.", parsedParams.error.flatten()));
+  }
+
+  const result = await deleteTituloInscricao({
+    inscricaoId: parsedParams.data.inscricaoId,
+    tituloId: parsedParams.data.tituloId,
+    usuarioId: request.auth!.userId,
+  });
+
+  if ("error" in result) {
+    const status = result.error === "INSCRICAO_NAO_ENCONTRADA" || result.error === "TITULO_NAO_ENCONTRADO" ? 404 : 409;
+    const errorCode = result.error as string;
+    const message = getTituloInscricaoMessage(errorCode);
+    return response.status(status).json(status === 404 ? notFound(message, errorCode) : conflict(message, errorCode));
+  }
+
+  return response.status(204).send();
 });
 
 inscricaoRouter.post("/v1/inscricoes/:inscricaoId/submeter", requireAuth, async (request, response) => {

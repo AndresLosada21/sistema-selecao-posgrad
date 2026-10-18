@@ -55,6 +55,7 @@ export const temaRedacaoParamsSchema = z.object({
 });
 
 export const temaRedacaoPacoteModoSchema = z.enum(["MERGE", "REPLACE_INACTIVE"]);
+export const criterioTitulacaoPacoteModoSchema = z.enum(["MERGE", "REPLACE_INACTIVE"]);
 
 const optionalIsoDate = z
   .string()
@@ -117,4 +118,9 @@ export const upsertTemaRedacaoSchema = z.object({
 export const applyTemaRedacaoPacoteSchema = z.object({
   slug: z.string().trim().min(1),
   modo: temaRedacaoPacoteModoSchema.default("MERGE"),
+});
+
+export const applyCriterioTitulacaoPacoteSchema = z.object({
+  slug: z.string().trim().min(1),
+  modo: criterioTitulacaoPacoteModoSchema.default("MERGE"),
 });

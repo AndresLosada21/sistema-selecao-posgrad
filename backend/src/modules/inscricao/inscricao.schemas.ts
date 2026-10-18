@@ -10,6 +10,10 @@ export const inscricaoIdParamSchema = z.object({
   inscricaoId: z.string().min(1),
 });
 
+export const tituloInscricaoIdParamSchema = inscricaoIdParamSchema.extend({
+  tituloId: z.string().min(1),
+});
+
 export const fichaInscricaoSchema = z.object({
   nomeCompleto: z.string().trim().min(3).optional(),
   rg: z.string().trim().min(3).optional(),
@@ -63,6 +67,16 @@ export const addDocumentoSchema = z.object({
   mimeType: z.string().trim().min(3).optional(),
   tamanhoBytes: z.number().int().positive().optional(),
   obrigatorio: z.boolean().optional(),
+});
+
+export const addTituloInscricaoSchema = z.object({
+  criterioTitulacaoEditalId: z.string().trim().min(1),
+  descricaoTitulo: z.string().trim().min(3).max(1000),
+  urlArquivo: pdfFileUrlSchema,
+  nomeArquivo: z.string().trim().min(3),
+  mimeType: z.string().trim().min(3).optional(),
+  tamanhoBytes: z.number().int().positive().optional(),
+  ordem: z.number().int().min(0).optional(),
 });
 
 export const registrarPacoteDocumentalSchema = z.object({

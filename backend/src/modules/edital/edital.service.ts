@@ -1,12 +1,16 @@
-import type { Prisma, TipoCronogramaEdital } from "@prisma/client";
+import type { CriterioTitulacaoEdital, Prisma, TipoCronogramaEdital } from "@prisma/client";
 
 import { prisma } from "../../lib/prisma.js";
-import { toIsoOrNull } from "../../lib/serialization.js";
+import { toInputJsonOrDbNull, toIsoOrNull } from "../../lib/serialization.js";
 
 import type {
   AdminEditalDetalhe,
+  ApplyCriterioTitulacaoPacoteInput,
+  ApplyCriterioTitulacaoPacoteResult,
   ApplyTemaRedacaoPacoteInput,
   ApplyTemaRedacaoPacoteResult,
+  CriterioTitulacaoPacoteListResult,
+  CriterioTitulacaoResumo,
   EditalDetalhe,
   EditalFaseResumo,
   EditalListFilters,
@@ -22,6 +26,10 @@ import type {
   UpsertTemaRedacaoInput,
 } from "./edital.types.js";
 import { conflict, notFound } from "../../lib/http-errors.js";
+import {
+  getCriterioTitulacaoPacoteBySlug,
+  listCriterioTitulacaoPacoteSummaries,
+} from "./criterios-titulacao-padroes.js";
 import {
   getTemaRedacaoPacoteBySlug,
   listTemaRedacaoPacoteSummaries,
@@ -94,6 +102,24 @@ function mapTemaRedacao(tema: EditalWithRelations["temasRedacao"][number]): Tema
   };
 }
 
+function mapCriterioTitulacao(criterio: CriterioTitulacaoEdital): CriterioTitulacaoResumo {
+  return {
+    id: criterio.id,
+    chaveInterna: criterio.chaveInterna,
+    numeroNormativo: criterio.numeroNormativo,
+    descricao: criterio.descricao,
+    fator: criterio.fator?.toNumber() ?? null,
+    teto: criterio.teto?.toNumber() ?? null,
+    unidade: criterio.unidade,
+    regraEspecial: criterio.regraEspecial,
+    metadados: criterio.metadados,
+    ordem: criterio.ordem,
+    ativo: criterio.ativo,
+    pacoteOrigemSlug: criterio.pacoteOrigemSlug,
+    pacoteOrigemVersao: criterio.pacoteOrigemVersao,
+  };
+}
+
 function sortCronogramas(a: { inicioEm: Date }, b: { inicioEm: Date }) {
   return a.inicioEm.getTime() - b.inicioEm.getTime();
 }
@@ -104,6 +130,14 @@ function sortTemasRedacao(a: { ordem: number; titulo: string }, b: { ordem: numb
   }
 
   return a.titulo.localeCompare(b.titulo, "pt-BR");
+}
+
+function sortCriteriosTitulacao(a: { ordem: number; chaveInterna: string }, b: { ordem: number; chaveInterna: string }) {
+  if (a.ordem !== b.ordem) {
+    return a.ordem - b.ordem;
+  }
+
+  return a.chaveInterna.localeCompare(b.chaveInterna, "pt-BR");
 }
 
 function mapEditalResumo(edital: EditalWithRelations, now: Date): EditalResumo {
@@ -170,6 +204,7 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
       cronogramas: true,
       linhasPesquisa: true,
       temasRedacao: true,
+      criteriosTitulacao: true,
     },
   });
 
@@ -185,12 +220,14 @@ export async function getEditalById(editalId: string): Promise<EditalDetalhe | n
     cronogramas: [...edital.cronogramas].sort(sortCronogramas).map((item) => mapCronograma(item, now)),
     temasRedacao: edital.temasRedacao.filter((item) => item.ativo).sort(sortTemasRedacao).map(mapTemaRedacao),
     temasRedacaoConfigurados: edital.temasRedacao.length > 0,
+    criteriosTitulacao: edital.criteriosTitulacao.filter((item) => item.ativo).sort(sortCriteriosTitulacao).map(mapCriterioTitulacao),
+    criteriosTitulacaoConfigurados: edital.criteriosTitulacao.length > 0,
   };
 }
 
 function getMotivoBloqueioEstrutural(input: { status: string; hasParticipacoes: boolean; hasPublicacoes: boolean }) {
   if (["PUBLICADO", "EM_ANDAMENTO", "ENCERRADO", "CANCELADO"].includes(input.status) && (input.hasParticipacoes || input.hasPublicacoes)) {
-    return "Nao e permitido alterar estrutura de linhas, cronogramas ou temas em edital ja operacionalizado. Use retificacao/publicacao apropriada.";
+    return "Nao e permitido alterar estrutura de linhas, cronogramas, temas ou criterios em edital ja operacionalizado. Use retificacao/publicacao apropriada.";
   }
 
   return null;
@@ -203,6 +240,7 @@ export async function getAdminEditalById(editalId: string): Promise<AdminEditalD
       cronogramas: true,
       linhasPesquisa: true,
       temasRedacao: true,
+      criteriosTitulacao: true,
       participacoes: { select: { id: true }, take: 1 },
       publicacoesOficiais: { select: { id: true }, take: 1 },
     },
@@ -225,6 +263,8 @@ export async function getAdminEditalById(editalId: string): Promise<AdminEditalD
     cronogramas: [...edital.cronogramas].sort(sortCronogramas).map((item) => mapCronograma(item, now)),
     temasRedacao: [...edital.temasRedacao].sort(sortTemasRedacao).map(mapTemaRedacao),
     temasRedacaoConfigurados: edital.temasRedacao.length > 0,
+    criteriosTitulacao: [...edital.criteriosTitulacao].sort(sortCriteriosTitulacao).map(mapCriterioTitulacao),
+    criteriosTitulacaoConfigurados: edital.criteriosTitulacao.length > 0,
     permiteMutacaoEstrutural: !motivoBloqueioEstrutural,
     motivoBloqueioEstrutural,
   };
@@ -475,6 +515,121 @@ async function applyTemaRedacaoPacoteInRepository(
   } satisfies ApplyTemaRedacaoPacoteResult;
 }
 
+async function applyCriterioTitulacaoPacoteInRepository(
+  db: Prisma.TransactionClient,
+  editalId: string,
+  pacoteSlug: string,
+  modo: "MERGE" | "REPLACE_INACTIVE",
+) {
+  const pacote = getCriterioTitulacaoPacoteBySlug(pacoteSlug);
+
+  if (!pacote) {
+    throw notFound("Pacote de criterios de titulacao nao encontrado.", "CRITERIO_TITULACAO_PACOTE_NAO_ENCONTRADO");
+  }
+
+  const pacoteResumo = listCriterioTitulacaoPacoteSummaries().find((item) => item.slug === pacote.slug)!;
+  const existentes = await db.criterioTitulacaoEdital.findMany({
+    where: { editalId },
+    orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+  });
+
+  const existentesByKey = new Map(existentes.map((criterio) => [criterio.chaveInterna, criterio]));
+  const pacoteKeys = new Set(pacote.criterios.map((criterio) => criterio.chaveInterna));
+
+  const criados: string[] = [];
+  const reativados: string[] = [];
+  const atualizados: string[] = [];
+  const inativados: string[] = [];
+  const jaExistentes: string[] = [];
+
+  if (modo === "REPLACE_INACTIVE") {
+    for (const existente of existentes) {
+      if (!existente.ativo || pacoteKeys.has(existente.chaveInterna)) {
+        continue;
+      }
+
+      await db.criterioTitulacaoEdital.update({
+        where: { id: existente.id },
+        data: { ativo: false },
+      });
+      inativados.push(existente.chaveInterna);
+    }
+  }
+
+  for (const criterioPacote of pacote.criterios) {
+    const existente = existentesByKey.get(criterioPacote.chaveInterna);
+    const data = {
+      numeroNormativo: criterioPacote.numeroNormativo,
+      descricao: criterioPacote.descricao,
+      fator: criterioPacote.fator,
+      teto: criterioPacote.teto,
+      unidade: criterioPacote.unidade,
+      regraEspecial: criterioPacote.regraEspecial ?? null,
+      metadados: toInputJsonOrDbNull(criterioPacote.metadados),
+      ordem: criterioPacote.ordem,
+      pacoteOrigemSlug: pacote.slug,
+      pacoteOrigemVersao: pacote.versao,
+      ativo: true,
+    };
+
+    if (!existente) {
+      await db.criterioTitulacaoEdital.create({
+        data: {
+          editalId,
+          chaveInterna: criterioPacote.chaveInterna,
+          ...data,
+        },
+      });
+      criados.push(criterioPacote.chaveInterna);
+      continue;
+    }
+
+    const precisaAtualizar = !existente.ativo
+      || existente.numeroNormativo !== criterioPacote.numeroNormativo
+      || existente.descricao !== criterioPacote.descricao
+      || (existente.fator?.toNumber() ?? null) !== criterioPacote.fator
+      || (existente.teto?.toNumber() ?? null) !== criterioPacote.teto
+      || existente.unidade !== criterioPacote.unidade
+      || (existente.regraEspecial ?? null) !== (criterioPacote.regraEspecial ?? null)
+      || existente.ordem !== criterioPacote.ordem
+      || existente.pacoteOrigemSlug !== pacote.slug
+      || existente.pacoteOrigemVersao !== pacote.versao
+      || JSON.stringify(existente.metadados ?? null) !== JSON.stringify(criterioPacote.metadados ?? null);
+
+    if (precisaAtualizar) {
+      await db.criterioTitulacaoEdital.update({
+        where: { id: existente.id },
+        data,
+      });
+
+      if (!existente.ativo) {
+        reativados.push(criterioPacote.chaveInterna);
+      } else {
+        atualizados.push(criterioPacote.chaveInterna);
+      }
+      continue;
+    }
+
+    jaExistentes.push(criterioPacote.chaveInterna);
+  }
+
+  const totalAtivosDepois = await db.criterioTitulacaoEdital.count({
+    where: { editalId, ativo: true },
+  });
+
+  return {
+    editalId,
+    pacote: pacoteResumo,
+    modo,
+    criados,
+    reativados,
+    atualizados,
+    inativados,
+    jaExistentes,
+    totalAtivosDepois,
+  } satisfies ApplyCriterioTitulacaoPacoteResult;
+}
+
 export async function createEdital(input: UpsertEditalInput, criadoPorId: string) {
   if (input.status === "PUBLICADO" || input.status === "EM_ANDAMENTO") {
     throw conflict("Crie o edital primeiro em rascunho e publique apenas depois de cadastrar linhas e cronogramas minimos.", "EDITAL_ESTRUTURA_MINIMA_PENDENTE");
@@ -683,6 +838,30 @@ export async function listTemaRedacaoPacotes(): Promise<TemaRedacaoPacoteListRes
   };
 }
 
+export async function listCriterioTitulacaoPacotes(): Promise<CriterioTitulacaoPacoteListResult> {
+  const items = listCriterioTitulacaoPacoteSummaries();
+
+  return {
+    items,
+    total: items.length,
+  };
+}
+
+export async function listCriteriosTitulacaoByEdital(editalId: string): Promise<CriterioTitulacaoResumo[]> {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId }, select: { id: true } });
+
+  if (!edital) {
+    throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
+  }
+
+  const criterios = await prisma.criterioTitulacaoEdital.findMany({
+    where: { editalId },
+    orderBy: [{ ordem: "asc" }, { chaveInterna: "asc" }],
+  });
+
+  return criterios.map(mapCriterioTitulacao);
+}
+
 export async function createTemaRedacao(editalId: string, input: UpsertTemaRedacaoInput) {
   const edital = await prisma.edital.findUnique({ where: { id: editalId } });
 
@@ -757,6 +936,29 @@ export async function applyTemaRedacaoPacote(
   const modo = input.modo ?? "MERGE";
 
   return await prisma.$transaction(async (tx) => applyTemaRedacaoPacoteInRepository(tx, editalId, pacote.slug, modo));
+}
+
+export async function applyCriterioTitulacaoPacote(
+  editalId: string,
+  input: ApplyCriterioTitulacaoPacoteInput,
+): Promise<ApplyCriterioTitulacaoPacoteResult> {
+  const edital = await prisma.edital.findUnique({ where: { id: editalId }, select: { id: true } });
+
+  if (!edital) {
+    throw notFound("Edital nao encontrado.", "EDITAL_NAO_ENCONTRADO");
+  }
+
+  await assertEditalPodeReceberMutacaoEstrutural(editalId);
+
+  const pacote = getCriterioTitulacaoPacoteBySlug(input.slug);
+
+  if (!pacote) {
+    throw notFound("Pacote de criterios de titulacao nao encontrado.", "CRITERIO_TITULACAO_PACOTE_NAO_ENCONTRADO");
+  }
+
+  const modo = input.modo ?? "MERGE";
+
+  return await prisma.$transaction(async (tx) => applyCriterioTitulacaoPacoteInRepository(tx, editalId, pacote.slug, modo));
 }
 
 export async function deleteTemaRedacao(temaId: string) {

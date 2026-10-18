@@ -286,7 +286,7 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
     assert.equal(candidatePacoteResponse.body.pacoteDocumental.versaoSubmissao, 1);
     assert.match(candidatePacoteResponse.body.pacoteDocumental.nomeArquivo, new RegExp(`^inscricao-${inscricaoId}-v1\\.pdf$`));
     assert.match(candidatePacoteResponse.body.pacoteDocumental.urlArquivo, new RegExp(`^/v1/uploads/private/${candidateId}/`));
-    assert.equal(candidatePacoteResponse.body.snapshot.pacoteDocumental.schemaVersao, 2);
+    assert.equal(candidatePacoteResponse.body.snapshot.pacoteDocumental.schemaVersao, 3);
     assert.equal(candidatePacoteResponse.body.snapshot.pacoteDocumental.anexoIvOrigem, "TEMPLATE_OFICIAL_FLATTEN");
 
     const pacoteOriginalUrl = candidatePacoteResponse.body.pacoteDocumental.urlArquivo as string;
@@ -310,7 +310,7 @@ test("candidato percorre conta, isencao, inscricao, submissao e cancelamento den
       .get(`/v1/inscricoes/${inscricaoId}/pacote-documental`)
       .set("Authorization", `Bearer ${token}`);
     assert.equal(pacoteRegeradoResponse.status, 200);
-    assert.equal(pacoteRegeradoResponse.body.snapshot.pacoteDocumental.schemaVersao, 2);
+    assert.equal(pacoteRegeradoResponse.body.snapshot.pacoteDocumental.schemaVersao, 3);
     assert.equal(pacoteRegeradoResponse.body.snapshot.pacoteDocumental.anexoIvOrigem, "TEMPLATE_OFICIAL_FLATTEN");
     assert.notEqual(pacoteRegeradoResponse.body.pacoteDocumental.urlArquivo, pacoteOriginalUrl);
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CursoNivel, ModalidadeConcorrencia, Role, StatusConta, StatusEdital, StatusInscricao, TipoCronogramaEdital } from "@prisma/client";
+import { CursoNivel, ModalidadeConcorrencia, Role, StatusConta, StatusEdital, StatusInscricao, TipoCronogramaEdital, TipoDocumentoInscricao } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import request from "supertest";
@@ -183,6 +183,296 @@ test("politica de PDF exige https, extensao .pdf e mimeType coerente", async () 
     if (linhaId) await prisma.linhaPesquisa.deleteMany({ where: { id: linhaId } });
      if (editalId) await prisma.cronogramaEdital.deleteMany({ where: { editalId } });
      if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: { in: [admin.id, candidato.id] } } });
+    await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, candidato.id] } } });
+  }
+});
+
+test("candidato registra, lista e remove titulo vinculado a criterio do Anexo II", async () => {
+  const suffix = `titulo-inscricao-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createUser(suffix, Role.ADMIN);
+  const candidato = await createUser(suffix, Role.CANDIDATO);
+
+  let editalId = "";
+  let linhaId = "";
+  let criterioId = "";
+  let participacaoId = "";
+  let inscricaoId = "";
+
+  try {
+    const candidatoToken = createToken(candidato.id, candidato.email);
+
+    const edital = await prisma.edital.create({
+      data: {
+        numero: `TIT-${suffix}`,
+        titulo: `Edital ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.PUBLICADO,
+        publicadoEm: new Date(),
+        criadoPorId: admin.id,
+        cronogramas: {
+          create: [{
+            tipo: TipoCronogramaEdital.INSCRICAO,
+            titulo: `Inscricao ${suffix}`,
+            inicioEm: new Date(Date.now() - 60_000),
+            fimEm: new Date(Date.now() + 60_000),
+          }],
+        },
+      },
+    });
+    editalId = edital.id;
+
+    const linha = await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 1,
+        vagasAcoesAfirmativas: 0,
+        vagasPcd: 0,
+      },
+    });
+    linhaId = linha.id;
+
+    const criterio = await prisma.criterioTitulacaoEdital.create({
+      data: {
+        editalId,
+        chaveInterna: `artigo-${suffix}`,
+        numeroNormativo: "1",
+        descricao: "Artigo publicado em periodico",
+        fator: 3,
+        teto: 9,
+        unidade: "artigo",
+        ordem: 1,
+      },
+    });
+    criterioId = criterio.id;
+
+    const participacao = await prisma.participacaoEdital.create({ data: { usuarioId: candidato.id, editalId } });
+    participacaoId = participacao.id;
+
+    const inscricao = await prisma.inscricao.create({
+      data: {
+        participacaoEditalId: participacao.id,
+        linhaPesquisaId: linha.id,
+        modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+        status: StatusInscricao.RASCUNHO,
+      },
+    });
+    inscricaoId = inscricao.id;
+
+    const detalhePublico = await request(app).get(`/v1/editais/${editalId}`);
+    assert.equal(detalhePublico.status, 200);
+    assert.equal(detalhePublico.body.criteriosTitulacao.length, 1);
+
+    const upload = await uploadPrivatePdf(candidatoToken, "titulo-artigo.pdf");
+    const tituloCriado = await request(app)
+      .post(`/v1/inscricoes/${inscricaoId}/titulos`)
+      .set("Authorization", `Bearer ${candidatoToken}`)
+      .send({
+        criterioTitulacaoEditalId: criterioId,
+        descricaoTitulo: "Artigo completo publicado em periodico com JCR.",
+        urlArquivo: upload.urlArquivo,
+        nomeArquivo: upload.nomeArquivo,
+        mimeType: upload.mimeType,
+      });
+
+    assert.equal(tituloCriado.status, 201);
+    assert.equal(tituloCriado.body.criterioTitulacaoEditalId, criterioId);
+    assert.equal(tituloCriado.body.criterio.numeroNormativo, "1");
+
+    const titulosListados = await request(app)
+      .get(`/v1/inscricoes/${inscricaoId}/titulos`)
+      .set("Authorization", `Bearer ${candidatoToken}`);
+
+    assert.equal(titulosListados.status, 200);
+    assert.equal(titulosListados.body.total, 1);
+    assert.equal(titulosListados.body.items[0].descricaoTitulo, "Artigo completo publicado em periodico com JCR.");
+
+    const removido = await request(app)
+      .delete(`/v1/inscricoes/${inscricaoId}/titulos/${tituloCriado.body.id}`)
+      .set("Authorization", `Bearer ${candidatoToken}`);
+
+    assert.equal(removido.status, 204);
+
+    const titulosAposRemocao = await request(app)
+      .get(`/v1/inscricoes/${inscricaoId}/titulos`)
+      .set("Authorization", `Bearer ${candidatoToken}`);
+
+    assert.equal(titulosAposRemocao.status, 200);
+    assert.equal(titulosAposRemocao.body.total, 0);
+  } finally {
+    if (inscricaoId) await prisma.tituloInscricao.deleteMany({ where: { inscricaoId } });
+    if (inscricaoId) await prisma.inscricao.deleteMany({ where: { id: inscricaoId } });
+    if (participacaoId) await prisma.participacaoEdital.deleteMany({ where: { id: participacaoId } });
+    if (criterioId) await prisma.criterioTitulacaoEdital.deleteMany({ where: { id: criterioId } });
+    if (linhaId) await prisma.linhaPesquisa.deleteMany({ where: { id: linhaId } });
+    if (editalId) await prisma.cronogramaEdital.deleteMany({ where: { editalId } });
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: { in: [admin.id, candidato.id] } } });
+    await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, candidato.id] } } });
+  }
+});
+
+test("submissao aceita Anexo V automatico quando ha criterios de titulacao", async () => {
+  const suffix = `anexo-v-auto-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createUser(suffix, Role.ADMIN);
+  const candidato = await createUser(suffix, Role.CANDIDATO);
+
+  let editalId = "";
+  let linhaId = "";
+  let criterioId = "";
+  let participacaoId = "";
+  let inscricaoId = "";
+
+  try {
+    const candidatoToken = createToken(candidato.id, candidato.email);
+
+    const edital = await prisma.edital.create({
+      data: {
+        numero: `ANEXOV-${suffix}`,
+        titulo: `Edital ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.MESTRADO,
+        status: StatusEdital.PUBLICADO,
+        publicadoEm: new Date(),
+        criadoPorId: admin.id,
+        cronogramas: {
+          create: [{
+            tipo: TipoCronogramaEdital.INSCRICAO,
+            titulo: `Inscricao ${suffix}`,
+            inicioEm: new Date(Date.now() - 60_000),
+            fimEm: new Date(Date.now() + 60_000),
+          }],
+        },
+      },
+    });
+    editalId = edital.id;
+
+    const linha = await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 1,
+        vagasAcoesAfirmativas: 0,
+        vagasPcd: 0,
+      },
+    });
+    linhaId = linha.id;
+
+    const criterio = await prisma.criterioTitulacaoEdital.create({
+      data: {
+        editalId,
+        chaveInterna: `especializacao-${suffix}`,
+        numeroNormativo: "3",
+        descricao: "Curso de especializacao",
+        fator: 2,
+        teto: 2,
+        unidade: "curso",
+        ordem: 3,
+      },
+    });
+    criterioId = criterio.id;
+
+    const participacao = await prisma.participacaoEdital.create({ data: { usuarioId: candidato.id, editalId } });
+    participacaoId = participacao.id;
+
+    const inscricao = await prisma.inscricao.create({
+      data: {
+        participacaoEditalId: participacao.id,
+        linhaPesquisaId: linha.id,
+        modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+        status: StatusInscricao.RASCUNHO,
+        temaRedacao: "Controle preditivo",
+        redacaoTexto: "A".repeat(500),
+        dadosFormulario: {
+          nomeCompleto: candidato.nomeCompleto,
+          rg: "1234567",
+          rgDataExpedicao: "01/01/2020",
+          cpf: "12345678901",
+          nacionalidade: "Brasileira",
+          naturalidade: "Manaus/AM",
+          email: candidato.email,
+          telefoneWhatsapp: "92999999999",
+          dataNascimento: "01/01/1995",
+          estadoCivil: "Solteiro",
+          genero: "MASCULINO",
+          tipoSanguineo: "O",
+          fatorRh: "+",
+          racaCor: "PARDA",
+          pessoaComDeficiencia: false,
+          concorreAcoesAfirmativas: false,
+          vaiSolicitarBolsa: true,
+          nomePai: "Pai da Silva",
+          nomeMae: "Mae da Silva",
+          enderecoResidencial: "Rua A, 100",
+          cepResidencial: "69000000",
+          bairroResidencial: "Centro",
+          ufResidencial: "AM",
+          cidadeResidencial: "Manaus",
+          empregadoSituacao: "NAO_EMPREGADO",
+        },
+      },
+    });
+    inscricaoId = inscricao.id;
+
+    const tituloUpload = await uploadPrivatePdf(candidatoToken, "titulo-especializacao.pdf");
+    const tituloCriado = await request(app)
+      .post(`/v1/inscricoes/${inscricaoId}/titulos`)
+      .set("Authorization", `Bearer ${candidatoToken}`)
+      .send({
+        criterioTitulacaoEditalId: criterioId,
+        descricaoTitulo: "Certificado de especializacao em engenharia eletrica.",
+        urlArquivo: tituloUpload.urlArquivo,
+        nomeArquivo: tituloUpload.nomeArquivo,
+        mimeType: tituloUpload.mimeType,
+      });
+    assert.equal(tituloCriado.status, 201);
+
+    for (const tipo of [
+      TipoDocumentoInscricao.ANEXO_IV,
+      TipoDocumentoInscricao.DIPLOMA,
+      TipoDocumentoInscricao.HISTORICO,
+      TipoDocumentoInscricao.CURRICULO,
+      TipoDocumentoInscricao.DOCUMENTO_IDENTIFICACAO,
+      TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO,
+    ]) {
+      const upload = await uploadPrivatePdf(candidatoToken, `${tipo.toLowerCase()}.pdf`);
+      const documento = await request(app)
+        .post(`/v1/inscricoes/${inscricaoId}/documentos`)
+        .set("Authorization", `Bearer ${candidatoToken}`)
+        .send({
+          tipo,
+          nome: tipo,
+          urlArquivo: upload.urlArquivo,
+          nomeArquivo: upload.nomeArquivo,
+          mimeType: upload.mimeType,
+        });
+      assert.equal(documento.status, 201);
+    }
+
+    const submissao = await request(app)
+      .post(`/v1/inscricoes/${inscricaoId}/submeter`)
+      .set("Authorization", `Bearer ${candidatoToken}`);
+
+    assert.equal(submissao.status, 200);
+    assert.equal(submissao.body.pacoteDocumentalSnapshot.pacoteDocumental.anexoVOrigem, "TITULOS_DECLARADOS_ESTRUTURADOS");
+    assert.equal(submissao.body.submissaoSnapshot.titulos.length, 1);
+    assert.equal(
+      submissao.body.submissaoSnapshot.checklist.some((item: { tipo: string; documento?: { urlArquivo?: string } }) => item.tipo === "ANEXO_V" && item.documento?.urlArquivo === "AUTO:ANEXO_V"),
+      true,
+    );
+  } finally {
+    if (inscricaoId) await prisma.tituloInscricao.deleteMany({ where: { inscricaoId } });
+    if (inscricaoId) await prisma.documentoInscricao.deleteMany({ where: { inscricaoId } });
+    if (inscricaoId) await prisma.inscricao.deleteMany({ where: { id: inscricaoId } });
+    if (participacaoId) await prisma.participacaoEdital.deleteMany({ where: { id: participacaoId } });
+    if (criterioId) await prisma.criterioTitulacaoEdital.deleteMany({ where: { id: criterioId } });
+    if (linhaId) await prisma.linhaPesquisa.deleteMany({ where: { id: linhaId } });
+    if (editalId) await prisma.cronogramaEdital.deleteMany({ where: { editalId } });
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
     await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: { in: [admin.id, candidato.id] } } });
     await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, candidato.id] } } });
   }

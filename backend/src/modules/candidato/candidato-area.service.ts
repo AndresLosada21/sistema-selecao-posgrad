@@ -45,6 +45,11 @@ type CandidateParticipacao = Prisma.ParticipacaoEditalGetPayload<{
       include: {
         linhaPesquisa: true;
         documentos: true;
+        titulos: {
+          include: {
+            criterioTitulacaoEdital: true;
+          };
+        };
         homologacao: true;
         avaliacaoEtapa1: true;
         avaliacaoEtapa2: true;
@@ -333,6 +338,12 @@ export async function getCandidateDashboard(usuarioId: string) {
         include: {
           linhaPesquisa: true,
           documentos: true,
+          titulos: {
+            include: {
+              criterioTitulacaoEdital: true,
+            },
+            orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }],
+          },
           homologacao: true,
           avaliacaoEtapa1: true,
           avaliacaoEtapa2: true,
@@ -449,6 +460,30 @@ export async function getCandidateDashboard(usuarioId: string) {
             urlArquivo: documento.urlArquivo,
             statusValidacao: documento.statusValidacao,
             observacaoValidacao: documento.observacaoValidacao,
+          })),
+          titulos: participacao.inscricao.titulos.map((titulo) => ({
+            id: titulo.id,
+            criterioTitulacaoEditalId: titulo.criterioTitulacaoEditalId,
+            descricaoTitulo: titulo.descricaoTitulo,
+            urlArquivo: titulo.urlArquivo,
+            nomeArquivo: titulo.nomeArquivo,
+            mimeType: titulo.mimeType,
+            tamanhoBytes: titulo.tamanhoBytes,
+            ordem: titulo.ordem,
+            criadoEm: titulo.criadoEm.toISOString(),
+            atualizadoEm: titulo.atualizadoEm.toISOString(),
+            criterio: {
+              id: titulo.criterioTitulacaoEdital.id,
+              chaveInterna: titulo.criterioTitulacaoEdital.chaveInterna,
+              numeroNormativo: titulo.criterioTitulacaoEdital.numeroNormativo,
+              descricao: titulo.criterioTitulacaoEdital.descricao,
+              fator: titulo.criterioTitulacaoEdital.fator?.toNumber() ?? null,
+              teto: titulo.criterioTitulacaoEdital.teto?.toNumber() ?? null,
+              unidade: titulo.criterioTitulacaoEdital.unidade,
+              regraEspecial: titulo.criterioTitulacaoEdital.regraEspecial,
+              ordem: titulo.criterioTitulacaoEdital.ordem,
+              ativo: titulo.criterioTitulacaoEdital.ativo,
+            },
           })),
           homologacao: participacao.inscricao.homologacao
               ? {

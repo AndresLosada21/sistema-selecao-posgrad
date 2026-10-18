@@ -301,6 +301,7 @@ model Edital {
   cronogramas           CronogramaEdital[]
   linhasPesquisa        LinhaPesquisa[]
   temasRedacao          TemaRedacaoEdital[]
+  criteriosTitulacao    CriterioTitulacaoEdital[]
   escoposAvaliacao      AvaliadorEscopo[]
   participacoes         ParticipacaoEdital[]
   publicacoesOficiais   PublicacaoOficial[]
@@ -358,6 +359,31 @@ model TemaRedacaoEdital {
   inscricoes    Inscricao[]
 
   @@index([editalId, ativo, ordem])
+}
+
+model CriterioTitulacaoEdital {
+  id                 String   @id @default(cuid())
+  editalId           String
+  chaveInterna       String
+  numeroNormativo    String
+  descricao          String
+  fator              Decimal? @db.Decimal(8, 3)
+  teto               Decimal? @db.Decimal(8, 2)
+  unidade            String
+  regraEspecial      String?
+  metadados          Json?
+  ordem              Int      @default(0)
+  ativo              Boolean  @default(true)
+  pacoteOrigemSlug   String?
+  pacoteOrigemVersao String?
+  criadoEm           DateTime @default(now())
+  atualizadoEm       DateTime @updatedAt
+  edital             Edital   @relation(fields: [editalId], references: [id], onDelete: Cascade)
+  titulosInscricao   TituloInscricao[]
+
+  @@unique([editalId, chaveInterna])
+  @@index([editalId, ativo, ordem])
+  @@index([editalId, numeroNormativo])
 }
 
 model ParticipacaoEdital {
@@ -432,6 +458,7 @@ model Inscricao {
   linhaPesquisa               LinhaPesquisa?           @relation(fields: [linhaPesquisaId], references: [id], onDelete: SetNull)
   temaRedacaoEdital           TemaRedacaoEdital?       @relation(fields: [temaRedacaoEditalId], references: [id], onDelete: SetNull)
   documentos                  DocumentoInscricao[]
+  titulos                     TituloInscricao[]
   homologacao                 HomologacaoInscricao?
   avaliacaoEtapa1             AvaliacaoEtapa1?
   avaliacaoEtapa2             AvaliacaoEtapa2?
@@ -455,6 +482,25 @@ model DocumentoInscricao {
   inscricao             Inscricao                @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
 
   @@index([inscricaoId, tipo])
+}
+
+model TituloInscricao {
+  id                         String                   @id @default(cuid())
+  inscricaoId                String
+  criterioTitulacaoEditalId  String
+  descricaoTitulo            String
+  urlArquivo                 String
+  nomeArquivo                String
+  mimeType                   String?
+  tamanhoBytes               Int?
+  ordem                      Int                      @default(0)
+  criadoEm                   DateTime                 @default(now())
+  atualizadoEm               DateTime                 @updatedAt
+  inscricao                  Inscricao                @relation(fields: [inscricaoId], references: [id], onDelete: Cascade)
+  criterioTitulacaoEdital    CriterioTitulacaoEdital  @relation(fields: [criterioTitulacaoEditalId], references: [id], onDelete: Restrict)
+
+  @@index([inscricaoId, criterioTitulacaoEditalId])
+  @@index([criterioTitulacaoEditalId])
 }
 
 model HomologacaoInscricao {
