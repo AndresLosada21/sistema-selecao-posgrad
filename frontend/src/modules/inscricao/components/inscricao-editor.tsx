@@ -321,7 +321,7 @@ function getRequiredDocumentRules(input: {
   required.push({ tipo: "CURRICULO", label: "Curriculo Lattes com documentacao comprobatoria" });
 
   if (!input.anexoVAutomaticoDisponivel) {
-    required.splice(1, 0, { tipo: "ANEXO_V", label: "Declaracao de titulos" });
+    required.splice(1, 0, { tipo: "ANEXO_V", label: "Declaração de títulos" });
   }
 
   if (isEstrangeiro(input.ficha) || hasText(input.ficha.passaporte)) {
@@ -346,7 +346,7 @@ function getRequiredDocumentRules(input: {
     required.push({ tipo: "COMPROVANTE_ETNICO", label: "Comprovante etnico ou comunitario" });
   }
 
-  required.push({ tipo: "ANEXO_IV", label: "Anexo IV assinado" });
+  required.push({ tipo: "ANEXO_IV", label: "Ficha de inscrição assinada" });
 
   return required;
 }
@@ -2318,3 +2318,4 @@ function Step6Revisao({ formState, edital, cursoLabel, documentos, titulos, conf
     </>
   );
 }
+

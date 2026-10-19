@@ -2,7 +2,7 @@ import { Prisma, StatusAvaliacaoEtapa, StatusInscricao, StatusRecurso, TipoCrono
 
 import { prisma } from "../../lib/prisma.js";
 import { buildInscricaoWhereForAvaliador } from "../avaliacao/avaliador-scope.service.js";
-import { isCronogramaWindowOpen } from "../edital/edital-window.service.js";
+import { isCronogramaWindowOpen, isEspelhoEtapaWindowOpen } from "../edital/edital-window.service.js";
 import { getConfiguracaoProcesso } from "../edital/configuracao-processo.service.js";
 import {
   CRITERIOS_ETAPA1_LEGADO,
@@ -94,6 +94,7 @@ async function buildEtapa1EditState(inscricao: Prisma.InscricaoGetPayload<{
   };
 }>) {
   const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_1);
+  const espelhoWindow = await isEspelhoEtapaWindowOpen(inscricao.participacaoEdital.editalId, 1);
   const hasRecursosPendentes = await hasRecursosPendentesEtapa1(inscricao.id);
   const hasRecursosRegistrados = await hasRecursosRegistradosEtapa1(inscricao.id);
   const avaliacao = inscricao.avaliacaoEtapa1;
@@ -105,7 +106,7 @@ async function buildEtapa1EditState(inscricao: Prisma.InscricaoGetPayload<{
     bloqueioSalvarPreliminar = "Resultado final da etapa 1 ja publicado.";
   } else if (inscricao.avaliacaoEtapa2 || inscricao.participacaoEdital.classificacaoFinal) {
     bloqueioSalvarPreliminar = "A etapa 1 preliminar nao pode mais ser alterada porque ja existem fases posteriores registradas.";
-  } else if (avaliacao?.status === StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA && (recursoWindow.open || hasRecursosRegistrados)) {
+  } else if (avaliacao?.status === StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA && (espelhoWindow.open || recursoWindow.open || hasRecursosRegistrados)) {
     bloqueioSalvarPreliminar = "A etapa 1 preliminar foi bloqueada apos a abertura do fluxo recursal desta fase.";
   }
 
@@ -334,7 +335,8 @@ export async function registrarResultadoEtapa1(
 
   if (input.publicacao === "PRELIMINAR" && inscricao.avaliacaoEtapa1?.status === StatusAvaliacaoEtapa.PRELIMINAR_PUBLICADA) {
     const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_1);
-    if (recursoWindow.open || await hasRecursosRegistradosEtapa1(inscricaoId)) {
+    const espelhoWindow = await isEspelhoEtapaWindowOpen(inscricao.participacaoEdital.editalId, 1);
+    if (espelhoWindow.open || recursoWindow.open || await hasRecursosRegistradosEtapa1(inscricaoId)) {
       return { error: "ETAPA_1_PRELIMINAR_BLOQUEADA" as const };
     }
   }
@@ -363,8 +365,8 @@ export async function registrarResultadoEtapa1(
   }
 
   if (input.publicacao === "PRELIMINAR" && input.liberarEspelho) {
-    const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_1);
-    if (!recursoWindow.open) {
+    const espelhoWindow = await isEspelhoEtapaWindowOpen(inscricao.participacaoEdital.editalId, 1);
+    if (!espelhoWindow.open) {
       return { error: "JANELA_RECURSO_ETAPA_1_FECHADA" as const };
     }
   }
@@ -671,8 +673,8 @@ export async function solicitarEspelhoEtapa1(inscricaoId: string, usuarioId: str
     return { error: "ESPELHO_ETAPA_1_JA_LIBERADO" as const };
   }
 
-  const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_1);
-  if (!recursoWindow.open) {
+  const espelhoWindow = await isEspelhoEtapaWindowOpen(inscricao.participacaoEdital.editalId, 1);
+  if (!espelhoWindow.open) {
     return { error: "JANELA_RECURSO_ETAPA_1_FECHADA" as const };
   }
 
@@ -717,8 +719,8 @@ export async function liberarEspelhoEtapa1(inscricaoId: string) {
     return { error: "ESPELHO_ETAPA_1_JA_LIBERADO" as const };
   }
 
-  const recursoWindow = await isCronogramaWindowOpen(inscricao.participacaoEdital.editalId, TipoCronogramaEdital.RECURSO_ETAPA_1);
-  if (!recursoWindow.open) {
+  const espelhoWindow = await isEspelhoEtapaWindowOpen(inscricao.participacaoEdital.editalId, 1);
+  if (!espelhoWindow.open) {
     return { error: "JANELA_RECURSO_ETAPA_1_FECHADA" as const };
   }
 
@@ -734,3 +736,4 @@ export async function liberarEspelhoEtapa1(inscricaoId: string) {
 
   return { avaliacao: avaliacaoAtualizada };
 }
+

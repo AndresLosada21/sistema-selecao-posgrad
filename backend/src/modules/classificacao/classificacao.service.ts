@@ -188,6 +188,7 @@ export async function recalcularClassificacao(editalId: string, publicacao: "PRE
       pesoEtapa1: configuracaoProcesso.pesoEtapa1,
       pesoEtapa2: configuracaoProcesso.pesoEtapa2,
       desempate: configuracaoProcesso.desempate,
+      reservaUnificada: configuracaoProcesso.unificarReservasAcoesAfirmativasPcd,
     },
   });
 

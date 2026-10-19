@@ -25,6 +25,7 @@ export type PerfilProcessoPacoteDefinicao = {
   exigeHistoricoGraduacao: boolean;
   exigeGrupoPesquisa: boolean;
   permiteCancelarSubmissao: boolean;
+  unificarReservasAcoesAfirmativasPcd: boolean;
   criterios: CriterioEtapa1Pacote[];
 };
 
@@ -66,6 +67,7 @@ export const PERFIL_PROCESSO_PACOTES = [
     exigeHistoricoGraduacao: true,
     exigeGrupoPesquisa: false,
     permiteCancelarSubmissao: true,
+    unificarReservasAcoesAfirmativasPcd: false,
     criterios: CRITERIOS_REDACAO,
   },
   {
@@ -84,6 +86,7 @@ export const PERFIL_PROCESSO_PACOTES = [
     exigeHistoricoGraduacao: false,
     exigeGrupoPesquisa: false,
     permiteCancelarSubmissao: false,
+    unificarReservasAcoesAfirmativasPcd: true,
     criterios: CRITERIOS_PRE_PROJETO,
   },
 ] as const satisfies readonly PerfilProcessoPacoteDefinicao[];
@@ -105,6 +108,7 @@ export function listPerfilProcessoPacoteSummaries(): PerfilProcessoPacoteResumo[
     exigeHistoricoGraduacao: pacote.exigeHistoricoGraduacao,
     exigeGrupoPesquisa: pacote.exigeGrupoPesquisa,
     permiteCancelarSubmissao: pacote.permiteCancelarSubmissao,
+    unificarReservasAcoesAfirmativasPcd: pacote.unificarReservasAcoesAfirmativasPcd,
     totalCriterios: pacote.criterios.length,
     criteriosPreview: pacote.criterios.map((criterio) => `${criterio.label} (${criterio.peso}%)`),
   }));
@@ -117,5 +121,7 @@ export function getPerfilProcessoPacoteBySlug(slug: string): PerfilProcessoPacot
 export function somaPesosCriteriosAtivos(criterios: CriterioEtapa1Pacote[]) {
   return criterios.reduce((total, criterio) => total + criterio.peso, 0);
 }
+
+
 
 

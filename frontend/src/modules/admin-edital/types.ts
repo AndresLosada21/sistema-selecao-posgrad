@@ -92,6 +92,7 @@ export type AdminConfiguracaoProcesso = {
   exigeHistoricoGraduacao: boolean;
   exigeGrupoPesquisa: boolean;
   permiteCancelarSubmissao: boolean;
+  unificarReservasAcoesAfirmativasPcd: boolean;
   configurada: boolean;
 };
 
@@ -144,3 +145,4 @@ export type AdminPerfilProcessoPacotesResponse = {
   items: AdminPerfilProcessoPacoteResumo[];
   total: number;
 };
+

@@ -40,8 +40,10 @@ enum TipoCronogramaEdital {
   RECURSO_HOMOLOGACAO
   HOMOLOGACAO_FINAL
   ETAPA_1
+  ESPELHO_ETAPA_1
   RECURSO_ETAPA_1
   ETAPA_2
+  ESPELHO_ETAPA_2
   RECURSO_ETAPA_2
   CLASSIFICACAO_PRELIMINAR
   RECURSO_CLASSIFICACAO
@@ -342,6 +344,7 @@ model ConfiguracaoProcessoEdital {
   exigeHistoricoGraduacao  Boolean                @default(true)
   exigeGrupoPesquisa       Boolean                @default(false)
   permiteCancelarSubmissao Boolean                @default(true)
+  unificarReservasAcoesAfirmativasPcd Boolean     @default(false)
   criadoEm                 DateTime               @default(now())
   atualizadoEm             DateTime               @updatedAt
   edital                   Edital                 @relation(fields: [editalId], references: [id], onDelete: Cascade)

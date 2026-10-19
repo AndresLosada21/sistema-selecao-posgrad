@@ -41,3 +41,11 @@ export async function isCronogramaWindowOpen(editalId: string, tipo: TipoCronogr
     reason: null,
   };
 }
+
+export async function isEspelhoEtapaWindowOpen(editalId: string, etapa: 1 | 2) {
+  const tipoEspelho = etapa === 1 ? TipoCronogramaEdital.ESPELHO_ETAPA_1 : TipoCronogramaEdital.ESPELHO_ETAPA_2;
+  const tipoRecurso = etapa === 1 ? TipoCronogramaEdital.RECURSO_ETAPA_1 : TipoCronogramaEdital.RECURSO_ETAPA_2;
+  const espelhoConfigurado = await getCronogramaWindow(editalId, tipoEspelho);
+
+  return isCronogramaWindowOpen(editalId, espelhoConfigurado ? tipoEspelho : tipoRecurso);
+}

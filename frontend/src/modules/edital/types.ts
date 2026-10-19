@@ -71,6 +71,7 @@ export type EditalConfiguracaoProcesso = {
   exigeHistoricoGraduacao: boolean;
   exigeGrupoPesquisa: boolean;
   permiteCancelarSubmissao: boolean;
+  unificarReservasAcoesAfirmativasPcd: boolean;
   configurada: boolean;
 };
 
