@@ -237,3 +237,163 @@ test("classificacao de doutorado usa pesos 2/1 e desempate por etapa 1 e idade",
     await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, ...candidatosIds] } } });
   }
 });
+test("reserva unificada de acoes afirmativas e PCD muda a ocupacao da vaga reservada", async () => {
+  const suffix = `classificacao-unificada-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  let editalId = "";
+  const usuarioIds: string[] = [admin.id];
+
+  try {
+    const edital = await prisma.edital.create({
+      data: {
+        numero: `UNI-${suffix}`,
+        titulo: `Edital reserva unificada ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.DOUTORADO,
+        status: StatusEdital.PUBLICADO,
+        publicadoEm: new Date(),
+        criadoPorId: admin.id,
+        configuracaoProcesso: {
+          create: {
+            modalidadeEtapa1: "PRE_PROJETO",
+            pesoEtapa1: 2,
+            pesoEtapa2: 1,
+            notaMinimaEtapa1: 7,
+            desempate: "ETAPA1_IDADE",
+            avaliadoresEtapa1: 2,
+            exigeDiplomaGraduacao: false,
+            exigeHistoricoGraduacao: false,
+            exigeGrupoPesquisa: false,
+            permiteCancelarSubmissao: false,
+            unificarReservasAcoesAfirmativasPcd: true,
+          },
+        },
+      },
+    });
+    editalId = edital.id;
+
+    const linha = await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 1,
+        vagasAcoesAfirmativas: 1,
+        vagasPcd: 0,
+      },
+    });
+
+    const cenarios = [
+      { nome: "C1", modalidade: ModalidadeConcorrencia.ACOES_AFIRMATIVAS, aa: true, pcd: false, nota: 9.5 },
+      { nome: "C2", modalidade: ModalidadeConcorrencia.PCD, aa: false, pcd: true, nota: 9 },
+      { nome: "C3", modalidade: ModalidadeConcorrencia.ACOES_AFIRMATIVAS, aa: true, pcd: false, nota: 8.5 },
+    ];
+
+    for (const cenario of cenarios) {
+      const candidato = await prisma.usuario.create({
+        data: {
+          nomeCompleto: `${cenario.nome} ${suffix}`,
+          email: `${cenario.nome.toLowerCase()}.${suffix}@teste.local`,
+          senhaHash: await bcrypt.hash("Senha123456", 10),
+          statusConta: StatusConta.ATIVA,
+        },
+      });
+      usuarioIds.push(candidato.id);
+
+      const participacao = await prisma.participacaoEdital.create({
+        data: { usuarioId: candidato.id, editalId },
+      });
+
+      await prisma.inscricao.create({
+        data: {
+          participacaoEditalId: participacao.id,
+          linhaPesquisaId: linha.id,
+          modalidadeConcorrencia: cenario.modalidade,
+          confirmacaoAcoesAfirmativas: cenario.aa ? "CONFIRMADA" : "NAO_SE_APLICA",
+          confirmacaoPcd: cenario.pcd ? "CONFIRMADA" : "NAO_SE_APLICA",
+          status: StatusInscricao.CLASSIFICACAO_PRELIMINAR,
+          avaliacaoEtapa1: {
+            create: {
+              editalId,
+              nota: cenario.nota,
+              status: "FINAL_PUBLICADA",
+              resultadoFinalEm: new Date(),
+            },
+          },
+          avaliacaoEtapa2: {
+            create: {
+              editalId,
+              pontuacaoBruta: cenario.nota * 10,
+              notaNormalizada: cenario.nota,
+              status: "FINAL_PUBLICADA",
+              resultadoFinalEm: new Date(),
+            },
+          },
+        },
+      });
+    }
+
+    const unificada = await request(app)
+      .post(`/v1/admin/editais/${editalId}/classificacao/recalcular`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ publicacao: "FINAL" });
+
+    assert.equal(unificada.status, 200);
+    const statusUnificado = (nome: string) =>
+      unificada.body.items.find((item: { candidato: { nomeCompleto: string } }) => item.candidato.nomeCompleto.startsWith(nome))?.status;
+
+    assert.equal(statusUnificado("C1"), "APROVADO");
+    assert.equal(statusUnificado("C2"), "APROVADO");
+    assert.equal(statusUnificado("C3"), "LISTA_DE_ESPERA");
+
+    const detalhe = await request(app)
+      .get(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    assert.equal(detalhe.status, 200);
+
+    const config = detalhe.body.configuracaoProcesso;
+    const configSeparada = await request(app)
+      .put(`/v1/admin/editais/${editalId}/configuracao-processo`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        modalidadeEtapa1: config.modalidadeEtapa1,
+        pesoEtapa1: config.pesoEtapa1,
+        pesoEtapa2: config.pesoEtapa2,
+        notaMinimaEtapa1: config.notaMinimaEtapa1,
+        desempate: config.desempate,
+        avaliadoresEtapa1: config.avaliadoresEtapa1,
+        exigeDiplomaGraduacao: config.exigeDiplomaGraduacao,
+        exigeHistoricoGraduacao: config.exigeHistoricoGraduacao,
+        exigeGrupoPesquisa: config.exigeGrupoPesquisa,
+        permiteCancelarSubmissao: config.permiteCancelarSubmissao,
+        unificarReservasAcoesAfirmativasPcd: false,
+      });
+
+    assert.equal(configSeparada.status, 200);
+    assert.equal(configSeparada.body.unificarReservasAcoesAfirmativasPcd, false);
+
+    const detalheSeparado = await request(app)
+      .get(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+    assert.equal(detalheSeparado.body.configuracaoProcesso.unificarReservasAcoesAfirmativasPcd, false);
+
+    const separada = await request(app)
+      .post(`/v1/admin/editais/${editalId}/classificacao/recalcular`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ publicacao: "FINAL" });
+
+    assert.equal(separada.status, 200);
+    const statusSeparado = (nome: string) =>
+      separada.body.items.find((item: { candidato: { nomeCompleto: string } }) => item.candidato.nomeCompleto.startsWith(nome))?.status;
+
+    assert.equal(statusSeparado("C1"), "APROVADO");
+    assert.equal(statusSeparado("C2"), "LISTA_DE_ESPERA");
+    assert.equal(statusSeparado("C3"), "APROVADO");
+  } finally {
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: { in: usuarioIds } } });
+    await prisma.usuario.deleteMany({ where: { id: { in: usuarioIds } } });
+  }
+});

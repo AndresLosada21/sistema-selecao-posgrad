@@ -673,3 +673,71 @@ test("backend exige configuracao de processo completa antes de publicar edital",
     await prisma.usuario.deleteMany({ where: { id: admin.id } });
   }
 });
+test("bloqueia cronograma de espelho iniciando antes do fim da etapa 1", async () => {
+  const suffix = `edital-espelho-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  let editalId = "";
+
+  try {
+    const created = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `ESP-${suffix}`,
+        titulo: `Edital espelho ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.DOUTORADO,
+        status: StatusEdital.RASCUNHO,
+      });
+
+    assert.equal(created.status, 201);
+    editalId = created.body.id;
+
+    await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 1,
+        vagasAcoesAfirmativas: 0,
+        vagasPcd: 0,
+      },
+    });
+
+    const cronogramas = [
+      { tipo: TipoCronogramaEdital.INSCRICAO, inicioEm: "2027-01-10T08:00:00.000Z", fimEm: "2027-01-10T09:00:00.000Z" },
+      { tipo: TipoCronogramaEdital.ETAPA_1, inicioEm: "2027-01-10T10:00:00.000Z", fimEm: "2027-01-10T11:00:00.000Z" },
+      { tipo: TipoCronogramaEdital.ESPELHO_ETAPA_1, inicioEm: "2027-01-10T10:30:00.000Z", fimEm: "2027-01-10T12:00:00.000Z" },
+    ];
+
+    for (const cronograma of cronogramas) {
+      const response = await request(app)
+        .post(`/v1/admin/editais/${editalId}/cronogramas`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ ...cronograma, titulo: `Fase ${cronograma.tipo}` });
+
+      assert.equal(response.status, 201);
+    }
+
+    const publish = await request(app)
+      .put(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `ESP-${suffix}`,
+        titulo: `Edital espelho ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.DOUTORADO,
+        status: StatusEdital.PUBLICADO,
+      });
+
+    assert.equal(publish.status, 409);
+    assert.equal(publish.body.code, "EDITAL_CRONOGRAMA_SEQUENCIA_INVALIDA");
+  } finally {
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: admin.id } });
+    await prisma.usuario.deleteMany({ where: { id: admin.id } });
+  }
+});

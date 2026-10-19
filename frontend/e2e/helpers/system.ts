@@ -394,3 +394,15 @@ export async function liberarEspelhoEtapa2Api(request: APIRequestContext, adminT
   const response = await postJson(request, `/v1/admin/inscricoes/${inscricaoId}/etapa-2/espelho/liberar`, undefined, adminToken);
   expect(response.ok()).toBeTruthy();
 }
+
+export async function createGrupoPesquisaApi(
+  request: APIRequestContext,
+  input: { editalId: string; adminToken: string; nome: string },
+) {
+  const response = await postJson(request, `/v1/admin/editais/${input.editalId}/grupos-pesquisa`, {
+    nome: input.nome,
+  }, input.adminToken);
+
+  expect(response.ok()).toBeTruthy();
+  return await response.json() as { id: string; nome: string; ativo: boolean };
+}

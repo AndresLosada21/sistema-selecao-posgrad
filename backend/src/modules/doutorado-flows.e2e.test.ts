@@ -411,3 +411,314 @@ test("banca do doutorado consolida pela media e bloqueia avaliacao duplicada", a
     });
   }
 });
+async function registerCandidato(suffix: string, cpf: string) {
+  const response = await request(app)
+    .post("/v1/auth/register")
+    .send({
+      nomeCompleto: `Candidato ${suffix}`,
+      email: `candidato.${suffix}@teste.local`,
+      senha: "Senha123456",
+      telefone: "92999999999",
+      cpf,
+    });
+
+  assert.equal(response.status, 201);
+  return {
+    token: response.body.token as string,
+    userId: response.body.user.id as string,
+    email: `candidato.${suffix}@teste.local`,
+    cpf,
+  };
+}
+
+async function submitDoutorado(input: {
+  token: string;
+  editalId: string;
+  linhaId: string;
+  nome: string;
+  email: string;
+  cpf: string;
+  grupoPesquisaId?: string;
+}) {
+  const draft = await request(app)
+    .put(`/v1/editais/${input.editalId}/inscricao/rascunho`)
+    .set("Authorization", `Bearer ${input.token}`)
+    .send({
+      linhaPesquisaId: input.linhaId,
+      grupoPesquisaId: input.grupoPesquisaId,
+      modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+      resumoCurriculo: "Pesquisa em controle e automacao para o fluxo de doutorado.",
+      fichaInscricao: {
+        ...fichaBase,
+        nomeCompleto: input.nome,
+        email: input.email,
+        cpf: input.cpf,
+      },
+    });
+
+  assert.equal(draft.status, 200);
+
+  for (const tipo of [
+    TipoDocumentoInscricao.ANEXO_IV,
+    TipoDocumentoInscricao.ANEXO_V,
+    TipoDocumentoInscricao.CURRICULO,
+    TipoDocumentoInscricao.DOCUMENTO_IDENTIFICACAO,
+    TipoDocumentoInscricao.PRE_PROJETO,
+    TipoDocumentoInscricao.COMPROVANTE_PAGAMENTO,
+  ]) {
+    const documento = await addDocumento(input.token, draft.body.id, tipo);
+    assert.equal(documento.status, 201);
+  }
+
+  return request(app)
+    .post(`/v1/inscricoes/${draft.body.id}/submeter`)
+    .set("Authorization", `Bearer ${input.token}`);
+}
+
+test("doutorado com grupo opcional aceita submissao sem grupo e registra o grupo quando informado", async () => {
+  const suffix = `doutorado-opcional-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  let editalId = "";
+  const candidatosIds: string[] = [];
+
+  try {
+    const created = await request(app)
+      .post("/v1/admin/editais")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `OPT-${suffix}`,
+        titulo: `Edital doutorado opcional ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.DOUTORADO,
+        status: StatusEdital.RASCUNHO,
+      });
+    assert.equal(created.status, 201);
+    editalId = created.body.id;
+
+    const perfil = await request(app)
+      .post(`/v1/admin/editais/${editalId}/perfil-processo/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-073-2026-doutorado" });
+    assert.equal(perfil.status, 200);
+    assert.equal(perfil.body.exigeGrupoPesquisa, false);
+
+    const grupo = await request(app)
+      .post(`/v1/admin/editais/${editalId}/grupos-pesquisa`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ nome: `Grupo opcional ${suffix}` });
+    assert.equal(grupo.status, 201);
+
+    const linha = await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 2,
+        vagasAcoesAfirmativas: 0,
+        vagasPcd: 0,
+      },
+    });
+
+    const now = Date.now();
+    const cronograma = await request(app)
+      .post(`/v1/admin/editais/${editalId}/cronogramas`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        tipo: TipoCronogramaEdital.INSCRICAO,
+        titulo: "Inscricao opcional",
+        inicioEm: new Date(now - 60 * 60_000).toISOString(),
+        fimEm: new Date(now + 60 * 60_000).toISOString(),
+      });
+    assert.equal(cronograma.status, 201);
+
+    const publish = await request(app)
+      .put(`/v1/admin/editais/${editalId}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        numero: `OPT-${suffix}`,
+        titulo: `Edital doutorado opcional ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.DOUTORADO,
+        status: StatusEdital.PUBLICADO,
+      });
+    assert.equal(publish.status, 200);
+
+    const semGrupo = await registerCandidato(`${suffix}-a`, `${Date.now()}`.slice(-11));
+    candidatosIds.push(semGrupo.userId);
+    const participacaoA = await request(app)
+      .post(`/v1/editais/${editalId}/participar`)
+      .set("Authorization", `Bearer ${semGrupo.token}`);
+    assert.equal(participacaoA.status, 201);
+
+    const submitSemGrupo = await submitDoutorado({
+      token: semGrupo.token,
+      editalId,
+      linhaId: linha.id,
+      nome: `Candidato ${suffix} A`,
+      email: semGrupo.email,
+      cpf: semGrupo.cpf,
+    });
+    assert.equal(submitSemGrupo.status, 200);
+    assert.equal(submitSemGrupo.body.submissaoSnapshot.inscricao.grupoPesquisaNome, null);
+
+    const comGrupo = await registerCandidato(`${suffix}-b`, `${Date.now() + 1}`.slice(-11));
+    candidatosIds.push(comGrupo.userId);
+    const participacaoB = await request(app)
+      .post(`/v1/editais/${editalId}/participar`)
+      .set("Authorization", `Bearer ${comGrupo.token}`);
+    assert.equal(participacaoB.status, 201);
+
+    const submitComGrupo = await submitDoutorado({
+      token: comGrupo.token,
+      editalId,
+      linhaId: linha.id,
+      grupoPesquisaId: grupo.body.id,
+      nome: `Candidato ${suffix} B`,
+      email: comGrupo.email,
+      cpf: comGrupo.cpf,
+    });
+    assert.equal(submitComGrupo.status, 200);
+    assert.equal(submitComGrupo.body.submissaoSnapshot.inscricao.grupoPesquisaNome, `Grupo opcional ${suffix}`);
+  } finally {
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: { in: [admin.id, ...candidatosIds] } } });
+    await prisma.usuario.deleteMany({ where: { id: { in: [admin.id, ...candidatosIds] } } });
+  }
+});
+
+test("doutorado rejeita nota acima do maximo e consolida a banca com os maximos oficiais", async () => {
+  const suffix = `doutorado-rubrica-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  const admin = await createAdmin(suffix);
+  const adminToken = createToken(admin.id, admin.email);
+
+  let editalId = "";
+  const usuarioIds: string[] = [admin.id];
+
+  try {
+    const edital = await prisma.edital.create({
+      data: {
+        numero: `RUB-${suffix}`,
+        titulo: `Edital rubrica ${suffix}`,
+        ano: 2026,
+        semestre: 1,
+        cursoNivel: CursoNivel.DOUTORADO,
+        status: StatusEdital.PUBLICADO,
+        publicadoEm: new Date(),
+        criadoPorId: admin.id,
+      },
+    });
+    editalId = edital.id;
+
+    const perfil = await request(app)
+      .post(`/v1/admin/editais/${editalId}/perfil-processo/pacote`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ slug: "ppgee-073-2026-doutorado" });
+    assert.equal(perfil.status, 200);
+
+    const linha = await prisma.linhaPesquisa.create({
+      data: {
+        editalId,
+        nome: `Linha ${suffix}`,
+        vagasAmplaConcorrencia: 1,
+        vagasAcoesAfirmativas: 0,
+        vagasPcd: 0,
+      },
+    });
+
+    const candidato = await prisma.usuario.create({
+      data: {
+        nomeCompleto: `Candidato ${suffix}`,
+        email: `candidato.${suffix}@teste.local`,
+        senhaHash: await bcrypt.hash("Senha123456", 10),
+        statusConta: StatusConta.ATIVA,
+        participacoes: { create: { editalId } },
+      },
+      include: { participacoes: true },
+    });
+    usuarioIds.push(candidato.id);
+
+    const avaliador2 = await prisma.usuario.create({
+      data: {
+        nomeCompleto: `Avaliador 2 ${suffix}`,
+        email: `avaliador2.${suffix}@teste.local`,
+        senhaHash: await bcrypt.hash("Senha123456", 10),
+        statusConta: StatusConta.ATIVA,
+      },
+    });
+    usuarioIds.push(avaliador2.id);
+
+    const inscricao = await prisma.inscricao.create({
+      data: {
+        participacaoEditalId: candidato.participacoes[0].id,
+        linhaPesquisaId: linha.id,
+        modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+        status: "HOMOLOGADA_FINAL",
+      },
+    });
+
+    const notaInvalida = await request(app)
+      .put(`/v1/admin/etapa-1/inscricoes/${inscricao.id}/resultado`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        criterios: [
+          { chave: "clareza", nota: 8 },
+          { chave: "objetividade", nota: 2 },
+          { chave: "coerencia", nota: 2 },
+          { chave: "relevancia", nota: 3 },
+          { chave: "referencias", nota: 1 },
+        ],
+        avaliadorUsuarioId: admin.id,
+        usoIaComprovado: false,
+        espelhoCorrecao: "Parecer com nota invalida.",
+        liberarEspelho: false,
+        publicacao: "PRELIMINAR",
+      });
+
+    assert.equal(notaInvalida.status, 409);
+    assert.equal(notaInvalida.body.code, "CRITERIO_ETAPA_1_NOTA_INVALIDA");
+
+    const criteriosOficiais = [
+      { chave: "clareza", nota: 2 },
+      { chave: "objetividade", nota: 2 },
+      { chave: "coerencia", nota: 2 },
+      { chave: "relevancia", nota: 3 },
+      { chave: "referencias", nota: 1 },
+    ];
+
+    const primeiro = await request(app)
+      .put(`/v1/admin/etapa-1/inscricoes/${inscricao.id}/resultado`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        criterios: criteriosOficiais,
+        avaliadorUsuarioId: admin.id,
+        usoIaComprovado: false,
+        espelhoCorrecao: "Parecer do primeiro avaliador.",
+        liberarEspelho: false,
+        publicacao: "PRELIMINAR",
+      });
+    assert.equal(primeiro.status, 200);
+    assert.equal(primeiro.body.bancaPendente, true);
+
+    const segundo = await request(app)
+      .put(`/v1/admin/etapa-1/inscricoes/${inscricao.id}/resultado`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        criterios: criteriosOficiais,
+        avaliadorUsuarioId: avaliador2.id,
+        usoIaComprovado: false,
+        espelhoCorrecao: "Parecer do segundo avaliador.",
+        liberarEspelho: false,
+        publicacao: "PRELIMINAR",
+      });
+    assert.equal(segundo.status, 200);
+    assert.equal(segundo.body.bancaPendente, false);
+    assert.equal(Number(segundo.body.avaliacao.nota), 10);
+  } finally {
+    if (editalId) await prisma.edital.deleteMany({ where: { id: editalId } });
+    await prisma.usuarioPerfil.deleteMany({ where: { usuarioId: { in: usuarioIds } } });
+    await prisma.usuario.deleteMany({ where: { id: { in: usuarioIds } } });
+  }
+});
