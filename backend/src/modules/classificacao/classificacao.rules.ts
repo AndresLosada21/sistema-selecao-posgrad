@@ -4,6 +4,7 @@ export type ClassificacaoConfiguracao = {
   pesoEtapa1: number;
   pesoEtapa2: number;
   desempate: DesempateClassificacao;
+  reservaUnificada?: boolean;
 };
 
 export const CLASSIFICACAO_CONFIGURACAO_PADRAO: ClassificacaoConfiguracao = {
@@ -94,11 +95,39 @@ export function compareClassificacaoCandidates(
 function buildApprovedSet(
   items: Array<ClassificacaoCandidate & { notaFinal: number }>,
   linha: ClassificacaoLinhaConfig,
+  reservaUnificada: boolean,
 ) {
   const approvedByParticipacaoId = new Map<string, ModalidadeConcorrencia>();
 
   for (const item of items.slice(0, linha.vagasAmplaConcorrencia)) {
     approvedByParticipacaoId.set(item.participacaoEditalId, ModalidadeConcorrencia.AMPLA_CONCORRENCIA);
+  }
+
+  const totalVagasReservadas = linha.vagasAcoesAfirmativas + linha.vagasPcd;
+  const limiteReservas = linha.vagasAmplaConcorrencia + totalVagasReservadas;
+
+  if (reservaUnificada) {
+    for (const item of items) {
+      if (approvedByParticipacaoId.size >= limiteReservas) {
+        break;
+      }
+
+      if (approvedByParticipacaoId.has(item.participacaoEditalId)) {
+        continue;
+      }
+
+      const acoesAfirmativas = item.confirmacaoAcoesAfirmativas === StatusConfirmacaoReserva.CONFIRMADA;
+      const pcd = item.confirmacaoPcd === StatusConfirmacaoReserva.CONFIRMADA;
+
+      if (acoesAfirmativas || pcd) {
+        approvedByParticipacaoId.set(
+          item.participacaoEditalId,
+          acoesAfirmativas ? ModalidadeConcorrencia.ACOES_AFIRMATIVAS : ModalidadeConcorrencia.PCD,
+        );
+      }
+    }
+
+    return approvedByParticipacaoId;
   }
 
   for (const item of items) {
@@ -177,7 +206,9 @@ export function rankClassificacao(input: {
       continue;
     }
 
-    const approvedIds = input.publicacao === "FINAL" ? buildApprovedSet(items, linha) : new Map<string, ModalidadeConcorrencia>();
+    const approvedIds = input.publicacao === "FINAL"
+      ? buildApprovedSet(items, linha, configuracao.reservaUnificada === true)
+      : new Map<string, ModalidadeConcorrencia>();
 
     items.forEach((item, index) => {
       ranked.push({

@@ -175,8 +175,8 @@ function getRequiredDocumentRules(input: {
   const reservas = resolveReservasConcorrencia(input);
   const modalidadeEtapa1 = input.modalidadeEtapa1 ?? ModalidadeEtapa1.REDACAO;
   const rules: RequiredDocumentRule[] = [
-    { tipo: TipoDocumentoInscricao.ANEXO_IV, label: "Anexo IV assinado" },
-    { tipo: TipoDocumentoInscricao.ANEXO_V, label: "Declaracao de titulos" },
+    { tipo: TipoDocumentoInscricao.ANEXO_IV, label: "Ficha de inscrição assinada" },
+    { tipo: TipoDocumentoInscricao.ANEXO_V, label: "Declaração de títulos" },
   ];
 
   if (modalidadeEtapa1 === ModalidadeEtapa1.PRE_PROJETO) {

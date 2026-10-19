@@ -79,6 +79,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
     exigeHistoricoGraduacao: true,
     exigeGrupoPesquisa: false,
     permiteCancelarSubmissao: true,
+    unificarReservasAcoesAfirmativasPcd: false,
   });
   const [processoPacotes, setProcessoPacotes] = useState<AdminPerfilProcessoPacoteResumo[]>([]);
   const [processoPacoteSlug, setProcessoPacoteSlug] = useState("");
@@ -114,6 +115,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
       exigeHistoricoGraduacao: r.configuracaoProcesso.exigeHistoricoGraduacao ?? true,
       exigeGrupoPesquisa: r.configuracaoProcesso.exigeGrupoPesquisa,
       permiteCancelarSubmissao: r.configuracaoProcesso.permiteCancelarSubmissao,
+      unificarReservasAcoesAfirmativasPcd: r.configuracaoProcesso.unificarReservasAcoesAfirmativasPcd,
     });
     setEditalForm({
       numero: r.numero, titulo: r.titulo, descricao: r.descricao ?? "",
@@ -398,7 +400,7 @@ export default function AdminEditalDetailPage({ params }: Props) {
           </div>
           <div className="admin-form-row">
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.exigeGrupoPesquisa} onChange={(e) => setProcessoForm((c) => ({ ...c, exigeGrupoPesquisa: e.target.checked }))} type="checkbox" />Exige grupo de pesquisa</label>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.permiteCancelarSubmissao} onChange={(e) => setProcessoForm((c) => ({ ...c, permiteCancelarSubmissao: e.target.checked }))} type="checkbox" />Permite cancelar submissão</label>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.permiteCancelarSubmissao} onChange={(e) => setProcessoForm((c) => ({ ...c, permiteCancelarSubmissao: e.target.checked }))} type="checkbox" />Permite cancelar submissão</label>`r`n            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}><input checked={processoForm.unificarReservasAcoesAfirmativasPcd} onChange={(e) => setProcessoForm((c) => ({ ...c, unificarReservasAcoesAfirmativasPcd: e.target.checked }))} type="checkbox" />Unificar ações afirmativas e PCD na mesma reserva</label>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="admin-page-cta" disabled={busy} type="submit" style={{ fontSize: 13, padding: "8px 16px" }}>Salvar configuração</button>
@@ -629,3 +631,4 @@ export default function AdminEditalDetailPage({ params }: Props) {
     </div>
   );
 }
+

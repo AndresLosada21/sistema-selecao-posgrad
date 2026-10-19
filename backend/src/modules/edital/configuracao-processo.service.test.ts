@@ -24,6 +24,7 @@ const configuracaoBase = {
   exigeHistoricoGraduacao: true,
   exigeGrupoPesquisa: false,
   permiteCancelarSubmissao: true,
+  unificarReservasAcoesAfirmativasPcd: false,
 };
 
 function assertCodigoDeErro(fn: () => void, codigo: string) {
@@ -111,6 +112,7 @@ test("perfil de doutorado declara pre-projeto, banca e pesos iniciais", () => {
   assert.equal(doutorado.exigeHistoricoGraduacao, false);
   assert.equal(doutorado.permiteCancelarSubmissao, false);
   assert.equal(doutorado.exigeGrupoPesquisa, false);
+  assert.equal(doutorado.unificarReservasAcoesAfirmativasPcd, true);
   assert.deepEqual(
     doutorado.criterios.map((criterio) => criterio.notaMaxima),
     [2, 2, 2, 3, 1],

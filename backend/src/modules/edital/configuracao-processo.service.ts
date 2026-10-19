@@ -25,6 +25,7 @@ export const CONFIGURACAO_PROCESSO_PADRAO = {
   exigeHistoricoGraduacao: true,
   exigeGrupoPesquisa: false,
   permiteCancelarSubmissao: true,
+  unificarReservasAcoesAfirmativasPcd: false,
 } as const;
 
 export type ConfiguracaoProcessoResumo = {
@@ -39,6 +40,7 @@ export type ConfiguracaoProcessoResumo = {
   exigeHistoricoGraduacao: boolean;
   exigeGrupoPesquisa: boolean;
   permiteCancelarSubmissao: boolean;
+  unificarReservasAcoesAfirmativasPcd: boolean;
   configurada: boolean;
 };
 
@@ -67,6 +69,7 @@ export type UpsertConfiguracaoProcessoInput = {
   exigeHistoricoGraduacao: boolean;
   exigeGrupoPesquisa: boolean;
   permiteCancelarSubmissao: boolean;
+  unificarReservasAcoesAfirmativasPcd: boolean;
 };
 
 export type UpsertCriterioEtapa1Input = {
@@ -103,6 +106,7 @@ type ConfiguracaoProcessoRow = {
   exigeHistoricoGraduacao: boolean;
   exigeGrupoPesquisa: boolean;
   permiteCancelarSubmissao: boolean;
+  unificarReservasAcoesAfirmativasPcd: boolean;
 };
 
 type CriterioEtapa1Row = {
@@ -132,6 +136,7 @@ export function resolveConfiguracaoProcesso(row: ConfiguracaoProcessoRow | null)
     exigeHistoricoGraduacao: row.exigeHistoricoGraduacao,
     exigeGrupoPesquisa: row.exigeGrupoPesquisa,
     permiteCancelarSubmissao: row.permiteCancelarSubmissao,
+    unificarReservasAcoesAfirmativasPcd: row.unificarReservasAcoesAfirmativasPcd,
     configurada: true,
   };
 }
@@ -255,6 +260,7 @@ export async function upsertConfiguracaoProcesso(
     exigeHistoricoGraduacao: input.exigeHistoricoGraduacao,
     exigeGrupoPesquisa: input.exigeGrupoPesquisa,
     permiteCancelarSubmissao: input.permiteCancelarSubmissao,
+    unificarReservasAcoesAfirmativasPcd: input.unificarReservasAcoesAfirmativasPcd,
   };
 
   const configuracao = await prisma.configuracaoProcessoEdital.upsert({
@@ -356,6 +362,7 @@ async function applyPerfilProcessoPacoteInTransaction(
       exigeHistoricoGraduacao: pacote.exigeHistoricoGraduacao,
       exigeGrupoPesquisa: pacote.exigeGrupoPesquisa,
       permiteCancelarSubmissao: pacote.permiteCancelarSubmissao,
+      unificarReservasAcoesAfirmativasPcd: pacote.unificarReservasAcoesAfirmativasPcd,
     },
     create: {
       editalId,
@@ -369,6 +376,7 @@ async function applyPerfilProcessoPacoteInTransaction(
       exigeHistoricoGraduacao: pacote.exigeHistoricoGraduacao,
       exigeGrupoPesquisa: pacote.exigeGrupoPesquisa,
       permiteCancelarSubmissao: pacote.permiteCancelarSubmissao,
+      unificarReservasAcoesAfirmativasPcd: pacote.unificarReservasAcoesAfirmativasPcd,
     },
   });
 
@@ -452,6 +460,7 @@ export async function assertConfiguracaoCompletaParaPublicacao(editalId: string)
     exigeHistoricoGraduacao: configuracao.exigeHistoricoGraduacao,
     exigeGrupoPesquisa: configuracao.exigeGrupoPesquisa,
     permiteCancelarSubmissao: configuracao.permiteCancelarSubmissao,
+    unificarReservasAcoesAfirmativasPcd: configuracao.unificarReservasAcoesAfirmativasPcd,
   });
 
   validateRubricaEtapa1(
@@ -543,3 +552,4 @@ export async function deleteGrupoPesquisa(editalId: string, grupoId: string) {
 
   await prisma.grupoPesquisa.delete({ where: { id: grupoId } });
 }
+

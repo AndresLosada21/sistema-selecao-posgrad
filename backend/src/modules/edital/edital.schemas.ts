@@ -136,6 +136,7 @@ export const upsertConfiguracaoProcessoSchema = z.object({
   exigeHistoricoGraduacao: z.boolean(),
   exigeGrupoPesquisa: z.boolean(),
   permiteCancelarSubmissao: z.boolean(),
+  unificarReservasAcoesAfirmativasPcd: z.boolean(),
 });
 
 export const upsertCriterioEtapa1Schema = z.object({

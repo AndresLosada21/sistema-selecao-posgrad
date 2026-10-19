@@ -1601,6 +1601,7 @@ export const ConfiguracaoProcessoRequestSchema = upsertConfiguracaoProcessoSchem
     exigeHistoricoGraduacao: false,
     exigeGrupoPesquisa: true,
     permiteCancelarSubmissao: false,
+    unificarReservasAcoesAfirmativasPcd: true,
   },
 });
 
@@ -1616,6 +1617,7 @@ export const ConfiguracaoProcessoResumoSchema = z.object({
   exigeHistoricoGraduacao: z.boolean(),
   exigeGrupoPesquisa: z.boolean(),
   permiteCancelarSubmissao: z.boolean(),
+  unificarReservasAcoesAfirmativasPcd: z.boolean(),
   configurada: z.boolean(),
 }).openapi("ConfiguracaoProcessoResumo");
 

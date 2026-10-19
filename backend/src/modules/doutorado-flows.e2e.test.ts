@@ -160,6 +160,7 @@ test("doutorado exige pre-projeto e grupo de pesquisa e nao permite cancelar sub
         exigeHistoricoGraduacao: false,
         exigeGrupoPesquisa: true,
         permiteCancelarSubmissao: false,
+        unificarReservasAcoesAfirmativasPcd: true,
       });
     assert.equal(configuracaoComGrupo.status, 200);
 

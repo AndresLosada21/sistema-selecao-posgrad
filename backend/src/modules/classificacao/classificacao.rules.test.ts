@@ -123,6 +123,61 @@ test("aplica desempate por etapa 1, etapa 2 e idade", () => {
   );
 });
 
+test("reserva unificada permite que candidato PCD ocupe vaga de acoes afirmativas", () => {
+  const linhas = [{ id: "linha-1", vagasAmplaConcorrencia: 1, vagasAcoesAfirmativas: 1, vagasPcd: 0 }];
+  const candidates = [
+    {
+      inscricaoId: "i1",
+      participacaoEditalId: "p1",
+      linhaPesquisaId: "linha-1",
+      modalidadeConcorrencia: ModalidadeConcorrencia.AMPLA_CONCORRENCIA,
+      confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      confirmacaoPcd: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      notaEtapa1: 9,
+      notaEtapa2: 9,
+      dataNascimento: new Date("1990-01-01"),
+    },
+    {
+      inscricaoId: "i2",
+      participacaoEditalId: "p2",
+      linhaPesquisaId: "linha-1",
+      modalidadeConcorrencia: ModalidadeConcorrencia.PCD,
+      confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      confirmacaoPcd: StatusConfirmacaoReserva.CONFIRMADA,
+      notaEtapa1: 8,
+      notaEtapa2: 8,
+      dataNascimento: new Date("1990-01-01"),
+    },
+    {
+      inscricaoId: "i3",
+      participacaoEditalId: "p3",
+      linhaPesquisaId: "linha-1",
+      modalidadeConcorrencia: ModalidadeConcorrencia.ACOES_AFIRMATIVAS,
+      confirmacaoAcoesAfirmativas: StatusConfirmacaoReserva.CONFIRMADA,
+      confirmacaoPcd: StatusConfirmacaoReserva.NAO_SE_APLICA,
+      notaEtapa1: 7,
+      notaEtapa2: 7,
+      dataNascimento: new Date("1990-01-01"),
+    },
+  ];
+
+  const separado = rankClassificacao({ publicacao: "FINAL", linhas, candidates });
+  const unificado = rankClassificacao({
+    publicacao: "FINAL",
+    linhas,
+    candidates,
+    configuracao: { pesoEtapa1: 1, pesoEtapa2: 2, desempate: DesempateClassificacao.ETAPA1_ETAPA2_IDADE, reservaUnificada: true },
+  });
+
+  const statusPorId = (items: ReturnType<typeof rankClassificacao>, id: string) =>
+    items.find((item) => item.participacaoEditalId === id)?.status;
+
+  assert.equal(statusPorId(separado, "p2"), StatusClassificacaoFinal.LISTA_DE_ESPERA);
+  assert.equal(statusPorId(separado, "p3"), StatusClassificacaoFinal.APROVADO);
+  assert.equal(statusPorId(unificado, "p2"), StatusClassificacaoFinal.APROVADO);
+  assert.equal(statusPorId(unificado, "p3"), StatusClassificacaoFinal.LISTA_DE_ESPERA);
+});
+
 test("distribui vagas por linha priorizando ampla e depois reservas", () => {
   const items = rankClassificacao({
     publicacao: "FINAL",

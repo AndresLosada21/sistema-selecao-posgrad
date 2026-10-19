@@ -295,6 +295,7 @@ export async function getAdminEditalById(editalId: string): Promise<AdminEditalD
       exigeHistoricoGraduacao: configuracaoProcesso.exigeHistoricoGraduacao,
       exigeGrupoPesquisa: configuracaoProcesso.exigeGrupoPesquisa,
       permiteCancelarSubmissao: configuracaoProcesso.permiteCancelarSubmissao,
+      unificarReservasAcoesAfirmativasPcd: configuracaoProcesso.unificarReservasAcoesAfirmativasPcd,
       configurada: configuracaoProcesso.configurada,
     },
     criteriosEtapa1: configuracaoProcesso.criterios,
@@ -356,7 +357,9 @@ async function assertEditalEstruturaMinimaParaPublicacao(editalId: string) {
 
   const dependencies: Array<{ tipo: TipoCronogramaEdital; dependeDe: TipoCronogramaEdital }> = [
     { tipo: "RECURSO_HOMOLOGACAO", dependeDe: "HOMOLOGACAO_PRELIMINAR" },
+    { tipo: "ESPELHO_ETAPA_1", dependeDe: "ETAPA_1" },
     { tipo: "RECURSO_ETAPA_1", dependeDe: "ETAPA_1" },
+    { tipo: "ESPELHO_ETAPA_2", dependeDe: "ETAPA_2" },
     { tipo: "RECURSO_ETAPA_2", dependeDe: "ETAPA_2" },
     { tipo: "RECURSO_CLASSIFICACAO", dependeDe: "CLASSIFICACAO_PRELIMINAR" },
   ];
@@ -374,6 +377,20 @@ async function assertEditalEstruturaMinimaParaPublicacao(editalId: string) {
 
     if (faseBase && faseRecurso && faseBase.fimEm > faseRecurso.inicioEm) {
       throw conflict(`Nao e permitido abrir ${dependency.tipo} antes do encerramento de ${dependency.dependeDe}.`, "EDITAL_CRONOGRAMA_SEQUENCIA_INVALIDA");
+    }
+  }
+
+  const espelhoRecursoPairs: Array<{ espelho: TipoCronogramaEdital; recurso: TipoCronogramaEdital }> = [
+    { espelho: "ESPELHO_ETAPA_1", recurso: "RECURSO_ETAPA_1" },
+    { espelho: "ESPELHO_ETAPA_2", recurso: "RECURSO_ETAPA_2" },
+  ];
+
+  for (const pair of espelhoRecursoPairs) {
+    const espelho = cronogramaByTipo.get(pair.espelho);
+    const recurso = cronogramaByTipo.get(pair.recurso);
+
+    if (espelho && recurso && espelho.fimEm > recurso.inicioEm) {
+      throw conflict(`Nao e permitido abrir ${pair.recurso} antes do encerramento de ${pair.espelho}.`, "EDITAL_CRONOGRAMA_SEQUENCIA_INVALIDA");
     }
   }
 
