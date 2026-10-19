@@ -28,12 +28,19 @@ Este documento resume o que hoje esta coberto por testes unitarios, E2E e valida
 
 ## Suites E2E atuais
 
+- `backend/src/concurrency.e2e.test.ts`
 - `backend/src/hardening.e2e.test.ts`
 - `backend/src/modules/auth/auth.e2e.test.ts`
 - `backend/src/modules/authz-ownership.e2e.test.ts`
 - `backend/src/modules/candidate-flows.e2e.test.ts`
+- `backend/src/modules/doutorado-flows.e2e.test.ts`
 - `backend/src/modules/inscricao/document-policy.e2e.test.ts`
 - `backend/src/modules/admin-flows.e2e.test.ts`
+- `backend/src/modules/edital/edital.e2e.test.ts`
+- `backend/src/modules/edital/edital-windows.e2e.test.ts`
+- `backend/src/modules/etapa1/etapa1-espelho.e2e.test.ts`
+- `backend/src/modules/classificacao/classificacao.e2e.test.ts`
+- `backend/src/modules/isencao/isencao.e2e.test.ts`
 - `backend/src/modules/publicacao/publicacao.e2e.test.ts`
 - `backend/src/modules/politicas-afirmativas/politicas-afirmativas.e2e.test.ts`
 - `backend/src/modules/operacional-final.e2e.test.ts`
