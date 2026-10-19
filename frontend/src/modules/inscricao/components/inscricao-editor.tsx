@@ -1588,10 +1588,16 @@ function Step2DadosAcademicos({ formState, setFormState, edital, cursoLabel, fie
           </div>
         </div>
 
-        {edital.configuracaoProcesso?.exigeGrupoPesquisa ? (
+        {(edital.gruposPesquisa ?? []).length > 0 ? (
           <div className="wiz-field">
-            <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>Grupo de Pesquisa</label>
-            <span className="wiz-field-hint">Este edital exige a escolha de um grupo de pesquisa.</span>
+            <label className="wiz-field-label" style={{ fontSize: 14, fontWeight: 600 }}>
+              Grupo de Pesquisa {edital.configuracaoProcesso?.exigeGrupoPesquisa ? "" : "(opcional)"}
+            </label>
+            <span className="wiz-field-hint">
+              {edital.configuracaoProcesso?.exigeGrupoPesquisa
+                ? "Este edital exige a escolha de um grupo de pesquisa."
+                : "Opcional neste edital. Selecione apenas se quiser indicar um grupo."}
+            </span>
             <select
               value={formState.grupoPesquisaId}
               onChange={(e) => {
